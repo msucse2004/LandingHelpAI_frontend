@@ -1,3 +1,4 @@
+import { loadSidebar } from "../components/sidebar.js";
 import { getSession } from "../core/auth.js";
 import { getCurrentRoleTierLabelKo, protectCurrentPage } from "../core/guards.js";
 
@@ -12,8 +13,9 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
-function main() {
+async function main() {
   if (!protectCurrentPage()) return;
+  await loadSidebar("#sidebar", "customer");
   const s = getSession();
   if (!s || !profileDl) {
     profileEmpty?.removeAttribute("hidden");

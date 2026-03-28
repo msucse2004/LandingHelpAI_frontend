@@ -12,3 +12,5 @@ async function initAdminCustomersPage() {
 }
 
 export { initAdminCustomersPage };
+
+void initAdminCustomersPage();

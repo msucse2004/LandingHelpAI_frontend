@@ -24,6 +24,7 @@ body {
   padding: var(--lhai-space-4) var(--lhai-space-6);
   border-bottom: 1px solid var(--lhai-color-border);
   background: rgba(6, 18, 36, 0.4);
+  overflow: visible;
 }
 
 .lhai-layout {

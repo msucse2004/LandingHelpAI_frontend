@@ -1,4 +1,5 @@
 import { APP_CONFIG } from "./config.js";
+import { getAccessToken } from "./auth.js";
 
 /**
  * Expected data shapes (mocked):
@@ -12,6 +13,16 @@ import { APP_CONFIG } from "./config.js";
 
 const mockDelay = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** 로그인 시 저장된 JWT를 보호 API 요청에 붙입니다. */
+function withAuthHeaders(extra = {}) {
+  const h = { ...extra };
+  const token = getAccessToken();
+  if (token != null && String(token).trim() !== "") {
+    h.Authorization = `Bearer ${String(token).trim()}`;
+  }
+  return h;
+}
+
 async function apiFetch(path, options = {}) {
   // TODO: Replace with real backend request pipeline in next step.
   await mockDelay(80);
@@ -22,13 +33,13 @@ async function apiFetch(path, options = {}) {
   };
 }
 
-async function tryBackendPost(path, body) {
+async function tryBackendPost(path, body, extraHeaders = {}) {
   if (!APP_CONFIG.preferBackendAuth) {
     throw new Error("Backend auth disabled by config");
   }
   const response = await fetch(`${APP_CONFIG.apiBaseUrl}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: withAuthHeaders({ "Content-Type": "application/json", ...extraHeaders }),
     body: JSON.stringify(body),
   });
   const contentType = response.headers.get("content-type") || "";
@@ -40,8 +51,10 @@ async function tryBackendPost(path, body) {
   return payload;
 }
 
-async function tryBackendGet(path) {
-  const response = await fetch(`${APP_CONFIG.apiBaseUrl}${path}`);
+async function tryBackendGet(path, extraHeaders = {}) {
+  const response = await fetch(`${APP_CONFIG.apiBaseUrl}${path}`, {
+    headers: withAuthHeaders(extraHeaders),
+  });
   const contentType = response.headers.get("content-type") || "";
   const payload = contentType.includes("application/json") ? await response.json() : await response.text();
   if (!response.ok) {
@@ -51,10 +64,10 @@ async function tryBackendGet(path) {
   return payload;
 }
 
-async function tryBackendPatch(path, body) {
+async function tryBackendPatch(path, body, extraHeaders = {}) {
   const response = await fetch(`${APP_CONFIG.apiBaseUrl}${path}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: withAuthHeaders({ "Content-Type": "application/json", ...extraHeaders }),
     body: JSON.stringify(body),
   });
   const contentType = response.headers.get("content-type") || "";
@@ -78,8 +91,11 @@ function formatFastApiDetail(detail) {
   return String(detail);
 }
 
-async function tryBackendDelete(path) {
-  const response = await fetch(`${APP_CONFIG.apiBaseUrl}${path}`, { method: "DELETE" });
+async function tryBackendDelete(path, extraHeaders = {}) {
+  const response = await fetch(`${APP_CONFIG.apiBaseUrl}${path}`, {
+    method: "DELETE",
+    headers: withAuthHeaders(extraHeaders),
+  });
   if (response.status === 204 || response.status === 205) {
     return null;
   }
@@ -122,24 +138,7 @@ const authApi = {
    * { username, email, full_name, password, password_confirm, birth_date, gender, role_name?, invitation_token? }
    */
   async signup(payload) {
-    try {
-      return await tryBackendPost("/api/auth/signup", payload);
-    } catch {
-      await mockDelay();
-      return {
-        user_id: `user-${Date.now()}`,
-        username: payload.username || "",
-        email: payload.email,
-        role: payload.role_name || "customer",
-        membership_status: "pending_verification",
-        birth_date: payload.birth_date || null,
-        gender: payload.gender || null,
-        email_verification_token: `mock-verify-${Date.now()}`,
-        verification_email_sent: false,
-        message: "Mock signup: SMTP 없음. 토큰으로 verify-email 페이지에서 인증하세요.",
-        mocked: true,
-      };
-    }
+    return await tryBackendPost("/api/auth/signup", payload);
   },
   async login(payload) {
     try {
@@ -572,6 +571,7 @@ const messagesApi = {
       return await tryBackendGet(`/api/messages?${params.toString()}`);
     } catch {
       await mockDelay();
+      const ts = new Date().toISOString();
       return [
         {
           id: "msg-1",
@@ -583,9 +583,72 @@ const messagesApi = {
           unread: true,
           read_at: "",
           event_code: "quote.proposed",
-          created_at: new Date().toISOString(),
+          thread_id: "mock-thread-1",
+          direction: "SYSTEM",
+          created_at: ts,
         },
       ];
+    }
+  },
+  async listThreads({ customerProfileId = "profile::demo@customer.com", category = "", unreadOnly = false } = {}) {
+    const params = new URLSearchParams({ customer_profile_id: customerProfileId });
+    if (category) params.set("category", category);
+    if (unreadOnly) params.set("unread_only", "true");
+    try {
+      return await tryBackendGet(`/api/messages/threads?${params.toString()}`);
+    } catch {
+      await mockDelay();
+      const messages = await this.list({ customerProfileId, category, unreadOnly });
+      return messages.map((message) => ({
+        thread_id: message.thread_id || message.id,
+        title: `[${customerProfileId}] 정착 서비스`,
+        preview: (message.body || "").slice(0, 120),
+        message_type: message.message_type,
+        unread: message.unread,
+        last_message_at: message.created_at,
+      }));
+    }
+  },
+  async threadMessages(threadId, { customerProfileId = "profile::demo@customer.com" } = {}) {
+    const params = new URLSearchParams({ customer_profile_id: customerProfileId });
+    try {
+      return await tryBackendGet(
+        `/api/messages/threads/${encodeURIComponent(threadId)}/messages?${params.toString()}`
+      );
+    } catch {
+      await mockDelay();
+      const messages = await this.list({ customerProfileId });
+      const key = String(threadId);
+      const threadMsgs = messages.filter((m) => String(m.thread_id || m.id) === key);
+      if (!threadMsgs.length) return [];
+      return [...threadMsgs].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    }
+  },
+  async sendThreadMessage(body, { threadId, customerProfileId = "profile::demo@customer.com", title = "" } = {}) {
+    const t = String(threadId || "").trim();
+    if (!t) throw new Error("threadId required");
+    try {
+      return await tryBackendPost(
+        `/api/messages/threads/${encodeURIComponent(t)}/messages?customer_profile_id=${encodeURIComponent(customerProfileId)}`,
+        { body, title }
+      );
+    } catch {
+      await mockDelay();
+      return {
+        id: `mock-send-${Date.now()}`,
+        customer_profile_id: customerProfileId,
+        sender_user_id: null,
+        message_type: "CHAT",
+        title: title || "메시지",
+        body,
+        unread: false,
+        read_at: "",
+        event_code: "",
+        thread_id: t,
+        direction: "INBOUND",
+        created_at: new Date().toISOString(),
+        mocked: true,
+      };
     }
   },
   async markRead(messageId, read = true) {
@@ -611,15 +674,15 @@ const messagesApi = {
       return { event_code: eventCode, mocked: true };
     }
   },
-  async listThreads() {
-    const messages = await this.list();
-    return messages.map((message) => ({
-      id: message.id,
-      subject: message.title,
+  async listThreadsLegacy() {
+    const threads = await this.listThreads();
+    return threads.map((row) => ({
+      id: row.thread_id,
+      subject: row.title,
       participants: ["customer", "operator"],
-      lastMessageAt: message.created_at,
-      unread: message.unread,
-      messageType: message.message_type,
+      lastMessageAt: row.last_message_at,
+      unread: row.unread,
+      messageType: row.message_type,
     }));
   },
 };
@@ -813,11 +876,18 @@ const adminApi = {
   },
   /** @returns {Promise<object>} updated row */
   async patchAuthAccountRegistration(userId, patch) {
+    if (!getAccessToken()?.trim()) {
+      throw new Error("수정하려면 로그인 후 발급된 액세스 토큰이 필요합니다.");
+    }
     return await tryBackendPatch(`/api/admin/accounts/${encodeURIComponent(userId)}`, patch);
   },
   async deleteAuthAccount(userId) {
+    if (!getAccessToken()?.trim()) {
+      throw new Error("삭제하려면 로그인 후 발급된 액세스 토큰이 필요합니다.");
+    }
     return await tryBackendDelete(`/api/admin/accounts/${encodeURIComponent(userId)}`);
   },
+  /** 서버가 JWT에서 초대 권한·역할 티어를 판별합니다. */
   async listInvitableRoles() {
     try {
       return await tryBackendGet("/api/admin/invitations/roles");
@@ -827,19 +897,12 @@ const adminApi = {
     }
   },
   async sendMemberInvitation(payload) {
-    const response = await fetch(`${APP_CONFIG.apiBaseUrl}/api/admin/invitations/send`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+    const { email, role_name, personal_message = "" } = payload || {};
+    return await tryBackendPost("/api/admin/invitations/send", {
+      email,
+      role_name,
+      personal_message,
     });
-    const contentType = response.headers.get("content-type") || "";
-    const data = contentType.includes("application/json") ? await response.json() : await response.text();
-    if (!response.ok) {
-      const raw = typeof data === "object" ? data.detail : data;
-      const detail = formatFastApiDetail(raw) || (typeof raw === "string" ? raw : "");
-      throw new Error(detail || `Request failed (${response.status})`);
-    }
-    return data;
   },
   async listCustomers() {
     await mockDelay();

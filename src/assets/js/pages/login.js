@@ -22,16 +22,17 @@ if (form) {
       setStatus("로그인 중…");
       const result = await authApi.login(payload);
       setAccessToken(result.access_token);
+      const displayId = String(result.username || payload.login_id || "").trim();
       setSession({
         userId: result.user_id,
         role: result.role,
         email: result.email,
-        username: result.username || "",
+        username: displayId,
       });
       setStatus(`${result.role} 역할로 로그인했습니다. 이동 중…`);
-      const destination = result.role.includes("admin") || result.role === "supervisor"
-        ? "admin-dashboard.html"
-        : "dashboard.html";
+      const roleKey = String(result.role || "").trim().toLowerCase().replace(/-/g, "_");
+      const destination =
+        roleKey.includes("admin") || roleKey === "supervisor" ? "admin-dashboard.html" : "dashboard.html";
       window.location.href = destination;
     } catch (error) {
       setStatus(`로그인 실패: ${error.message}`);

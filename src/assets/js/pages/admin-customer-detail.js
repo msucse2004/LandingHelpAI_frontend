@@ -35,28 +35,31 @@ function renderSimpleList(targetSelector, items = []) {
   `;
 }
 
-function renderMessages(messages = []) {
+function renderMessageThreadsForAdmin(threads = [], customerProfileId) {
   const target = document.querySelector("#adminCustomerMessages");
   if (!target) return;
-  if (!messages.length) {
-    target.innerHTML = `<div class="lhai-state lhai-state--empty">No in-app messages.</div>`;
+  if (!threads.length) {
+    target.innerHTML = `<div class="lhai-state lhai-state--empty">인앱 메시지 스레드가 없습니다.</div>
+      <p class="u-mt-2"><a class="lhai-button lhai-button--secondary" href="messages.html?customer_profile_id=${encodeURIComponent(customerProfileId)}">메시지함 열기</a></p>`;
     return;
   }
+  const base = `messages.html?customer_profile_id=${encodeURIComponent(customerProfileId)}`;
   target.innerHTML = `
     <ul class="lhai-list">
-      ${messages
+      ${threads
         .map(
-          (message) => `
+          (row) => `
             <li class="lhai-list__item">
-              <strong>${safeText(message.title)}</strong>
-              <div><span class="lhai-badge">${safeText(message.message_type)}</span> ${message.unread ? "<span class='lhai-badge lhai-badge--warning'>UNREAD</span>" : ""}</div>
-              <p class="u-text-muted">${safeText(message.body)}</p>
-              <small class="u-text-muted">${formatDate(message.created_at)} / event: ${safeText(message.event_code || "-")}</small>
+              <a href="${base}&thread_id=${encodeURIComponent(String(row.thread_id))}"><strong>${safeText(row.title)}</strong></a>
+              <div class="u-mt-1"><span class="lhai-badge">${safeText(row.message_type)}</span> ${row.unread ? "<span class='lhai-badge lhai-badge--warning'>미읽음</span>" : ""}</div>
+              <p class="u-text-muted">${safeText(row.preview)}</p>
+              <small class="u-text-muted">${formatDate(row.last_message_at)}</small>
             </li>
           `
         )
         .join("")}
     </ul>
+    <p class="u-mt-2"><a class="lhai-button lhai-button--secondary" href="${base}">전체 메시지함</a></p>
   `;
 }
 
@@ -88,12 +91,12 @@ async function initAdminCustomerDetailPage() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
   const customerProfileId = "profile::demo@customer.com";
-  const [messages, emailLogs, summary] = await Promise.all([
-    messagesApi.list({ customerProfileId }),
+  const [threads, emailLogs, summary] = await Promise.all([
+    messagesApi.listThreads({ customerProfileId }),
     emailLogsApi.list(customerProfileId),
     adminApi.getCustomerOperationsSummary(customerProfileId),
   ]);
-  renderMessages(messages);
+  renderMessageThreadsForAdmin(threads, customerProfileId);
   renderEmailLogs(emailLogs);
   renderSimpleMap("#adminOpsOverview", summary.overview || {});
   renderSimpleMap("#adminOpsQuoteStatus", summary.quote_status || {});

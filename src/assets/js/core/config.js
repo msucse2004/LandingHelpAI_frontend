@@ -36,6 +36,9 @@ const ROLES = {
   HEADQUARTERS_STAFF: "headquarters_staff",
   ADMIN: "admin",
   OPERATOR: "operator",
+  GUEST: "guest",
 };
+
+/** 역할 티어(1~6)는 core/role-tiers.js · guards.js 에서 사용 */
 
 export { APP_CONFIG, ROLES };

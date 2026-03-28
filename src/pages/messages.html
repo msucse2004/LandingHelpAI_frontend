@@ -8,46 +8,49 @@
   <link rel="stylesheet" href="../assets/css/pages/messages.css" />
 </head>
 <body>
-  <header class="lhai-topbar"><div class="lhai-brand">Landing Help AI</div><div class="lhai-topbar__right"><button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-lhai-logout>로그아웃</button><span class="lhai-badge lhai-badge--customer">Customer</span></div></header>
+    <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
     <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
     <main class="lhai-main">
       <section class="lhai-page-header">
         <div>
-          <h1 class="lhai-title">Message Inbox</h1>
-          <p class="lhai-subtitle">Auditable communication center for system, admin, AI, payment, and document updates.</p>
+          <h1 class="lhai-title">메시지함</h1>
+          <p class="lhai-subtitle">시스템·결제·문서 알림을 스레드로 모아 보고, 카카오톡처럼 답장할 수 있습니다.</p>
         </div>
       </section>
       <section class="lhai-card lhai-message-filters">
         <label class="lhai-field">
-          <span class="lhai-label">Category</span>
+          <span class="lhai-label">구분</span>
           <select id="messageCategoryFilter">
-            <option value="">All</option>
+            <option value="">전체</option>
             <option value="SYSTEM">SYSTEM</option>
             <option value="ADMIN">ADMIN</option>
             <option value="AI">AI</option>
             <option value="PAYMENT">PAYMENT</option>
             <option value="DOCUMENT">DOCUMENT</option>
+            <option value="CHAT">CHAT</option>
           </select>
         </label>
         <label class="lhai-checkbox">
           <input id="messageUnreadOnly" type="checkbox" />
-          <span>Unread only</span>
+          <span>읽지 않음만</span>
         </label>
       </section>
       <section class="lhai-grid lhai-grid--2">
         <article class="lhai-card">
-          <h2 class="lhai-card__title">Messages</h2>
+          <h2 class="lhai-card__title">대화 목록</h2>
           <div id="messageListContainer" class="lhai-message-list"></div>
         </article>
         <article class="lhai-card">
-          <h2 class="lhai-card__title">Message Detail</h2>
-          <div id="messageDetailContainer" class="lhai-message-detail lhai-state lhai-state--empty">Select a message from the list.</div>
+          <h2 class="lhai-card__title">대화</h2>
+          <div id="messageDetailContainer" class="lhai-message-detail lhai-state lhai-state--empty">왼쪽에서 대화를 선택하세요.</div>
         </article>
       </section>
     </main>
   </div>
+  <script type="module" src="../assets/js/core/app-header.js"></script>
   <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
   <script type="module" src="../assets/js/pages/messages.js"></script>
 </body>
 </html>

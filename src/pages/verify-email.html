@@ -19,6 +19,17 @@
       <p class="lhai-help" id="verifyStatus">토큰을 입력하세요.</p>
       <p class="u-mt-2"><a href="login.html">로그인</a> · <a href="signup.html">회원가입</a></p>
     </section>
+    <dialog id="verifyResultDialog" class="lhai-dialog" aria-labelledby="verifyResultTitle">
+      <div class="lhai-dialog__inner">
+        <h2 class="lhai-dialog__title" id="verifyResultTitle"></h2>
+        <div class="lhai-dialog__body" id="verifyResultBody"></div>
+        <div class="lhai-dialog__actions">
+          <form method="dialog">
+            <button type="submit" class="lhai-button lhai-button--primary" id="verifyResultCloseBtn" value="close">확인</button>
+          </form>
+        </div>
+      </div>
+    </dialog>
   </main>
   <script type="module" src="../assets/js/pages/verify-email.js"></script>
 </body>

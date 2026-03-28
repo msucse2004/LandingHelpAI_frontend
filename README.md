@@ -26,14 +26,11 @@ python -m http.server 3000 --directory .
 브라우저에서 `http://localhost:3000` 접속 후 사용합니다.  
 백엔드는 기본 `http://localhost:8000`을 참조합니다.
 
-## Demo Data / Accounts
+## 계정
 
-로그인 계정(백엔드 시드 기준):
-- customer: `demo.customer@landinghelp.ai` / `demo1234!`
-- admin: 아이디 `admin` 또는 `demo.admin@landinghelp.ai` / `1234`
-- supervisor(L3+): `demo.supervisor@landinghelp.ai` / `demo1234!`
+백엔드는 고정 데모 계정을 만들지 않습니다. 회원가입·초대로 만든 아이디/이메일과 비밀번호로 로그인하세요.
 
-데모 페이지:
+주요 페이지:
 - 서비스 목록: `src/pages/services.html`
 - 고객: quote/invoice/documents/messages/schedule/ai-assistant
 - 관리자: quotes/invoices/documents/schedules/risk-board/customer-detail

@@ -98,6 +98,58 @@
   color: var(--lhai-color-text-muted);
 }
 
+/* 입력창 오른쪽 유효(초록 체크) / 무효(빨간 X) 표시 */
+.lhai-input-status-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.lhai-input-status-wrap--flex {
+  flex: 1;
+  min-width: 0;
+}
+
+.lhai-input-status-wrap .lhai-input,
+.lhai-input-status-wrap .lhai-select {
+  width: 100%;
+  padding-right: 2.4rem;
+  box-sizing: border-box;
+}
+
+.lhai-field-status-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  pointer-events: none;
+}
+
+.lhai-field-status-svg {
+  display: none;
+}
+
+.lhai-field-status-svg--ok {
+  color: var(--lhai-status-success);
+}
+
+.lhai-field-status-svg--bad {
+  color: var(--lhai-status-danger);
+}
+
+.lhai-input-status-wrap.is-valid .lhai-field-status-svg--ok {
+  display: block;
+}
+
+.lhai-input-status-wrap.is-invalid .lhai-field-status-svg--bad {
+  display: block;
+}
+
 .lhai-birth-date-row {
   position: relative;
   display: flex;
@@ -105,7 +157,7 @@
   align-items: stretch;
 }
 
-.lhai-birth-date-row .lhai-input {
+.lhai-birth-date-row > .lhai-input-status-wrap--flex {
   flex: 1;
   min-width: 0;
 }
@@ -214,6 +266,47 @@
   color: var(--lhai-badge-admin-text);
 }
 
+.lhai-badge--tier-1 {
+  background: var(--lhai-badge-tier-1-bg);
+  color: var(--lhai-badge-tier-1-text);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.lhai-badge--tier-2 {
+  background: var(--lhai-badge-tier-2-bg);
+  color: var(--lhai-badge-tier-2-text);
+  border-color: rgba(249, 115, 22, 0.35);
+}
+
+.lhai-badge--tier-3 {
+  background: var(--lhai-badge-tier-3-bg);
+  color: var(--lhai-badge-tier-3-text);
+  border-color: rgba(234, 179, 8, 0.35);
+}
+
+.lhai-badge--tier-4 {
+  background: var(--lhai-badge-tier-4-bg);
+  color: var(--lhai-badge-tier-4-text);
+  border-color: rgba(168, 85, 247, 0.35);
+}
+
+.lhai-badge--tier-5 {
+  background: var(--lhai-badge-tier-5-bg);
+  color: var(--lhai-badge-tier-5-text);
+  border-color: rgba(56, 189, 248, 0.32);
+}
+
+.lhai-badge--tier-6 {
+  background: var(--lhai-badge-tier-6-bg);
+  color: var(--lhai-badge-tier-6-text);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.lhai-badge--tier-unknown {
+  background: var(--lhai-badge-tier-unknown-bg);
+  color: var(--lhai-badge-tier-unknown-text);
+}
+
 .lhai-badge--risk-low {
   background: var(--lhai-badge-risk-low-bg);
   color: var(--lhai-badge-risk-low-text);
@@ -295,6 +388,7 @@
 /* Admin topbar: messages shortcut (left of Admin menu) */
 .lhai-topbar-mail {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   width: 40px;
@@ -323,6 +417,7 @@
 /* Admin topbar: Admin ▾ user menu */
 .lhai-user-menu {
   position: relative;
+  flex-shrink: 0;
 }
 
 .lhai-user-menu__trigger {
@@ -348,17 +443,32 @@
   outline-offset: 2px;
 }
 
+.lhai-user-menu__trigger .lhai-badge {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: min(16rem, 42vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .lhai-user-menu__chevron {
   font-size: 0.65rem;
   opacity: 0.85;
   line-height: 1;
+  pointer-events: none;
 }
 
 .lhai-user-menu__panel {
   position: absolute;
   right: 0;
   top: calc(100% + 6px);
-  z-index: 100;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
   min-width: 12rem;
   padding: var(--lhai-space-2);
   background: var(--lhai-color-surface);
@@ -372,7 +482,8 @@
 }
 
 .lhai-user-menu__item {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
   box-sizing: border-box;
   padding: var(--lhai-space-3) var(--lhai-space-3);
@@ -576,5 +687,75 @@ a.lhai-table__link:hover {
   color: var(--lhai-color-text);
   border-color: rgba(110, 168, 254, 0.55);
   background: rgba(110, 168, 254, 0.12);
+}
+
+/* Signup result dialog (native <dialog>) */
+.lhai-dialog {
+  max-width: min(28rem, 94vw);
+  padding: 0;
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-md);
+  background: var(--lhai-color-surface);
+  color: var(--lhai-color-text);
+  box-shadow: var(--lhai-shadow-sm, 0 12px 40px rgba(0, 0, 0, 0.35));
+}
+
+.lhai-dialog::backdrop {
+  background: rgba(6, 10, 18, 0.72);
+}
+
+.lhai-dialog__inner {
+  padding: var(--lhai-space-6) var(--lhai-space-5);
+}
+
+.lhai-dialog__title {
+  margin: 0;
+  font-size: var(--lhai-font-size-lg);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.lhai-dialog__body {
+  margin-top: var(--lhai-space-4);
+  font-size: var(--lhai-font-size-sm);
+  color: var(--lhai-color-text-muted);
+  line-height: 1.55;
+}
+
+.lhai-dialog__body p {
+  margin: 0 0 var(--lhai-space-3);
+}
+
+.lhai-dialog__body p:last-child {
+  margin-bottom: 0;
+}
+
+.lhai-dialog__pre {
+  margin-top: var(--lhai-space-3);
+  padding: var(--lhai-space-3);
+  border-radius: var(--lhai-radius-sm);
+  background: var(--lhai-color-surface-alt);
+  border: 1px solid var(--lhai-color-border);
+  font-size: var(--lhai-font-size-xs);
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--lhai-color-text);
+}
+
+.lhai-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--lhai-space-3);
+  margin-top: var(--lhai-space-6);
+}
+
+.lhai-dialog__actions form {
+  margin: 0;
+}
+
+.lhai-dialog--error .lhai-dialog__title {
+  color: var(--lhai-status-warning, #ffcc66);
 }
 

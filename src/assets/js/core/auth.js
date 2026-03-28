@@ -17,8 +17,18 @@ function getSession() {
   }
 }
 
+/** API·레거시 세션과 맞추기: 소문자, 하이픈→밑줄 (hasRole / 배지와 일치) */
+function normalizeRole(role) {
+  if (role == null || String(role).trim() === "") return ROLES.CUSTOMER;
+  return String(role).trim().toLowerCase().replace(/-/g, "_");
+}
+
 function setSession(session) {
-  window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  const payload = { ...session };
+  if (payload.role != null && String(payload.role).trim() !== "") {
+    payload.role = normalizeRole(payload.role);
+  }
+  window.localStorage.setItem(SESSION_KEY, JSON.stringify(payload));
 }
 
 function clearSession() {
@@ -38,7 +48,9 @@ function clearAccessToken() {
 }
 
 function getCurrentRole() {
-  return getSession()?.role || ROLES.CUSTOMER;
+  const raw = getSession()?.role;
+  if (raw == null || String(raw).trim() === "") return ROLES.CUSTOMER;
+  return normalizeRole(raw);
 }
 
 function isAuthenticated() {
@@ -62,6 +74,7 @@ export {
   getSession,
   isAuthenticated,
   logout,
+  normalizeRole,
   setAccessToken,
   setSession,
 };

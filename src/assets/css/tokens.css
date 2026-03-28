@@ -30,6 +30,22 @@
   --lhai-badge-risk-high-bg: rgba(255, 90, 106, 0.2);
   --lhai-badge-risk-high-text: #ffc7ce;
 
+  /* Header account badge — one color per permission tier (1 = highest) */
+  --lhai-badge-tier-1-bg: rgba(239, 68, 68, 0.26);
+  --lhai-badge-tier-1-text: #fecaca;
+  --lhai-badge-tier-2-bg: rgba(249, 115, 22, 0.26);
+  --lhai-badge-tier-2-text: #fed7aa;
+  --lhai-badge-tier-3-bg: rgba(234, 179, 8, 0.24);
+  --lhai-badge-tier-3-text: #fef08a;
+  --lhai-badge-tier-4-bg: rgba(168, 85, 247, 0.24);
+  --lhai-badge-tier-4-text: #e9d5ff;
+  --lhai-badge-tier-5-bg: rgba(56, 189, 248, 0.22);
+  --lhai-badge-tier-5-text: #bae6fd;
+  --lhai-badge-tier-6-bg: rgba(148, 163, 184, 0.22);
+  --lhai-badge-tier-6-text: #e2e8f0;
+  --lhai-badge-tier-unknown-bg: rgba(100, 116, 139, 0.22);
+  --lhai-badge-tier-unknown-text: #cbd5e1;
+
   /* Spacing tokens */
   --lhai-space-0: 0;
   --lhai-space-1: 4px;

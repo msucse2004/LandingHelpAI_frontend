@@ -12,3 +12,5 @@ async function initAdminServicesPage() {
 }
 
 export { initAdminServicesPage };
+
+void initAdminServicesPage();

@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="../assets/css/pages/quote-detail.css" />
 </head>
 <body>
-  <header class="lhai-topbar"><div class="lhai-brand">Landing Help AI</div><div class="lhai-topbar__right"><button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-lhai-logout>로그아웃</button></div></header>
+    <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
     <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
     <main class="lhai-main">
@@ -37,7 +37,9 @@
       </section>
     </main>
   </div>
+  <script type="module" src="../assets/js/core/app-header.js"></script>
   <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
   <script type="module" src="../assets/js/pages/invoice-detail.js"></script>
 </body>
 </html>

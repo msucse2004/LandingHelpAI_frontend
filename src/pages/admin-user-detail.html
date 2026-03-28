@@ -7,28 +7,7 @@
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
 </head>
 <body>
-  <header class="lhai-topbar">
-    <div class="lhai-brand">Landing Help AI Admin</div>
-    <div class="lhai-topbar__right">
-      <a class="lhai-topbar-mail" href="messages.html" title="메시지함" aria-label="메시지함">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="2" y="4" width="20" height="16" rx="2" ry="2" />
-          <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-        </svg>
-      </a>
-      <div class="lhai-user-menu" data-lhai-admin-menu>
-        <button type="button" class="lhai-user-menu__trigger" aria-expanded="false" aria-haspopup="menu">
-          <span class="lhai-badge lhai-badge--admin">Admin</span>
-          <span class="lhai-user-menu__chevron" aria-hidden="true">▾</span>
-        </button>
-        <div class="lhai-user-menu__panel" role="menu" hidden>
-          <a class="lhai-user-menu__item" role="menuitem" href="admin-profile.html">내 정보</a>
-          <a class="lhai-user-menu__item" role="menuitem" href="admin-password.html">비밀번호 수정</a>
-          <button type="button" class="lhai-user-menu__item lhai-user-menu__item--button" role="menuitem" data-lhai-logout>로그아웃</button>
-        </div>
-      </div>
-    </div>
-  </header>
+    <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
     <aside class="lhai-sidebar" aria-label="관리 메뉴">
       <p class="lhai-label u-mb-2">메뉴</p>
@@ -47,7 +26,7 @@
       <section class="lhai-page-header u-flex-between u-gap-4">
         <div>
           <h1 class="lhai-title">회원 상세</h1>
-          <p class="lhai-subtitle">계정 ID로 조회한 등록 정보입니다. 가입·이메일 인증 상태는 상세에서 확인만 할 수 있으며, 계정 삭제는 아래 버튼으로 할 수 있습니다.</p>
+          <p class="lhai-subtitle">계정 ID로 조회한 등록 정보입니다. 티어 1~3 관리자는 자신보다 낮은 티어 계정에 한해 가입·이메일 인증 상태를 수정할 수 있으며, 계정 삭제도 같은 규칙이 적용됩니다.</p>
         </div>
         <a class="lhai-button lhai-button--secondary" href="admin-users.html">목록으로</a>
       </section>
@@ -56,6 +35,36 @@
         <h2 class="lhai-card__title">프로필</h2>
         <dl class="lhai-detail-dl" id="detailDl"></dl>
       </section>
+      <section class="lhai-card u-mt-4" id="registrationEditCard" hidden aria-labelledby="regEditTitle">
+        <h2 class="lhai-card__title" id="regEditTitle">가입·인증 상태 수정</h2>
+        <p class="lhai-help u-mb-3">대상 계정의 티어가 본인보다 낮을 때만 표시됩니다.</p>
+        <form id="registrationEditForm" class="lhai-stack u-gap-3">
+          <label class="lhai-field">
+            <span class="lhai-label">이메일 인증</span>
+            <select class="lhai-select" id="regEditEmailVerified" name="email_verified" aria-describedby="regEditHint">
+              <option value="true">완료</option>
+              <option value="false">미완료</option>
+            </select>
+          </label>
+          <label class="lhai-field">
+            <span class="lhai-label">회원 상태</span>
+            <select class="lhai-select" id="regEditMembership" name="membership_status">
+              <option value="pending_verification">인증 대기</option>
+              <option value="active">정식 회원</option>
+            </select>
+          </label>
+          <p class="lhai-help" id="regEditHint">저장 시 서버에 반영됩니다.</p>
+          <div class="u-flex u-gap-2 u-flex-wrap">
+            <button type="submit" class="lhai-button lhai-button--primary" id="regEditSubmitBtn">저장</button>
+          </div>
+        </form>
+        <p class="lhai-help u-mt-2" id="regEditAlert" role="status" aria-live="polite" hidden></p>
+      </section>
+      <section class="lhai-card u-mt-4" id="messageSessionsCard" hidden>
+        <h2 class="lhai-card__title">메시지 세션</h2>
+        <p class="lhai-help u-mb-2">해당 회원의 메시지함에서 대화 내용을 확인합니다. 스레드가 있으면 바로 열 수 있습니다.</p>
+        <div id="messageSessionsList"></div>
+      </section>
       <section class="lhai-card u-mt-4" id="dangerZone" hidden aria-labelledby="dangerTitle">
         <h2 class="lhai-card__title" id="dangerTitle">계정 삭제</h2>
         <p class="lhai-help u-mb-3">삭제하면 되돌릴 수 없습니다. 데모 시드 계정은 삭제할 수 없습니다.</p>
@@ -63,6 +72,7 @@
       </section>
     </main>
   </div>
+  <script type="module" src="../assets/js/core/app-header.js"></script>
   <script type="module" src="../assets/js/core/logout-button.js"></script>
   <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
   <script type="module" src="../assets/js/pages/admin-user-detail.js"></script>

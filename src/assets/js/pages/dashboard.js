@@ -1,4 +1,5 @@
 import { dashboardApi, timelineApi } from "../core/api.js";
+import { getSession } from "../core/auth.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { getState, patchState } from "../core/state.js";
 import { loadSidebar } from "../components/sidebar.js";
@@ -101,7 +102,11 @@ async function initDashboardPage() {
 
   await loadSidebar("#sidebar", "customer");
 
-  const customerProfileId = "profile::demo@customer.com";
+  const sessionEmail = getSession()?.email;
+  const customerProfileId =
+    sessionEmail && String(sessionEmail).trim()
+      ? `profile::${String(sessionEmail).trim().toLowerCase()}`
+      : "profile::demo@customer.com";
   const [dashboardAggregate, timelineItems, checklistSummary] = await Promise.all([
     dashboardApi.getAggregate(customerProfileId),
     timelineApi.listByCustomer(customerProfileId),

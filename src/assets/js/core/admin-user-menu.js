@@ -1,7 +1,12 @@
 /**
- * Admin topbar: toggle dropdown for [data-lhai-admin-menu].
+ * Topbar 계정 메뉴: [data-lhai-account-menu] 트리거 + 패널 토글.
  * 로그아웃은 [data-lhai-logout] — logout-button.js와 함께 로드하세요.
+ * 로드 시 헤더 배지(syncHeaderRoleBadge). 상단바 마크업은 app-header.js가 주입합니다.
  */
+
+import { syncHeaderRoleBadge } from "./role-header-badge.js";
+
+const ACCOUNT_MENU_SELECTOR = "[data-lhai-account-menu]";
 
 function closeMenu(root) {
   const trigger = root.querySelector(".lhai-user-menu__trigger");
@@ -24,15 +29,15 @@ function isOpen(root) {
   return trigger?.getAttribute("aria-expanded") === "true";
 }
 
-export function initAdminUserMenus(root = document) {
-  root.querySelectorAll("[data-lhai-admin-menu]").forEach((menuRoot) => {
+export function initAccountMenus(root = document) {
+  root.querySelectorAll(ACCOUNT_MENU_SELECTOR).forEach((menuRoot) => {
     const trigger = menuRoot.querySelector(".lhai-user-menu__trigger");
     const panel = menuRoot.querySelector(".lhai-user-menu__panel");
     if (!trigger || !panel) return;
 
     trigger.addEventListener("click", (e) => {
       e.stopPropagation();
-      document.querySelectorAll("[data-lhai-admin-menu]").forEach((other) => {
+      document.querySelectorAll(ACCOUNT_MENU_SELECTOR).forEach((other) => {
         if (other !== menuRoot) closeMenu(other);
       });
       if (isOpen(menuRoot)) closeMenu(menuRoot);
@@ -48,14 +53,18 @@ export function initAdminUserMenus(root = document) {
   });
 
   document.addEventListener("click", () => {
-    document.querySelectorAll("[data-lhai-admin-menu]").forEach(closeMenu);
+    document.querySelectorAll(ACCOUNT_MENU_SELECTOR).forEach(closeMenu);
   });
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
-      document.querySelectorAll("[data-lhai-admin-menu]").forEach(closeMenu);
+      document.querySelectorAll(ACCOUNT_MENU_SELECTOR).forEach(closeMenu);
     }
   });
 }
 
-initAdminUserMenus();
+/** @deprecated Use initAccountMenus */
+export const initAdminUserMenus = initAccountMenus;
+
+initAccountMenus();
+syncHeaderRoleBadge();

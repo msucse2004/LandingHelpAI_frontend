@@ -1,5 +1,6 @@
 import { ROLES } from "./config.js";
 import { getCurrentRole, isAuthenticated } from "./auth.js";
+import { ROLE_TIER, isRoleTierAtMost } from "./role-tiers.js";
 
 function ensureAuthenticated() {
   // TODO: replace alert/boolean with redirect strategy.
@@ -24,37 +25,62 @@ function ensureCustomerAccess() {
     ROLES.ADMIN,
     ROLES.SUPER_ADMIN,
     ROLES.OPERATOR,
+    ROLES.GUEST,
   ]);
 }
 
 function ensureAdminAccess() {
   if (!ensureAuthenticated()) return false;
-  if (!hasRole([ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.SUPERVISOR])) {
-    console.warn("Admin role required");
+  if (!isRoleTierAtMost(ROLE_TIER.THREE)) {
+    console.warn("Admin tier (1–3) required");
     return false;
   }
   return true;
 }
 
+/** 로그인 + 티어 상한 검사. 예: ensureTierAccess(ROLE_TIER.TWO) → 티어1·2만, FOUR면 전원 */
+function ensureTierAccess(maxInclusiveTier) {
+  if (!ensureAuthenticated()) return false;
+  return isRoleTierAtMost(maxInclusiveTier);
+}
+
 const PAGE_GUARDS = {
-  "admin-dashboard.html": [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.SUPERVISOR],
-  "admin-customers.html": [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.SUPERVISOR],
-  "admin-customer-detail.html": [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.SUPERVISOR],
-  "admin-quotes.html": [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.SUPERVISOR],
-  "admin-invoices.html": [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.SUPERVISOR],
-  "admin-risk-board.html": [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.SUPERVISOR],
-  "admin-schedules.html": [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.SUPERVISOR],
-  "admin-services.html": [ROLES.ADMIN, ROLES.SUPER_ADMIN],
-  "admin-documents.html": [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.HEADQUARTERS_STAFF],
-  "admin-users.html": [ROLES.ADMIN, ROLES.SUPER_ADMIN],
-  "admin-user-detail.html": [ROLES.ADMIN, ROLES.SUPER_ADMIN],
-  "admin-profile.html": [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.SUPERVISOR],
-  "admin-password.html": [ROLES.ADMIN, ROLES.SUPER_ADMIN, ROLES.SUPERVISOR],
-  "admin-analytics.html": [ROLES.ADMIN, ROLES.SUPER_ADMIN],
+  "profile.html": [
+    ROLES.CUSTOMER,
+    ROLES.AGENT,
+    ROLES.SUPERVISOR,
+    ROLES.HEADQUARTERS_STAFF,
+    ROLES.ADMIN,
+    ROLES.SUPER_ADMIN,
+    ROLES.OPERATOR,
+    ROLES.GUEST,
+  ],
+  "password.html": [
+    ROLES.CUSTOMER,
+    ROLES.AGENT,
+    ROLES.SUPERVISOR,
+    ROLES.HEADQUARTERS_STAFF,
+    ROLES.ADMIN,
+    ROLES.SUPER_ADMIN,
+    ROLES.OPERATOR,
+    ROLES.GUEST,
+  ],
 };
 
 function protectCurrentPage() {
   const page = window.location.pathname.split("/").pop() || "";
+  if (page.startsWith("admin-") && page.endsWith(".html")) {
+    if (!ensureAuthenticated()) {
+      window.location.href = "login.html";
+      return false;
+    }
+    if (!isRoleTierAtMost(ROLE_TIER.THREE)) {
+      console.warn(`Access denied for admin page ${page}`);
+      window.location.href = "dashboard.html";
+      return false;
+    }
+    return true;
+  }
   const allowedRoles = PAGE_GUARDS[page];
   if (!allowedRoles) return true;
   if (!ensureAuthenticated()) {
@@ -69,4 +95,20 @@ function protectCurrentPage() {
   return true;
 }
 
-export { ensureAdminAccess, ensureAuthenticated, ensureCustomerAccess, hasRole, protectCurrentPage };
+export {
+  ROLE_TIER,
+  getCurrentRoleTier,
+  getCurrentRoleTierLabelKo,
+  getRoleTier,
+  getRoleTierLabelKo,
+  getTierLabelKo,
+  isRoleTierAtMost,
+} from "./role-tiers.js";
+export {
+  ensureAdminAccess,
+  ensureAuthenticated,
+  ensureCustomerAccess,
+  ensureTierAccess,
+  hasRole,
+  protectCurrentPage,
+};
