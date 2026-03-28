@@ -1,0 +1,6 @@
+.lhai-schedule-slot {
+  padding: var(--lhai-space-2);
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-sm);
+  margin-bottom: var(--lhai-space-2);
+}

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Customer Dashboard - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/dashboard.css" />
+</head>
+<body>
+  <header class="lhai-topbar"><div class="lhai-brand">Landing Help AI</div><div class="lhai-topbar__right"><button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-lhai-logout>로그아웃</button><span class="lhai-badge lhai-badge--customer">Customer</span></div></header>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
+    <main class="lhai-main">
+      <section class="lhai-page-header">
+        <div>
+          <h1 class="lhai-title">Dashboard</h1>
+          <p class="lhai-subtitle">See your current status and next required action at a glance.</p>
+        </div>
+        <a class="lhai-button lhai-button--secondary" id="aiQuickLinkBtn" href="ai-assistant.html">Open AI Assistant</a>
+      </section>
+
+      <section class="lhai-card lhai-next-action">
+        <h2 class="lhai-card__title">What To Do Next</h2>
+        <p id="dashboardNextAction" class="lhai-next-action__text">Loading next action...</p>
+        <div class="lhai-next-action__meta">
+          <span class="lhai-badge" id="dashboardServiceStatusBadge">Service: -</span>
+          <span class="lhai-badge" id="dashboardPaymentStatusBadge">Payment: -</span>
+          <span class="lhai-badge" id="dashboardScheduleStatusBadge">Schedule: -</span>
+        </div>
+      </section>
+
+      <section class="lhai-grid lhai-grid--4" id="dashboardStatusCards">
+        <article class="lhai-card"><h2 class="lhai-card__title">Loading...</h2></article>
+      </section>
+
+      <section class="lhai-grid lhai-grid--2">
+        <article class="lhai-card">
+          <h2 class="lhai-card__title">Progress Timeline</h2>
+          <div id="dashboardTimelineContainer"></div>
+        </article>
+        <article class="lhai-card">
+          <h2 class="lhai-card__title">Checklist Summary</h2>
+          <div id="dashboardChecklistSummary"></div>
+        </article>
+      </section>
+
+      <section class="lhai-grid lhai-grid--2">
+        <article class="lhai-card">
+          <h2 class="lhai-card__title">Recent Messages</h2>
+          <div id="dashboardRecentMessages"></div>
+        </article>
+        <article class="lhai-card">
+          <h2 class="lhai-card__title">Document Status</h2>
+          <div id="dashboardDocumentStatus"></div>
+        </article>
+      </section>
+
+      <section class="lhai-card">
+        <h2 class="lhai-card__title">Recent Activity</h2>
+        <div id="dashboardRecentActivity"></div>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/pages/dashboard.js"></script>
+</body>
+</html>

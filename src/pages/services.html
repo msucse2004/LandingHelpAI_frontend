@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Services - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+</head>
+<body>
+  <main class="lhai-container">
+    <header class="lhai-page-header">
+      <div>
+        <h1 class="lhai-title">Service Catalog</h1>
+        <p class="lhai-subtitle">Browse public services and request quote-ready support.</p>
+      </div>
+      <div>
+        <label class="lhai-label" for="categoryFilter">Category</label>
+        <select class="lhai-select" id="categoryFilter">
+          <option value="">All categories</option>
+        </select>
+      </div>
+    </header>
+
+    <p class="lhai-help" id="serviceStatus">Loading...</p>
+
+    <section class="lhai-grid lhai-grid--2" id="serviceList">
+      <div class="lhai-state lhai-state--loading">Loading service catalog...</div>
+    </section>
+  </main>
+  <script type="module" src="../assets/js/pages/services.js"></script>
+</body>
+</html>

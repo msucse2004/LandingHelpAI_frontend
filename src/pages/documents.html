@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Documents - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/documents.css" />
+</head>
+<body>
+  <header class="lhai-topbar"><div class="lhai-brand">Landing Help AI</div><div class="lhai-topbar__right"><button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-lhai-logout>로그아웃</button></div></header>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
+    <main class="lhai-main">
+      <section class="lhai-page-header">
+        <div><h1 class="lhai-title">Document Center</h1><p class="lhai-subtitle">Upload files, track review status, and access generated documents.</p></div>
+      </section>
+
+      <section class="lhai-card lhai-doc-center">
+        <h2 class="lhai-card__title">Upload Document</h2>
+        <form class="lhai-form" id="documentUploadForm">
+          <label class="lhai-label" for="uploadName">File name</label>
+          <input class="lhai-input" id="uploadName" name="uploadName" type="text" placeholder="example.pdf" required />
+          <label class="lhai-label" for="uploadType">Section</label>
+          <select class="lhai-select" id="uploadType" name="uploadType">
+            <option value="documents_submitted">Documents Submitted</option>
+            <option value="consent_documents">Consent Documents</option>
+            <option value="power_of_attorney">Power of Attorney</option>
+            <option value="completion_documents">Completion Documents</option>
+          </select>
+          <button class="lhai-button lhai-button--primary" type="submit">Upload (Stub)</button>
+        </form>
+        <p class="lhai-help" id="documentUploadStatus">No uploads yet.</p>
+      </section>
+
+      <section class="lhai-doc-grid" id="documentSections">
+        <article class="lhai-card"><h2 class="lhai-card__title">Documents Received</h2><div id="sectionDocumentsReceived"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title">Documents Submitted</h2><div id="sectionDocumentsSubmitted"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title">Generated Documents</h2><div id="sectionGeneratedDocuments"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title">Consent Documents</h2><div id="sectionConsentDocuments"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title">Power of Attorney</h2><div id="sectionPowerOfAttorney"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title">Completion Documents</h2><div id="sectionCompletionDocuments"></div></article>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/pages/documents.js"></script>
+</body>
+</html>

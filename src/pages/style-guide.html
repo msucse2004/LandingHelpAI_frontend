@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Style Guide - Landing Help AI</title>
+    <link rel="stylesheet" href="../assets/css/reset.css" />
+    <link rel="stylesheet" href="../assets/css/tokens.css" />
+    <link rel="stylesheet" href="../assets/css/layout.css" />
+    <link rel="stylesheet" href="../assets/css/components.css" />
+    <link rel="stylesheet" href="../assets/css/utilities.css" />
+  </head>
+  <body>
+    <main class="lhai-container">
+      <header class="lhai-page-header">
+        <div>
+          <h1 class="lhai-title">Landing Help AI Style Guide</h1>
+          <p class="lhai-subtitle">Design-system preview for Figma-aligned implementation.</p>
+        </div>
+      </header>
+
+      <section class="lhai-section">
+        <h2 class="lhai-section__title">Buttons</h2>
+        <div class="u-flex u-gap-2">
+          <button class="lhai-button lhai-button--primary">Primary</button>
+          <button class="lhai-button lhai-button--secondary">Secondary</button>
+          <button class="lhai-button lhai-button--danger">Danger</button>
+        </div>
+      </section>
+
+      <section class="lhai-section">
+        <h2 class="lhai-section__title">Badges</h2>
+        <div class="u-flex u-gap-2">
+          <span class="lhai-badge lhai-badge--customer">Customer</span>
+          <span class="lhai-badge lhai-badge--operator">Operator</span>
+          <span class="lhai-badge lhai-badge--admin">Admin</span>
+          <span class="lhai-badge lhai-badge--risk-low">Risk Low</span>
+          <span class="lhai-badge lhai-badge--risk-medium">Risk Medium</span>
+          <span class="lhai-badge lhai-badge--risk-high">Risk High</span>
+        </div>
+      </section>
+
+      <section class="lhai-section">
+        <h2 class="lhai-section__title">Form Fields</h2>
+        <div class="lhai-card">
+          <form class="lhai-form">
+            <label class="lhai-label" for="sg-email">Email</label>
+            <input class="lhai-input" id="sg-email" type="email" placeholder="name@example.com" />
+            <label class="lhai-label" for="sg-role">Role</label>
+            <select class="lhai-select" id="sg-role">
+              <option>Customer</option>
+              <option>Operator</option>
+              <option>Admin</option>
+            </select>
+            <span class="lhai-field-error">Example validation message</span>
+          </form>
+        </div>
+      </section>
+
+      <section class="lhai-section">
+        <h2 class="lhai-section__title">Table / List</h2>
+        <div class="lhai-card u-mb-4">
+          <table class="lhai-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Status</th>
+                <th>Owner</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Invoice #1024</td>
+                <td><span class="lhai-badge lhai-badge--risk-medium">Pending</span></td>
+                <td>Operator A</td>
+              </tr>
+              <tr>
+                <td>Document check</td>
+                <td><span class="lhai-badge lhai-badge--risk-low">Ready</span></td>
+                <td>Operator B</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <ul class="lhai-list">
+          <li class="lhai-list__item">Timeline step created</li>
+          <li class="lhai-list__item">Checklist item assigned</li>
+        </ul>
+      </section>
+
+      <section class="lhai-section">
+        <h2 class="lhai-section__title">States</h2>
+        <div class="lhai-grid lhai-grid--2">
+          <div class="lhai-state lhai-state--empty">No checklist items yet.</div>
+          <div class="lhai-state lhai-state--error">Failed to load quote data.</div>
+          <div class="lhai-state lhai-state--loading">Loading timeline…</div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

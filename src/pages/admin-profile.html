@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>내 정보 - Landing Help AI Admin</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+</head>
+<body>
+  <header class="lhai-topbar">
+    <div class="lhai-brand">Landing Help AI Admin</div>
+    <div class="lhai-topbar__right">
+      <a class="lhai-topbar-mail" href="messages.html" title="메시지함" aria-label="메시지함">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="2" y="4" width="20" height="16" rx="2" ry="2" />
+          <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+        </svg>
+      </a>
+      <div class="lhai-user-menu" data-lhai-admin-menu>
+        <button type="button" class="lhai-user-menu__trigger" aria-expanded="false" aria-haspopup="menu">
+          <span class="lhai-badge lhai-badge--admin">Admin</span>
+          <span class="lhai-user-menu__chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="lhai-user-menu__panel" role="menu" hidden>
+          <a class="lhai-user-menu__item" role="menuitem" href="admin-profile.html" aria-current="page">내 정보</a>
+          <a class="lhai-user-menu__item" role="menuitem" href="admin-password.html">비밀번호 수정</a>
+          <button type="button" class="lhai-user-menu__item lhai-user-menu__item--button" role="menuitem" data-lhai-logout>로그아웃</button>
+        </div>
+      </div>
+    </div>
+  </header>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" aria-label="관리 메뉴">
+      <p class="lhai-label u-mb-2">메뉴</p>
+      <nav>
+        <ul class="lhai-admin-sidebar-nav">
+          <li><a href="admin-dashboard.html">대시보드</a></li>
+          <li><a href="admin-users.html">회원·가입 상태</a></li>
+          <li><a href="admin-invitations.html">회원 초대 메일</a></li>
+          <li><a href="admin-customers.html">고객</a></li>
+          <li><a href="admin-quotes.html">견적</a></li>
+          <li><a href="admin-invoices.html">인보이스</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="lhai-main">
+      <section class="lhai-page-header">
+        <div>
+          <h1 class="lhai-title">내 정보</h1>
+          <p class="lhai-subtitle">로그인 세션에 저장된 값입니다. 서버 프로필 API 연동 시 이 화면을 확장하세요.</p>
+        </div>
+      </section>
+      <section class="lhai-card">
+        <h2 class="lhai-card__title">세션</h2>
+        <dl class="lhai-detail-dl" id="profileDl"></dl>
+        <p class="lhai-help u-mt-3" id="profileEmpty" hidden>로그인 정보가 없습니다. <a href="login.html">로그인</a>하세요.</p>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/admin-profile.js"></script>
+</body>
+</html>

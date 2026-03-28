@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Schedules - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/admin-schedules.css" />
+</head>
+<body>
+  <header class="lhai-topbar">
+    <div class="lhai-brand">Landing Help AI Admin</div>
+    <div class="lhai-topbar__right">
+      <a class="lhai-topbar-mail" href="messages.html" title="메시지함" aria-label="메시지함">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="2" y="4" width="20" height="16" rx="2" ry="2" />
+          <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+        </svg>
+      </a>
+      <div class="lhai-user-menu" data-lhai-admin-menu>
+        <button type="button" class="lhai-user-menu__trigger" aria-expanded="false" aria-haspopup="menu">
+          <span class="lhai-badge lhai-badge--admin">Admin</span>
+          <span class="lhai-user-menu__chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="lhai-user-menu__panel" role="menu" hidden>
+          <a class="lhai-user-menu__item" role="menuitem" href="admin-profile.html">내 정보</a>
+          <a class="lhai-user-menu__item" role="menuitem" href="admin-password.html">비밀번호 수정</a>
+          <button type="button" class="lhai-user-menu__item lhai-user-menu__item--button" role="menuitem" data-lhai-logout>로그아웃</button>
+        </div>
+      </div>
+    </div>
+  </header>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial admin-sidebar.html --></aside>
+    <main class="lhai-main">
+      <section class="lhai-page-header"><div><h1 class="lhai-title">Schedule Management</h1><p class="lhai-subtitle">Create draft, revise proposed schedules, and mark confirmed with audit-first data trail.</p></div></section>
+      <section class="lhai-grid lhai-grid--2">
+        <article class="lhai-card">
+          <h2 class="lhai-card__title">Schedules</h2>
+          <div id="adminScheduleList"></div>
+        </article>
+        <article class="lhai-card">
+          <h2 class="lhai-card__title">Draft / Revision Form</h2>
+          <form id="adminScheduleForm">
+            <label class="lhai-field"><span class="lhai-label">Customer Profile ID</span><input id="scheduleCustomerId" value="profile::demo@customer.com" /></label>
+            <label class="lhai-field"><span class="lhai-label">Proposed Slots (comma separated ISO)</span><textarea id="scheduleSlots" rows="3" placeholder="2026-04-30T09:00:00Z, 2026-05-01T09:00:00Z"></textarea></label>
+            <label class="lhai-field"><span class="lhai-label">Recommendation Reasons (comma separated)</span><textarea id="scheduleReasons" rows="2" placeholder="avoid peak load, aligns with docs"></textarea></label>
+            <label class="lhai-field"><span class="lhai-label">Revision Note</span><input id="scheduleRevisionNote" placeholder="Reason for revision" /></label>
+            <div class="lhai-admin-schedule-actions">
+              <button class="lhai-button lhai-button--primary" type="submit">Create Draft</button>
+              <button class="lhai-button lhai-button--secondary" id="reviseScheduleBtn" type="button">Revise Selected</button>
+              <button class="lhai-button lhai-button--secondary" id="proposeScheduleBtn" type="button">Propose Selected</button>
+              <button class="lhai-button lhai-button--primary" id="confirmScheduleBtn" type="button">Mark Confirmed</button>
+            </div>
+          </form>
+          <p id="adminScheduleStatus" class="u-text-muted u-mt-2"></p>
+        </article>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/admin-schedules.js"></script>
+</body>
+</html>

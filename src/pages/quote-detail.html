@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quote Detail - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/quote-detail.css" />
+</head>
+<body>
+  <header class="lhai-topbar"><div class="lhai-brand">Landing Help AI</div><div class="lhai-topbar__right"><button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-lhai-logout>로그아웃</button></div></header>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
+    <main class="lhai-main">
+      <section class="lhai-page-header">
+        <div>
+          <h1 class="lhai-title">Your Quote</h1>
+          <p class="lhai-subtitle">Review the proposed scope, costs, and next steps.</p>
+        </div>
+      </section>
+
+      <section class="lhai-card lhai-quote-view">
+        <div id="quoteLoadingState" class="lhai-state lhai-state--loading">Loading quote...</div>
+        <div id="quoteEmptyState" class="lhai-state lhai-state--empty" style="display:none;">
+          Quote not available yet. Please wait for an admin to propose your quote.
+        </div>
+
+        <div id="quoteContent" style="display:none;">
+          <div class="lhai-quote-meta">
+            <div class="lhai-quote-meta__row"><span class="u-text-muted">Quote ID</span><strong id="quoteId">-</strong></div>
+            <div class="lhai-quote-meta__row"><span class="u-text-muted">Status</span><span id="quoteStatus" class="lhai-badge">-</span></div>
+            <div class="lhai-quote-meta__row"><span class="u-text-muted">Service</span><strong id="quoteServiceName">-</strong></div>
+            <div class="lhai-quote-meta__row"><span class="u-text-muted">Estimated Cost</span><strong id="quoteEstimatedCost">-</strong></div>
+          </div>
+
+          <div class="lhai-quote-columns">
+            <section class="lhai-quote-list-block">
+              <h2 class="lhai-card__title">Included Items</h2>
+              <ul id="quoteIncludedItems"></ul>
+            </section>
+            <section class="lhai-quote-list-block">
+              <h2 class="lhai-card__title">Excluded Items</h2>
+              <ul id="quoteExcludedItems"></ul>
+            </section>
+            <section class="lhai-quote-list-block">
+              <h2 class="lhai-card__title">AI Support Scope</h2>
+              <p id="quoteAiSupportScope" class="u-text-muted">-</p>
+            </section>
+            <section class="lhai-quote-list-block">
+              <h2 class="lhai-card__title">Possible Extra Costs</h2>
+              <ul id="quotePossibleExtraCosts"></ul>
+            </section>
+            <section class="lhai-quote-list-block">
+              <h2 class="lhai-card__title">Next-step Guidance</h2>
+              <p id="quoteNextStepGuidance" class="u-text-muted">-</p>
+            </section>
+          </div>
+
+          <div class="lhai-quote-actions">
+            <button type="button" class="lhai-button lhai-button--primary" id="approveQuoteBtn">Approve</button>
+            <button type="button" class="lhai-button lhai-button--danger" id="rejectQuoteBtn">Reject</button>
+            <button type="button" class="lhai-button lhai-button--secondary" id="requestHelpBtn">Request Help</button>
+          </div>
+          <p class="lhai-help" id="quoteActionStatus">Quote actions are available when status is PROPOSED.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/pages/quote-detail.js"></script>
+</body>
+</html>

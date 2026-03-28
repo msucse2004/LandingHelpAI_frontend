@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>이메일 인증 - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+</head>
+<body>
+  <main class="lhai-container">
+    <section class="lhai-card lhai-card--center">
+      <h1 class="lhai-title">이메일 인증</h1>
+      <p class="lhai-subtitle">가입 시 받은 이메일의 링크로 오셨다면 토큰이 자동으로 채워집니다. 메일이 없으면 토큰을 직접 입력하세요.</p>
+      <form class="lhai-form" id="verifyEmailForm">
+        <label class="lhai-label" for="token">인증 토큰</label>
+        <input class="lhai-input" id="token" name="token" type="text" required />
+        <button class="lhai-button lhai-button--primary" type="submit">인증 완료</button>
+      </form>
+      <p class="lhai-help" id="verifyStatus">토큰을 입력하세요.</p>
+      <p class="u-mt-2"><a href="login.html">로그인</a> · <a href="signup.html">회원가입</a></p>
+    </section>
+  </main>
+  <script type="module" src="../assets/js/pages/verify-email.js"></script>
+</body>
+</html>

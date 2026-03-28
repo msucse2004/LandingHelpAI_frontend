@@ -1,0 +1,30 @@
+.lhai-doc-center {
+  display: grid;
+  gap: var(--lhai-space-4);
+}
+
+.lhai-doc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--lhai-space-4);
+}
+
+.lhai-doc-item {
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-sm);
+  padding: var(--lhai-space-3);
+  background: rgba(6, 18, 36, 0.2);
+}
+
+.lhai-doc-meta {
+  display: flex;
+  gap: var(--lhai-space-2);
+  flex-wrap: wrap;
+  margin: var(--lhai-space-2) 0;
+}
+
+@media (max-width: 960px) {
+  .lhai-doc-grid {
+    grid-template-columns: 1fr;
+  }
+}

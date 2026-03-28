@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Quotes - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/admin-quotes.css" />
+</head>
+<body>
+  <header class="lhai-topbar">
+    <div class="lhai-brand">Landing Help AI Admin</div>
+    <div class="lhai-topbar__right">
+      <a class="lhai-topbar-mail" href="messages.html" title="메시지함" aria-label="메시지함">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="2" y="4" width="20" height="16" rx="2" ry="2" />
+          <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+        </svg>
+      </a>
+      <div class="lhai-user-menu" data-lhai-admin-menu>
+        <button type="button" class="lhai-user-menu__trigger" aria-expanded="false" aria-haspopup="menu">
+          <span class="lhai-badge lhai-badge--admin">Admin</span>
+          <span class="lhai-user-menu__chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="lhai-user-menu__panel" role="menu" hidden>
+          <a class="lhai-user-menu__item" role="menuitem" href="admin-profile.html">내 정보</a>
+          <a class="lhai-user-menu__item" role="menuitem" href="admin-password.html">비밀번호 수정</a>
+          <button type="button" class="lhai-user-menu__item lhai-user-menu__item--button" role="menuitem" data-lhai-logout>로그아웃</button>
+        </div>
+      </div>
+    </div>
+  </header>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial admin-sidebar.html --></aside>
+    <main class="lhai-main">
+      <section class="lhai-page-header"><div><h1 class="lhai-title">Quotes</h1><p class="lhai-subtitle">Quote queue and approval workflow.</p></div></section>
+
+      <section class="lhai-grid lhai-grid--2">
+        <article class="lhai-card lhai-quote-list">
+          <h2 class="lhai-card__title">Quote List</h2>
+          <div id="adminQuoteList"></div>
+        </article>
+
+        <article class="lhai-card">
+          <h2 class="lhai-card__title">Quote Edit / Detail</h2>
+          <form class="lhai-form lhai-quote-editor" id="adminQuoteForm">
+            <div class="lhai-quote-editor__section">
+              <label class="lhai-label" for="serviceName">Service Name</label>
+              <input class="lhai-input" id="serviceName" name="serviceName" type="text" required />
+            </div>
+
+            <div class="lhai-quote-editor__section">
+              <label class="lhai-label" for="includedItems">Included Items (one per line)</label>
+              <textarea class="lhai-textarea" id="includedItems" name="includedItems" rows="4"></textarea>
+            </div>
+
+            <div class="lhai-quote-editor__section">
+              <label class="lhai-label" for="excludedItems">Excluded Items (one per line)</label>
+              <textarea class="lhai-textarea" id="excludedItems" name="excludedItems" rows="4"></textarea>
+            </div>
+
+            <div class="lhai-quote-editor__section">
+              <label class="lhai-label" for="estimatedCost">Estimated Cost</label>
+              <input class="lhai-input" id="estimatedCost" name="estimatedCost" type="number" min="0" step="0.01" />
+            </div>
+
+            <div class="lhai-quote-editor__section">
+              <label class="lhai-label" for="aiSupportScope">AI Support Scope</label>
+              <textarea class="lhai-textarea" id="aiSupportScope" name="aiSupportScope" rows="3"></textarea>
+            </div>
+
+            <div class="lhai-quote-editor__section">
+              <label class="lhai-label" for="possibleExtraCosts">Possible Extra Costs (one per line)</label>
+              <textarea class="lhai-textarea" id="possibleExtraCosts" name="possibleExtraCosts" rows="3"></textarea>
+            </div>
+
+            <div class="lhai-quote-editor__section">
+              <label class="lhai-label" for="nextStepGuidance">Next-step Guidance</label>
+              <textarea class="lhai-textarea" id="nextStepGuidance" name="nextStepGuidance" rows="3"></textarea>
+            </div>
+
+            <div class="u-flex u-gap-2">
+              <button type="submit" class="lhai-button lhai-button--secondary">Save Draft</button>
+              <button type="button" class="lhai-button lhai-button--primary" id="proposeQuoteBtn">Propose Quote</button>
+            </div>
+          </form>
+          <p class="lhai-help" id="adminQuoteStatus">Select a quote to edit.</p>
+        </article>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/admin-quotes.js"></script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>회원 초대 메일 - Landing Help AI Admin</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+</head>
+<body>
+  <header class="lhai-topbar">
+    <div class="lhai-brand">Landing Help AI Admin</div>
+    <div class="lhai-topbar__right">
+      <a class="lhai-topbar-mail" href="messages.html" title="메시지함" aria-label="메시지함">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="2" y="4" width="20" height="16" rx="2" ry="2" />
+          <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+        </svg>
+      </a>
+      <div class="lhai-user-menu" data-lhai-admin-menu>
+        <button type="button" class="lhai-user-menu__trigger" aria-expanded="false" aria-haspopup="menu">
+          <span class="lhai-badge lhai-badge--admin">Admin</span>
+          <span class="lhai-user-menu__chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="lhai-user-menu__panel" role="menu" hidden>
+          <a class="lhai-user-menu__item" role="menuitem" href="admin-profile.html">내 정보</a>
+          <a class="lhai-user-menu__item" role="menuitem" href="admin-password.html">비밀번호 수정</a>
+          <button type="button" class="lhai-user-menu__item lhai-user-menu__item--button" role="menuitem" data-lhai-logout>로그아웃</button>
+        </div>
+      </div>
+    </div>
+  </header>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" aria-label="관리 메뉴">
+      <p class="lhai-label u-mb-2">메뉴</p>
+      <nav>
+        <ul class="lhai-admin-sidebar-nav">
+          <li><a href="admin-dashboard.html">대시보드</a></li>
+          <li><a href="admin-users.html">회원·가입 상태</a></li>
+          <li><a href="admin-invitations.html" aria-current="page">회원 초대 메일</a></li>
+          <li><a href="admin-customers.html">고객</a></li>
+          <li><a href="admin-quotes.html">견적</a></li>
+          <li><a href="admin-invoices.html">인보이스</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="lhai-main" id="main">
+      <section class="lhai-page-header">
+        <div>
+          <h1 class="lhai-title">회원 초대 메일</h1>
+          <p class="lhai-subtitle">
+            받는 사람에게 <strong>가입 링크</strong>가 담긴 메일을 보냅니다. 상대는 링크에서 회원가입을 마친 뒤
+            <strong>이메일 인증</strong>을 완료해야 정상적으로 로그인할 수 있습니다. 역할(권한)은 여기서 선택한 값으로 고정됩니다.
+          </p>
+        </div>
+      </section>
+
+      <section class="lhai-card u-mb-4" aria-labelledby="ucd-flow">
+        <h2 class="lhai-card__title" id="ucd-flow">이용 흐름 (받는 사람 관점)</h2>
+        <ol style="list-style: decimal; padding-left: 1.25rem; margin: 0; display: grid; gap: var(--lhai-space-2);">
+          <li>메일함에서 초대 메일을 연다. <strong>스팸·프로모션함</strong>도 함께 확인하도록 안내하세요.</li>
+          <li>메일 속 «가입하기» 링크를 눌러 회원가입 페이지로 이동한다.</li>
+          <li>이메일과 역할은 초대와 맞춰져 있으므로, 아이디·이름·비밀번호 등만 입력한다.</li>
+          <li>가입 후 도착하는 <strong>인증 메일</strong>의 링크로 이메일을 확인한다.</li>
+        </ol>
+        <p class="lhai-help u-mt-2">이미 같은 이메일로 가입된 사람에게는 초대를 보낼 수 없습니다. 그 경우 기존 계정으로 로그인·비밀번호 찾기를 안내하세요.</p>
+        <p class="lhai-help u-mt-2">보안: 현재 관리 API는 데모용으로 보호되지 않습니다. 실서비스에서는 관리자 인증·감사 로그를 붙이세요.</p>
+      </section>
+
+      <section class="lhai-card u-mb-4" aria-labelledby="operator-steps">
+        <h2 class="lhai-card__title" id="operator-steps">운영자 체크리스트</h2>
+        <ul style="list-style: disc; padding-left: 1.25rem; margin: 0; display: grid; gap: var(--lhai-space-2);">
+          <li>받는 사람 이메일 주소를 다시 한 번 확인합니다 (오타 시 다른 사람에게 권한이 갈 수 있습니다).</li>
+          <li>역할은 실제 업무에 맞는 <strong>최소 권한</strong>부터 선택합니다.</li>
+          <li>선택 메시지에는 회사명·담당자·다음 할 일 등 짧게 적으면 수신자가 맥락을 이해하기 쉽습니다.</li>
+        </ul>
+      </section>
+
+      <p class="lhai-help" id="pageAlert" role="status" aria-live="polite"></p>
+      <p class="lhai-help u-mb-2" id="rolesLoadStatus" aria-live="polite"></p>
+
+      <section class="lhai-card u-mb-4">
+        <h2 class="lhai-card__title">초대 보내기</h2>
+        <form class="lhai-form" id="inviteForm" aria-describedby="rolesLoadStatus">
+          <label class="lhai-label" for="inviteEmail">받는 사람 이메일</label>
+          <input class="lhai-input" id="inviteEmail" name="inviteEmail" type="email" autocomplete="email" required placeholder="name@company.com" />
+          <label class="lhai-label" for="inviteRole">부여할 역할</label>
+          <select class="lhai-select" id="inviteRole" name="inviteRole" required aria-busy="true" disabled>
+            <option value="">역할 목록을 불러오는 중…</option>
+          </select>
+          <p class="lhai-help" id="inviteRoleHelp">역할 코드 옆 한글 이름을 참고해 선택하세요. 전송 후에는 이 초대에 맞춰 가입할 때만 해당 역할이 적용됩니다.</p>
+          <label class="lhai-label" for="personalMessage">메일에 덧붙일 메시지 (선택, 최대 약 2000자)</label>
+          <textarea class="lhai-textarea" id="personalMessage" name="personalMessage" rows="4" maxlength="2000" placeholder="예: 안녕하세요, OO팀입니다. 아래 링크로 가입 후 인증 메일을 완료해 주세요."></textarea>
+          <button type="submit" class="lhai-button lhai-button--primary" id="inviteSubmitBtn">초대 메일 보내기</button>
+        </form>
+      </section>
+
+      <section class="lhai-card" id="inviteResultSection" hidden aria-live="polite">
+        <h2 class="lhai-card__title">전송 결과</h2>
+        <p class="lhai-help" id="inviteResultBody"></p>
+        <p class="lhai-help u-mt-2" id="inviteResultMeta"></p>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/admin-invitations.js"></script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--lhai-font);
+  font-size: var(--lhai-font-size);
+  line-height: var(--lhai-line-height);
+  color: var(--lhai-text);
+  background: radial-gradient(1200px 800px at 20% -10%, rgba(110, 168, 254, 0.22), transparent 60%),
+    linear-gradient(180deg, #060b16, var(--lhai-bg));
+}
+
+.lhai-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--lhai-space-5);
+}
+
+.lhai-muted {
+  color: var(--lhai-muted);
+}
+
+.lhai-placeholder {
+  background: rgba(230, 238, 252, 0.06);
+  border: 1px dashed rgba(230, 238, 252, 0.15);
+  border-radius: var(--lhai-radius-sm);
+  padding: var(--lhai-space-4);
+  color: rgba(230, 238, 252, 0.78);
+}
+

@@ -1,0 +1,83 @@
+:root {
+  /* Color tokens */
+  --lhai-color-bg: #0b1220;
+  --lhai-color-surface: #111a2d;
+  --lhai-color-surface-alt: #0f172a;
+  --lhai-color-text: #e6eefc;
+  --lhai-color-text-muted: rgba(230, 238, 252, 0.72);
+  --lhai-color-border: rgba(230, 238, 252, 0.14);
+  --lhai-color-primary: #6ea8fe;
+  --lhai-color-primary-strong: #2f6df6;
+  --lhai-color-primary-contrast: #061224;
+
+  /* Semantic status colors */
+  --lhai-status-success: #42d392;
+  --lhai-status-warning: #ffcc66;
+  --lhai-status-danger: #ff5a6a;
+  --lhai-status-info: #70c3ff;
+
+  /* Role/status badge colors */
+  --lhai-badge-customer-bg: rgba(112, 195, 255, 0.2);
+  --lhai-badge-customer-text: #b8e4ff;
+  --lhai-badge-operator-bg: rgba(66, 211, 146, 0.2);
+  --lhai-badge-operator-text: #b6f5da;
+  --lhai-badge-admin-bg: rgba(255, 90, 106, 0.2);
+  --lhai-badge-admin-text: #ffc7ce;
+  --lhai-badge-risk-low-bg: rgba(66, 211, 146, 0.2);
+  --lhai-badge-risk-low-text: #b6f5da;
+  --lhai-badge-risk-medium-bg: rgba(255, 204, 102, 0.2);
+  --lhai-badge-risk-medium-text: #ffe2ab;
+  --lhai-badge-risk-high-bg: rgba(255, 90, 106, 0.2);
+  --lhai-badge-risk-high-text: #ffc7ce;
+
+  /* Spacing tokens */
+  --lhai-space-0: 0;
+  --lhai-space-1: 4px;
+  --lhai-space-2: 8px;
+  --lhai-space-3: 12px;
+  --lhai-space-4: 16px;
+  --lhai-space-5: 20px;
+  --lhai-space-6: 24px;
+  --lhai-space-7: 32px;
+  --lhai-space-8: 40px;
+
+  /* Border radius tokens */
+  --lhai-radius-xs: 6px;
+  --lhai-radius-sm: 10px;
+  --lhai-radius-md: 14px;
+  --lhai-radius-lg: 18px;
+  --lhai-radius-pill: 999px;
+
+  /* Shadow tokens */
+  --lhai-shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.2);
+  --lhai-shadow-md: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --lhai-shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.45);
+
+  /* Typography scale */
+  --lhai-font-family-base: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji",
+    "Segoe UI Emoji";
+  --lhai-font-size-xs: 12px;
+  --lhai-font-size-sm: 14px;
+  --lhai-font-size-md: 16px;
+  --lhai-font-size-lg: 18px;
+  --lhai-font-size-xl: 20px;
+  --lhai-font-size-2xl: 28px;
+  --lhai-line-height-tight: 1.25;
+  --lhai-line-height-base: 1.5;
+  --lhai-line-height-loose: 1.7;
+
+  /* Compatibility aliases for existing page markup */
+  --lhai-bg: var(--lhai-color-bg);
+  --lhai-surface: var(--lhai-color-surface);
+  --lhai-surface-2: var(--lhai-color-surface-alt);
+  --lhai-text: var(--lhai-color-text);
+  --lhai-muted: var(--lhai-color-text-muted);
+  --lhai-border: var(--lhai-color-border);
+  --lhai-primary: var(--lhai-color-primary);
+  --lhai-primary-2: var(--lhai-color-primary-strong);
+  --lhai-primary-contrast: var(--lhai-color-primary-contrast);
+  --lhai-danger: var(--lhai-status-danger);
+  --lhai-warning: var(--lhai-status-warning);
+  --lhai-success: var(--lhai-status-success);
+  --lhai-shadow: var(--lhai-shadow-md);
+}

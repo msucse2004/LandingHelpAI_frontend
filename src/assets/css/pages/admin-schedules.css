@@ -1,0 +1,17 @@
+.lhai-admin-schedule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+}
+
+.lhai-schedule-item {
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-md);
+  padding: var(--lhai-space-3);
+  margin-bottom: var(--lhai-space-2);
+  cursor: pointer;
+}
+
+.lhai-schedule-item.is-active {
+  border-color: var(--lhai-color-primary);
+}

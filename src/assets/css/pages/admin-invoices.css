@@ -1,0 +1,16 @@
+.lhai-invoice-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--lhai-space-4);
+}
+
+.lhai-invoice-list {
+  max-height: 520px;
+  overflow: auto;
+}
+
+@media (max-width: 960px) {
+  .lhai-invoice-layout {
+    grid-template-columns: 1fr;
+  }
+}

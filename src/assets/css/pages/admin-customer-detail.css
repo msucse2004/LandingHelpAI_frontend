@@ -1,0 +1,11 @@
+.lhai-admin-comm-grid {
+  display: grid;
+  gap: var(--lhai-space-4);
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 900px) {
+  .lhai-admin-comm-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,27 @@
+.lhai-ai-trust {
+  display: flex;
+  gap: var(--lhai-space-2);
+  flex-wrap: wrap;
+}
+
+.lhai-ai-conversation {
+  min-height: 240px;
+  display: grid;
+  gap: var(--lhai-space-3);
+}
+
+.lhai-ai-msg {
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-md);
+  padding: var(--lhai-space-3);
+}
+
+.lhai-ai-msg--assistant {
+  background: var(--lhai-color-surface-alt);
+}
+
+.lhai-ai-escalation {
+  display: flex;
+  gap: var(--lhai-space-3);
+  flex-wrap: wrap;
+}

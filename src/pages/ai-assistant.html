@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Assistant - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/ai-assistant.css" />
+</head>
+<body>
+  <header class="lhai-topbar"><div class="lhai-brand">Landing Help AI</div><div class="lhai-topbar__right"><button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-lhai-logout>로그아웃</button><span class="lhai-badge lhai-badge--operator">Restricted Scope</span></div></header>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
+    <main class="lhai-main">
+      <section class="lhai-page-header">
+        <div>
+          <h1 class="lhai-title">Restricted AI Assistant</h1>
+          <p class="lhai-subtitle">서비스 진행 범위(견적/청구/결제/문서/일정) 내 안내만 제공하며, 상태 변경은 직접 수행하지 않습니다.</p>
+        </div>
+      </section>
+      <section class="lhai-card">
+        <h2 class="lhai-card__title">Scope & Trust</h2>
+        <p id="aiScopeWindow" class="u-mb-2">Checking access window...</p>
+        <div id="aiTrustIndicators" class="lhai-ai-trust"></div>
+      </section>
+      <section class="lhai-card">
+        <h2 class="lhai-card__title">Conversation</h2>
+        <div id="aiConversation" class="lhai-ai-conversation"></div>
+        <form id="aiQuestionForm" class="u-mt-3">
+          <label class="lhai-field">
+            <span class="lhai-label">Question (in service scope)</span>
+            <textarea id="aiQuestionInput" rows="4" placeholder="e.g. My invoice says SENT. What should I do next?"></textarea>
+          </label>
+          <button class="lhai-button lhai-button--primary" type="submit">Ask Assistant</button>
+        </form>
+      </section>
+      <section class="lhai-card">
+        <h2 class="lhai-card__title">Escalation</h2>
+        <div class="lhai-ai-escalation">
+          <button class="lhai-button lhai-button--secondary" id="escalateAskAdminBtn" type="button">Ask Admin</button>
+          <button class="lhai-button lhai-button--secondary" id="escalateInPersonBtn" type="button">Request In-person Help</button>
+        </div>
+        <p id="aiEscalationStatus" class="u-text-muted u-mt-2"></p>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/pages/ai-assistant.js"></script>
+</body>
+</html>

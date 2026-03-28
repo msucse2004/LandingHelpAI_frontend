@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Invoice Detail - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/quote-detail.css" />
+</head>
+<body>
+  <header class="lhai-topbar"><div class="lhai-brand">Landing Help AI</div><div class="lhai-topbar__right"><button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-lhai-logout>로그아웃</button></div></header>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
+    <main class="lhai-main">
+      <section class="lhai-page-header"><div><h1 class="lhai-title">Invoice Detail</h1><p class="lhai-subtitle">Web-only payment summary and checkout actions.</p></div></section>
+      <section class="lhai-card lhai-quote-view">
+        <div class="lhai-quote-meta">
+          <div class="lhai-quote-meta__row"><span class="u-text-muted">Invoice ID</span><strong id="invoiceId">-</strong></div>
+          <div class="lhai-quote-meta__row"><span class="u-text-muted">Quote ID</span><strong id="invoiceQuoteId">-</strong></div>
+          <div class="lhai-quote-meta__row"><span class="u-text-muted">Service</span><strong id="invoiceServiceName">-</strong></div>
+          <div class="lhai-quote-meta__row"><span class="u-text-muted">Amount Due</span><strong id="invoiceAmountDue">-</strong></div>
+          <div class="lhai-quote-meta__row"><span class="u-text-muted">Status</span><span id="invoiceStatus" class="lhai-badge">-</span></div>
+        </div>
+
+        <div class="lhai-quote-actions">
+          <button class="lhai-button lhai-button--primary" id="payNowBtn" type="button">Pay on Web</button>
+          <button class="lhai-button lhai-button--secondary" id="simulateFailureBtn" type="button">Simulate Failure</button>
+          <button class="lhai-button lhai-button--secondary" id="simulateCancelBtn" type="button">Simulate Cancel</button>
+        </div>
+
+        <section class="lhai-section-container" id="paymentResultSection" style="display:none;">
+          <h2 class="lhai-card__title">Payment Result</h2>
+          <p class="u-text-muted" id="paymentResultMessage">-</p>
+          <div id="paymentStubSummary"></div>
+        </section>
+        <p class="lhai-help" id="invoiceStatusMessage">Web payment only.</p>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/pages/invoice-detail.js"></script>
+</body>
+</html>

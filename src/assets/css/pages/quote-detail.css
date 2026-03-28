@@ -1,0 +1,49 @@
+.lhai-quote-view {
+  display: grid;
+  gap: var(--lhai-space-4);
+}
+
+.lhai-quote-meta {
+  display: grid;
+  gap: var(--lhai-space-3);
+}
+
+.lhai-quote-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--lhai-space-4);
+}
+
+.lhai-quote-meta__row {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--lhai-color-border);
+  padding-bottom: var(--lhai-space-2);
+}
+
+.lhai-quote-list-block ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--lhai-space-2);
+}
+
+.lhai-quote-list-block li {
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-sm);
+  padding: var(--lhai-space-2) var(--lhai-space-3);
+  background: rgba(6, 18, 36, 0.3);
+}
+
+.lhai-quote-actions {
+  display: flex;
+  gap: var(--lhai-space-2);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 960px) {
+  .lhai-quote-columns {
+    grid-template-columns: 1fr;
+  }
+}

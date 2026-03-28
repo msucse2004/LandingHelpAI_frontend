@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dashboard - Landing Help AI</title>
+
+    <link rel="stylesheet" href="../assets/css/reset.css" />
+    <link rel="stylesheet" href="../assets/css/tokens.css" />
+    <link rel="stylesheet" href="../assets/css/layout.css" />
+    <link rel="stylesheet" href="../assets/css/components.css" />
+    <link rel="stylesheet" href="../assets/css/utilities.css" />
+    <link rel="stylesheet" href="../assets/css/pages/dashboard.css" />
+  </head>
+  <body>
+    <header class="lhai-topbar">
+      <div class="lhai-topbar__left">
+        <div class="lhai-brand">Landing Help AI</div>
+      </div>
+      <div class="lhai-topbar__right">
+        <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-lhai-logout>로그아웃</button>
+        <span class="lhai-badge lhai-badge--operator">Restricted assistant</span>
+      </div>
+    </header>
+
+    <div class="lhai-layout">
+      <aside class="lhai-sidebar" id="sidebar"></aside>
+
+      <main class="lhai-main">
+        <!-- TODO: Replace placeholders with real customer/workflow data -->
+        <section class="lhai-section">
+          <h2 class="lhai-section__title">Customer Dashboard</h2>
+          <div class="lhai-grid lhai-grid--2">
+            <div class="lhai-card">
+              <h3 class="lhai-card__title">Progress Timeline</h3>
+              <div class="lhai-placeholder" aria-hidden="true">TODO</div>
+            </div>
+            <div class="lhai-card">
+              <h3 class="lhai-card__title">Checklist</h3>
+              <div class="lhai-placeholder" aria-hidden="true">TODO</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="lhai-section">
+          <h2 class="lhai-section__title">Quote / Invoice / Payment / Documents</h2>
+          <div class="lhai-card">
+            <div class="lhai-placeholder" aria-hidden="true">TODO</div>
+          </div>
+        </section>
+
+        <section class="lhai-section">
+          <h2 class="lhai-section__title">Admin Risk Board</h2>
+          <div class="lhai-card">
+            <div class="lhai-placeholder" aria-hidden="true">TODO</div>
+          </div>
+        </section>
+
+        <section class="lhai-section">
+          <h2 class="lhai-section__title">Restricted AI Assistant</h2>
+          <div class="lhai-card">
+            <p class="lhai-muted">
+              TODO: This assistant will only answer within allowed workflow scope.
+            </p>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="../assets/js/core/logout-button.js"></script>
+    <script type="module" src="../assets/js/pages/dashboard.js"></script>
+  </body>
+</html>

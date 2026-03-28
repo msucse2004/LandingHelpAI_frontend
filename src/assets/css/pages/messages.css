@@ -1,0 +1,37 @@
+.lhai-message-filters {
+  display: flex;
+  gap: var(--lhai-space-4);
+  align-items: end;
+}
+
+.lhai-message-list {
+  display: grid;
+  gap: var(--lhai-space-3);
+}
+
+.lhai-message-item {
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-md);
+  padding: var(--lhai-space-3);
+  cursor: pointer;
+}
+
+.lhai-message-item.is-unread {
+  border-left: 4px solid var(--lhai-color-primary);
+  background: var(--lhai-color-surface-alt);
+}
+
+.lhai-message-item.is-active {
+  border-color: var(--lhai-color-primary);
+}
+
+.lhai-message-item__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--lhai-space-2);
+  margin-bottom: var(--lhai-space-2);
+}
+
+.lhai-message-detail {
+  min-height: 260px;
+}

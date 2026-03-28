@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Schedule - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/schedule.css" />
+</head>
+<body>
+  <header class="lhai-topbar"><div class="lhai-brand">Landing Help AI</div><div class="lhai-topbar__right"><button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-lhai-logout>로그아웃</button><span class="lhai-badge lhai-badge--customer">Customer</span></div></header>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
+    <main class="lhai-main">
+      <section class="lhai-page-header"><div><h1 class="lhai-title">Schedule Review</h1><p class="lhai-subtitle">Review proposed schedule, reasons, and confirm or request adjustment.</p></div></section>
+      <section class="lhai-card">
+        <h2 class="lhai-card__title">Current Proposal</h2>
+        <div id="customerScheduleSummary"></div>
+      </section>
+      <section class="lhai-grid lhai-grid--2">
+        <article class="lhai-card">
+          <h2 class="lhai-card__title">Recommendation Reasons</h2>
+          <div id="customerScheduleReasons"></div>
+        </article>
+        <article class="lhai-card">
+          <h2 class="lhai-card__title">Review & Confirmation State</h2>
+          <div id="customerScheduleState"></div>
+        </article>
+      </section>
+      <section class="lhai-card">
+        <h2 class="lhai-card__title">Adjustment Request (Stub)</h2>
+        <form id="customerScheduleFeedbackForm">
+          <label class="lhai-field"><span class="lhai-label">Adjustment feedback</span><textarea id="customerScheduleFeedbackInput" rows="3" placeholder="Please move to afternoon slot due to document appointment."></textarea></label>
+          <button class="lhai-button lhai-button--secondary" type="submit">Request Adjustment</button>
+        </form>
+        <p id="customerScheduleFeedbackStatus" class="u-text-muted u-mt-2"></p>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/pages/schedule.js"></script>
+</body>
+</html>

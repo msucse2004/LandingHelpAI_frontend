@@ -1,0 +1,16 @@
+.lhai-admin-doc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--lhai-space-4);
+}
+
+.lhai-admin-doc-list {
+  max-height: 540px;
+  overflow: auto;
+}
+
+@media (max-width: 960px) {
+  .lhai-admin-doc-grid {
+    grid-template-columns: 1fr;
+  }
+}
