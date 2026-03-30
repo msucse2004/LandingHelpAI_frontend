@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>추천 결과 - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" />
+  <link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" />
+  <link rel="stylesheet" href="../assets/css/components.css" />
+  <link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/survey-recommendations.css" />
+</head>
+<body>
+  <main class="lhai-container lhai-container--survey">
+    <section class="lhai-page-header">
+      <div>
+        <h1 class="lhai-title">맞춤 추천 결과</h1>
+        <p class="lhai-subtitle">답변을 바탕으로 패키지/모듈(포함)과 애드온(선택)을 정리했어요.</p>
+      </div>
+    </section>
+
+    <section class="lhai-card lhai-container__card survey-recommendations__card">
+      <div id="surveyRecStatus" class="lhai-help" role="status" aria-live="polite"></div>
+      <div id="surveyRecPackages" class="survey-recommendations__packages" aria-label="추천 패키지 목록"></div>
+
+      <div class="survey-recommendations__divider" aria-hidden="true"></div>
+
+      <div id="surveyRecSelectionSummary" class="survey-recommendations__summary" aria-live="polite">
+        <div id="surveyRecPriceSummary" class="lhai-help">추가 비용은 선택한 애드온 기준으로 표시됩니다.</div>
+      </div>
+
+      <form id="surveyRecQuoteForm" class="survey-recommendations__quote-form">
+        <div class="survey-recommendations__block-title">견적 요청 정보</div>
+        <div class="survey-recommendations__quote-grid">
+          <div class="survey-field">
+            <label class="lhai-label" for="quoteProfileFullName">성함(필수)</label>
+            <input class="lhai-input" id="quoteProfileFullName" type="text" required placeholder="예: 홍길동" />
+          </div>
+          <div class="survey-field">
+            <label class="lhai-label" for="quoteProfileEmail">이메일(필수)</label>
+            <input class="lhai-input" id="quoteProfileEmail" type="email" required placeholder="예: name@example.com" />
+          </div>
+          <div class="survey-field">
+            <label class="lhai-label" for="quoteCompanyName">회사명(선택)</label>
+            <input class="lhai-input" id="quoteCompanyName" type="text" placeholder="예: Acme Corp" />
+          </div>
+          <div class="survey-field">
+            <label class="lhai-label" for="quotePhone">전화번호(선택)</label>
+            <input class="lhai-input" id="quotePhone" type="tel" placeholder="예: +1 555 1234" />
+          </div>
+          <div class="survey-field">
+            <label class="lhai-label" for="quoteScheduleStart">희망 시작일(필수)</label>
+            <input class="lhai-input" id="quoteScheduleStart" type="date" required />
+          </div>
+          <div class="survey-field">
+            <label class="lhai-label" for="quoteScheduleEnd">희망 종료일(선택)</label>
+            <input class="lhai-input" id="quoteScheduleEnd" type="date" />
+          </div>
+          <div class="survey-field">
+            <label class="lhai-label" for="quoteCountry">국가(필수)</label>
+            <input class="lhai-input" id="quoteCountry" type="text" required value="US" />
+          </div>
+          <div class="survey-field">
+            <label class="lhai-label" for="quotePreferredLanguage">선호 언어(필수)</label>
+            <select class="lhai-select" id="quotePreferredLanguage" required>
+              <option value="ko" selected>한국어</option>
+              <option value="en">영어</option>
+              <option value="mix">혼합(한국어+영어)</option>
+              <option value="other">기타</option>
+            </select>
+          </div>
+          <div class="survey-field survey-field--full">
+            <label class="lhai-label" for="quoteCustomerNotes">메모(선택)</label>
+            <textarea class="lhai-textarea" id="quoteCustomerNotes" rows="3" placeholder="추천 결과를 바탕으로 추가로 알려주고 싶은 사항이 있나요?"></textarea>
+          </div>
+        </div>
+
+        <div class="survey-recommendations__cta-row">
+          <button type="submit" class="lhai-button lhai-button--primary" id="surveyRecSubmitBtn">견적 요청하기</button>
+          <button type="button" class="lhai-button lhai-button--secondary" id="surveyRecBackBtn">뒤로</button>
+        </div>
+        <p class="lhai-help" id="surveyRecQuoteFormStatus" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+  </main>
+
+  <script type="module" src="../assets/js/pages/survey-recommendations.js"></script>
+</body>
+</html>
+

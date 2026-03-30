@@ -1,4 +1,5 @@
 import { adminApi } from "../core/api.js";
+import { APP_CONFIG } from "../core/config.js";
 
 const tbody = document.getElementById("accountsTableBody");
 const loadStatus = document.getElementById("accountsLoadStatus");
@@ -50,18 +51,39 @@ async function loadTable() {
   setLoadStatus("목록을 불러오는 중…");
   setPageAlert("");
   tbody.innerHTML = "";
+
+  let memoryPersistenceWarning = "";
+  try {
+    const base = String(APP_CONFIG.apiBaseUrl || "").replace(/\/$/, "");
+    const healthUrl = `${base}/health`;
+    const hr = await fetch(healthUrl);
+    if (hr.ok) {
+      const h = await hr.json();
+      if (h && h.accounts_durable === false) {
+        memoryPersistenceWarning =
+          "이 서버는 계정을 DB가 아닌 메모리에만 저장 중입니다. 재시작하면 초대·가입 계정이 사라질 수 있습니다. 백엔드에 PostgreSQL DATABASE_URL을 설정하고 `alembic upgrade head`를 실행하세요. Docker Compose는 `docker-compose.yml`의 Postgres 볼륨을 사용합니다.";
+      }
+    }
+  } catch {
+    /* health는 진단용; 실패해도 목록 조회는 계속 */
+  }
+
   let rows;
   try {
     rows = await adminApi.listAuthAccounts();
   } catch (e) {
     setLoadStatus("");
-    setPageAlert(`목록을 불러오지 못했습니다. ${e.message || ""}`, { error: true });
+    const extra = memoryPersistenceWarning ? ` ${memoryPersistenceWarning}` : "";
+    setPageAlert(`목록을 불러오지 못했습니다. ${e.message || ""}${extra}`, { error: true });
     return;
   }
   if (!Array.isArray(rows)) {
     setLoadStatus("");
     setPageAlert("서버 응답 형식이 올바르지 않습니다.", { error: true });
     return;
+  }
+  if (memoryPersistenceWarning) {
+    setPageAlert(memoryPersistenceWarning, { error: true });
   }
   setLoadStatus(rows.length ? `총 ${rows.length}명` : "등록된 계정이 없습니다.");
   if (!rows.length) {

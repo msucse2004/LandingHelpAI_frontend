@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Survey 시작 - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" />
+  <link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" />
+  <link rel="stylesheet" href="../assets/css/components.css" />
+  <link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/survey-start.css" />
+</head>
+<body>
+  <main class="lhai-container lhai-container--survey">
+    <section class="lhai-page-header">
+      <div>
+        <h1 class="lhai-title">필요한 도움을 찾아볼까요?</h1>
+        <p class="lhai-subtitle">답변은 고객 진단 흐름(survey)으로 연결되어, 올바른 추천 패키지를 고르도록 돕습니다.</p>
+      </div>
+    </section>
+
+    <section class="lhai-card lhai-card--center lhai-container__card">
+      <div class="survey-progress" aria-label="설문 진행률" role="region">
+        <div class="survey-progress__bar" aria-hidden="true">
+          <div class="survey-progress__bar-fill" id="surveyProgressFill"></div>
+        </div>
+        <ol class="survey-progress__steps" id="surveyProgressSteps"></ol>
+        <p class="lhai-help" id="surveyProgressLabel" aria-live="polite">1/7 단계</p>
+      </div>
+
+      <div id="surveyStep1" class="survey-step" hidden>
+        <h2 class="survey-step__title">처음에는 “문제 영역”만 골라주세요</h2>
+        <p class="lhai-help">
+          28개 서비스를 고르는 방식이 아니라, 지금 당장 필요한 도움이 무엇인지부터 진단합니다.
+        </p>
+
+        <div class="survey-problem-grid" role="group" aria-label="문제 영역 선택">
+          <button type="button" class="survey-problem-card" data-key="immigration" aria-pressed="false">
+            <div class="survey-problem-card__title">미국 입국 준비가 필요해요</div>
+            <p class="survey-problem-card__helper">입국 일정과 준비 상황을 파악해서 초반 진행을 매끄럽게 합니다.</p>
+          </button>
+          <button type="button" class="survey-problem-card" data-key="housing" aria-pressed="false">
+            <div class="survey-problem-card__title">집 구하기가 필요해요</div>
+            <p class="survey-problem-card__helper">거주 형태/기간에 맞춰 필요한 서류와 체크리스트를 제안합니다.</p>
+          </button>
+          <button type="button" class="survey-problem-card" data-key="car" aria-pressed="false">
+            <div class="survey-problem-card__title">자동차가 필요해요</div>
+            <p class="survey-problem-card__helper">이동 필요성과 타이밍을 기준으로 다음 단계 안내를 준비합니다.</p>
+          </button>
+          <button type="button" class="survey-problem-card" data-key="school" aria-pressed="false">
+            <div class="survey-problem-card__title">아이 학교 등록이 필요해요</div>
+            <p class="survey-problem-card__helper">학기/준비 시점에 따라 추천 모듈이 달라집니다.</p>
+          </button>
+          <button type="button" class="survey-problem-card" data-key="admin" aria-pressed="false">
+            <div class="survey-problem-card__title">생활 행정 도움이 필요해요</div>
+            <p class="survey-problem-card__helper">생활 행정 업무 우선순위를 정해, 필요한 문서 흐름을 설계합니다.</p>
+          </button>
+          <button type="button" class="survey-problem-card" data-key="llc" aria-pressed="false">
+            <div class="survey-problem-card__title">LLC 설립이 필요해요</div>
+            <p class="survey-problem-card__helper">비즈니스 목표와 일정에 맞춰 추천 패키지 구성이 달라집니다.</p>
+          </button>
+        </div>
+
+        <p class="lhai-help u-mt-3" id="surveyStep1Status">선택한 문제 영역: 0개</p>
+      </div>
+
+      <div id="surveyStep2" class="survey-step" hidden>
+        <h2 class="survey-step__title">입국 예정일은 언제인가요?</h2>
+        <p class="lhai-help">이 답변으로 “준비 순서”와 일정 기반 추천을 맞춥니다.</p>
+        <div class="survey-field">
+          <label class="lhai-label" for="arrivalDate">입국 예정일</label>
+          <input class="lhai-input" id="arrivalDate" type="date" />
+        </div>
+      </div>
+
+      <div id="surveyStep3" class="survey-step" hidden>
+        <h2 class="survey-step__title">가족 구성은 어떻게 되나요?</h2>
+        <p class="lhai-help">가족 구성에 따라 필요한 안내 항목(예: 학교/서류)이 달라집니다.</p>
+        <div class="survey-field">
+          <label class="lhai-label" for="familyType">가족 구성</label>
+          <select class="lhai-select" id="familyType">
+            <option value="" disabled selected>선택</option>
+            <option value="single">1인</option>
+            <option value="couple">부부</option>
+            <option value="family_with_kids">부모 + 자녀(자녀 있음)</option>
+            <option value="other">기타</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="surveyStep4" class="survey-step" hidden>
+        <h2 class="survey-step__title">거주 예정 주(몇 주 정도)인가요?</h2>
+        <p class="lhai-help">거주 기간에 따라 “단기/중기”로 추천 모듈 구성을 조정합니다.</p>
+        <div class="survey-field">
+          <label class="lhai-label" for="stayWeeks">거주 예정 주</label>
+          <input class="lhai-input" id="stayWeeks" type="number" min="1" step="1" placeholder="예: 8" />
+        </div>
+      </div>
+
+      <div id="surveyStep5" class="survey-step" hidden>
+        <h2 class="survey-step__title">선호 언어는 무엇인가요?</h2>
+        <p class="lhai-help">선호 언어에 맞춰 설명과 진행 안내 톤을 조정할 수 있습니다.</p>
+        <div class="survey-field">
+          <label class="lhai-label" for="preferredLanguage">선호 언어</label>
+          <select class="lhai-select" id="preferredLanguage">
+            <option value="" disabled selected>선택</option>
+            <option value="ko">한국어</option>
+            <option value="en">영어</option>
+            <option value="mix">혼합(한국어+영어)</option>
+            <option value="other">기타</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="surveyStep6" class="survey-step" hidden>
+        <h2 class="survey-step__title">예산 범위는 어느 정도인가요?</h2>
+        <p class="lhai-help">예산 범위는 추천 패키지의 “권장 구성(기본/확장)”을 결정합니다.</p>
+        <div class="survey-field">
+          <label class="lhai-label" for="budgetRange">예산 범위</label>
+          <select class="lhai-select" id="budgetRange">
+            <option value="" disabled selected>선택</option>
+            <option value="1-3k">$1,000 - $3,000</option>
+            <option value="3-6k">$3,000 - $6,000</option>
+            <option value="6-10k">$6,000 - $10,000</option>
+            <option value="10k+">$10,000+</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="surveyStep7" class="survey-step" hidden>
+        <h2 class="survey-step__title">직접 진행은 어느 정도 가능하세요?</h2>
+        <p class="lhai-help">
+          이 답변으로 “직접 진행 가능 정도”와 “도움 필요 정도”를 같이 반영해서,
+          추천되는 모듈(자동/사람 도움)을 조정합니다.
+        </p>
+
+        <div class="survey-field">
+          <label class="lhai-label" for="helpLevel">도움 필요 정도</label>
+          <select class="lhai-select" id="helpLevel">
+            <option value="" disabled selected>선택</option>
+            <option value="high_self">대부분 직접 가능</option>
+            <option value="mid_self">조금 도움 필요</option>
+            <option value="balanced">절반 정도 도움</option>
+            <option value="high_help">많은 도움 필요</option>
+            <option value="almost_done">거의 대신 진행 필요</option>
+          </select>
+          <p class="lhai-help" id="helpLevelPreview">선택 전</p>
+        </div>
+      </div>
+
+      <div id="surveyStep8" class="survey-step" hidden>
+        <h2 class="survey-step__title">진단 요약</h2>
+        <p class="lhai-help">현재 단계에서는 데모용 추천 예상만 보여드려요. 실제 추천 규칙과 연동 예정입니다.</p>
+
+        <div class="survey-summary-grid">
+          <div class="survey-summary-card" id="summaryProblems"></div>
+          <div class="survey-summary-card" id="summaryCommon"></div>
+        </div>
+
+        <div class="survey-reco">
+          <div class="survey-reco__title">추천 예상(임시)</div>
+          <div class="survey-reco__list" id="mockRecommendations"></div>
+          <p class="lhai-help u-mt-2">
+            추천은 선택하신 “문제 영역”을 기반으로 예측합니다. 향후에는 저장된 survey 규칙(condition_json)으로 결과를 계산합니다.
+          </p>
+        </div>
+      </div>
+
+      <div class="survey-actions" role="group" aria-label="설문 동작 버튼">
+        <button type="button" class="lhai-button lhai-button--secondary" id="surveyBackBtn" disabled>뒤로</button>
+        <button type="button" class="lhai-button lhai-button--primary" id="surveyNextBtn">다음</button>
+      </div>
+      <p class="lhai-help" id="surveyFormStatus" role="status" aria-live="polite"></p>
+
+      <p class="lhai-help u-mt-3">
+        저장/연동은 현재 구현 단계에 따라 달라질 수 있습니다. (예: 추천은 mock)
+      </p>
+    </section>
+  </main>
+
+  <script type="module" src="../assets/js/pages/survey-start.js"></script>
+</body>
+</html>
+

@@ -2,27 +2,37 @@ import { mountMessagesSidebar } from "../components/sidebar.js";
 import { messagesApi } from "../core/api.js";
 import { getSession } from "../core/auth.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
+import { canAccessAdminShell } from "../core/role-tiers.js";
 import { syncHeaderRoleBadge } from "../core/role-header-badge.js";
 import { formatDate, safeText } from "../core/utils.js";
 
 let customerProfileId = "profile::demo@customer.com";
+/** 티어 1~3 운영자 화면: 선택한 스레드의 고객 profile::email */
+let threadOwnerProfileId = "";
 
 let selectedThreadId = "";
 /** @type {Array<Record<string, unknown>>} */
 let currentThreadMessages = [];
 let chatSendLocked = false;
+/** init 시점에 한 번 설정 — 운영자는 고객센터(온보딩) 스레드만 목록·답장 */
+let operatorInboxMode = false;
 
 /** @returns {string} optional initial thread id from URL */
 function applyMessagesPageQuery() {
   const q = new URLSearchParams(window.location.search);
   const cp = (q.get("customer_profile_id") || q.get("customer") || "").trim();
   const tid = (q.get("thread_id") || q.get("thread") || "").trim();
-  if (cp) customerProfileId = cp;
+  if (operatorInboxMode) {
+    if (cp) threadOwnerProfileId = cp;
+  } else if (cp) {
+    customerProfileId = cp;
+  }
   return tid;
 }
 
 function isMineDirection(direction) {
   const d = String(direction || "").toUpperCase();
+  if (operatorInboxMode) return d === "OUTBOUND";
   return d === "INBOUND";
 }
 
@@ -36,7 +46,7 @@ function renderThreadList(threads = []) {
   container.innerHTML = threads
     .map(
       (row) => `
-      <article class="lhai-message-item ${row.unread ? "is-unread" : ""} ${selectedThreadId === row.thread_id ? "is-active" : ""}" data-thread-id="${safeText(row.thread_id)}">
+      <article class="lhai-message-item ${row.unread ? "is-unread" : ""} ${selectedThreadId === row.thread_id ? "is-active" : ""}" data-thread-id="${safeText(row.thread_id)}" data-customer-profile-id="${safeText(row.customer_profile_id || "")}">
         <div class="lhai-message-item__meta">
           <span class="lhai-badge">${safeText(row.message_type)}</span>
           <span class="u-text-muted">${formatDate(row.last_message_at)}</span>
@@ -117,7 +127,19 @@ async function loadThreadMessages() {
     currentThreadMessages = [];
     return;
   }
-  currentThreadMessages = await messagesApi.threadMessages(selectedThreadId, { customerProfileId });
+  const cp = operatorInboxMode ? threadOwnerProfileId : customerProfileId;
+  if (operatorInboxMode && !String(cp || "").trim()) {
+    currentThreadMessages = [];
+    renderChatBubbles();
+    return;
+  }
+  try {
+    currentThreadMessages = operatorInboxMode
+      ? await messagesApi.operatorThreadMessages(selectedThreadId, { customerProfileId: cp })
+      : await messagesApi.threadMessages(selectedThreadId, { customerProfileId: cp });
+  } catch {
+    currentThreadMessages = [];
+  }
   renderChatBubbles();
 }
 
@@ -127,25 +149,70 @@ async function refresh() {
   const category = categoryFilter instanceof HTMLSelectElement ? categoryFilter.value : "";
   const unreadOnly = unreadOnlyFilter instanceof HTMLInputElement ? unreadOnlyFilter.checked : false;
 
-  const threads = await messagesApi.listThreads({
-    customerProfileId,
-    category,
-    unreadOnly,
-  });
-  if (!selectedThreadId && threads.length) {
-    selectedThreadId = String(threads[0].thread_id);
+  let threads;
+  try {
+    threads = operatorInboxMode
+      ? await messagesApi.listOperatorOnboardingThreads()
+      : await messagesApi.listThreads({
+          customerProfileId,
+          category,
+          unreadOnly,
+        });
+  } catch {
+    threads = [];
   }
-  if (selectedThreadId && !threads.some((t) => String(t.thread_id) === selectedThreadId)) {
-    selectedThreadId = threads.length ? String(threads[0].thread_id) : "";
+
+  if (operatorInboxMode) {
+    if (!selectedThreadId && threads.length) {
+      const prefer = threadOwnerProfileId
+        ? threads.find((t) => String(t.customer_profile_id || "") === threadOwnerProfileId)
+        : null;
+      const pick = prefer || threads[0];
+      selectedThreadId = String(pick.thread_id);
+      threadOwnerProfileId = String(pick.customer_profile_id || "");
+    }
+    if (
+      selectedThreadId &&
+      !threads.some(
+        (t) =>
+          String(t.thread_id) === selectedThreadId &&
+          String(t.customer_profile_id || "") === String(threadOwnerProfileId || "")
+      )
+    ) {
+      if (threads.length) {
+        selectedThreadId = String(threads[0].thread_id);
+        threadOwnerProfileId = String(threads[0].customer_profile_id || "");
+      } else {
+        selectedThreadId = "";
+        threadOwnerProfileId = "";
+      }
+    }
+  } else {
+    if (!selectedThreadId && threads.length) {
+      selectedThreadId = String(threads[0].thread_id);
+    }
+    if (selectedThreadId && !threads.some((t) => String(t.thread_id) === selectedThreadId)) {
+      selectedThreadId = threads.length ? String(threads[0].thread_id) : "";
+    }
   }
 
   renderThreadList(threads);
   renderMessageDetailShell();
-  const threadMeta = threads.find((t) => String(t.thread_id) === selectedThreadId);
+  const threadMeta = threads.find((t) => {
+    if (operatorInboxMode) {
+      return (
+        String(t.thread_id) === selectedThreadId &&
+        String(t.customer_profile_id || "") === String(threadOwnerProfileId || "")
+      );
+    }
+    return String(t.thread_id) === selectedThreadId;
+  });
   const headerTitle = threadMeta
     ? String(threadMeta.title)
     : selectedThreadId
-      ? `[${customerProfileId}] 정착 서비스`
+      ? operatorInboxMode
+        ? "고객센터 대화"
+        : `[${customerProfileId}] 정착 서비스`
       : "";
   setDetailHeader(headerTitle);
   await loadThreadMessages();
@@ -162,7 +229,14 @@ async function onComposerSubmit(event) {
   input.value = "";
   chatSendLocked = true;
   try {
-    await messagesApi.sendThreadMessage(text, { threadId: selectedThreadId, customerProfileId });
+    if (operatorInboxMode) {
+      await messagesApi.sendOperatorThreadMessage(text, {
+        threadId: selectedThreadId,
+        customerProfileId: threadOwnerProfileId,
+      });
+    } else {
+      await messagesApi.sendThreadMessage(text, { threadId: selectedThreadId, customerProfileId });
+    }
     await refresh();
   } catch (err) {
     const msg = err && typeof err.message === "string" ? err.message : "전송에 실패했습니다.";
@@ -175,15 +249,27 @@ async function onComposerSubmit(event) {
 }
 
 async function initMessagesPage() {
+  operatorInboxMode = canAccessAdminShell();
   syncHeaderRoleBadge();
   await mountMessagesSidebar();
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
 
+  const filtersEl = document.querySelector(".lhai-message-filters");
+  if (filtersEl instanceof HTMLElement) {
+    filtersEl.style.display = operatorInboxMode ? "none" : "";
+  }
+  const subtitle = document.querySelector(".lhai-subtitle");
+  if (subtitle) {
+    subtitle.textContent = operatorInboxMode
+      ? "가입 고객의 고객센터 스레드입니다. 고객이 보낸 메시지에 같은 대화창에서 답장할 수 있습니다."
+      : "시스템·결제·문서 알림을 스레드로 모아 보고, 카카오톡처럼 답장할 수 있습니다.";
+  }
+
   const initialThreadId = applyMessagesPageQuery();
   const q = new URLSearchParams(window.location.search);
   const explicitProfile = (q.get("customer_profile_id") || q.get("customer") || "").trim();
-  if (!explicitProfile) {
+  if (!operatorInboxMode && !explicitProfile) {
     const email = getSession()?.email;
     if (email && String(email).trim()) {
       customerProfileId = `profile::${String(email).trim().toLowerCase()}`;
@@ -200,6 +286,9 @@ async function initMessagesPage() {
     const target = event.target.closest("[data-thread-id]");
     if (!(target instanceof HTMLElement)) return;
     selectedThreadId = target.getAttribute("data-thread-id") || "";
+    if (operatorInboxMode) {
+      threadOwnerProfileId = target.getAttribute("data-customer-profile-id") || "";
+    }
     refresh();
   });
 

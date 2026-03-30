@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Survey Builder - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/admin-survey-builder.css" />
+</head>
+<body>
+  <div id="lhai-app-header-root"></div>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar" aria-label="관리 메뉴"></aside>
+    <main class="lhai-main">
+      <section class="lhai-page-header">
+        <div>
+          <h1 class="lhai-title">Survey Builder</h1>
+          <p class="lhai-subtitle">고객 “진단 흐름”(survey)과 추천 규칙(recommendation)을 함께 설계·관리합니다.</p>
+        </div>
+      </section>
+
+      <section class="lhai-card admin-survey-builder__card">
+        <div class="u-flex-between u-gap-4" style="align-items:flex-start; flex-wrap:wrap;">
+          <div>
+            <h2 class="lhai-card__title" style="margin-bottom: var(--lhai-space-2);">1) Questionnaire 목록</h2>
+            <p class="lhai-help">
+              survey = 고객이 답하는 진단 프로세스입니다. 질문/옵션 구조를 먼저 만들고,
+              오른쪽에서 추천 규칙(패키지/모듈/애드온 연결)을 분리해서 정의하세요.
+            </p>
+          </div>
+        </div>
+
+        <div class="admin-survey-builder__table-wrap">
+          <table class="lhai-table" aria-label="Questionnaires">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Code</th>
+                <th>Active version</th>
+                <th>Active</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="adminQuestionnaireTable"></tbody>
+          </table>
+        </div>
+        <p class="lhai-help" id="adminQuestionnaireStatus">질문지를 선택하면 아래에서 빌더를 편집할 수 있습니다.</p>
+      </section>
+
+      <section class="admin-survey-builder__builder-grid">
+        <!-- Left: survey structure -->
+        <article class="lhai-card admin-survey-builder__card admin-survey-builder__left">
+          <h2 class="lhai-card__title" style="margin-bottom: var(--lhai-space-2);">2) Survey 구조 빌더</h2>
+          <p class="lhai-help u-mb-4">
+            기본 정보/버전/질문/옵션을 관리합니다. (질문=고객이 답하는 단계, 옵션=선택지)
+          </p>
+
+          <div class="admin-services__tabs" id="surveyBuilderTabs">
+            <button type="button" class="admin-services__tab-btn is-active" data-panel="panel-basic">Basic info</button>
+            <button type="button" class="admin-services__tab-btn" data-panel="panel-versions">Versions</button>
+            <button type="button" class="admin-services__tab-btn" data-panel="panel-questions">Questions</button>
+            <button type="button" class="admin-services__tab-btn" data-panel="panel-options">Options</button>
+          </div>
+
+          <div class="admin-services__tab-panels">
+            <!-- Basic -->
+            <div class="admin-services__tab-panel" id="panel-basic">
+              <form class="lhai-form admin-survey-builder__editor" id="questionnaireEditorForm">
+                <input type="hidden" id="questionnaireEditorId" />
+                <div class="admin-survey-builder__editor-grid">
+                  <div>
+                    <label class="lhai-label" for="questionnaireEditorCode">Code</label>
+                    <input class="lhai-input" id="questionnaireEditorCode" type="text" required />
+                    <p class="lhai-help">중복 없이 식별용 코드입니다.</p>
+                  </div>
+                  <div>
+                    <label class="lhai-label" for="questionnaireEditorActive">Active</label>
+                    <input class="lhai-input" id="questionnaireEditorActive" type="checkbox" />
+                  </div>
+                  <div style="grid-column: 1 / -1;">
+                    <label class="lhai-label" for="questionnaireEditorName">Questionnaire name</label>
+                    <input class="lhai-input" id="questionnaireEditorName" type="text" required />
+                  </div>
+                  <div style="grid-column: 1 / -1;">
+                    <label class="lhai-label" for="questionnaireEditorDescription">Description</label>
+                    <textarea class="lhai-textarea" id="questionnaireEditorDescription" rows="3"></textarea>
+                  </div>
+                  <div style="grid-column: 1 / -1;">
+                    <label class="lhai-label">Active version (read-only)</label>
+                    <div class="admin-survey-builder__readonly" id="questionnaireActiveVersionDisplay">-</div>
+                    <p class="lhai-help">버전 탭에서 “Publish” 및 “Mark active”를 수행하세요.</p>
+                  </div>
+                </div>
+                <div class="admin-survey-builder__editor-actions">
+                  <button type="submit" class="lhai-button lhai-button--primary" id="saveQuestionnaireBtn">Save questionnaire</button>
+                  <button type="button" class="lhai-button lhai-button--secondary" id="clearQuestionnaireBtn">Clear</button>
+                </div>
+              </form>
+              <p class="lhai-help" id="questionnaireBasicStatus"></p>
+            </div>
+
+            <!-- Versions -->
+            <div class="admin-services__tab-panel" id="panel-versions" hidden>
+              <div class="admin-survey-builder__two-col">
+                <div>
+                  <div class="admin-survey-builder__section-title">3) Version 관리</div>
+                  <p class="lhai-help">DRAFT(작성 중) → PUBLISHED(고정) → Active 버전으로 설정합니다.</p>
+                  <div class="admin-survey-builder__table-wrap">
+                    <table class="lhai-table" aria-label="Questionnaire versions">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Status</th>
+                          <th>Published</th>
+                          <th>Active</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody id="adminVersionTable"></tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="admin-survey-builder__section-title">버전 액션</div>
+                  <div class="lhai-form admin-survey-builder__inline-form" id="versionActionForm">
+                    <div>
+                      <label class="lhai-label" for="createVersionNumber">Create version number (optional)</label>
+                      <input class="lhai-input" id="createVersionNumber" type="number" min="1" step="1" />
+                    </div>
+                    <div class="admin-survey-builder__editor-actions">
+                      <button type="button" class="lhai-button lhai-button--primary" id="createVersionBtn" disabled>Create new version</button>
+                      <button type="button" class="lhai-button lhai-button--secondary" id="duplicateVersionBtn" disabled>Duplicate selected version</button>
+                      <button type="button" class="lhai-button lhai-button--primary" id="publishVersionBtn" disabled>Publish</button>
+                      <button type="button" class="lhai-button lhai-button--secondary" id="setActiveVersionBtn" disabled>Mark active version</button>
+                    </div>
+                    <p class="lhai-help" id="versionActionStatus">버전/질문지를 선택해야 버튼이 활성화됩니다.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Questions -->
+            <div class="admin-services__tab-panel" id="panel-questions" hidden>
+              <div class="admin-survey-builder__two-col">
+                <div>
+                  <div class="admin-survey-builder__section-title">4) Question builder</div>
+                  <p class="lhai-help">각 질문은 고객 진단 흐름의 단계입니다.</p>
+                  <div class="admin-survey-builder__table-wrap">
+                    <table class="lhai-table" aria-label="Question items">
+                      <thead>
+                        <tr>
+                          <th>Order</th>
+                          <th>Section</th>
+                          <th>Code</th>
+                          <th>Label</th>
+                          <th>Required</th>
+                          <th>Active</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody id="adminQuestionItemTable"></tbody>
+                    </table>
+                  </div>
+
+                  <div class="admin-survey-builder__editor-actions" style="margin-top: var(--lhai-space-3);">
+                    <button type="button" class="lhai-button lhai-button--primary" id="newQuestionItemBtn" disabled>Add question</button>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="admin-survey-builder__section-title">질문 편집</div>
+                  <p class="lhai-help">전화/대면이 아닌 “설문 답변” 기반으로 추천이 달라집니다.</p>
+                  <form class="lhai-form admin-survey-builder__editor" id="questionItemForm">
+                    <input type="hidden" id="questionItemEditorId" />
+                    <div class="admin-survey-builder__editor-grid">
+                      <div>
+                        <label class="lhai-label" for="questionEditorSectionCode">Section</label>
+                        <input class="lhai-input" id="questionEditorSectionCode" type="text" required />
+                      </div>
+                      <div>
+                        <label class="lhai-label" for="questionEditorOrder">Order</label>
+                        <input class="lhai-input" id="questionEditorOrder" type="number" min="0" step="1" />
+                      </div>
+                      <div style="grid-column: 1 / -1;">
+                        <label class="lhai-label" for="questionEditorQuestionCode">Question code</label>
+                        <input class="lhai-input" id="questionEditorQuestionCode" type="text" required />
+                      </div>
+                      <div style="grid-column: 1 / -1;">
+                        <label class="lhai-label" for="questionEditorLabel">Label</label>
+                        <input class="lhai-input" id="questionEditorLabel" type="text" required />
+                      </div>
+                      <div style="grid-column: 1 / -1;">
+                        <label class="lhai-label" for="questionEditorHelpText">Help text</label>
+                        <textarea class="lhai-textarea" id="questionEditorHelpText" rows="2"></textarea>
+                      </div>
+                      <div>
+                        <label class="lhai-label" for="questionEditorInputType">Input type</label>
+                        <select class="lhai-select" id="questionEditorInputType">
+                          <option value="text">text</option>
+                          <option value="textarea">textarea</option>
+                          <option value="select">select</option>
+                          <option value="number">number</option>
+                          <option value="email">email</option>
+                          <option value="phone">phone</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label class="lhai-label" for="questionEditorRequired">Required</label>
+                        <input class="lhai-input" id="questionEditorRequired" type="checkbox" />
+                      </div>
+                      <div style="grid-column: 1 / -1;">
+                        <label class="lhai-label" for="questionEditorPlaceholder">Placeholder</label>
+                        <input class="lhai-input" id="questionEditorPlaceholder" type="text" />
+                      </div>
+                      <div style="grid-column: 1 / -1;">
+                        <label class="lhai-label" for="questionEditorConditionalRuleJson">Conditional display rule (conditional_rule_json)</label>
+                        <textarea class="lhai-textarea" id="questionEditorConditionalRuleJson" rows="4">{"type":"always"}</textarea>
+                        <p class="lhai-help">간단 예: <code>{"type":"question_option_equals","question_code":"company_size","option_value":"small"}</code></p>
+                      </div>
+                      <div>
+                        <label class="lhai-label" for="questionEditorActive">Active</label>
+                        <input class="lhai-input" id="questionEditorActive" type="checkbox" />
+                      </div>
+                    </div>
+                    <div class="admin-survey-builder__editor-actions">
+                      <button type="submit" class="lhai-button lhai-button--primary" id="saveQuestionItemBtn">Save question</button>
+                      <button type="button" class="lhai-button lhai-button--secondary" id="clearQuestionItemBtn">Clear</button>
+                    </div>
+                  </form>
+
+                  <div class="admin-survey-builder__preview">
+                    <div class="admin-survey-builder__preview-title">질문 미리보기</div>
+                    <div class="admin-survey-builder__preview-body" id="questionPreviewBody">-</div>
+                    <div class="admin-survey-builder__preview-sub" id="questionPreviewConditional">-</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Options -->
+            <div class="admin-services__tab-panel" id="panel-options" hidden>
+              <div class="admin-survey-builder__two-col">
+                <div>
+                  <div class="admin-survey-builder__section-title">5) Option builder</div>
+                  <p class="lhai-help">선택지는 질문(item)에 종속됩니다. 옵션 삭제는 안전성 검사를 거칠 수 있습니다.</p>
+                  <div class="admin-survey-builder__table-wrap">
+                    <table class="lhai-table" aria-label="Question options">
+                      <thead>
+                        <tr>
+                          <th>Order</th>
+                          <th>Value</th>
+                          <th>Label</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody id="adminOptionTable"></tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="admin-survey-builder__section-title">옵션 편집</div>
+                  <form class="lhai-form admin-survey-builder__editor" id="questionOptionForm">
+                    <input type="hidden" id="questionOptionEditorId" />
+                    <div class="admin-survey-builder__editor-grid">
+                      <div>
+                        <label class="lhai-label" for="optionEditorOrder">Order</label>
+                        <input class="lhai-input" id="optionEditorOrder" type="number" min="0" step="1" />
+                      </div>
+                      <div style="grid-column:1/-1;">
+                        <label class="lhai-label" for="optionEditorValue">Value</label>
+                        <input class="lhai-input" id="optionEditorValue" type="text" required />
+                      </div>
+                      <div style="grid-column:1/-1;">
+                        <label class="lhai-label" for="optionEditorLabel">Label</label>
+                        <input class="lhai-input" id="optionEditorLabel" type="text" required />
+                      </div>
+                    </div>
+                    <div class="admin-survey-builder__editor-actions">
+                      <button type="submit" class="lhai-button lhai-button--primary" id="saveOptionBtn">Save option</button>
+                      <button type="button" class="lhai-button lhai-button--secondary" id="clearOptionBtn">Clear</button>
+                    </div>
+                  </form>
+
+                  <div class="admin-survey-builder__editor-actions" style="margin-top: var(--lhai-space-3);">
+                    <button type="button" class="lhai-button lhai-button--secondary" id="deleteOptionBtn" disabled>Delete selected option</button>
+                  </div>
+
+                  <p class="lhai-help" id="optionActionStatus"></p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Right: recommendation rules -->
+        <article class="lhai-card admin-survey-builder__card admin-survey-builder__right">
+          <h2 class="lhai-card__title" style="margin-bottom: var(--lhai-space-2);">6) Recommendation rules</h2>
+          <p class="lhai-help u-mb-4">
+            규칙은 survey 답변(questions/options)으로 조건을 만들고,
+            그 결과로 추천할 package/module/add-on을 연결합니다.
+          </p>
+
+          <div class="admin-survey-builder__table-wrap">
+            <table class="lhai-table" aria-label="Recommendation rules">
+              <thead>
+                <tr>
+                  <th>Priority</th>
+                  <th>Active</th>
+                  <th>Result</th>
+                  <th>Condition</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="adminRuleTable"></tbody>
+            </table>
+          </div>
+
+          <div class="admin-survey-builder__editor-actions" style="margin-top: var(--lhai-space-3);">
+            <button type="button" class="lhai-button lhai-button--primary" id="newRuleBtn" disabled>Add rule</button>
+          </div>
+
+          <form class="lhai-form admin-survey-builder__editor admin-survey-builder__rule-editor" id="ruleEditorForm">
+            <input type="hidden" id="ruleEditorId" />
+            <div class="admin-survey-builder__editor-grid">
+              <div>
+                <label class="lhai-label" for="ruleEditorPriority">Priority</label>
+                <input class="lhai-input" id="ruleEditorPriority" type="number" min="0" step="1" />
+              </div>
+              <div>
+                <label class="lhai-label" for="ruleEditorActive">Active</label>
+                <input class="lhai-input" id="ruleEditorActive" type="checkbox" />
+              </div>
+
+              <div style="grid-column:1/-1;">
+                <label class="lhai-label" for="ruleEditorResultType">Result type</label>
+                <select class="lhai-select" id="ruleEditorResultType">
+                  <option value="package">package</option>
+                  <option value="module">module</option>
+                  <option value="addon">addon</option>
+                </select>
+              </div>
+
+              <div style="grid-column:1/-1;">
+                <label class="lhai-label" for="ruleEditorResultCode">Result code</label>
+                <select class="lhai-select" id="ruleEditorResultCode"></select>
+                <p class="lhai-help">백엔드 스키마의 result_code는 코드 문자열입니다.</p>
+              </div>
+
+              <div style="grid-column:1/-1;">
+                <label class="lhai-label" for="ruleEditorConditionMode">Condition builder</label>
+                <select class="lhai-select" id="ruleEditorConditionMode">
+                  <option value="simple">Simple: question + option</option>
+                  <option value="advanced">Advanced: raw JSON</option>
+                </select>
+              </div>
+
+              <div class="admin-survey-builder__condition-simple">
+                <div>
+                  <label class="lhai-label" for="ruleEditorConditionQuestionItemId">Question</label>
+                  <select class="lhai-select" id="ruleEditorConditionQuestionItemId"></select>
+                </div>
+                <div>
+                  <label class="lhai-label" for="ruleEditorConditionOptionValue">Option</label>
+                  <select class="lhai-select" id="ruleEditorConditionOptionValue"></select>
+                </div>
+              </div>
+
+              <div class="admin-survey-builder__condition-advanced" hidden>
+                <label class="lhai-label" for="ruleEditorConditionJson">condition_json (advanced JSON)</label>
+                <textarea class="lhai-textarea" id="ruleEditorConditionJson" rows="4">{"type":"question_option_equals","question_code":"","option_value":""}</textarea>
+              </div>
+            </div>
+
+            <div class="admin-survey-builder__editor-actions">
+              <button type="submit" class="lhai-button lhai-button--primary" id="saveRuleBtn">Save rule</button>
+              <button type="button" class="lhai-button lhai-button--secondary" id="clearRuleBtn">Clear</button>
+            </div>
+          </form>
+
+          <p class="lhai-help" id="ruleActionStatus"></p>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="../assets/js/core/app-header.js"></script>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/admin-survey-builder.js"></script>
+</body>
+</html>
+

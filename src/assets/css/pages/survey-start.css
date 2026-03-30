@@ -1,0 +1,195 @@
+.lhai-container--survey {
+  margin-top: var(--lhai-space-6);
+  padding-bottom: var(--lhai-space-6);
+}
+
+.lhai-container__card {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.survey-progress {
+  margin-bottom: var(--lhai-space-4);
+}
+
+.survey-progress__bar {
+  height: 10px;
+  background: rgba(6, 18, 36, 0.08);
+  border-radius: var(--lhai-radius-sm);
+  overflow: hidden;
+  margin-bottom: var(--lhai-space-3);
+}
+
+.survey-progress__bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--lhai-color-accent), rgba(0, 123, 255, 0.55));
+  border-radius: var(--lhai-radius-sm);
+  transition: width 200ms ease;
+}
+
+.survey-progress__steps {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--lhai-space-2) 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--lhai-space-2);
+}
+
+.survey-progress__steps li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--lhai-color-text-muted);
+  font-size: var(--lhai-font-size-xs);
+}
+
+.survey-progress__dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: rgba(6, 18, 36, 0.08);
+  border: 1px solid rgba(6, 18, 36, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.survey-progress__dot.is-active {
+  background: rgba(0, 123, 255, 0.18);
+  border-color: rgba(0, 123, 255, 0.4);
+  color: var(--lhai-color-accent);
+}
+
+.survey-progress__dot.is-done {
+  background: rgba(25, 180, 118, 0.18);
+  border-color: rgba(25, 180, 118, 0.35);
+  color: #19b476;
+}
+
+.survey-step__title {
+  font-weight: 900;
+  font-size: var(--lhai-font-size-lg);
+  margin-bottom: var(--lhai-space-2);
+}
+
+.survey-step {
+  min-height: 420px;
+}
+
+.survey-field {
+  display: grid;
+  gap: var(--lhai-space-2);
+  margin-top: var(--lhai-space-3);
+}
+
+.survey-problem-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--lhai-space-3);
+  margin-top: var(--lhai-space-3);
+}
+
+.survey-problem-card {
+  text-align: left;
+  border-radius: var(--lhai-radius-sm);
+  border: 1px solid var(--lhai-color-border);
+  background: rgba(6, 18, 36, 0.03);
+  padding: var(--lhai-space-4);
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.survey-problem-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 123, 255, 0.4);
+}
+
+.survey-problem-card[aria-pressed="true"] {
+  background: rgba(0, 123, 255, 0.12);
+  border-color: rgba(0, 123, 255, 0.55);
+}
+
+.survey-problem-card__title {
+  font-weight: 900;
+  margin-bottom: var(--lhai-space-2);
+}
+
+.survey-problem-card__helper {
+  color: var(--lhai-color-text-muted);
+  line-height: 1.55;
+  margin: 0;
+  font-size: var(--lhai-font-size-sm);
+}
+
+.survey-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--lhai-space-3);
+  margin-top: var(--lhai-space-4);
+}
+
+.survey-actions .lhai-button {
+  min-width: 140px;
+}
+
+.survey-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--lhai-space-3);
+  margin-top: var(--lhai-space-4);
+}
+
+.survey-summary-card {
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-sm);
+  padding: var(--lhai-space-4);
+  background: rgba(6, 18, 36, 0.03);
+}
+
+.survey-summary-card strong {
+  display: block;
+  margin-bottom: var(--lhai-space-2);
+  font-weight: 900;
+}
+
+.survey-reco {
+  margin-top: var(--lhai-space-4);
+  border-top: 1px dashed rgba(6, 18, 36, 0.2);
+  padding-top: var(--lhai-space-4);
+}
+
+.survey-reco__title {
+  font-weight: 900;
+  margin-bottom: var(--lhai-space-2);
+}
+
+.survey-reco__list {
+  display: grid;
+  gap: var(--lhai-space-2);
+}
+
+.survey-reco-item {
+  border: 1px solid rgba(0, 123, 255, 0.25);
+  background: rgba(0, 123, 255, 0.08);
+  border-radius: var(--lhai-radius-sm);
+  padding: var(--lhai-space-3);
+}
+
+@media (max-width: 800px) {
+  .survey-problem-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .survey-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .survey-progress__steps {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 8px;
+  }
+}
+
