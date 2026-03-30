@@ -32,7 +32,6 @@ async function loadSidebar(targetSelector = "#sidebar", variant = "customer") {
 }
 
 const MESSAGES_PAGE_ADMIN_SIDEBAR_HTML = `
-  <p class="lhai-label u-mb-2">메뉴</p>
   <nav>
     <ul class="lhai-admin-sidebar-nav">
       <li><a href="admin-dashboard.html">대시보드</a></li>

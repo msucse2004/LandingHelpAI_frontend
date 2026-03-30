@@ -42,9 +42,6 @@
 
           <div class="admin-services__tab-panel" id="panel-manage" hidden>
             <article class="lhai-card admin-services__card">
-              <h2 class="lhai-card__title">관리 탭</h2>
-              <p class="lhai-help">Category / Package / Service를 추가·수정·삭제하면 인벤토리 탭이 즉시 갱신됩니다.</p>
-
               <div class="admin-services__tabs" id="manageEntityTabs">
                 <button type="button" class="admin-services__tab-btn is-active" data-manage-panel="manage-category-panel">Category</button>
                 <button type="button" class="admin-services__tab-btn" data-manage-panel="manage-package-panel">Package</button>
@@ -54,99 +51,326 @@
               <div class="admin-services__manage-panels">
                 <section class="admin-services__manage-block admin-services__manage-panel" id="manage-category-panel">
                   <h3 class="lhai-section__title">Category</h3>
-                  <div class="admin-services__table-wrap">
-                    <table class="lhai-table" aria-label="Category list">
-                      <thead><tr><th>Name</th><th>Active</th></tr></thead>
-                      <tbody id="manageCategoryTable"></tbody>
-                    </table>
-                  </div>
-                  <form class="lhai-form admin-services__editor" id="manageCategoryForm">
-                    <input type="hidden" id="manageCategoryId" />
-                    <label class="lhai-label" for="manageCategoryName">Name</label>
-                    <input class="lhai-input" id="manageCategoryName" type="text" required />
-                    <label class="lhai-label" for="manageCategoryDescription">Description</label>
-                    <textarea class="lhai-textarea" id="manageCategoryDescription" rows="2"></textarea>
-                    <label class="lhai-label" for="manageCategoryActive">Active</label>
-                    <input class="lhai-input" id="manageCategoryActive" type="checkbox" />
-                    <div class="admin-services__row-actions">
-                      <button type="submit" class="lhai-button lhai-button--primary">Save</button>
-                      <button type="button" class="lhai-button lhai-button--secondary" id="manageCategoryNewBtn">New</button>
-                      <button type="button" class="lhai-button lhai-button--danger" id="manageCategoryDeleteBtn">Delete(safe)</button>
+                  <div class="admin-services__category-layout">
+                    <div class="admin-services__category-list-panel">
+                      <div class="admin-services__category-list-head">
+                        <p class="lhai-help admin-services__manage-step">Category 목록에서 항목을 선택하거나 새로 생성하세요.</p>
+                        <button type="button" class="lhai-button lhai-button--primary" id="manageCategoryCreateBtn">+ New Category</button>
+                      </div>
+                      <div class="admin-services__table-wrap">
+                        <table class="lhai-table" aria-label="Category list">
+                          <thead><tr><th>Name</th><th>Active</th></tr></thead>
+                          <tbody id="manageCategoryTable"></tbody>
+                        </table>
+                      </div>
                     </div>
-                  </form>
+
+                    <div class="admin-services__category-detail-panel">
+                      <h4 class="lhai-section__title admin-services__category-editor-title" id="manageCategoryEditorTitle">Create New Category</h4>
+                      <div class="admin-services__manage-mode" id="manageCategoryModeHint">신규 생성 모드입니다.</div>
+                      <form class="lhai-form admin-services__editor" id="manageCategoryForm">
+                        <input type="hidden" id="manageCategoryId" />
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Basic Info</h5>
+                          <label class="lhai-label" for="manageCategoryName">Category Name</label>
+                          <input class="lhai-input" id="manageCategoryName" type="text" required />
+                          <label class="lhai-label" for="manageCategoryDescription">Description</label>
+                          <textarea class="lhai-textarea" id="manageCategoryDescription" rows="2"></textarea>
+                        </section>
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Status</h5>
+                          <div class="admin-services__bool-control">
+                            <label class="admin-services__switch" for="manageCategoryActive">
+                              <input id="manageCategoryActive" type="checkbox" />
+                              <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                              <span class="admin-services__switch-label">Active</span>
+                            </label>
+                            <p class="admin-services__bool-help">This category can be used for new packages and services.</p>
+                          </div>
+                        </section>
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Actions</h5>
+                          <div class="admin-services__row-actions" id="manageCategoryActionsCreate">
+                            <button type="submit" class="lhai-button lhai-button--primary" id="manageCategoryCreateSubmitBtn">Create</button>
+                            <button type="button" class="lhai-button lhai-button--secondary" id="manageCategoryCancelCreateBtn">Cancel</button>
+                          </div>
+                          <div class="admin-services__row-actions" id="manageCategoryActionsEdit" hidden>
+                            <button type="submit" class="lhai-button lhai-button--primary" id="manageCategorySaveSubmitBtn">Save Changes</button>
+                            <button type="button" class="lhai-button lhai-button--secondary" id="manageCategoryCancelEditBtn">Cancel</button>
+                          </div>
+                          <div class="admin-services__danger-zone" id="manageCategoryDangerZone" hidden>
+                            <p class="admin-services__bool-help">Danger zone: only available when safe delete rules pass.</p>
+                            <button type="button" class="lhai-button lhai-button--danger" id="manageCategoryDeleteBtn">Archive Category (safe delete)</button>
+                          </div>
+                        </section>
+                      </form>
+                    </div>
+                  </div>
                 </section>
 
                 <section class="admin-services__manage-block admin-services__manage-panel" id="manage-package-panel" hidden>
                   <h3 class="lhai-section__title">Package</h3>
-                  <div class="admin-services__table-wrap">
-                    <table class="lhai-table" aria-label="Package list">
-                      <thead><tr><th>Name</th><th>Category</th></tr></thead>
-                      <tbody id="managePackageTable"></tbody>
-                    </table>
-                  </div>
-                  <form class="lhai-form admin-services__editor" id="managePackageForm">
-                    <input type="hidden" id="managePackageId" />
-                    <label class="lhai-label" for="managePackageName">Name</label>
-                    <input class="lhai-input" id="managePackageName" type="text" required />
-                    <label class="lhai-label" for="managePackageDescription">Description</label>
-                    <textarea class="lhai-textarea" id="managePackageDescription" rows="2"></textarea>
-                    <label class="lhai-label" for="managePackageCategoryId">Category</label>
-                    <select class="lhai-select" id="managePackageCategoryId"></select>
-                    <label class="lhai-label" for="managePackageAiSupported">AI supported</label>
-                    <input class="lhai-input" id="managePackageAiSupported" type="checkbox" />
-                    <label class="lhai-label" for="managePackageBasePrice">Base price</label>
-                    <input class="lhai-input" id="managePackageBasePrice" type="number" min="0" step="0.01" value="0" />
-                    <label class="lhai-label" for="managePackageCurrency">Currency</label>
-                    <input class="lhai-input" id="managePackageCurrency" type="text" value="USD" />
-                    <label class="lhai-label" for="managePackageActive">Active</label>
-                    <input class="lhai-input" id="managePackageActive" type="checkbox" />
-                    <label class="lhai-label" for="managePackageVisible">Visible</label>
-                    <input class="lhai-input" id="managePackageVisible" type="checkbox" />
-                    <div class="admin-services__row-actions">
-                      <button type="submit" class="lhai-button lhai-button--primary">Save</button>
-                      <button type="button" class="lhai-button lhai-button--secondary" id="managePackageNewBtn">New</button>
-                      <button type="button" class="lhai-button lhai-button--danger" id="managePackageDeleteBtn">Delete(safe)</button>
+                  <div class="admin-services__package-layout">
+                    <div class="admin-services__package-list-panel">
+                      <div class="admin-services__package-list-head">
+                        <p class="lhai-help admin-services__manage-step">Package 목록에서 선택하거나 신규 패키지를 생성하세요.</p>
+                        <button type="button" class="lhai-button lhai-button--primary" id="managePackageCreateBtn">+ New Package</button>
+                      </div>
+                      <div class="admin-services__package-filters">
+                        <input class="lhai-input" id="managePackageSearch" type="search" placeholder="Search package name" />
+                        <select class="lhai-select" id="managePackageFilterCategory">
+                          <option value="">All categories</option>
+                        </select>
+                      </div>
+                      <div class="admin-services__table-wrap">
+                        <table class="lhai-table" aria-label="Package list">
+                          <thead><tr><th>Name</th><th>Category</th><th>Active</th><th>Visible</th><th>AI</th></tr></thead>
+                          <tbody id="managePackageTable"></tbody>
+                        </table>
+                      </div>
                     </div>
-                  </form>
+
+                    <div class="admin-services__package-detail-panel">
+                      <h4 class="lhai-section__title admin-services__package-editor-title" id="managePackageEditorTitle">Create New Package</h4>
+                      <div class="admin-services__manage-mode" id="managePackageModeHint">신규 생성 모드입니다.</div>
+                      <form class="lhai-form admin-services__editor" id="managePackageForm">
+                        <input type="hidden" id="managePackageId" />
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Basic Info</h5>
+                          <label class="lhai-label" for="managePackageName">Package Name</label>
+                          <input class="lhai-input" id="managePackageName" type="text" required />
+                          <label class="lhai-label" for="managePackageDescription">Short Description</label>
+                          <textarea class="lhai-textarea" id="managePackageDescription" rows="2"></textarea>
+                          <label class="lhai-label" for="managePackageLongDescription">Long Description</label>
+                          <textarea class="lhai-textarea" id="managePackageLongDescription" rows="3"></textarea>
+                        </section>
+
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Assignment</h5>
+                          <label class="lhai-label" for="managePackageCategoryId">Category</label>
+                          <select class="lhai-select" id="managePackageCategoryId"></select>
+                        </section>
+
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Delivery Settings</h5>
+                          <div class="admin-services__bool-control">
+                            <label class="admin-services__switch" for="managePackageAiSupported">
+                              <input id="managePackageAiSupported" type="checkbox" />
+                              <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                              <span class="admin-services__switch-label">AI supported</span>
+                            </label>
+                            <p class="admin-services__bool-help">This package can be delivered using AI-guided workflows.</p>
+                          </div>
+                        </section>
+
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Pricing</h5>
+                          <label class="lhai-label" for="managePackageBasePrice">Base price</label>
+                          <input class="lhai-input" id="managePackageBasePrice" type="number" min="0" step="0.01" value="0" />
+                          <label class="lhai-label" for="managePackageCurrency">Currency</label>
+                          <input class="lhai-input" id="managePackageCurrency" type="text" value="USD" />
+                        </section>
+
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Visibility & Status</h5>
+                          <div class="admin-services__bool-grid">
+                            <div class="admin-services__bool-control">
+                              <label class="admin-services__switch" for="managePackageVisible">
+                                <input id="managePackageVisible" type="checkbox" />
+                                <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                                <span class="admin-services__switch-label">Visible</span>
+                              </label>
+                              <p class="admin-services__bool-help">This package appears in customer-facing recommendation or selection flows.</p>
+                            </div>
+                            <div class="admin-services__bool-control">
+                              <label class="admin-services__switch" for="managePackageActive">
+                                <input id="managePackageActive" type="checkbox" />
+                                <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                                <span class="admin-services__switch-label">Active</span>
+                              </label>
+                              <p class="admin-services__bool-help">This package can be used for new customers.</p>
+                            </div>
+                          </div>
+                        </section>
+
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Composition</h5>
+                          <div class="admin-services__composition-adders">
+                            <div class="admin-services__composition-adder">
+                              <label class="lhai-label" for="managePackageAddModuleId">Add existing module</label>
+                              <div class="admin-services__row-actions">
+                                <select class="lhai-select" id="managePackageAddModuleId"></select>
+                                <button type="button" class="lhai-button lhai-button--secondary" id="managePackageAddModuleBtn">Add Module</button>
+                              </div>
+                            </div>
+                            <div class="admin-services__composition-adder">
+                              <label class="lhai-label" for="managePackageAddAddonId">Add existing add-on</label>
+                              <div class="admin-services__row-actions">
+                                <select class="lhai-select" id="managePackageAddAddonId"></select>
+                                <button type="button" class="lhai-button lhai-button--secondary" id="managePackageAddAddonBtn">Add Add-on</button>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="admin-services__table-wrap">
+                            <table class="lhai-table" aria-label="Package composition">
+                              <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Action</th></tr></thead>
+                              <tbody id="managePackageCompositionTable"></tbody>
+                            </table>
+                          </div>
+                        </section>
+
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Actions</h5>
+                          <div class="admin-services__row-actions" id="managePackageActionsCreate">
+                            <button type="submit" class="lhai-button lhai-button--primary" id="managePackageCreateSubmitBtn">Create</button>
+                            <button type="button" class="lhai-button lhai-button--secondary" id="managePackageCancelCreateBtn">Cancel</button>
+                          </div>
+                          <div class="admin-services__row-actions" id="managePackageActionsEdit" hidden>
+                            <button type="submit" class="lhai-button lhai-button--primary" id="managePackageSaveSubmitBtn">Save Changes</button>
+                            <button type="button" class="lhai-button lhai-button--secondary" id="managePackageCancelEditBtn">Cancel</button>
+                          </div>
+                          <div class="admin-services__danger-zone" id="managePackageDangerZone" hidden>
+                            <p class="admin-services__bool-help">Danger zone: only available when safe delete rules pass.</p>
+                            <button type="button" class="lhai-button lhai-button--danger" id="managePackageDeleteBtn">Archive Package (safe delete)</button>
+                          </div>
+                        </section>
+                      </form>
+                    </div>
+                  </div>
                 </section>
 
                 <section class="admin-services__manage-block admin-services__manage-panel" id="manage-service-panel" hidden>
                   <h3 class="lhai-section__title">Service</h3>
-                  <div class="admin-services__table-wrap">
-                    <table class="lhai-table" aria-label="Service list">
-                      <thead><tr><th>Name</th><th>Type</th></tr></thead>
-                      <tbody id="manageServiceTable"></tbody>
-                    </table>
-                  </div>
-                  <form class="lhai-form admin-services__editor" id="manageServiceForm">
-                    <input type="hidden" id="manageServiceId" />
-                    <label class="lhai-label" for="manageServiceName">Name</label>
-                    <input class="lhai-input" id="manageServiceName" type="text" required />
-                    <label class="lhai-label" for="manageServiceDescription">Description</label>
-                    <textarea class="lhai-textarea" id="manageServiceDescription" rows="2"></textarea>
-                    <label class="lhai-label" for="manageServiceType">Type</label>
-                    <select class="lhai-select" id="manageServiceType">
-                      <option value="module">module</option>
-                      <option value="addon">addon</option>
-                    </select>
-                    <label class="lhai-label" for="manageServicePackageId">Package</label>
-                    <select class="lhai-select" id="manageServicePackageId"></select>
-                    <label class="lhai-label" for="manageServiceAiCapable">AI capable</label>
-                    <input class="lhai-input" id="manageServiceAiCapable" type="checkbox" />
-                    <label class="lhai-label" for="manageServiceInPersonRequired">In-person required</label>
-                    <input class="lhai-input" id="manageServiceInPersonRequired" type="checkbox" />
-                    <label class="lhai-label" for="manageServiceExtraPrice">Extra price(if addon)</label>
-                    <input class="lhai-input" id="manageServiceExtraPrice" type="number" min="0" step="0.01" value="0" />
-                    <label class="lhai-label" for="manageServiceActive">Active</label>
-                    <input class="lhai-input" id="manageServiceActive" type="checkbox" />
-                    <label class="lhai-label" for="manageServiceVisible">Visible</label>
-                    <input class="lhai-input" id="manageServiceVisible" type="checkbox" />
-                    <div class="admin-services__row-actions">
-                      <button type="submit" class="lhai-button lhai-button--primary">Save</button>
-                      <button type="button" class="lhai-button lhai-button--secondary" id="manageServiceNewBtn">New</button>
-                      <button type="button" class="lhai-button lhai-button--danger" id="manageServiceDeleteBtn">Delete(safe)</button>
+                  <div class="admin-services__service-layout">
+                    <div class="admin-services__service-list-panel">
+                      <div class="admin-services__service-list-head">
+                        <p class="lhai-help admin-services__manage-step">Service 목록에서 선택하거나 신규 서비스를 생성하세요.</p>
+                        <button type="button" class="lhai-button lhai-button--primary" id="manageServiceCreateBtn">+ New Service</button>
+                      </div>
+                      <div class="admin-services__service-filters">
+                        <select class="lhai-select" id="manageServiceFilterType">
+                          <option value="">All types</option>
+                          <option value="module">AI</option>
+                          <option value="addon">In-person</option>
+                        </select>
+                        <select class="lhai-select" id="manageServiceFilterCategory">
+                          <option value="">All categories</option>
+                        </select>
+                        <select class="lhai-select" id="manageServiceFilterPackage">
+                          <option value="">All packages</option>
+                        </select>
+                        <select class="lhai-select" id="manageServiceFilterActive">
+                          <option value="">All status</option>
+                          <option value="active">Active</option>
+                          <option value="inactive">Inactive</option>
+                        </select>
+                      </div>
+                      <div class="admin-services__table-wrap">
+                        <table class="lhai-table" aria-label="Service list">
+                          <thead><tr><th>Name</th><th>Type</th><th>Package</th><th>Category</th><th>Active</th><th>Visible</th></tr></thead>
+                          <tbody id="manageServiceTable"></tbody>
+                        </table>
+                      </div>
                     </div>
-                  </form>
+
+                    <div class="admin-services__service-detail-panel">
+                      <h4 class="lhai-section__title admin-services__service-editor-title" id="manageServiceEditorTitle">Create New Service</h4>
+                      <div class="admin-services__manage-mode" id="manageServiceModeHint">신규 생성 모드입니다.</div>
+                      <form class="lhai-form admin-services__editor" id="manageServiceForm">
+                        <input type="hidden" id="manageServiceId" />
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Basic Info</h5>
+                          <label class="lhai-label" for="manageServiceName">Service Name</label>
+                          <input class="lhai-input" id="manageServiceName" type="text" required />
+                          <label class="lhai-label" for="manageServiceDescription">Description</label>
+                          <textarea class="lhai-textarea" id="manageServiceDescription" rows="2"></textarea>
+                        </section>
+
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Classification</h5>
+                          <label class="lhai-label" for="manageServiceType">Type</label>
+                          <select class="lhai-select" id="manageServiceType">
+                            <option value="module">AI</option>
+                            <option value="addon">In-person</option>
+                          </select>
+                        </section>
+
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Assignment</h5>
+                          <label class="lhai-label" for="manageServiceCategoryId">Category</label>
+                          <select class="lhai-select" id="manageServiceCategoryId"></select>
+                          <label class="lhai-label" for="manageServicePackageId">Package</label>
+                          <select class="lhai-select" id="manageServicePackageId"></select>
+                        </section>
+
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Delivery Settings</h5>
+                          <div class="admin-services__bool-grid">
+                            <div class="admin-services__bool-control">
+                              <label class="admin-services__switch" for="manageServiceAiCapable">
+                                <input id="manageServiceAiCapable" type="checkbox" />
+                                <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                                <span class="admin-services__switch-label">AI capable</span>
+                              </label>
+                              <p class="admin-services__bool-help">This service can be delivered through AI guidance, checklists, or digital workflows.</p>
+                            </div>
+                            <div class="admin-services__bool-control">
+                              <label class="admin-services__switch" for="manageServiceInPersonRequired">
+                                <input id="manageServiceInPersonRequired" type="checkbox" />
+                                <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                                <span class="admin-services__switch-label">In-person required</span>
+                              </label>
+                              <p class="admin-services__bool-help">This service requires human support or on-site help.</p>
+                            </div>
+                          </div>
+                        </section>
+
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Pricing</h5>
+                          <label class="lhai-label" for="manageServiceExtraPrice">Extra price (for add-on)</label>
+                          <input class="lhai-input" id="manageServiceExtraPrice" type="number" min="0" step="0.01" value="0" />
+                        </section>
+
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Visibility & Status</h5>
+                          <div class="admin-services__bool-grid">
+                            <div class="admin-services__bool-control">
+                              <label class="admin-services__switch" for="manageServiceVisible">
+                                <input id="manageServiceVisible" type="checkbox" />
+                                <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                                <span class="admin-services__switch-label">Visible</span>
+                              </label>
+                              <p class="admin-services__bool-help">This service can appear in customer-facing flows.</p>
+                            </div>
+                            <div class="admin-services__bool-control">
+                              <label class="admin-services__switch" for="manageServiceActive">
+                                <input id="manageServiceActive" type="checkbox" />
+                                <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                                <span class="admin-services__switch-label">Active</span>
+                              </label>
+                              <p class="admin-services__bool-help">This service is available for new customer workflows.</p>
+                            </div>
+                          </div>
+                        </section>
+
+                        <section class="admin-services__editor-section">
+                          <h5 class="admin-services__editor-section-title">Actions</h5>
+                          <div class="admin-services__row-actions" id="manageServiceActionsCreate">
+                            <button type="submit" class="lhai-button lhai-button--primary" id="manageServiceCreateSubmitBtn">Create</button>
+                            <button type="button" class="lhai-button lhai-button--secondary" id="manageServiceCancelCreateBtn">Cancel</button>
+                          </div>
+                          <div class="admin-services__row-actions" id="manageServiceActionsEdit" hidden>
+                            <button type="submit" class="lhai-button lhai-button--primary" id="manageServiceSaveSubmitBtn">Save Changes</button>
+                            <button type="button" class="lhai-button lhai-button--secondary" id="manageServiceCancelEditBtn">Cancel</button>
+                          </div>
+                          <div class="admin-services__danger-zone" id="manageServiceDangerZone" hidden>
+                            <p class="admin-services__bool-help">Danger zone: archive will hide this service from new workflows.</p>
+                            <button type="button" class="lhai-button lhai-button--danger" id="manageServiceArchiveBtn">Archive Service</button>
+                          </div>
+                        </section>
+                      </form>
+                    </div>
+                  </div>
                 </section>
               </div>
             </article>
