@@ -1,28 +1,49 @@
-import { adminApi } from "../core/api.js";
+import { adminApi, quoteApi } from "../core/api.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
-import { getState, patchState } from "../core/state.js";
-import { quoteApi } from "../core/api.js";
 import { loadSidebar } from "../components/sidebar.js";
-
-let selectedQuoteId = "";
+import { applyI18nToDom } from "../core/i18n-dom.js";
+import { formatDate, safeText } from "../core/utils.js";
 
 function qs(selector) {
   return document.querySelector(selector);
 }
 
-function setStatus(message) {
-  const status = qs("#adminQuoteStatus");
-  if (status) status.textContent = message;
+function renderPrepBanner(rows) {
+  const el = qs("#adminQuotePrepBanner");
+  if (!el) return;
+  if (!rows.length) {
+    el.hidden = true;
+    el.innerHTML = "";
+    return;
+  }
+  el.hidden = false;
+  el.innerHTML = `
+    <h2 class="lhai-card__title">견적 준비 필요 — 설문 접수 ${rows.length}건</h2>
+    <p class="lhai-help">
+      관리자 검토 후 견적을 작성하고 <strong>저장</strong>한 다음 <strong>Propose Quote</strong>로 고객에게 보낼 수 있습니다.
+    </p>
+    <ul class="lhai-admin-quote-prep-banner__list">
+      ${rows
+        .map((r) => {
+          const name = safeText(r.customer_display_name || r.customer_profile_id || "");
+          const when = formatDate(r.submitted_at);
+          const areas = Array.isArray(r.help_area_titles) ? r.help_area_titles.filter(Boolean).join(", ") : "";
+          const n = Number(r.selected_services_count) || 0;
+          const qid = String(r.quote_id || "").trim();
+          const prepUrl = `admin-quote-prepare.html?id=${encodeURIComponent(qid)}`;
+          return `<li>
+            ${name} · 접수 ${safeText(when)} · 상태: 견적 준비 필요
+            ${areas ? ` · 영역: ${safeText(areas)}` : ""} · 서비스 ${n}개
+            · <a class="lhai-admin-quote-prep-banner__prep-link" href="${prepUrl}">초안 작성 화면</a>
+          </li>`;
+        })
+        .join("")}
+    </ul>
+  `;
+
 }
 
-function toLines(text) {
-  return String(text || "")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
-function renderQuoteList(quotes) {
+function renderQuoteList(quotes, pendingIds) {
   const target = qs("#adminQuoteList");
   if (!target) return;
   if (!quotes.length) {
@@ -30,89 +51,56 @@ function renderQuoteList(quotes) {
     return;
   }
 
+  const pend = pendingIds instanceof Set ? pendingIds : new Set();
   target.innerHTML = quotes
     .map(
-      (quote) => `
-      <button class="lhai-list__item" data-quote-id="${quote.id}">
-        <strong>${quote.id}</strong><br />
-        <span class="u-text-muted">${quote.service_name || "Untitled"} - ${quote.status}</span>
+      (quote) => {
+        const submittedAt = formatDate(quote.created_at || quote.updated_at);
+        return `
+      <button type="button" class="lhai-list__item ${pend.has(quote.id) ? "lhai-list__item--needs-prep" : ""}" data-quote-id="${safeText(quote.id)}">
+        <strong>${safeText(quote.customer_display_name || quote.customer_profile_id || "Customer")}</strong><br />
+        <span class="u-text-muted">${
+          pend.has(quote.id) ? '<span class="lhai-admin-needs-prep-tag">견적 준비 필요</span> · ' : ""
+        }접수 ${safeText(submittedAt)} · ${safeText(quote.service_name || "Untitled")} · 상태 ${safeText(quote.status)}</span>
       </button>
-    `
+    `;
+      }
     )
     .join("");
 
   target.querySelectorAll("[data-quote-id]").forEach((button) => {
-    button.addEventListener("click", async () => {
+    button.addEventListener("click", () => {
       const quoteId = button.getAttribute("data-quote-id");
       if (!quoteId) return;
-      await selectQuote(quoteId);
+      window.location.href = `admin-quote-prepare.html?id=${encodeURIComponent(quoteId)}`;
     });
   });
-}
-
-function fillForm(quote) {
-  qs("#serviceName").value = quote.service_name || "";
-  qs("#includedItems").value = (quote.included_items || []).join("\n");
-  qs("#excludedItems").value = (quote.excluded_items || []).join("\n");
-  qs("#estimatedCost").value = quote.estimated_cost || 0;
-  qs("#aiSupportScope").value = quote.ai_support_scope || "";
-  qs("#possibleExtraCosts").value = (quote.possible_extra_costs || []).join("\n");
-  qs("#nextStepGuidance").value = quote.next_step_guidance || "";
-}
-
-async function selectQuote(quoteId) {
-  selectedQuoteId = quoteId;
-  const quote = await quoteApi.getDetail(quoteId);
-  fillForm(quote);
-  setStatus(`Editing ${quote.id} (${quote.status})`);
 }
 
 async function initAdminQuotesPage() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
   await loadSidebar("#sidebar", "admin");
-  const quotes = await adminApi.listQuotes();
-  const current = getState();
-  patchState({ admin: { ...current.admin, quotes } });
-  renderQuoteList(quotes);
+  applyI18nToDom(document);
 
-  if (quotes[0]) {
-    await selectQuote(quotes[0].id);
+  const pendingQueue = await quoteApi.listSurveyReviewPending();
+  const pendingRows = Array.isArray(pendingQueue) ? pendingQueue : [];
+  const pendingIds = new Set(pendingRows.map((r) => r.quote_id).filter(Boolean));
+  renderPrepBanner(pendingRows);
+
+  const quotesRaw = await adminApi.listQuotes();
+  const quotes = [...quotesRaw].sort((a, b) => {
+    const ao = pendingIds.has(a.id) ? 0 : 1;
+    const bo = pendingIds.has(b.id) ? 0 : 1;
+    return ao - bo;
+  });
+  renderQuoteList(quotes, pendingIds);
+
+  const params = new URLSearchParams(window.location.search);
+  const prepareId = (params.get("prepare") || "").trim();
+  if (prepareId && quotes.some((q) => q.id === prepareId)) {
+    window.location.href = `admin-quote-prepare.html?id=${encodeURIComponent(prepareId)}`;
   }
-
-  qs("#adminQuoteForm")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!selectedQuoteId) {
-      setStatus("Select a quote first.");
-      return;
-    }
-    const payload = {
-      service_name: qs("#serviceName").value.trim(),
-      included_items: toLines(qs("#includedItems").value),
-      excluded_items: toLines(qs("#excludedItems").value),
-      estimated_cost: Number(qs("#estimatedCost").value || 0),
-      ai_support_scope: qs("#aiSupportScope").value.trim(),
-      possible_extra_costs: toLines(qs("#possibleExtraCosts").value),
-      next_step_guidance: qs("#nextStepGuidance").value.trim(),
-    };
-
-    await quoteApi.update(selectedQuoteId, payload);
-    setStatus(`Saved quote draft ${selectedQuoteId}.`);
-  });
-
-  qs("#proposeQuoteBtn")?.addEventListener("click", async () => {
-    if (!selectedQuoteId) {
-      setStatus("Select a quote first.");
-      return;
-    }
-    const transition = await quoteApi.transition(selectedQuoteId, "PROPOSED", "Proposed by admin panel");
-    setStatus(transition.message || `Quote ${selectedQuoteId} proposed.`);
-    const refreshed = await adminApi.listQuotes();
-    const latestState = getState();
-    patchState({ admin: { ...latestState.admin, quotes: refreshed } });
-    renderQuoteList(refreshed);
-    await selectQuote(selectedQuoteId);
-  });
 }
 
 initAdminQuotesPage();

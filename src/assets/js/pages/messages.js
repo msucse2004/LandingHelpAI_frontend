@@ -36,6 +36,41 @@ function isMineDirection(direction) {
   return d === "INBOUND";
 }
 
+function extractQuoteIdFromText(text) {
+  const s = String(text || "");
+  const m = s.match(/[?&]quote_id=([^&#\s]+)/);
+  return m ? decodeURIComponent(m[1]) : "";
+}
+
+function extractMockStoragePdfUrl(text) {
+  const s = String(text || "");
+  const m = s.match(/(?:\/api)?\/mock-storage\/[^ \n\r\t]+\.pdf/i);
+  return m ? m[0] : "";
+}
+
+function renderQuoteProposedLinksHtml(message) {
+  if (!message || typeof message !== "object") return "";
+  if (String(message.event_code || "") !== "quote.proposed") return "";
+
+  const qid = extractQuoteIdFromText(message.body);
+  const pdfUrl = extractMockStoragePdfUrl(message.body);
+  const parts = [];
+
+  if (qid) {
+    const href = `quote-detail.html?quote_id=${encodeURIComponent(qid)}`;
+    parts.push(
+      `<a class="lhai-button lhai-button--secondary lhai-quote-proposed-link" href="${href}">견적 보기 (View Quote)</a>`
+    );
+  }
+  if (pdfUrl) {
+    parts.push(
+      `<a class="lhai-button lhai-button--secondary lhai-quote-proposed-link" href="${pdfUrl}" target="_blank" rel="noopener">PDF 다운로드/보기 (Download/View PDF)</a>`
+    );
+  }
+  if (!parts.length) return "";
+  return `<div class="lhai-quote-proposed-links">${parts.join(" ")}</div>`;
+}
+
 function renderThreadList(threads = []) {
   const container = document.querySelector("#messageListContainer");
   if (!container) return;
@@ -84,6 +119,7 @@ function renderChatBubbles() {
         <div class="lhai-chat-bubble ${bubbleClass}">
           ${titleLine}
           <p class="lhai-chat-bubble__body">${safeText(m.body)}</p>
+          ${mine ? "" : renderQuoteProposedLinksHtml(m)}
           <time class="lhai-chat-bubble__time" datetime="${safeText(m.created_at)}">${formatDate(m.created_at)}</time>
         </div>
       </div>`;
@@ -139,6 +175,25 @@ async function loadThreadMessages() {
       : await messagesApi.threadMessages(selectedThreadId, { customerProfileId: cp });
   } catch {
     currentThreadMessages = [];
+  }
+
+  if (!operatorInboxMode && Array.isArray(currentThreadMessages) && currentThreadMessages.length) {
+    const unreadIncoming = currentThreadMessages.filter((m) => {
+      const mine = isMineDirection(m?.direction);
+      return !mine && Boolean(m?.unread) && Boolean(m?.id);
+    });
+    if (unreadIncoming.length) {
+      await Promise.all(
+        unreadIncoming.map(async (m) => {
+          try {
+            await messagesApi.markRead(String(m.id), true);
+            m.unread = false;
+          } catch {
+            // Ignore per-message read failure and keep page usable.
+          }
+        })
+      );
+    }
   }
   renderChatBubbles();
 }
@@ -216,6 +271,7 @@ async function refresh() {
       : "";
   setDetailHeader(headerTitle);
   await loadThreadMessages();
+  window.dispatchEvent(new CustomEvent("lhai:messages-changed"));
 }
 
 /** @param {SubmitEvent} event */

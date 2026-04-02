@@ -2,6 +2,7 @@ import { invoiceApi } from "../core/api.js";
 import { getCurrentRole } from "../core/auth.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { loadSidebar } from "../components/sidebar.js";
+import { applyI18nToDom } from "../core/i18n-dom.js";
 
 let selectedInvoiceId = "";
 
@@ -55,6 +56,7 @@ async function initAdminInvoicesPage() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
   await loadSidebar("#sidebar", "admin");
+  applyI18nToDom(document);
   const currentRole = getCurrentRole();
   const l3PlusRoles = ["supervisor", "admin", "super_admin"];
   const canUseInPersonDraftStub = l3PlusRoles.includes(currentRole);

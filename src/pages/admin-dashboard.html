@@ -4,22 +4,13 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin Dashboard - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
-  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" />  <link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/admin-dashboard.css" />
 </head>
 <body>
     <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" aria-label="관리 메뉴">
-      <nav>
-        <ul class="lhai-admin-sidebar-nav">
-          <li><a href="admin-dashboard.html" aria-current="page">대시보드</a></li>
-          <li><a href="admin-users.html">회원·가입 상태</a></li>
-          <li><a href="admin-invitations.html">회원 초대 메일</a></li>
-          <li><a href="admin-customers.html">고객</a></li>
-          <li><a href="admin-quotes.html">견적</a></li>
-        </ul>
-      </nav>
-    </aside>
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" aria-label="Admin navigation"></aside>
     <main class="lhai-main">
       <section class="lhai-page-header"><div><h1 class="lhai-title">관리 대시보드</h1><p class="lhai-subtitle">운영 지표와 요약입니다.</p></div></section>
       <section class="lhai-card u-mb-4">
@@ -28,12 +19,28 @@
         <div class="u-flex-between u-gap-2" style="flex-wrap: wrap;">
           <a class="lhai-button lhai-button--primary" href="admin-invitations.html">회원 초대 메일 보내기</a>
           <a class="lhai-button lhai-button--secondary" href="admin-users.html">회원 가입·인증 상태 관리</a>
+          <a class="lhai-button lhai-button--secondary" href="admin-services.html" data-i18n="common.admin_dashboard.link_services_intake">서비스 · 고객 인테이크</a>
         </div>
       </section>
+      <section class="lhai-card u-mb-4 lhai-admin-survey-review" id="adminSurveyReviewSection" hidden>
+        <h2 class="lhai-card__title">견적 준비 필요 (설문 접수)</h2>
+        <p class="lhai-help">
+          설문을 제출한 고객입니다. 내용 검토 후 견적을 작성하고 제안(Propose) 단계로 넘겨 주세요.
+        </p>
+        <div id="adminSurveyReviewList" class="lhai-admin-survey-review__list"></div>
+        <p class="lhai-help u-mt-3">
+          <a class="lhai-button lhai-button--secondary" href="admin-quotes.html">전체 견적 목록</a>
+        </p>
+      </section>
+
       <section class="lhai-grid lhai-grid--2">
         <article class="lhai-card"><h2 class="lhai-card__title">Active Customers</h2><p>0</p></article>
         <article class="lhai-card"><h2 class="lhai-card__title">Open Risks</h2><p>0</p></article>
-        <article class="lhai-card"><h2 class="lhai-card__title">Pending Quotes</h2><p>0</p></article>
+        <article class="lhai-card">
+          <h2 class="lhai-card__title">견적 준비 대기 (설문)</h2>
+          <p class="lhai-metric-value" id="adminPendingQuotePrepCount">0</p>
+          <p class="lhai-help">위 목록 또는 <a href="admin-quotes.html">견적 관리</a>에서 처리합니다.</p>
+        </article>
         <article class="lhai-card"><h2 class="lhai-card__title">Overdue Invoices</h2><p>0</p></article>
       </section>
     </main>
@@ -41,5 +48,6 @@
   <script type="module" src="../assets/js/core/app-header.js"></script>
   <script type="module" src="../assets/js/core/logout-button.js"></script>
   <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/admin-dashboard.js"></script>
 </body>
 </html>

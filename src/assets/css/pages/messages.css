@@ -102,7 +102,9 @@
 }
 
 .lhai-chat-bubble {
-  max-width: min(78%, 320px);
+  /* 대화창 너비를 활용: 과거 320px 상한 제거, 읽기 좋은 최대 줄 길이는 rem으로 제한 */
+  max-width: min(96%, 42rem);
+  width: fit-content;
   padding: var(--lhai-space-2) var(--lhai-space-3);
   border-radius: 14px;
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
@@ -110,6 +112,10 @@
 }
 
 .lhai-chat-bubble--them {
+  /* 상대/시스템 메시지: 스크롤 영역 거의 전폭 사용 */
+  max-width: min(98%, 44rem);
+  width: 100%;
+  box-sizing: border-box;
   background: #ffffff;
   color: #000000;
   border: 1px solid rgb(0 0 0 / 0.08);
@@ -117,6 +123,8 @@
 }
 
 .lhai-chat-bubble--me {
+  max-width: min(82%, 22rem);
+  width: fit-content;
   background: #fee500;
   color: #000000;
   border: 1px solid rgb(0 0 0 / 0.06);
@@ -145,6 +153,17 @@
   font-size: 0.65rem;
   color: #000000;
   text-align: right;
+}
+
+.lhai-quote-proposed-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+  margin-top: var(--lhai-space-2);
+}
+
+.lhai-quote-proposed-link {
+  font-size: 0.85rem;
 }
 
 .lhai-chat-row--them .lhai-chat-bubble__time {

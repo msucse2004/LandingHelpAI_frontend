@@ -1,7 +1,9 @@
 import { serviceCatalogAdminApi } from "../core/api.js";
+import { initManageServiceIntakeTab, msiOnServiceContextChanged } from "./admin-service-intake-tab.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { loadSidebar } from "../components/sidebar.js";
 import { initI18nDomains, t } from "../core/i18n-client.js";
+import { applyI18nToDom } from "../core/i18n-dom.js";
 import { formatDate, formatMoney, qsa, qs, safeText } from "../core/utils.js";
 
 let categories = [];
@@ -27,6 +29,31 @@ function boolBadge(value, labelTrue = "Yes", labelFalse = "No") {
 
 function esc(value) {
   return safeText(value);
+}
+
+function suggestedDeliveryCopy(aiCapable, inPersonRequired) {
+  if (aiCapable && inPersonRequired) {
+    return {
+      label: "AI + Optional Human Help",
+      help: "This service starts with AI guidance and can include optional human support when needed.",
+    };
+  }
+  if (aiCapable && !inPersonRequired) {
+    return {
+      label: "AI Guide",
+      help: "This service is delivered through AI guidance, checklists, and digital assistance.",
+    };
+  }
+  if (!aiCapable && inPersonRequired) {
+    return {
+      label: "In-person Support",
+      help: "This service requires human or on-site support.",
+    };
+  }
+  return {
+    label: "Guided Service",
+    help: "We will guide you through the next steps in a clear, practical flow.",
+  };
 }
 
 function renderCategories() {
@@ -1060,6 +1087,145 @@ function sf_applyAdminServicesI18n() {
   sf_applyI18nLabelFor("categoryPackageCreateVisible", "common.admin_services.state.visible");
   sf_applyI18nLabelFor("categoryPackageCreateActive", "common.admin_services.state.active");
 
+  // Manage tab: Category / Package / Service (static HTML + shared action keys)
+  sf_applyI18nText(qs("#manageEntityTabs button[data-manage-panel='manage-category-panel']"), "common.admin_services.manage.tab.category");
+  sf_applyI18nText(qs("#manageEntityTabs button[data-manage-panel='manage-package-panel']"), "common.admin_services.manage.tab.package");
+  sf_applyI18nText(qs("#manageEntityTabs button[data-manage-panel='manage-service-panel']"), "common.admin_services.manage.tab.service");
+
+  sf_applyI18nText(qs("#manage-category-panel > h3"), "common.admin_services.manage.entity.category");
+  sf_applyI18nText(qs("#manage-category-panel .admin-services__category-list-head .admin-services__manage-step"), "common.admin_services.manage.category.list_hint");
+  sf_applyI18nText(qs("#manageCategoryCreateBtn"), "common.admin_services.manage.actions.new_category");
+  sf_applyI18nText(qs("#manageCategoryEditorTitle"), "common.admin_services.manage.category.title_create");
+  sf_applyI18nText(qs("#manageCategoryModeHint"), "common.admin_services.manage.mode.create");
+  const mcatThs = qsa("#manageCategoryTable thead th");
+  if (mcatThs.length >= 2) {
+    sf_applyI18nText(mcatThs[0], "common.admin_services.table.manage.name");
+    sf_applyI18nText(mcatThs[1], "common.admin_services.state.active");
+  }
+  sf_applyI18nText(qs("#manageCategoryForm .admin-services__editor-section:nth-of-type(1) .admin-services__editor-section-title"), "common.admin_services.editor.section.basic_info");
+  sf_applyI18nLabelFor("manageCategoryName", "common.admin_services.categories.editor.label.category_name");
+  sf_applyI18nLabelFor("manageCategoryDescription", "common.admin_services.editor.label.description");
+  sf_applyI18nText(qs("#manageCategoryForm .admin-services__editor-section:nth-of-type(2) .admin-services__editor-section-title"), "common.admin_services.manage.section.status");
+  sf_applyI18nText(qs("#manageCategoryForm .admin-services__switch-label"), "common.admin_services.state.active");
+  sf_applyI18nText(qs("#manageCategoryForm .admin-services__bool-help"), "common.admin_services.manage.category.active_help");
+  sf_applyI18nText(qs("#manageCategoryForm .admin-services__editor-section:nth-of-type(3) .admin-services__editor-section-title"), "common.admin_services.manage.section.actions");
+  sf_applyI18nText(qs("#manageCategoryCreateSubmitBtn"), "common.actions.create");
+  sf_applyI18nText(qs("#manageCategoryCancelCreateBtn"), "common.actions.cancel");
+  sf_applyI18nText(qs("#manageCategorySaveSubmitBtn"), "common.actions.save_changes");
+  sf_applyI18nText(qs("#manageCategoryCancelEditBtn"), "common.actions.cancel");
+  sf_applyI18nText(qs("#manageCategoryDangerZone .admin-services__bool-help"), "common.admin_services.manage.danger.help");
+  sf_applyI18nText(qs("#manageCategoryDeleteBtn"), "common.admin_services.manage.category.archive_safe");
+
+  sf_applyI18nText(qs("#manage-package-panel > h3"), "common.admin_services.manage.entity.package");
+  sf_applyI18nText(qs("#manage-package-panel .admin-services__package-list-head .admin-services__manage-step"), "common.admin_services.manage.package.list_hint");
+  sf_applyI18nText(qs("#managePackageCreateBtn"), "common.admin_services.manage.actions.new_package");
+  sf_applyI18nPlaceholder(qs("#managePackageSearch"), "common.admin_services.manage.package.search_placeholder");
+  sf_applyI18nOptionText("#managePackageFilterCategory", "", "common.filters.all_categories");
+  sf_applyI18nText(qs("#managePackageEditorTitle"), "common.admin_services.manage.package.title_create");
+  sf_applyI18nText(qs("#managePackageModeHint"), "common.admin_services.manage.mode.create");
+  const mpkgThs = qsa("#managePackageTable thead th");
+  if (mpkgThs.length >= 6) {
+    sf_applyI18nText(mpkgThs[0], "common.admin_services.table.manage.name");
+    sf_applyI18nText(mpkgThs[1], "common.admin_services.filters.category");
+    sf_applyI18nText(mpkgThs[2], "common.admin_services.state.active");
+    sf_applyI18nText(mpkgThs[3], "common.admin_services.state.visible");
+    sf_applyI18nText(mpkgThs[4], "common.admin_services.manage.badge.ai_short");
+  }
+  const pkgFormSections = qsa("#managePackageForm .admin-services__editor-section-title");
+  if (pkgFormSections.length >= 7) {
+    sf_applyI18nText(pkgFormSections[0], "common.admin_services.editor.section.basic_info");
+    sf_applyI18nText(pkgFormSections[1], "common.admin_services.editor.section.assignment");
+    sf_applyI18nText(pkgFormSections[2], "common.admin_services.manage.section.delivery");
+    sf_applyI18nText(pkgFormSections[3], "common.admin_services.manage.section.pricing");
+    sf_applyI18nText(pkgFormSections[4], "common.admin_services.manage.section.visibility_status");
+    sf_applyI18nText(pkgFormSections[5], "common.admin_services.manage.section.composition");
+    sf_applyI18nText(pkgFormSections[6], "common.admin_services.manage.section.actions");
+  }
+  sf_applyI18nLabelFor("managePackageName", "common.admin_services.packages.editor.label.package_name");
+  sf_applyI18nLabelFor("managePackageDescription", "common.admin_services.manage.label.short_description");
+  sf_applyI18nLabelFor("managePackageLongDescription", "common.admin_services.manage.label.long_description");
+  sf_applyI18nLabelFor("managePackageCategoryId", "common.admin_services.filters.category");
+  sf_applyI18nText(qs("label[for='managePackageAiSupported'] .admin-services__switch-label"), "common.admin_services.packages.editor.label.ai_supported");
+  sf_applyI18nText(qs("#managePackageForm .admin-services__editor-section:nth-of-type(3) .admin-services__bool-help"), "common.admin_services.packages.editor.ai_supported_help");
+  sf_applyI18nLabelFor("managePackageBasePrice", "common.admin_services.packages.editor.label.base_price");
+  sf_applyI18nLabelFor("managePackageCurrency", "common.admin_services.packages.editor.label.currency");
+  sf_applyI18nText(qs("label[for='managePackageVisible'] .admin-services__switch-label"), "common.admin_services.state.visible");
+  sf_applyI18nText(qs("#managePackageForm .admin-services__bool-grid .admin-services__bool-control:nth-child(1) .admin-services__bool-help"), "common.admin_services.packages.visible_help");
+  sf_applyI18nText(qs("label[for='managePackageActive'] .admin-services__switch-label"), "common.admin_services.state.active");
+  sf_applyI18nText(qs("#managePackageForm .admin-services__bool-grid .admin-services__bool-control:nth-child(2) .admin-services__bool-help"), "common.admin_services.packages.active_help");
+  sf_applyI18nLabelFor("managePackageAddModuleId", "common.admin_services.packages.editor.label.add_existing_module");
+  sf_applyI18nText(qs("#managePackageAddModuleBtn"), "common.admin_services.packages.actions.add_module");
+  sf_applyI18nLabelFor("managePackageAddAddonId", "common.admin_services.packages.editor.label.add_existing_addon");
+  sf_applyI18nText(qs("#managePackageAddAddonBtn"), "common.admin_services.manage.actions.add_addon");
+  const mcompThs = qsa("#managePackageCompositionTable thead th");
+  if (mcompThs.length >= 4) {
+    sf_applyI18nText(mcompThs[0], "common.admin_services.table.manage.name");
+    sf_applyI18nText(mcompThs[1], "common.admin_services.table.inventory.type");
+    sf_applyI18nText(mcompThs[2], "common.admin_services.table.modules.required");
+    sf_applyI18nText(mcompThs[3], "common.admin_services.table.actions");
+  }
+  sf_applyI18nText(qs("#managePackageCreateSubmitBtn"), "common.actions.create");
+  sf_applyI18nText(qs("#managePackageCancelCreateBtn"), "common.actions.cancel");
+  sf_applyI18nText(qs("#managePackageSaveSubmitBtn"), "common.actions.save_changes");
+  sf_applyI18nText(qs("#managePackageCancelEditBtn"), "common.actions.cancel");
+  sf_applyI18nText(qs("#managePackageDangerZone .admin-services__bool-help"), "common.admin_services.manage.danger.help");
+  sf_applyI18nText(qs("#managePackageDeleteBtn"), "common.admin_services.manage.package.archive_safe");
+
+  sf_applyI18nText(qs("#manage-service-panel > h3"), "common.admin_services.manage.entity.service");
+  sf_applyI18nText(qs("#manage-service-panel .admin-services__service-list-head .admin-services__manage-step"), "common.admin_services.manage.service.list_hint");
+  sf_applyI18nText(qs("#manageServiceCreateBtn"), "common.admin_services.manage.actions.new_service");
+  sf_applyI18nOptionText("#manageServiceFilterType", "", "common.admin_services.filters.all");
+  sf_applyI18nOptionText("#manageServiceFilterType", "module", "common.admin_services.editor.type.module_ui");
+  sf_applyI18nOptionText("#manageServiceFilterType", "addon", "common.admin_services.editor.type.addon_ui");
+  sf_applyI18nOptionText("#manageServiceFilterCategory", "", "common.admin_services.filters.all");
+  sf_applyI18nOptionText("#manageServiceFilterPackage", "", "common.admin_services.manage.filter.all_packages");
+  sf_applyI18nOptionText("#manageServiceFilterActive", "", "common.admin_services.manage.filter.all_status");
+  sf_applyI18nOptionText("#manageServiceFilterActive", "active", "common.admin_services.filters.active.active");
+  sf_applyI18nOptionText("#manageServiceFilterActive", "inactive", "common.admin_services.filters.active.inactive");
+  sf_applyI18nText(qs("#manageServiceEditorTitle"), "common.admin_services.manage.service.title_create");
+  sf_applyI18nText(qs("#manageServiceModeHint"), "common.admin_services.manage.mode.create");
+  const msvcThs = qsa("#manageServiceTable thead th");
+  if (msvcThs.length >= 6) {
+    sf_applyI18nText(msvcThs[0], "common.admin_services.table.manage.name");
+    sf_applyI18nText(msvcThs[1], "common.admin_services.table.inventory.type");
+    sf_applyI18nText(msvcThs[2], "common.admin_services.table.inventory.package");
+    sf_applyI18nText(msvcThs[3], "common.admin_services.table.inventory.category");
+    sf_applyI18nText(msvcThs[4], "common.admin_services.state.active");
+    sf_applyI18nText(msvcThs[5], "common.admin_services.state.visible");
+  }
+  const svcFormSections = qsa("#manageServiceForm .admin-services__editor-section-title");
+  if (svcFormSections.length >= 6) {
+    sf_applyI18nText(svcFormSections[0], "common.admin_services.editor.section.basic_info");
+    sf_applyI18nText(svcFormSections[1], "common.admin_services.editor.section.type_header");
+    sf_applyI18nText(svcFormSections[2], "common.admin_services.editor.section.assignment");
+    sf_applyI18nText(svcFormSections[3], "common.admin_services.manage.section.delivery");
+    sf_applyI18nText(svcFormSections[4], "common.admin_services.manage.section.pricing_extra");
+    sf_applyI18nText(svcFormSections[5], "common.admin_services.manage.section.visibility_status");
+  }
+  sf_applyI18nLabelFor("manageServiceName", "common.admin_services.editor.label.service_name");
+  sf_applyI18nLabelFor("manageServiceDescription", "common.admin_services.editor.label.description");
+  sf_applyI18nLabelFor("manageServiceType", "common.admin_services.editor.section.type");
+  sf_applyI18nOptionText("#manageServiceType", "module", "common.admin_services.editor.type.module_ui");
+  sf_applyI18nOptionText("#manageServiceType", "addon", "common.admin_services.editor.type.addon_ui");
+  sf_applyI18nLabelFor("manageServiceCategoryId", "common.admin_services.filters.category");
+  sf_applyI18nLabelFor("manageServicePackageId", "common.admin_services.editor.assignment.package");
+  sf_applyI18nText(qs("label[for='manageServiceAiCapable'] .admin-services__switch-label"), "common.admin_services.manage.service.ai_capable");
+  sf_applyI18nText(qs("#manageServiceForm .admin-services__editor-section:nth-of-type(4) .admin-services__bool-grid .admin-services__bool-control:nth-child(1) .admin-services__bool-help"), "common.admin_services.manage.service.ai_capable_help");
+  sf_applyI18nText(qs("label[for='manageServiceInPersonRequired'] .admin-services__switch-label"), "common.admin_services.manage.service.in_person_required");
+  sf_applyI18nText(qs("#manageServiceForm .admin-services__editor-section:nth-of-type(4) .admin-services__bool-grid .admin-services__bool-control:nth-child(2) .admin-services__bool-help"), "common.admin_services.manage.service.in_person_help");
+  sf_applyI18nLabelFor("manageServiceExtraPrice", "common.admin_services.manage.label.extra_price_addon");
+  sf_applyI18nText(qs("label[for='manageServiceVisible'] .admin-services__switch-label"), "common.admin_services.state.visible");
+  sf_applyI18nText(qs("#manageServiceForm .admin-services__editor-section:nth-of-type(6) .admin-services__bool-grid .admin-services__bool-control:nth-child(1) .admin-services__bool-help"), "common.admin_services.manage.service.visible_help");
+  sf_applyI18nText(qs("label[for='manageServiceActive'] .admin-services__switch-label"), "common.admin_services.state.active");
+  sf_applyI18nText(qs("#manageServiceForm .admin-services__editor-section:nth-of-type(6) .admin-services__bool-grid .admin-services__bool-control:nth-child(2) .admin-services__bool-help"), "common.admin_services.manage.service.active_help");
+  sf_applyI18nText(qs("#manageServiceForm .admin-services__editor-section:nth-of-type(7) .admin-services__editor-section-title"), "common.admin_services.manage.section.actions");
+  sf_applyI18nText(qs("#manageServiceCreateSubmitBtn"), "common.actions.create");
+  sf_applyI18nText(qs("#manageServiceCancelCreateBtn"), "common.actions.cancel");
+  sf_applyI18nText(qs("#manageServiceSaveSubmitBtn"), "common.actions.save_changes");
+  sf_applyI18nText(qs("#manageServiceCancelEditBtn"), "common.actions.cancel");
+  sf_applyI18nText(qs("#manageServiceDangerZone .admin-services__bool-help"), "common.admin_services.manage.service.danger_help");
+  sf_applyI18nText(qs("#manageServiceArchiveBtn"), "common.admin_services.manage.service.archive");
+
   // Labels in Hierarchy tab
   sf_applyI18nText(qs("#panel-hierarchy .lhai-card__title"), "common.admin_services.hierarchy.title");
   sf_applyI18nText(qs("#panel-hierarchy > article > p.lhai-help"), "common.admin_services.hierarchy.helper");
@@ -1544,6 +1710,7 @@ async function initAdminServicesServiceFirstPage() {
   // i18n: admin-services uses common domain.
   const lang = document.documentElement.lang || "ko";
   await initI18nDomains(["common"], lang);
+  applyI18nToDom(document);
   sf_applyAdminServicesI18n();
 
   sf_categories = await serviceCatalogAdminApi.listCategories(true);
@@ -2965,9 +3132,9 @@ function ucdCard(type, item, title, depth, childrenHtml = "", connectorMeta = nu
                 data-inline-input="true" data-card-type="${type}" data-card-id="${esc(item.id)}" value="${esc(title)}" />
               <div class="admin-services__row-actions">
                 <button type="button" class="lhai-button lhai-button--primary lhai-button--compact"
-                  data-inline-save="true" data-card-type="${type}" data-card-id="${esc(item.id)}">저장</button>
+                  data-inline-save="true" data-card-type="${type}" data-card-id="${esc(item.id)}">${esc(t("common.actions.save", "Save"))}</button>
                 <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact"
-                  data-inline-cancel="true" data-card-type="${type}" data-card-id="${esc(item.id)}">취소</button>
+                  data-inline-cancel="true" data-card-type="${type}" data-card-id="${esc(item.id)}">${esc(t("common.actions.cancel", "Cancel"))}</button>
               </div>
               ${ucdInlineEdit?.error ? `<div class="admin-services__inline-error">${esc(ucdInlineEdit.error)}</div>` : ""}
             </div>
@@ -3412,12 +3579,18 @@ function ucdApplyServiceSelectionToForm(serviceId) {
   qs("#manageServiceId").value = svc.id;
   qs("#manageServiceName").value = svc.name || "";
   qs("#manageServiceDescription").value = svc.description || "";
+  qs("#manageServiceCustomerTitle").value = svc.customer_title || "";
+  qs("#manageServiceCustomerShortDescription").value = svc.customer_short_description || "";
+  qs("#manageServiceCustomerLongDescription").value = svc.customer_long_description || "";
+  qs("#manageServiceDeliveryTypeLabel").value = svc.delivery_type_label || "";
+  qs("#manageServiceDeliveryTypeHelpText").value = svc.delivery_type_help_text || "";
   qs("#manageServiceType").value = svc.type || "module";
   qs("#manageServiceAiCapable").checked = Boolean(svc.ai_capable);
   qs("#manageServiceInPersonRequired").checked = Boolean(svc.in_person_required);
   qs("#manageServiceExtraPrice").value = svc.extra_price ?? 0;
   qs("#manageServiceActive").checked = Boolean(svc.active);
   qs("#manageServiceVisible").checked = Boolean(svc.visible);
+  msiOnServiceContextChanged();
 }
 
 function ucdSetManageMode(entity, mode, targetName = "") {
@@ -3473,6 +3646,9 @@ function ucdBindManageEvents() {
     qs("#manageCategoryId").value = cat.id;
     qs("#manageCategoryName").value = cat.name || "";
     qs("#manageCategoryDescription").value = cat.description || "";
+    qs("#manageCategoryCustomerTitle").value = cat.customer_title || "";
+    qs("#manageCategoryCustomerSubtitle").value = cat.customer_subtitle || "";
+    qs("#manageCategoryCustomerHelpText").value = cat.customer_help_text || "";
     qs("#manageCategoryActive").checked = Boolean(cat.active);
     ucdRenderManage();
     ucdSetManageMode("Category", "edit", cat.name || "");
@@ -3510,7 +3686,15 @@ function ucdBindManageEvents() {
   qs("#manageCategoryForm")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = qs("#manageCategoryId").value;
-    const payload = { name: qs("#manageCategoryName").value.trim(), description: qs("#manageCategoryDescription").value.trim(), active: qs("#manageCategoryActive").checked };
+    const payload = {
+      name: qs("#manageCategoryName").value.trim(),
+      description: qs("#manageCategoryDescription").value.trim(),
+      customer_title: qs("#manageCategoryCustomerTitle").value.trim(),
+      customer_subtitle: qs("#manageCategoryCustomerSubtitle").value.trim(),
+      customer_help_text: qs("#manageCategoryCustomerHelpText").value.trim(),
+      active: qs("#manageCategoryActive").checked,
+    };
+    if (!payload.customer_title) payload.customer_title = payload.name;
     if (!payload.name) return;
     if (id) await serviceCatalogAdminApi.updateCategory(id, payload);
     else await serviceCatalogAdminApi.createCategory(payload);
@@ -3538,16 +3722,34 @@ function ucdBindManageEvents() {
   qs("#manageServiceForm")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = qs("#manageServiceId").value;
+    const aiCapable = qs("#manageServiceAiCapable").checked;
+    const inPersonRequired = qs("#manageServiceInPersonRequired").checked;
+    const deliveryFallback = suggestedDeliveryCopy(aiCapable, inPersonRequired);
     const servicePayload = {
       name: qs("#manageServiceName").value.trim(),
       description: qs("#manageServiceDescription").value.trim(),
+      customer_title: qs("#manageServiceCustomerTitle").value.trim(),
+      customer_short_description: qs("#manageServiceCustomerShortDescription").value.trim(),
+      customer_long_description: qs("#manageServiceCustomerLongDescription").value.trim(),
+      delivery_type_label: qs("#manageServiceDeliveryTypeLabel").value.trim(),
+      delivery_type_help_text: qs("#manageServiceDeliveryTypeHelpText").value.trim(),
       type: qs("#manageServiceType").value,
-      ai_capable: qs("#manageServiceAiCapable").checked,
-      in_person_required: qs("#manageServiceInPersonRequired").checked,
+      ai_capable: aiCapable,
+      in_person_required: inPersonRequired,
       extra_price: Number(qs("#manageServiceExtraPrice").value || 0),
       active: qs("#manageServiceActive").checked,
       visible: qs("#manageServiceVisible").checked,
     };
+    if (!servicePayload.customer_title) servicePayload.customer_title = servicePayload.name;
+    if (!servicePayload.customer_short_description) {
+      servicePayload.customer_short_description = servicePayload.description;
+    }
+    if (!servicePayload.delivery_type_label) {
+      servicePayload.delivery_type_label = deliveryFallback.label;
+    }
+    if (!servicePayload.delivery_type_help_text) {
+      servicePayload.delivery_type_help_text = deliveryFallback.help;
+    }
     if (!servicePayload.name) return;
     const targetPackageId = qs("#manageServicePackageId").value;
     let serviceId = id;
@@ -3563,24 +3765,29 @@ function ucdBindManageEvents() {
       }
       if (targetPackageId) await serviceCatalogAdminApi.addServiceItemToPackage(targetPackageId, { service_item_id: serviceId, required: false });
     }
+    if (serviceId) ucdSelectedServiceId = serviceId;
     await ucdReload(); ucdRenderInventory(); ucdRenderManage();
+    msiOnServiceContextChanged();
   });
 
   qs("#manageCategoryCreateBtn")?.addEventListener("click", () => {
     ucdSelectedCategoryId = "";
-    qs("#manageCategoryId").value = ""; qs("#manageCategoryName").value = ""; qs("#manageCategoryDescription").value = ""; qs("#manageCategoryActive").checked = true;
+    qs("#manageCategoryId").value = ""; qs("#manageCategoryName").value = ""; qs("#manageCategoryDescription").value = ""; qs("#manageCategoryCustomerTitle").value = "";
+    qs("#manageCategoryCustomerSubtitle").value = ""; qs("#manageCategoryCustomerHelpText").value = ""; qs("#manageCategoryActive").checked = true;
     ucdRenderManage();
     ucdSetManageMode("Category", "create");
   });
   qs("#manageCategoryCancelCreateBtn")?.addEventListener("click", () => {
     ucdSelectedCategoryId = "";
-    qs("#manageCategoryId").value = ""; qs("#manageCategoryName").value = ""; qs("#manageCategoryDescription").value = ""; qs("#manageCategoryActive").checked = true;
+    qs("#manageCategoryId").value = ""; qs("#manageCategoryName").value = ""; qs("#manageCategoryDescription").value = ""; qs("#manageCategoryCustomerTitle").value = "";
+    qs("#manageCategoryCustomerSubtitle").value = ""; qs("#manageCategoryCustomerHelpText").value = ""; qs("#manageCategoryActive").checked = true;
     ucdRenderManage();
     ucdSetManageMode("Category", "create");
   });
   qs("#manageCategoryCancelEditBtn")?.addEventListener("click", () => {
     ucdSelectedCategoryId = "";
-    qs("#manageCategoryId").value = ""; qs("#manageCategoryName").value = ""; qs("#manageCategoryDescription").value = ""; qs("#manageCategoryActive").checked = true;
+    qs("#manageCategoryId").value = ""; qs("#manageCategoryName").value = ""; qs("#manageCategoryDescription").value = ""; qs("#manageCategoryCustomerTitle").value = "";
+    qs("#manageCategoryCustomerSubtitle").value = ""; qs("#manageCategoryCustomerHelpText").value = ""; qs("#manageCategoryActive").checked = true;
     ucdRenderManage();
     ucdSetManageMode("Category", "create");
   });
@@ -3650,27 +3857,52 @@ function ucdBindManageEvents() {
   qs("#manageServiceCreateBtn")?.addEventListener("click", () => {
     ucdSelectedServiceId = "";
     qs("#manageServiceId").value = ""; qs("#manageServiceName").value = ""; qs("#manageServiceDescription").value = ""; qs("#manageServiceType").value = "module";
+    qs("#manageServiceCustomerTitle").value = ""; qs("#manageServiceCustomerShortDescription").value = ""; qs("#manageServiceCustomerLongDescription").value = "";
+    qs("#manageServiceDeliveryTypeLabel").value = ""; qs("#manageServiceDeliveryTypeHelpText").value = "";
     qs("#manageServiceCategoryId").value = ""; qs("#manageServicePackageId").value = ""; qs("#manageServiceAiCapable").checked = false; qs("#manageServiceInPersonRequired").checked = false;
     qs("#manageServiceExtraPrice").value = "0"; qs("#manageServiceActive").checked = true; qs("#manageServiceVisible").checked = true;
     ucdRenderManage();
     ucdSetManageMode("Service", "create");
+    msiOnServiceContextChanged();
   });
   qs("#manageServiceCancelCreateBtn")?.addEventListener("click", () => {
     ucdSelectedServiceId = "";
     qs("#manageServiceId").value = ""; qs("#manageServiceName").value = ""; qs("#manageServiceDescription").value = ""; qs("#manageServiceType").value = "module";
+    qs("#manageServiceCustomerTitle").value = ""; qs("#manageServiceCustomerShortDescription").value = ""; qs("#manageServiceCustomerLongDescription").value = "";
+    qs("#manageServiceDeliveryTypeLabel").value = ""; qs("#manageServiceDeliveryTypeHelpText").value = "";
     qs("#manageServiceCategoryId").value = ""; qs("#manageServicePackageId").value = ""; qs("#manageServiceAiCapable").checked = false; qs("#manageServiceInPersonRequired").checked = false;
     qs("#manageServiceExtraPrice").value = "0"; qs("#manageServiceActive").checked = true; qs("#manageServiceVisible").checked = true;
     ucdRenderManage();
     ucdSetManageMode("Service", "create");
+    msiOnServiceContextChanged();
   });
   qs("#manageServiceCancelEditBtn")?.addEventListener("click", () => {
     ucdSelectedServiceId = "";
     qs("#manageServiceId").value = ""; qs("#manageServiceName").value = ""; qs("#manageServiceDescription").value = ""; qs("#manageServiceType").value = "module";
+    qs("#manageServiceCustomerTitle").value = ""; qs("#manageServiceCustomerShortDescription").value = ""; qs("#manageServiceCustomerLongDescription").value = "";
+    qs("#manageServiceDeliveryTypeLabel").value = ""; qs("#manageServiceDeliveryTypeHelpText").value = "";
     qs("#manageServiceCategoryId").value = ""; qs("#manageServicePackageId").value = ""; qs("#manageServiceAiCapable").checked = false; qs("#manageServiceInPersonRequired").checked = false;
     qs("#manageServiceExtraPrice").value = "0"; qs("#manageServiceActive").checked = true; qs("#manageServiceVisible").checked = true;
     ucdRenderManage();
     ucdSetManageMode("Service", "create");
+    msiOnServiceContextChanged();
   });
+
+  const syncDeliveryCopySuggestions = () => {
+    const aiCapable = Boolean(qs("#manageServiceAiCapable")?.checked);
+    const inPersonRequired = Boolean(qs("#manageServiceInPersonRequired")?.checked);
+    const suggestion = suggestedDeliveryCopy(aiCapable, inPersonRequired);
+    const labelInput = qs("#manageServiceDeliveryTypeLabel");
+    const helpInput = qs("#manageServiceDeliveryTypeHelpText");
+    if (labelInput && !String(labelInput.value || "").trim()) {
+      labelInput.value = suggestion.label;
+    }
+    if (helpInput && !String(helpInput.value || "").trim()) {
+      helpInput.value = suggestion.help;
+    }
+  };
+  qs("#manageServiceAiCapable")?.addEventListener("change", syncDeliveryCopySuggestions);
+  qs("#manageServiceInPersonRequired")?.addEventListener("change", syncDeliveryCopySuggestions);
 
   qs("#manageServiceCategoryId")?.addEventListener("change", () => {
     const catId = qs("#manageServiceCategoryId")?.value || "";
@@ -3706,6 +3938,7 @@ function ucdBindManageEvents() {
   qs("#manageServiceArchiveBtn")?.addEventListener("click", async () => {
     const id = qs("#manageServiceId").value; if (!id) return;
     await serviceCatalogAdminApi.archiveServiceItem(id); ucdSelectedServiceId = ""; await ucdReload(); ucdRenderInventory(); ucdRenderManage(); ucdSetManageMode("Service", "create");
+    msiOnServiceContextChanged();
   });
 
   ucdSetManageMode("Category", "create");
@@ -3716,9 +3949,12 @@ function ucdBindManageEvents() {
 async function initAdminServicesUcdPage() {
   const tabsRoot = qs("#adminServicesTopTabs");
   if (!tabsRoot) return false;
-  await protectCurrentPage();
-  await ensureAdminAccess();
-  await loadSidebar();
+  if (!protectCurrentPage()) return false;
+  if (!ensureAdminAccess()) return false;
+  await loadSidebar("#sidebar", "admin");
+  const lang = document.documentElement.lang || "ko";
+  await initI18nDomains(["common"], lang);
+  applyI18nToDom(document);
   void tabsRoot;
   ucdInitTopTabs();
   ucdInitManageTabs();
@@ -3726,6 +3962,7 @@ async function initAdminServicesUcdPage() {
   ucdRenderInventory();
   ucdRenderManage();
   ucdBindManageEvents();
+  initManageServiceIntakeTab();
   return true;
 }
 

@@ -1,0 +1,106 @@
+/* Survey completion — confirmation, not quote */
+.lhai-survey-done {
+  max-width: 640px;
+  margin-inline: auto;
+}
+
+.lhai-survey-done__success {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lhai-space-3);
+  margin-bottom: var(--lhai-space-5);
+  padding: var(--lhai-space-4);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid rgba(110, 168, 254, 0.35);
+  background: rgba(110, 168, 254, 0.08);
+}
+
+.lhai-survey-done__success-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: rgba(110, 168, 254, 0.95);
+  background: rgba(110, 168, 254, 0.15);
+  border: 1px solid rgba(110, 168, 254, 0.4);
+}
+
+.lhai-survey-done__success-text {
+  min-width: 0;
+}
+
+.lhai-survey-done__success-text .lhai-title {
+  margin: 0 0 var(--lhai-space-2);
+  font-size: var(--lhai-font-size-lg);
+}
+
+.lhai-survey-done__success-text .lhai-subtitle {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.lhai-survey-done__ref {
+  margin: 0 0 var(--lhai-space-4);
+  padding: var(--lhai-space-3) var(--lhai-space-4);
+  border-radius: var(--lhai-radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  font-size: var(--lhai-font-size-sm);
+  color: var(--lhai-color-text-muted);
+}
+
+.lhai-survey-done__ref[hidden] {
+  display: none !important;
+}
+
+.lhai-survey-done__section-title {
+  margin: 0 0 var(--lhai-space-3);
+  font-size: var(--lhai-font-size-md);
+  font-weight: 800;
+}
+
+.lhai-survey-done__list {
+  margin: 0;
+  padding-left: 1.25rem;
+  line-height: 1.65;
+  color: var(--lhai-color-text);
+}
+
+.lhai-survey-done__list li + li {
+  margin-top: var(--lhai-space-2);
+}
+
+.lhai-survey-done__disclaimer {
+  margin-top: var(--lhai-space-4);
+  padding: var(--lhai-space-3);
+  border-radius: var(--lhai-radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: var(--lhai-font-size-sm);
+  color: var(--lhai-color-text-muted);
+  line-height: 1.5;
+}
+
+.lhai-survey-done__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-3);
+  margin-top: var(--lhai-space-5);
+  padding-top: var(--lhai-space-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lhai-survey-done__actions .lhai-button {
+  min-width: min(100%, 200px);
+}
+
+.lhai-survey-done__actions-hint {
+  width: 100%;
+  margin: 0;
+  font-size: var(--lhai-font-size-sm);
+  color: var(--lhai-color-text-muted);
+}

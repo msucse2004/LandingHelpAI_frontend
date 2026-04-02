@@ -9,18 +9,7 @@
 <body>
     <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" aria-label="관리 메뉴">
-      <nav>
-        <ul class="lhai-admin-sidebar-nav">
-          <li><a href="admin-dashboard.html">대시보드</a></li>
-          <li><a href="admin-users.html">회원·가입 상태</a></li>
-          <li><a href="admin-invitations.html">회원 초대 메일</a></li>
-          <li><a href="admin-customers.html">고객</a></li>
-          <li><a href="admin-quotes.html">견적</a></li>
-          <li><a href="admin-invoices.html">인보이스</a></li>
-        </ul>
-      </nav>
-    </aside>
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" aria-label="Admin navigation"></aside>
     <main class="lhai-main">
       <section class="lhai-page-header">
         <div>
@@ -38,6 +27,7 @@
   <script type="module" src="../assets/js/core/app-header.js"></script>
   <script type="module" src="../assets/js/core/logout-button.js"></script>
   <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/admin-static-shell.js"></script>
   <script type="module" src="../assets/js/pages/admin-profile.js"></script>
 </body>
 </html>

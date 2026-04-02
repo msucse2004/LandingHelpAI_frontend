@@ -1,6 +1,7 @@
 import { adminApi } from "../core/api.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { safeText } from "../core/utils.js";
+import { loadSidebar } from "../components/sidebar.js";
 
 function renderMetrics(summary) {
   const target = document.querySelector("#riskBoardMetrics");
@@ -44,6 +45,7 @@ function renderRiskList(customers = []) {
 async function initAdminRiskBoardPage() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
+  await loadSidebar("#sidebar", "admin");
   const summary = await adminApi.getRiskSummary();
   renderMetrics(summary);
   renderRiskList(summary.customers || []);

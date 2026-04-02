@@ -42,6 +42,30 @@
   flex-wrap: wrap;
 }
 
+.lhai-quote-request-summary {
+  margin: var(--lhai-space-3) 0 var(--lhai-space-4);
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.lhai-quote-customer-note {
+  margin-top: var(--lhai-space-4);
+  padding-top: var(--lhai-space-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lhai-quote-customer-note p {
+  white-space: pre-wrap;
+}
+
+.lhai-quote-download {
+  margin: var(--lhai-space-4) 0 0;
+  padding: var(--lhai-space-4);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid rgba(110, 168, 254, 0.25);
+  background: rgba(110, 168, 254, 0.06);
+}
+
 @media (max-width: 960px) {
   .lhai-quote-columns {
     grid-template-columns: 1fr;

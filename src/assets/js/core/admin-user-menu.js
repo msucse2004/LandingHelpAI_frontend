@@ -1,12 +1,25 @@
 /**
  * Topbar 계정 메뉴: [data-lhai-account-menu] 트리거 + 패널 토글.
  * 로그아웃은 [data-lhai-logout] — logout-button.js와 함께 로드하세요.
- * 로드 시 헤더 배지(syncHeaderRoleBadge). 상단바 마크업은 app-header.js가 주입합니다.
+ * 헤더는 app-header.js가 비동기로 주입하므로, 마운트 후 initAccountMenus(#lhai-app-header-root)를 다시 호출해야 트리거에 리스너가 붙습니다.
  */
 
-import { syncHeaderRoleBadge } from "./role-header-badge.js";
-
 const ACCOUNT_MENU_SELECTOR = "[data-lhai-account-menu]";
+
+let globalDismissListenersBound = false;
+
+function ensureGlobalAccountMenuDismissListeners() {
+  if (globalDismissListenersBound) return;
+  globalDismissListenersBound = true;
+  document.addEventListener("click", () => {
+    document.querySelectorAll(ACCOUNT_MENU_SELECTOR).forEach(closeMenu);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      document.querySelectorAll(ACCOUNT_MENU_SELECTOR).forEach(closeMenu);
+    }
+  });
+}
 
 function closeMenu(root) {
   const trigger = root.querySelector(".lhai-user-menu__trigger");
@@ -30,10 +43,15 @@ function isOpen(root) {
 }
 
 export function initAccountMenus(root = document) {
+  ensureGlobalAccountMenuDismissListeners();
+
   root.querySelectorAll(ACCOUNT_MENU_SELECTOR).forEach((menuRoot) => {
+    if (menuRoot.dataset.lhaiAccountMenuBound === "1") return;
     const trigger = menuRoot.querySelector(".lhai-user-menu__trigger");
     const panel = menuRoot.querySelector(".lhai-user-menu__panel");
     if (!trigger || !panel) return;
+
+    menuRoot.dataset.lhaiAccountMenuBound = "1";
 
     trigger.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -51,20 +69,9 @@ export function initAccountMenus(root = document) {
       }
     });
   });
-
-  document.addEventListener("click", () => {
-    document.querySelectorAll(ACCOUNT_MENU_SELECTOR).forEach(closeMenu);
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      document.querySelectorAll(ACCOUNT_MENU_SELECTOR).forEach(closeMenu);
-    }
-  });
 }
 
 /** @deprecated Use initAccountMenus */
 export const initAdminUserMenus = initAccountMenus;
 
 initAccountMenus();
-syncHeaderRoleBadge();

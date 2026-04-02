@@ -1,6 +1,7 @@
 import { documentsApi } from "../core/api.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { loadSidebar } from "../components/sidebar.js";
+import { applyI18nToDom } from "../core/i18n-dom.js";
 
 const customerProfileId = "profile::demo@customer.com";
 let selectedDocumentId = "";
@@ -49,6 +50,7 @@ async function initAdminDocumentsPage() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
   await loadSidebar("#sidebar", "admin");
+  applyI18nToDom(document);
   await refresh();
 
   qs("#adminDocumentReviewForm")?.addEventListener("submit", async (event) => {

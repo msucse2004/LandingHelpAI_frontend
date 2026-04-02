@@ -2,6 +2,7 @@ import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { aiApi } from "../core/api.js";
 import { getSession } from "../core/auth.js";
 import { safeText } from "../core/utils.js";
+import { loadSidebar } from "../components/sidebar.js";
 
 const conversation = [];
 
@@ -38,6 +39,7 @@ function renderTrustIndicators(contract) {
 async function initAiAssistantPage() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
+  await loadSidebar("#sidebar", "customer");
   const session = getSession();
   const userId = session?.userId || "mock-user-1";
   const customerProfileId = "profile::demo@customer.com";

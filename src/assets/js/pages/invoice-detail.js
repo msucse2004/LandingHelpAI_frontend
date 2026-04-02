@@ -2,6 +2,7 @@ import { invoiceApi, paymentApi } from "../core/api.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { patchState } from "../core/state.js";
 import { loadSidebar } from "../components/sidebar.js";
+import { applyI18nToDom } from "../core/i18n-dom.js";
 import { formatMoney } from "../core/utils.js";
 
 function qs(selector) {
@@ -82,6 +83,7 @@ async function initInvoiceDetailPage() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
   await loadSidebar("#sidebar", "customer");
+  applyI18nToDom(document);
   const invoiceId = new URLSearchParams(window.location.search).get("invoice_id") || "inv-demo-1";
   const invoice = await invoiceApi.getDetail(invoiceId);
   patchState({ invoice });

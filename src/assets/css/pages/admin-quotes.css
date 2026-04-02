@@ -19,3 +19,41 @@
   width: 100%;
   text-align: left;
 }
+
+.lhai-admin-quote-prep-banner {
+  border-color: rgba(250, 204, 21, 0.35);
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.1), rgba(6, 18, 36, 0.35));
+}
+
+.lhai-admin-quote-prep-banner__list {
+  margin: var(--lhai-space-3) 0 0;
+  padding-left: 1.25rem;
+  line-height: 1.6;
+  color: var(--lhai-color-text);
+}
+
+.lhai-admin-quote-prep-banner__prep-link {
+  font-weight: 700;
+  color: var(--lhai-color-primary);
+  text-decoration: underline;
+}
+
+.lhai-admin-quote-prep-banner__prep-link:hover {
+  color: #93c5fd;
+}
+
+.lhai-list__item--needs-prep {
+  border-left: 4px solid rgba(250, 204, 21, 0.85);
+  background: rgba(250, 204, 21, 0.06);
+}
+
+.lhai-admin-needs-prep-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--lhai-font-size-xs);
+  font-weight: 800;
+  color: #fde68a;
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+}

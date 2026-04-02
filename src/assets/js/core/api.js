@@ -289,12 +289,21 @@ const quoteApi = {
         {
           id: "q-demo-1",
           customer_profile_id: "profile::demo@customer.com",
+          customer_display_name: "Demo Customer",
           status: "DRAFT",
           service_name: "Starter Landing Package",
           estimated_cost: 3200,
           updated_at: new Date().toISOString(),
         },
       ];
+    }
+  },
+  /** Admin: 설문 제출 후 견적 작성이 필요한 Draft 견적 큐 (티어 1–3, JWT). */
+  async listSurveyReviewPending() {
+    try {
+      return await tryBackendGet("/api/admin/quotes/survey-review-pending");
+    } catch {
+      return [];
     }
   },
   async getDetail(quoteId) {
@@ -304,6 +313,7 @@ const quoteApi = {
       await mockDelay();
       return {
         id: quoteId || "q-1001",
+        title: "",
         service_name: "Starter Landing Package",
         included_items: ["Initial workflow setup", "Customer onboarding"],
         excluded_items: ["Custom on-site training"],
@@ -311,6 +321,8 @@ const quoteApi = {
         ai_support_scope: "Checklist guidance and document QA support.",
         possible_extra_costs: ["Urgent turnaround surcharge"],
         next_step_guidance: "Review and decide to approve or reject.",
+        internal_notes: "",
+        customer_facing_note: "",
         currency: "USD",
         status: "PROPOSED",
         request_details: {},
@@ -706,14 +718,7 @@ const messagesApi = {
   },
   async markRead(messageId, read = true) {
     try {
-      const response = await fetch(`${APP_CONFIG.apiBaseUrl}/api/messages/${encodeURIComponent(messageId)}/read`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ read }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || "Failed to update read state");
-      return data;
+      return await tryBackendPatch(`/api/messages/${encodeURIComponent(messageId)}/read`, { read });
     } catch {
       await mockDelay();
       return { id: messageId, unread: !read, mocked: true };
@@ -746,12 +751,14 @@ const emailLogsApi = {
       return await tryBackendGet(`/api/email-logs?customer_profile_id=${encodeURIComponent(customerProfileId)}`);
     } catch {
       await mockDelay();
+      const webUrl = `quote-detail.html?quote_id=q-demo-1`;
+      const pdfUrl = `/api/mock-storage/quotes/quote_proposed_q-demo-1.pdf`;
       return [
         {
           id: "eml-1",
           customer_profile_id: customerProfileId,
           template_code: "quote_proposed_notice",
-          subject: "Your quote is ready to review",
+          subject: `견적 제안 안내 — 웹: ${webUrl} / PDF: ${pdfUrl}`,
           to_email: "demo@customer.com",
           status: "queued",
           linked_message_id: "msg-1",
@@ -2642,6 +2649,117 @@ const surveyBuilderAdminApi = {
   },
 };
 
+/** Admin: service-linked intake templates & fields. /api/admin/service-intake/... */
+const serviceIntakeAdminApi = {
+  async getEditorBundle(serviceItemId, params = {}) {
+    const q = new URLSearchParams();
+    if (params.include_archived_fields != null) q.set("include_archived_fields", String(params.include_archived_fields));
+    if (params.include_inactive_fields != null) q.set("include_inactive_fields", String(params.include_inactive_fields));
+    if (params.include_inactive_options != null) q.set("include_inactive_options", String(params.include_inactive_options));
+    const queryStr = q.toString();
+    const path = `/api/admin/service-intake/service-items/${encodeURIComponent(serviceItemId)}/editor${queryStr ? `?${queryStr}` : ""}`;
+    return await tryBackendGet(path);
+  },
+
+  async ensureTemplate(serviceItemId, body = {}) {
+    return await tryBackendPost(
+      `/api/admin/service-intake/service-items/${encodeURIComponent(serviceItemId)}/template/ensure`,
+      body
+    );
+  },
+
+  async createField(templateId, payload) {
+    return await tryBackendPost(`/api/admin/service-intake/templates/${encodeURIComponent(templateId)}/fields`, payload);
+  },
+
+  async updateField(fieldId, payload) {
+    return await tryBackendPatch(`/api/admin/service-intake/fields/${encodeURIComponent(fieldId)}`, payload);
+  },
+
+  async reorderFields(templateId, fieldIds) {
+    return await tryBackendPost(`/api/admin/service-intake/templates/${encodeURIComponent(templateId)}/fields/reorder`, {
+      field_ids: fieldIds,
+    });
+  },
+
+  async archiveField(fieldId, archived = true) {
+    return await tryBackendPatch(`/api/admin/service-intake/fields/${encodeURIComponent(fieldId)}/archive`, { archived });
+  },
+
+  async deleteField(fieldId) {
+    return await tryBackendDelete(`/api/admin/service-intake/fields/${encodeURIComponent(fieldId)}`);
+  },
+
+  async createOption(fieldId, payload) {
+    return await tryBackendPost(`/api/admin/service-intake/fields/${encodeURIComponent(fieldId)}/options`, payload);
+  },
+
+  async updateOption(optionId, payload) {
+    return await tryBackendPatch(`/api/admin/service-intake/options/${encodeURIComponent(optionId)}`, payload);
+  },
+
+  async reorderOptions(fieldId, optionIds) {
+    return await tryBackendPost(`/api/admin/service-intake/fields/${encodeURIComponent(fieldId)}/options/reorder`, {
+      option_ids: optionIds,
+    });
+  },
+
+  async setOptionActive(optionId, active) {
+    return await tryBackendPatch(`/api/admin/service-intake/options/${encodeURIComponent(optionId)}/activation`, { active });
+  },
+
+  async deleteOption(optionId) {
+    return await tryBackendDelete(`/api/admin/service-intake/options/${encodeURIComponent(optionId)}`);
+  },
+};
+
+/** Customer: browse categories & services (no prices). GET /api/service-catalog/browse/... */
+const serviceCatalogBrowseApi = {
+  async listCategories() {
+    return await tryBackendGet("/api/service-catalog/browse/categories");
+  },
+
+  async listServiceItems(categoryId) {
+    return await tryBackendGet(`/api/service-catalog/browse/categories/${encodeURIComponent(categoryId)}/service-items`);
+  },
+};
+
+/** Customer: service-linked intake. /api/service-intake/... */
+const serviceIntakeCustomerApi = {
+  async getActiveBundle(serviceItemId) {
+    return await tryBackendGet(`/api/service-intake/catalog/service-items/${encodeURIComponent(serviceItemId)}/active-bundle`);
+  },
+
+  async startSubmission(body) {
+    return await tryBackendPost("/api/service-intake/submissions", body);
+  },
+
+  async upsertAnswer(submissionId, body) {
+    return await tryBackendPost(`/api/service-intake/submissions/${encodeURIComponent(submissionId)}/answers`, body);
+  },
+
+  async completeSubmission(submissionId) {
+    return await tryBackendPost(`/api/service-intake/submissions/${encodeURIComponent(submissionId)}/complete`, {});
+  },
+
+  async listAnswers(submissionId) {
+    return await tryBackendGet(`/api/service-intake/submissions/${encodeURIComponent(submissionId)}/answers`);
+  },
+};
+
+/** Customer profile (logged-in) — used for prefill on customer survey steps. */
+const userCustomerApi = {
+  async getMeBasicInfo() {
+    return await tryBackendGet("/api/users/me");
+  },
+  async updateMeBasicInfo(payload) {
+    return await tryBackendPatch("/api/users/me", payload);
+  },
+  async changeMyPassword(payload) {
+    return await tryBackendPost("/api/users/me/password", payload);
+  },
+};
+
 // Customer survey APIs (need-diagnosis with conditional branching).
 // Endpoints live under: /api/surveys/...
 const surveyCustomerApi = {
@@ -3321,6 +3439,30 @@ const surveyCustomerApi = {
       };
     }
   },
+
+  async submitServiceFlow(payload) {
+    try {
+      return await tryBackendPost("/api/surveys/service-flow/submit", payload);
+    } catch {
+      await mockDelay();
+      const quoteId = `q-${Date.now()}`;
+      return {
+        quote: {
+          quote_id: quoteId,
+          status: "DRAFT",
+          service_id: payload?.selected_services?.[0]?.id || "",
+          summary: "Survey submitted. Awaiting admin review for quote preparation.",
+          request_details: {
+            workflow_state: "SURVEY_REVIEW_PENDING",
+            survey_submission: payload || {},
+          },
+          mocked: true,
+        },
+        review_state: "SURVEY_REVIEW_PENDING",
+        stored_submission: payload || {},
+      };
+    }
+  },
 };
 
 export {
@@ -3339,6 +3481,10 @@ export {
   serviceCatalogApi,
   serviceCatalogAdminApi,
   surveyBuilderAdminApi,
+  serviceIntakeAdminApi,
+  serviceCatalogBrowseApi,
+  serviceIntakeCustomerApi,
+  userCustomerApi,
   surveyCustomerApi,
   paymentApi,
   emailLogsApi,

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Services - Landing Help AI</title>
+  <title data-i18n="common.services.meta.title">Services - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
 </head>
@@ -10,21 +10,21 @@
   <main class="lhai-container">
     <header class="lhai-page-header">
       <div>
-        <h1 class="lhai-title">Service Catalog</h1>
-        <p class="lhai-subtitle">Browse public services and request quote-ready support.</p>
+        <h1 class="lhai-title" data-i18n="common.services.header.title">Service Catalog</h1>
+        <p class="lhai-subtitle" data-i18n="common.services.header.subtitle">Browse public services and request quote-ready support.</p>
       </div>
       <div>
-        <label class="lhai-label" for="categoryFilter">Category</label>
+        <label class="lhai-label" for="categoryFilter" data-i18n="common.services.filters.category">Category</label>
         <select class="lhai-select" id="categoryFilter">
-          <option value="">All categories</option>
+          <option value="" data-i18n="common.filters.all_categories">All categories</option>
         </select>
       </div>
     </header>
 
-    <p class="lhai-help" id="serviceStatus">Loading...</p>
+    <p class="lhai-help" id="serviceStatus" data-i18n="common.services.status.loading">Loading...</p>
 
     <section class="lhai-grid lhai-grid--2" id="serviceList">
-      <div class="lhai-state lhai-state--loading">Loading service catalog...</div>
+      <div class="lhai-state lhai-state--loading" data-i18n="common.services.loading.catalog">Loading service catalog...</div>
     </section>
   </main>
   <script type="module" src="../assets/js/pages/services.js"></script>

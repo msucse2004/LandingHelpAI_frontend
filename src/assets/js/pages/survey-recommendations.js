@@ -1,5 +1,7 @@
 import { surveyCustomerApi } from "../core/api.js";
-import { qs, safeText, formatMoney } from "../core/utils.js";
+import { initCommonI18nAndApplyDom } from "../core/i18n-dom.js";
+import { t } from "../core/i18n-client.js";
+import { qs, safeText } from "../core/utils.js";
 
 function parseSubmissionId() {
   const q = new URLSearchParams(window.location.search);
@@ -13,7 +15,7 @@ function setStatus(message) {
 
 function renderItems(list) {
   if (!list || !list.length) {
-    return `<div class="lhai-help">선택한 답변에 따라 추가 항목이 없어요.</div>`;
+    return `<div class="lhai-help">${safeText(t("common.survey_recommendations.empty_extra_items", "No extra items for your answers."))}</div>`;
   }
   return list
     .map((it) => {
@@ -48,20 +50,18 @@ function cssEscape(value) {
   return String(value).replace(/["\\]/g, "\\$&");
 }
 
-function updatePriceSummary() {
+/** Selection counts only — no money amounts during survey/recommendation step (pricing confirmed at quote). */
+function updateSelectionSummary() {
   const el = qs("#surveyRecPriceSummary");
   if (!el) return;
-  const total = [...selectedAddonIds].reduce((sum, aid) => {
-    const a = recommendedAddonById[aid];
-    if (!a) return sum;
-    const price = typeof a.extra_price === "number" ? a.extra_price : 0;
-    return sum + price;
-  }, 0);
-  const cur = "USD";
-  const formatted = total ? formatMoney(total, cur) : "0";
   const pkgCount = selectedPackageIds.size;
   const addonCount = selectedAddonIds.size;
-  el.textContent = `선택한 애드온 ${addonCount}개 기준 예상 추가 비용: ${formatted}. (패키지 ${pkgCount}개)`;
+  el.textContent = t(
+    "common.survey_recommendations.selection_summary",
+    "Selected: {pkgCount} package(s), {addonCount} add-on(s). Amounts are confirmed on the quote, not here."
+  )
+    .replace("{pkgCount}", String(pkgCount))
+    .replace("{addonCount}", String(addonCount));
 }
 
 function renderPackages(rec) {
@@ -72,11 +72,16 @@ function renderPackages(rec) {
   recommendedAddons = rec?.recommended_addons_json?.items || [];
 
   if (!recommendedPackages.length) {
-    wrap.innerHTML = `<div class="lhai-help">추천 결과를 가져오지 못했어요. 답변을 다시 진행해 주세요.</div>`;
+    wrap.innerHTML = `<div class="lhai-help">${safeText(
+      t("common.survey_recommendations.empty_packages", "Could not load recommendations. Please complete the survey again.")
+    )}</div>`;
     return;
   }
 
-  // Indexes for fast lookups.
+  const modulesTitle = safeText(t("common.survey_recommendations.block_modules", "Included modules"));
+  const addonsTitle = safeText(t("common.survey_recommendations.block_addons", "Optional add-ons"));
+  const noAddons = safeText(t("common.survey_recommendations.no_addons", "No add-ons available for this package."));
+
   const modulesByPkgId = {};
   recommendedModules.forEach((m) => {
     const pid = m.package_id || "";
@@ -99,11 +104,9 @@ function renderPackages(rec) {
 
   recommendedAddonById = Object.fromEntries(recommendedAddons.map((a) => [a.id, a]));
 
-  // Default: accept all recommended packages + all recommended add-ons.
   selectedPackageIds = new Set(recommendedPackages.map((p) => p.id));
   selectedAddonIds = new Set(recommendedAddons.map((a) => a.id));
 
-  // Render packages + selection controls.
   wrap.innerHTML = recommendedPackages
     .map((p) => {
       const pkgModules = modulesByPkgId[p.id] || [];
@@ -112,8 +115,6 @@ function renderPackages(rec) {
 
       const addonOptions = pkgAddons
         .map((a) => {
-          const price = typeof a.extra_price === "number" ? formatMoney(a.extra_price, a.currency || "USD") : "";
-          const priceEl = price ? `<div class="survey-recommendations__addon-price">추가 비용: ${safeText(price)}</div>` : "";
           const exp = a.explanation ? `<div class="lhai-help">${safeText(a.explanation)}</div>` : "";
           return `
             <label class="survey-recommendations__addon-option">
@@ -122,7 +123,6 @@ function renderPackages(rec) {
                   <input type="checkbox" class="survey-recommendations__addon-checkbox" data-addon-id="${safeText(a.id)}" checked />
                   <div>
                     <div class="survey-recommendations__item-name" style="font-weight:900; margin-bottom:2px;">${safeText(a.name || "-")}</div>
-                    ${priceEl}
                     ${exp}
                   </div>
                 </div>
@@ -141,15 +141,15 @@ function renderPackages(rec) {
           ${pkgExp}
           <div class="survey-recommendations__grid">
             <div>
-              <div class="survey-recommendations__block-title">포함된 모듈</div>
+              <div class="survey-recommendations__block-title">${modulesTitle}</div>
               <div class="survey-recommendations__items">
                 ${renderItems(pkgModules)}
               </div>
             </div>
             <div>
-              <div class="survey-recommendations__block-title">선택 애드온</div>
+              <div class="survey-recommendations__block-title">${addonsTitle}</div>
               <div class="survey-recommendations__items">
-                ${addonOptions || `<div class="lhai-help">선택 가능한 애드온이 없습니다.</div>`}
+                ${addonOptions || `<div class="lhai-help">${noAddons}</div>`}
               </div>
             </div>
           </div>
@@ -158,13 +158,11 @@ function renderPackages(rec) {
     })
     .join("");
 
-  // Cache checkbox elements.
   addonCheckboxElById = {};
   recommendedAddons.forEach((a) => {
     addonCheckboxElById[a.id] = wrap.querySelector(`.survey-recommendations__addon-checkbox[data-addon-id="${cssEscape(a.id)}"]`);
   });
 
-  // Bind events.
   wrap.querySelectorAll(".survey-recommendations__package-checkbox").forEach((cb) => {
     cb.addEventListener("change", () => {
       const pkgId = cb.getAttribute("data-package-id") || "";
@@ -183,7 +181,7 @@ function renderPackages(rec) {
         }
       });
 
-      updatePriceSummary();
+      updateSelectionSummary();
     });
   });
 
@@ -192,26 +190,33 @@ function renderPackages(rec) {
       const aid = cb.getAttribute("data-addon-id") || "";
       if (cb.checked) selectedAddonIds.add(aid);
       else selectedAddonIds.delete(aid);
-      updatePriceSummary();
+      updateSelectionSummary();
     });
   });
 
-  updatePriceSummary();
+  updateSelectionSummary();
 }
 
 async function init() {
+  await initCommonI18nAndApplyDom(document);
+
   const submissionId = parseSubmissionId();
   if (!submissionId) {
-    setStatus("submission_id가 없습니다.");
+    setStatus(t("common.survey_recommendations.err_no_submission", "Missing submission. Open this page from the survey flow."));
     return;
   }
-  setStatus("추천 결과를 불러오는 중...");
+  setStatus(t("common.survey_recommendations.loading", "Loading recommendations…"));
   try {
     const rec = await surveyCustomerApi.getRecommendations(submissionId);
     renderPackages(rec);
     setStatus("");
   } catch (err) {
-    setStatus(`추천 결과 로딩 실패: ${err?.message || err}`);
+    setStatus(
+      t("common.survey_recommendations.load_failed", "Could not load recommendations: {message}").replace(
+        "{message}",
+        err?.message || String(err)
+      )
+    );
   }
 
   const form = qs("#surveyRecQuoteForm");
@@ -224,7 +229,7 @@ async function init() {
     if (statusEl) statusEl.textContent = "";
 
     if (!selectedPackageIds.size) {
-      setStatus("패키지를 최소 1개 선택해주세요.");
+      setStatus(t("common.survey_recommendations.pick_one_package", "Select at least one package."));
       return;
     }
 
@@ -240,18 +245,15 @@ async function init() {
     const customer_notes = qs("#quoteCustomerNotes")?.value?.trim() || "";
 
     if (!full_name || !email || !target_start_date || !country || !preferred_language) {
-      if (statusEl) statusEl.textContent = "필수 항목을 모두 입력해주세요.";
+      if (statusEl) statusEl.textContent = t("common.survey_recommendations.form_required", "Please fill all required fields.");
       return;
     }
 
-    const accepted_package_ids = [...selectedPackageIds];
-    const included_addon_ids = [...selectedAddonIds];
-
-    setStatus("선택을 저장하고 견적을 요청하는 중...");
+    setStatus(t("common.survey_recommendations.saving", "Saving your selection and requesting a quote…"));
     try {
       const selection = await surveyCustomerApi.createServiceSelection(submissionId, {
-        accepted_package_ids,
-        included_addon_ids,
+        accepted_package_ids: [...selectedPackageIds],
+        included_addon_ids: [...selectedAddonIds],
       });
 
       const quoteRes = await surveyCustomerApi.submitQuoteFromSelection(selection.id, {
@@ -267,10 +269,9 @@ async function init() {
       window.location.href = `quote-detail.html?quote_id=${encodeURIComponent(quoteId)}`;
     } catch (err) {
       const msg = err?.message || String(err);
-      setStatus(`견적 요청 실패: ${msg}`);
+      setStatus(t("common.survey_recommendations.quote_failed", "Quote request failed: {message}").replace("{message}", msg));
     }
   });
 }
 
-init();
-
+void init();

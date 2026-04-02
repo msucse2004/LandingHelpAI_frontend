@@ -1,0 +1,60 @@
+/* Admin dashboard — survey → quote prep queue */
+.lhai-admin-survey-review {
+  border-color: rgba(250, 204, 21, 0.35);
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.08), rgba(6, 18, 36, 0.35));
+}
+
+.lhai-admin-survey-review__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-3);
+  margin-top: var(--lhai-space-3);
+}
+
+.lhai-admin-survey-review-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--lhai-space-3);
+  align-items: start;
+  padding: var(--lhai-space-4);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.lhai-admin-survey-review-card__badge {
+  display: inline-block;
+  margin-bottom: var(--lhai-space-2);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: var(--lhai-font-size-xs);
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #fde68a;
+  background: rgba(250, 204, 21, 0.15);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+}
+
+.lhai-admin-survey-review-card__title {
+  margin: 0 0 var(--lhai-space-1);
+  font-size: var(--lhai-font-size-md);
+  font-weight: 800;
+}
+
+.lhai-admin-survey-review-card__meta {
+  margin: 0;
+  font-size: var(--lhai-font-size-sm);
+  color: var(--lhai-color-text-muted);
+  line-height: 1.5;
+}
+
+.lhai-admin-survey-review-card__meta strong {
+  color: var(--lhai-color-text);
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .lhai-admin-survey-review-card {
+    grid-template-columns: 1fr;
+  }
+}

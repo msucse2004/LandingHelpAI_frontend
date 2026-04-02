@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>견적 초안 준비 - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" />
+  <link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" />
+  <link rel="stylesheet" href="../assets/css/components.css" />
+  <link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/admin-quote-prepare.css" />
+</head>
+<body>
+  <div id="lhai-app-header-root"></div>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar" aria-label="Admin navigation"></aside>
+    <main class="lhai-main lhai-quote-prep">
+      <div class="lhai-quote-prep__toolbar">
+        <div>
+          <h1 class="lhai-title">견적 초안 준비</h1>
+          <p class="lhai-subtitle">고객 요청(설문)을 확인하고 오른쪽에서 Draft 견적을 작성합니다.</p>
+        </div>
+        <div class="u-flex u-gap-2" style="flex-wrap: wrap;">
+          <a class="lhai-button lhai-button--secondary" href="admin-quotes.html">견적 목록</a>
+          <a class="lhai-button lhai-button--secondary" href="admin-dashboard.html">대시보드</a>
+        </div>
+      </div>
+
+      <p class="lhai-help" id="qpLoadError" hidden></p>
+      <div id="qpRoot" class="lhai-quote-prep__layout" hidden>
+        <aside class="lhai-quote-prep__panel lhai-quote-prep__panel--request" aria-labelledby="qpRequestHeading">
+          <h2 class="lhai-quote-prep__panel-title" id="qpRequestHeading">고객 요청 요약</h2>
+          <p class="lhai-quote-prep__panel-kicker">설문 제출 시점의 정보입니다. 견적 금액이나 최종 범위는 오른쪽 초안에서 정합니다.</p>
+          <div id="qpRequestBody"></div>
+        </aside>
+
+        <section class="lhai-quote-prep__panel lhai-quote-prep__panel--editor" aria-labelledby="qpEditorHeading">
+          <h2 class="lhai-quote-prep__panel-title" id="qpEditorHeading">
+            견적 초안 (Draft)
+            <span id="qpStatusBadge" class="lhai-quote-prep__badge lhai-quote-prep__badge--draft"></span>
+          </h2>
+          <p class="lhai-quote-prep__panel-kicker">
+            저장하면 Draft만 갱신됩니다. 만족하시면 이 화면에서 <strong>Propose Quote</strong>로 고객 검토용 상태로 전환하세요.
+          </p>
+          <div id="qpEditorWarn" class="lhai-quote-prep__warn" hidden></div>
+          <form class="lhai-form lhai-quote-editor" id="qpForm" novalidate>
+            <p class="lhai-help">견적 제목은 자동으로 <strong>고객 이름 + Landing Help AI 견적서</strong> 형식으로 생성됩니다.</p>
+            <div class="lhai-quote-editor__section">
+              <label class="lhai-label" for="qpServiceName">서비스/패키지 표시명</label>
+              <input class="lhai-input" id="qpServiceName" type="text" required />
+            </div>
+            <div class="lhai-quote-editor__section">
+              <label class="lhai-label">선택 서비스 / 단가</label>
+              <div id="qpSelectedServicePriceEditor"></div>
+              <p class="lhai-help" id="qpSelectedServicePriceEmpty" hidden>선택 서비스 정보가 없습니다.</p>
+              <p class="lhai-help"><strong>자동 합계:</strong> <span id="qpSelectedServiceTotal">—</span></p>
+            </div>
+            <div class="lhai-quote-editor__section">
+              <label class="lhai-label" for="qpEstimated">예상 비용 (자동 합계)</label>
+              <input class="lhai-input" id="qpEstimated" type="number" min="0" step="0.01" readonly />
+            </div>
+            <div class="lhai-quote-editor__section">
+              <label class="lhai-label" for="qpCustomerNote">고객에게 보여줄 메모 (선택)</label>
+              <p class="lhai-help">제안(Propose) 이후 고객 견적 화면 등에 활용할 수 있는 짧은 안내입니다.</p>
+              <textarea class="lhai-textarea" id="qpCustomerNote" rows="2"></textarea>
+            </div>
+            <div class="lhai-quote-editor__section">
+              <label class="lhai-label" for="qpInternalNotes">내부 메모 (고객 비노출)</label>
+              <textarea class="lhai-textarea" id="qpInternalNotes" rows="3"></textarea>
+            </div>
+            <div class="lhai-quote-prep__editor-actions">
+              <button type="submit" class="lhai-button lhai-button--primary" id="qpSaveBtn">초안 저장</button>
+              <button type="button" class="lhai-button lhai-button--secondary" id="qpProposeBtn">Propose Quote</button>
+              <a class="lhai-button lhai-button--secondary" id="qpProposeLink" href="admin-quotes.html">견적 목록으로 이동</a>
+            </div>
+          </form>
+          <p class="lhai-help u-mt-2" id="qpSaveStatus" role="status"></p>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/app-header.js"></script>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/admin-quote-prepare.js"></script>
+</body>
+</html>

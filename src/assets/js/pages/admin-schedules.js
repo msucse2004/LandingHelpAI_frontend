@@ -1,5 +1,6 @@
 import { scheduleApi } from "../core/api.js";
 import { loadSidebar } from "../components/sidebar.js";
+import { applyI18nToDom } from "../core/i18n-dom.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { formatDate, safeText } from "../core/utils.js";
 
@@ -41,6 +42,7 @@ async function initAdminSchedulesPage() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
   await loadSidebar("#sidebar", "admin");
+  applyI18nToDom(document);
 
   const customerIdInput = document.querySelector("#scheduleCustomerId");
 

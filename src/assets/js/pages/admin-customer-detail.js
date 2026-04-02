@@ -1,6 +1,7 @@
 import { adminApi, emailLogsApi, messagesApi } from "../core/api.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { formatDate, safeText } from "../core/utils.js";
+import { loadSidebar } from "../components/sidebar.js";
 
 function renderSimpleMap(targetSelector, data = {}) {
   const target = document.querySelector(targetSelector);
@@ -90,6 +91,7 @@ function renderEmailLogs(logs = []) {
 async function initAdminCustomerDetailPage() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
+  await loadSidebar("#sidebar", "admin");
   const customerProfileId = "profile::demo@customer.com";
   const [threads, emailLogs, summary] = await Promise.all([
     messagesApi.listThreads({ customerProfileId }),

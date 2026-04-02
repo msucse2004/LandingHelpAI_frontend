@@ -13,7 +13,8 @@ const signupSubmitBtn = document.getElementById("signupSubmitBtn");
 const inviteBanner = document.getElementById("inviteBanner");
 const inviteBannerBody = document.getElementById("inviteBannerBody");
 const emailInput = document.getElementById("email");
-const fullNameInput = document.getElementById("fullName");
+const firstNameInput = document.getElementById("firstName");
+const lastNameInput = document.getElementById("lastName");
 const genderSelect = document.getElementById("gender");
 const roleFieldGroup = document.getElementById("roleFieldGroup");
 const roleNameSelect = document.getElementById("roleName");
@@ -178,10 +179,18 @@ function updateEmailStatus() {
   else setInputStatus(wrap, "invalid");
 }
 
-function updateFullNameStatus() {
-  const wrap = document.getElementById("fullNameStatusWrap");
-  if (!fullNameInput || !wrap) return;
-  const v = fullNameInput.value.trim();
+function updateFirstNameStatus() {
+  const wrap = document.getElementById("firstNameStatusWrap");
+  if (!firstNameInput || !wrap) return;
+  const v = firstNameInput.value.trim();
+  if (v.length === 0) setInputStatus(wrap, "neutral");
+  else setInputStatus(wrap, "valid");
+}
+
+function updateLastNameStatus() {
+  const wrap = document.getElementById("lastNameStatusWrap");
+  if (!lastNameInput || !wrap) return;
+  const v = lastNameInput.value.trim();
   if (v.length === 0) setInputStatus(wrap, "neutral");
   else setInputStatus(wrap, "valid");
 }
@@ -358,9 +367,14 @@ if (emailInput) {
   emailInput.addEventListener("blur", updateEmailStatus);
 }
 
-if (fullNameInput) {
-  fullNameInput.addEventListener("input", updateFullNameStatus);
-  fullNameInput.addEventListener("blur", updateFullNameStatus);
+if (firstNameInput) {
+  firstNameInput.addEventListener("input", updateFirstNameStatus);
+  firstNameInput.addEventListener("blur", updateFirstNameStatus);
+}
+
+if (lastNameInput) {
+  lastNameInput.addEventListener("input", updateLastNameStatus);
+  lastNameInput.addEventListener("blur", updateLastNameStatus);
 }
 
 if (genderSelect) {
@@ -554,7 +568,8 @@ if (form) {
 
     const payload = {
       username: String(formData.get("username") || "").trim(),
-      full_name: String(formData.get("fullName") || "").trim(),
+      first_name: String(formData.get("firstName") || "").trim(),
+      last_name: String(formData.get("lastName") || "").trim(),
       email: String(formData.get("email") || "").trim(),
       password,
       password_confirm: passwordConfirm,
@@ -678,7 +693,8 @@ if (form) {
 function refreshSignupFieldStatuses() {
   updateUsernameStatus();
   updateEmailStatus();
-  updateFullNameStatus();
+  updateFirstNameStatus();
+  updateLastNameStatus();
   updateBirthDateStatus();
   updateGenderStatus();
   updatePasswordStatus();

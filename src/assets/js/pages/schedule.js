@@ -1,5 +1,6 @@
 import { scheduleApi } from "../core/api.js";
 import { loadSidebar } from "../components/sidebar.js";
+import { applyI18nToDom } from "../core/i18n-dom.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { formatDate, safeText } from "../core/utils.js";
 
@@ -53,6 +54,7 @@ async function initSchedulePage() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
   await loadSidebar("#sidebar", "customer");
+  applyI18nToDom(document);
 
   let selected = null;
   const refresh = async () => {

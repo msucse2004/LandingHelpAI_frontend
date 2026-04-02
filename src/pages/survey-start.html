@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Survey 시작 - Landing Help AI</title>
+  <title data-i18n="common.service_flow.page_title">견적신청 — Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" />
   <link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" />
@@ -14,166 +14,175 @@
   <main class="lhai-container lhai-container--survey">
     <section class="lhai-page-header">
       <div>
-        <h1 class="lhai-title">필요한 도움을 찾아볼까요?</h1>
-        <p class="lhai-subtitle">답변은 고객 진단 흐름(survey)으로 연결되어, 올바른 추천 패키지를 고르도록 돕습니다.</p>
+        <h1 class="lhai-title" data-i18n="common.service_flow.heading">견적신청</h1>
+        <p class="lhai-subtitle" data-i18n="common.service_flow.subtitle">
+          Choose a category, pick how you want delivery, then tell us only what we need to help you. No prices in this step.
+        </p>
       </div>
     </section>
 
-    <section class="lhai-card lhai-card--center lhai-container__card">
-      <div class="survey-progress" aria-label="설문 진행률" role="region">
-        <div class="survey-progress__bar" aria-hidden="true">
-          <div class="survey-progress__bar-fill" id="surveyProgressFill"></div>
+    <section class="lhai-card lhai-card--center lhai-container__card service-flow__card">
+      <div class="service-flow__progress" aria-label="Progress" role="region">
+        <div class="service-flow__progress-bar" aria-hidden="true">
+          <div class="service-flow__progress-fill" id="sfProgressFill"></div>
         </div>
-        <ol class="survey-progress__steps" id="surveyProgressSteps"></ol>
-        <p class="lhai-help" id="surveyProgressLabel" aria-live="polite">1/7 단계</p>
+        <p class="lhai-help service-flow__progress-label" id="sfProgressLabel" aria-live="polite">—</p>
       </div>
 
-      <div id="surveyStep1" class="survey-step" hidden>
-        <h2 class="survey-step__title">처음에는 “문제 영역”만 골라주세요</h2>
-        <p class="lhai-help">
-          28개 서비스를 고르는 방식이 아니라, 지금 당장 필요한 도움이 무엇인지부터 진단합니다.
+      <div id="sfStepCategory" class="service-flow__step">
+        <h2 class="service-flow__step-title" data-i18n="common.service_flow.step_category">1. What area do you need help with?</h2>
+        <p class="lhai-help" data-i18n="common.service_flow.help_category">Select all that apply. You can choose more than one area.</p>
+        <p class="lhai-help service-flow__step-note" id="sfCategoryStepNote">
+          해당되는 항목을 모두 선택해 주세요. 여러 개를 선택할 수 있고, 선택한 항목 기준으로 다음 질문이 달라집니다.
         </p>
-
-        <div class="survey-problem-grid" role="group" aria-label="문제 영역 선택">
-          <button type="button" class="survey-problem-card" data-key="immigration" aria-pressed="false">
-            <div class="survey-problem-card__title">미국 입국 준비가 필요해요</div>
-            <p class="survey-problem-card__helper">입국 일정과 준비 상황을 파악해서 초반 진행을 매끄럽게 합니다.</p>
-          </button>
-          <button type="button" class="survey-problem-card" data-key="housing" aria-pressed="false">
-            <div class="survey-problem-card__title">집 구하기가 필요해요</div>
-            <p class="survey-problem-card__helper">거주 형태/기간에 맞춰 필요한 서류와 체크리스트를 제안합니다.</p>
-          </button>
-          <button type="button" class="survey-problem-card" data-key="car" aria-pressed="false">
-            <div class="survey-problem-card__title">자동차가 필요해요</div>
-            <p class="survey-problem-card__helper">이동 필요성과 타이밍을 기준으로 다음 단계 안내를 준비합니다.</p>
-          </button>
-          <button type="button" class="survey-problem-card" data-key="school" aria-pressed="false">
-            <div class="survey-problem-card__title">아이 학교 등록이 필요해요</div>
-            <p class="survey-problem-card__helper">학기/준비 시점에 따라 추천 모듈이 달라집니다.</p>
-          </button>
-          <button type="button" class="survey-problem-card" data-key="admin" aria-pressed="false">
-            <div class="survey-problem-card__title">생활 행정 도움이 필요해요</div>
-            <p class="survey-problem-card__helper">생활 행정 업무 우선순위를 정해, 필요한 문서 흐름을 설계합니다.</p>
-          </button>
-          <button type="button" class="survey-problem-card" data-key="llc" aria-pressed="false">
-            <div class="survey-problem-card__title">LLC 설립이 필요해요</div>
-            <p class="survey-problem-card__helper">비즈니스 목표와 일정에 맞춰 추천 패키지 구성이 달라집니다.</p>
-          </button>
-        </div>
-
-        <p class="lhai-help u-mt-3" id="surveyStep1Status">선택한 문제 영역: 0개</p>
+        <p class="lhai-help service-flow__step-note" id="sfCategorySelectedCount" aria-live="polite">0개 선택됨</p>
+        <div id="sfCategoryGrid" class="service-flow__category-grid" role="list"></div>
       </div>
 
-      <div id="surveyStep2" class="survey-step" hidden>
-        <h2 class="survey-step__title">입국 예정일은 언제인가요?</h2>
-        <p class="lhai-help">이 답변으로 “준비 순서”와 일정 기반 추천을 맞춥니다.</p>
-        <div class="survey-field">
-          <label class="lhai-label" for="arrivalDate">입국 예정일</label>
-          <input class="lhai-input" id="arrivalDate" type="date" />
-        </div>
-      </div>
-
-      <div id="surveyStep3" class="survey-step" hidden>
-        <h2 class="survey-step__title">가족 구성은 어떻게 되나요?</h2>
-        <p class="lhai-help">가족 구성에 따라 필요한 안내 항목(예: 학교/서류)이 달라집니다.</p>
-        <div class="survey-field">
-          <label class="lhai-label" for="familyType">가족 구성</label>
-          <select class="lhai-select" id="familyType">
-            <option value="" disabled selected>선택</option>
-            <option value="single">1인</option>
-            <option value="couple">부부</option>
-            <option value="family_with_kids">부모 + 자녀(자녀 있음)</option>
-            <option value="other">기타</option>
-          </select>
-        </div>
-      </div>
-
-      <div id="surveyStep4" class="survey-step" hidden>
-        <h2 class="survey-step__title">거주 예정 주(몇 주 정도)인가요?</h2>
-        <p class="lhai-help">거주 기간에 따라 “단기/중기”로 추천 모듈 구성을 조정합니다.</p>
-        <div class="survey-field">
-          <label class="lhai-label" for="stayWeeks">거주 예정 주</label>
-          <input class="lhai-input" id="stayWeeks" type="number" min="1" step="1" placeholder="예: 8" />
-        </div>
-      </div>
-
-      <div id="surveyStep5" class="survey-step" hidden>
-        <h2 class="survey-step__title">선호 언어는 무엇인가요?</h2>
-        <p class="lhai-help">선호 언어에 맞춰 설명과 진행 안내 톤을 조정할 수 있습니다.</p>
-        <div class="survey-field">
-          <label class="lhai-label" for="preferredLanguage">선호 언어</label>
-          <select class="lhai-select" id="preferredLanguage">
-            <option value="" disabled selected>선택</option>
-            <option value="ko">한국어</option>
-            <option value="en">영어</option>
-            <option value="mix">혼합(한국어+영어)</option>
-            <option value="other">기타</option>
-          </select>
-        </div>
-      </div>
-
-      <div id="surveyStep6" class="survey-step" hidden>
-        <h2 class="survey-step__title">예산 범위는 어느 정도인가요?</h2>
-        <p class="lhai-help">예산 범위는 추천 패키지의 “권장 구성(기본/확장)”을 결정합니다.</p>
-        <div class="survey-field">
-          <label class="lhai-label" for="budgetRange">예산 범위</label>
-          <select class="lhai-select" id="budgetRange">
-            <option value="" disabled selected>선택</option>
-            <option value="1-3k">$1,000 - $3,000</option>
-            <option value="3-6k">$3,000 - $6,000</option>
-            <option value="6-10k">$6,000 - $10,000</option>
-            <option value="10k+">$10,000+</option>
-          </select>
-        </div>
-      </div>
-
-      <div id="surveyStep7" class="survey-step" hidden>
-        <h2 class="survey-step__title">직접 진행은 어느 정도 가능하세요?</h2>
+      <div id="sfStepCommonInfo" class="service-flow__step" hidden>
+        <h2 class="service-flow__step-title">2. 기본 정보를 알려주세요</h2>
         <p class="lhai-help">
-          이 답변으로 “직접 진행 가능 정도”와 “도움 필요 정도”를 같이 반영해서,
-          추천되는 모듈(자동/사람 도움)을 조정합니다.
+          이후 견적·일정 안내를 더 빠르고 정확하게 연결하기 위한 공통 정보입니다.
+          로그인 정보(이름/생년월일/이메일)도 함께 확인해 주세요.
         </p>
+        <form id="sfCommonInfoForm" class="lhai-form service-flow__common-form" novalidate>
+          <div class="service-flow__profile-basic">
+            <h3 class="lhai-help" style="margin: 0 0 8px; font-weight: 900;">기본 프로필 정보</h3>
+            <p class="lhai-help" style="margin: 0 0 16px;">
+              로그인된 계정에서 가능한 경우 자동으로 채워집니다. 필요한 경우 사용자가 직접 수정할 수 있어요.
+            </p>
 
-        <div class="survey-field">
-          <label class="lhai-label" for="helpLevel">도움 필요 정도</label>
-          <select class="lhai-select" id="helpLevel">
-            <option value="" disabled selected>선택</option>
-            <option value="high_self">대부분 직접 가능</option>
-            <option value="mid_self">조금 도움 필요</option>
-            <option value="balanced">절반 정도 도움</option>
-            <option value="high_help">많은 도움 필요</option>
-            <option value="almost_done">거의 대신 진행 필요</option>
-          </select>
-          <p class="lhai-help" id="helpLevelPreview">선택 전</p>
-        </div>
+            <div class="service-flow__field">
+              <label class="lhai-label" for="sfProfileFirstName">First name</label>
+              <p class="lhai-help">견적·후속 안내 메시지에 사용됩니다.</p>
+              <input class="lhai-input" id="sfProfileFirstName" type="text" />
+            </div>
+
+            <div class="service-flow__field">
+              <label class="lhai-label" for="sfProfileLastName">Last name</label>
+              <p class="lhai-help">견적·후속 안내 메시지에 사용됩니다.</p>
+              <input class="lhai-input" id="sfProfileLastName" type="text" />
+            </div>
+
+            <div class="service-flow__field">
+              <label class="lhai-label" for="sfProfileBirthDate">생년월일</label>
+              <p class="lhai-help">진행 단계에서 신원 확인 흐름을 매끄럽게 하기 위해 필요합니다.</p>
+              <input class="lhai-input" id="sfProfileBirthDate" type="date" />
+            </div>
+
+            <div class="service-flow__field">
+              <label class="lhai-label" for="sfProfileEmail">이메일</label>
+              <p class="lhai-help">견적 요청 관련 확인 메일 안내에 사용됩니다.</p>
+              <input class="lhai-input" id="sfProfileEmail" type="email" />
+              <p class="lhai-help" style="margin-top: 8px;">
+                이메일을 바꾸면 이 단계에서의 안내/요청 정보만 달라질 수 있어요. 계정 설정(로그인 정보)은 별도로 변경될 수 있습니다.
+              </p>
+            </div>
+          </div>
+
+          <div class="service-flow__field">
+            <label class="lhai-label" for="sfCommonEntryDate">입국(또는 시작) 예정일</label>
+            <p class="lhai-help">접근 시점과 일정 가이드를 맞추는 데 사용됩니다.</p>
+            <input class="lhai-input" id="sfCommonEntryDate" type="date" />
+          </div>
+          <div class="service-flow__field">
+            <label class="lhai-label" for="sfCommonAdultCount">만 18세 이상 인원</label>
+            <p class="lhai-help">성인 인원 수를 입력해 주세요.</p>
+            <input class="lhai-input" id="sfCommonAdultCount" type="number" min="0" step="1" placeholder="예: 2" />
+          </div>
+          <div class="service-flow__field">
+            <label class="lhai-label" for="sfCommonMinorCount">만 18세 이하 인원</label>
+            <p class="lhai-help">미성년 인원 수를 입력해 주세요. 1명 이상이면 아래에 나이 입력이 열립니다.</p>
+            <input class="lhai-input" id="sfCommonMinorCount" type="number" min="0" step="1" placeholder="예: 1" />
+          </div>
+          <div class="service-flow__field" id="sfCommonMinorAgesWrap" hidden>
+            <label class="lhai-label">만 18세 이하 나이</label>
+            <p class="lhai-help">미성년 인원 각각의 나이를 입력해 주세요.</p>
+            <div id="sfCommonMinorAgesList"></div>
+          </div>
+          <div class="service-flow__field">
+            <label class="lhai-label" for="sfCommonTargetState">정착 희망 주(State)</label>
+            <p class="lhai-help">주별 규정과 진행 방식이 달라 추천 방향에 반영됩니다.</p>
+            <input class="lhai-input" id="sfCommonTargetState" type="text" placeholder="예: California" />
+          </div>
+          <div class="service-flow__field">
+            <label class="lhai-label" for="sfCommonPreferredLanguage">선호 언어</label>
+            <p class="lhai-help">안내 문구와 커뮤니케이션 톤을 맞추는 데 사용됩니다.</p>
+            <select class="lhai-select" id="sfCommonPreferredLanguage">
+              <option value="">선택</option>
+              <option value="ko">한국어</option>
+              <option value="en">영어</option>
+              <option value="mix">혼합(한국어+영어)</option>
+              <option value="other">기타</option>
+            </select>
+          </div>
+          <div class="service-flow__field">
+            <label class="lhai-label" for="sfCommonBudgetRange">예산 범위(대략)</label>
+            <p class="lhai-help">가격을 보여주기 위한 것이 아니라, 추천 모듈/지원 강도를 조정하기 위한 참고값입니다.</p>
+            <select class="lhai-select" id="sfCommonBudgetRange">
+              <option value="">선택</option>
+              <option value="low">낮음 (비용 최소화 우선)</option>
+              <option value="mid">중간 (균형형)</option>
+              <option value="high">높음 (속도/편의 우선)</option>
+            </select>
+          </div>
+          <div class="service-flow__field">
+            <label class="lhai-label" for="sfCommonSupportNeedLevel">필요한 도움 정도</label>
+            <p class="lhai-help">셀프 진행 자신감에 따라 AI 중심/대면 지원 비중을 조정합니다.</p>
+            <select class="lhai-select" id="sfCommonSupportNeedLevel">
+              <option value="">선택</option>
+              <option value="self">대부분 스스로 진행 가능</option>
+              <option value="guided">가이드가 있으면 진행 가능</option>
+              <option value="high_touch">처음부터 많이 도와주길 원함</option>
+            </select>
+          </div>
+        </form>
       </div>
 
-      <div id="surveyStep8" class="survey-step" hidden>
-        <h2 class="survey-step__title">진단 요약</h2>
-        <p class="lhai-help">현재 단계에서는 데모용 추천 예상만 보여드려요. 실제 추천 규칙과 연동 예정입니다.</p>
-
-        <div class="survey-summary-grid">
-          <div class="survey-summary-card" id="summaryProblems"></div>
-          <div class="survey-summary-card" id="summaryCommon"></div>
+      <div id="sfStepServices" class="service-flow__step" hidden>
+        <h2 class="service-flow__step-title">3. Choose services for this area</h2>
+        <p class="lhai-help service-flow__services-lead">
+          We’ll guide you through one selected area at a time.
+        </p>
+        <p class="lhai-help service-flow__services-lead">
+          Choose the services you want help with in this area.
+        </p>
+        <div class="service-flow__services-substep">
+          <p class="lhai-help service-flow__services-substep-index" id="sfServicesSubstepIndex" aria-live="polite">Area 1 of 1</p>
+          <h3 class="service-flow__services-substep-title" id="sfServicesCurrentCategoryTitle">-</h3>
+          <p class="lhai-help service-flow__services-substep-desc" id="sfServicesCurrentCategoryDesc" hidden></p>
+          <p class="lhai-help service-flow__services-substep-help" id="sfServicesCurrentCategoryHelp" hidden></p>
+          <div class="service-flow__services-substep-nav" role="group" aria-label="Category navigation inside services step">
+            <button type="button" class="lhai-button lhai-button--secondary" id="sfServicesPrevCategoryBtn">Previous category</button>
+            <button type="button" class="lhai-button lhai-button--secondary" id="sfServicesNextCategoryBtn">Next category</button>
+          </div>
         </div>
-
-        <div class="survey-reco">
-          <div class="survey-reco__title">추천 예상(임시)</div>
-          <div class="survey-reco__list" id="mockRecommendations"></div>
-          <p class="lhai-help u-mt-2">
-            추천은 선택하신 “문제 영역”을 기반으로 예측합니다. 향후에는 저장된 survey 규칙(condition_json)으로 결과를 계산합니다.
-          </p>
-        </div>
+        <div id="sfMixedDeliveryNote" class="service-flow__mixed-note" hidden></div>
+        <div id="sfServiceList" class="service-flow__service-list" role="group" aria-label="Services"></div>
+        <p class="lhai-help" id="sfServiceHint" data-i18n="common.service_flow.service_hint">Select at least one service.</p>
       </div>
 
-      <div class="survey-actions" role="group" aria-label="설문 동작 버튼">
-        <button type="button" class="lhai-button lhai-button--secondary" id="surveyBackBtn" disabled>뒤로</button>
-        <button type="button" class="lhai-button lhai-button--primary" id="surveyNextBtn">다음</button>
+      <div id="sfStepReview" class="service-flow__step" hidden>
+        <p class="service-flow__summary-kicker" data-i18n="common.service_flow.summary_kicker">Final check</p>
+        <h2 class="service-flow__step-title" data-i18n="common.service_flow.step_summary">Please confirm your request before final submission</h2>
+        <p class="lhai-help service-flow__summary-lead" data-i18n="common.service_flow.help_summary">
+          We organized your answers so you can make a final check before submitting.
+        </p>
+        <p class="lhai-help service-flow__summary-disclaimer" data-i18n="common.service_flow.summary_not_quote">
+          This is a pre-submit confirmation page.
+        </p>
+        <div id="sfReviewBody" class="service-flow__review"></div>
       </div>
-      <p class="lhai-help" id="surveyFormStatus" role="status" aria-live="polite"></p>
+
+      <div class="survey-actions service-flow__actions" role="group" aria-label="Navigation">
+        <button type="button" class="lhai-button lhai-button--secondary" id="sfBackBtn" data-i18n="common.service_flow.btn_back">Back</button>
+        <button type="button" class="lhai-button lhai-button--primary" id="sfNextBtn" data-i18n="common.service_flow.btn_next">Next</button>
+      </div>
+      <p class="lhai-help" id="sfStatus" role="status" aria-live="polite"></p>
 
       <p class="lhai-help u-mt-3">
-        저장/연동은 현재 구현 단계에 따라 달라질 수 있습니다. (예: 추천은 mock)
+        <span data-i18n="common.service_flow.legacy_note">Looking for the older questionnaire-style flow?</span>
+        <a href="survey-branching.html" data-i18n="common.service_flow.legacy_link">Open branching survey</a>
       </p>
     </section>
   </main>
@@ -181,4 +190,3 @@
   <script type="module" src="../assets/js/pages/survey-start.js"></script>
 </body>
 </html>
-

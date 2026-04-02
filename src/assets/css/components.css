@@ -387,6 +387,7 @@
 
 /* Admin topbar: messages shortcut (left of Admin menu) */
 .lhai-topbar-mail {
+  position: relative;
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
@@ -412,6 +413,25 @@
 .lhai-topbar-mail:focus-visible {
   outline: 2px solid var(--lhai-color-primary);
   outline-offset: 2px;
+}
+
+.lhai-topbar-mail__badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  box-sizing: border-box;
+  pointer-events: none;
+  border: 2px solid rgba(17, 26, 45, 0.95);
 }
 
 /* Admin topbar: Admin ▾ user menu */
@@ -687,6 +707,22 @@ a.lhai-table__link:hover {
   color: var(--lhai-color-text);
   border-color: rgba(110, 168, 254, 0.55);
   background: rgba(110, 168, 254, 0.12);
+}
+
+.lhai-nav__group-label {
+  margin: var(--lhai-space-3) 0 var(--lhai-space-1);
+  padding: 0 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lhai-color-text-muted);
+}
+
+.lhai-nav__link--secondary {
+  font-size: 0.9rem;
+  padding: 8px 12px;
+  opacity: 0.92;
 }
 
 /* Signup result dialog (native <dialog>) */

@@ -10,10 +10,16 @@
 <body>
     <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar" aria-label="관리 메뉴"></aside>
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" aria-label="Admin navigation"></aside>
     <main class="lhai-main">
       <section class="lhai-page-header">
-        <div><h1 class="lhai-title">Services</h1><p class="lhai-subtitle">관리자용 서비스 카탈로그: Inventory(서비스 아이템 → 패키지 연결)</p></div>
+        <div>
+          <h1 class="lhai-title">Services</h1>
+          <p class="lhai-subtitle">관리자용 서비스 카탈로그: Inventory(서비스 아이템 → 패키지 연결)</p>
+          <p class="lhai-help admin-services__primary-intake-hint u-mt-2" data-i18n="common.admin_services.primary_intake_workflow">
+            Primary customer intake: open a service under Manage → use the “Required Customer Info” tab to define fields for that service (preferred over the standalone Survey Builder).
+          </p>
+        </div>
       </section>
 
       
@@ -76,6 +82,12 @@
                           <input class="lhai-input" id="manageCategoryName" type="text" required />
                           <label class="lhai-label" for="manageCategoryDescription">Description</label>
                           <textarea class="lhai-textarea" id="manageCategoryDescription" rows="2"></textarea>
+                          <label class="lhai-label" for="manageCategoryCustomerTitle">Customer title</label>
+                          <input class="lhai-input" id="manageCategoryCustomerTitle" type="text" />
+                          <label class="lhai-label" for="manageCategoryCustomerSubtitle">Customer subtitle</label>
+                          <textarea class="lhai-textarea" id="manageCategoryCustomerSubtitle" rows="2"></textarea>
+                          <label class="lhai-label" for="manageCategoryCustomerHelpText">Customer help text</label>
+                          <textarea class="lhai-textarea" id="manageCategoryCustomerHelpText" rows="2"></textarea>
                         </section>
                         <section class="admin-services__editor-section">
                           <h5 class="admin-services__editor-section-title">Status</h5>
@@ -276,6 +288,16 @@
                     <div class="admin-services__service-detail-panel">
                       <h4 class="lhai-section__title admin-services__service-editor-title" id="manageServiceEditorTitle">Create New Service</h4>
                       <div class="admin-services__manage-mode" id="manageServiceModeHint">신규 생성 모드입니다.</div>
+
+                      <div class="admin-services__service-editor-tabs" id="manageServiceEditorTabs" role="tablist" aria-label="Service editor sections">
+                        <button type="button" class="admin-services__tab-btn is-active" data-service-editor-tab="details" role="tab" aria-selected="true" id="manageServiceTabDetailsBtn"
+                          data-i18n="common.admin_services.intake.tab_service_details">Service details</button>
+                        <button type="button" class="admin-services__tab-btn" data-service-editor-tab="intake" role="tab" aria-selected="false" id="manageServiceTabIntakeBtn" disabled
+                          data-i18n="common.admin_services.intake.tab_required_info">Required Customer Info</button>
+                      </div>
+
+                      <div class="admin-services__service-editor-panels">
+                      <div class="admin-services__service-editor-panel" id="manageServiceDetailsPanel" data-service-editor-panel="details">
                       <form class="lhai-form admin-services__editor" id="manageServiceForm">
                         <input type="hidden" id="manageServiceId" />
                         <section class="admin-services__editor-section">
@@ -284,6 +306,12 @@
                           <input class="lhai-input" id="manageServiceName" type="text" required />
                           <label class="lhai-label" for="manageServiceDescription">Description</label>
                           <textarea class="lhai-textarea" id="manageServiceDescription" rows="2"></textarea>
+                          <label class="lhai-label" for="manageServiceCustomerTitle">Customer title</label>
+                          <input class="lhai-input" id="manageServiceCustomerTitle" type="text" />
+                          <label class="lhai-label" for="manageServiceCustomerShortDescription">Customer short description</label>
+                          <textarea class="lhai-textarea" id="manageServiceCustomerShortDescription" rows="2"></textarea>
+                          <label class="lhai-label" for="manageServiceCustomerLongDescription">Customer long description</label>
+                          <textarea class="lhai-textarea" id="manageServiceCustomerLongDescription" rows="3"></textarea>
                         </section>
 
                         <section class="admin-services__editor-section">
@@ -323,6 +351,16 @@
                               <p class="admin-services__bool-help">This service requires human support or on-site help.</p>
                             </div>
                           </div>
+                          <p class="lhai-help u-mt-2" data-i18n="common.admin_services.manage.service.delivery_badge_hint">
+                            Together, these switches control the customer-facing delivery badge: AI only → “AI Guide”; in-person only → “In-person”; both on → “AI + optional human help.”
+                          </p>
+                          <label class="lhai-label" for="manageServiceDeliveryTypeLabel">Delivery type label (customer)</label>
+                          <input class="lhai-input" id="manageServiceDeliveryTypeLabel" type="text" />
+                          <label class="lhai-label" for="manageServiceDeliveryTypeHelpText">Delivery type help text (customer)</label>
+                          <textarea class="lhai-textarea" id="manageServiceDeliveryTypeHelpText" rows="2"></textarea>
+                          <p class="lhai-help u-mt-2" data-i18n="common.admin_services.manage.service.intake_bridge_hint">
+                            Define what customers must answer before delivery in the “Required Customer Info” tab (same service).
+                          </p>
                         </section>
 
                         <section class="admin-services__editor-section">
@@ -369,6 +407,123 @@
                           </div>
                         </section>
                       </form>
+                      </div>
+
+                      <div class="admin-services__service-editor-panel" id="manageServiceIntakePanel" data-service-editor-panel="intake" hidden>
+                        <div class="admin-services__intake-intro">
+                          <p class="lhai-help admin-services__intake-lead" id="manageServiceIntakeLead"
+                            data-i18n="common.admin_services.intake.lead">Define the customer information required to deliver this service.</p>
+                          <p class="lhai-help admin-services__intake-hint" id="manageServiceIntakeHint" hidden></p>
+                        </div>
+                        <div class="admin-services__intake-toolbar u-flex-between u-gap-4 u-mb-3" style="flex-wrap:wrap;align-items:center;">
+                          <p class="lhai-help u-m-0" id="manageServiceIntakeStatus" aria-live="polite"></p>
+                          <button type="button" class="lhai-button lhai-button--primary" id="manageServiceIntakeAddFieldBtn"
+                            data-i18n="common.admin_services.intake.add_field">+ Add Field</button>
+                        </div>
+                        <div id="manageServiceIntakeFields" class="admin-services__intake-fields" aria-live="polite"></div>
+                        <details class="admin-services__intake-technical lhai-state u-mt-3">
+                          <summary data-i18n="common.admin_services.intake.technical_summary">Technical reference (read-only)</summary>
+                          <p class="lhai-help" data-i18n="common.admin_services.intake.technical_help">Internal keys are generated by the system for stable data. You do not need to edit them.</p>
+                          <pre class="admin-services__intake-pre" id="manageServiceIntakeTechnicalPre" aria-label="Technical JSON"></pre>
+                        </details>
+                      </div>
+                      </div>
+
+                      <dialog class="lhai-dialog admin-services__intake-dialog" id="manageServiceIntakeFieldDialog" aria-labelledby="manageServiceIntakeDialogTitle">
+                        <form class="admin-services__intake-dialog-form" id="manageServiceIntakeFieldForm">
+                          <div class="admin-services__intake-dialog-header">
+                            <h3 class="lhai-dialog__title" id="manageServiceIntakeDialogTitle">Intake field</h3>
+                            <p class="lhai-help admin-services__intake-dialog-subtitle" id="manageServiceIntakeDialogSubtitle"></p>
+                          </div>
+                          <input type="hidden" id="manageServiceIntakeFieldEditId" value="" />
+
+                          <section class="admin-services__intake-form-section" aria-labelledby="manageServiceIntakeSecBasic">
+                            <h4 class="admin-services__intake-section-title" id="manageServiceIntakeSecBasic" data-i18n="common.admin_services.intake.section.basic">Basic Info</h4>
+                            <label class="lhai-label" for="manageServiceIntakeFieldLabel" data-i18n="common.admin_services.intake.label_field_label">Label shown to customer</label>
+                            <input class="lhai-input" id="manageServiceIntakeFieldLabel" type="text" required maxlength="500" autocomplete="off" />
+                            <label class="lhai-label" for="manageServiceIntakeFieldHelp" data-i18n="common.admin_services.intake.label_help">Helper text</label>
+                            <textarea class="lhai-textarea" id="manageServiceIntakeFieldHelp" rows="2" maxlength="2000"></textarea>
+                          </section>
+
+                          <section class="admin-services__intake-form-section" aria-labelledby="manageServiceIntakeSecBehavior">
+                            <h4 class="admin-services__intake-section-title" id="manageServiceIntakeSecBehavior" data-i18n="common.admin_services.intake.section.behavior">Field Behavior</h4>
+                            <label class="lhai-label" for="manageServiceIntakeFieldInputType" data-i18n="common.admin_services.intake.label_input_type">Input type</label>
+                            <select class="lhai-select" id="manageServiceIntakeFieldInputType"></select>
+                            <p class="lhai-help" id="manageServiceIntakeInputTypeHelp" data-i18n="common.admin_services.intake.input_type_help">Choose how customers enter their answer.</p>
+                            <div id="manageServiceIntakePlaceholderWrap">
+                              <label class="lhai-label" for="manageServiceIntakeFieldPlaceholder" data-i18n="common.admin_services.intake.label_placeholder">Placeholder (optional)</label>
+                              <input class="lhai-input" id="manageServiceIntakeFieldPlaceholder" type="text" maxlength="200" autocomplete="off" />
+                            </div>
+                            <div id="manageServiceIntakeDefaultWrap">
+                              <label class="lhai-label" for="manageServiceIntakeFieldDefault" data-i18n="common.admin_services.intake.label_default">Default value (optional)</label>
+                              <input class="lhai-input" id="manageServiceIntakeFieldDefault" type="text" maxlength="500" autocomplete="off" />
+                            </div>
+                            <div class="admin-services__intake-toggle-row">
+                              <label class="admin-services__switch" for="manageServiceIntakeFieldRequired">
+                                <input id="manageServiceIntakeFieldRequired" type="checkbox" />
+                                <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                                <span class="admin-services__switch-label" data-i18n="common.admin_services.intake.toggle_required">Required answer</span>
+                              </label>
+                              <p class="lhai-help admin-services__intake-toggle-help" data-i18n="common.admin_services.intake.toggle_required_help">When on, customers must fill this field before continuing.</p>
+                            </div>
+                            <div class="admin-services__intake-toggle-row">
+                              <label class="admin-services__switch" for="manageServiceIntakeFieldActive">
+                                <input id="manageServiceIntakeFieldActive" type="checkbox" checked />
+                                <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                                <span class="admin-services__switch-label" data-i18n="common.admin_services.intake.toggle_active">Show to customers</span>
+                              </label>
+                              <p class="lhai-help admin-services__intake-toggle-help" data-i18n="common.admin_services.intake.toggle_active_help">Turn off to hide this field from the customer form without deleting it.</p>
+                            </div>
+                          </section>
+
+                          <section id="manageServiceIntakeOptionsBlock" class="admin-services__intake-form-section admin-services__intake-options-block" aria-labelledby="manageServiceIntakeSecOptions" hidden>
+                            <h4 class="admin-services__intake-section-title" id="manageServiceIntakeSecOptions" data-i18n="common.admin_services.intake.section.options">Options</h4>
+                            <p class="lhai-help" data-i18n="common.admin_services.intake.options_intro">Add choices, reorder with arrows, and turn Active off to hide an option from customers without deleting it. Labels are shown in the form; stable internal values are kept automatically.</p>
+                            <div id="manageServiceIntakeChoicesList" class="admin-services__intake-choices-list"></div>
+                            <button type="button" class="lhai-button lhai-button--secondary" id="manageServiceIntakeAddChoiceBtn" data-i18n="common.admin_services.intake.add_option">+ Add option</button>
+                          </section>
+
+                          <section class="admin-services__intake-form-section" aria-labelledby="manageServiceIntakeSecVisibility">
+                            <h4 class="admin-services__intake-section-title" id="manageServiceIntakeSecVisibility" data-i18n="common.admin_services.intake.section.visibility">Visibility Rules</h4>
+                            <div id="manageServiceIntakeVisibilityCustomBanner" class="lhai-state admin-services__intake-custom-vis" hidden>
+                              <p class="lhai-help" data-i18n="common.admin_services.intake.visibility_custom_banner">This field uses a custom visibility rule. It will be kept as-is until you reset (see below).</p>
+                              <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeVisibilityResetSimpleBtn" data-i18n="common.admin_services.intake.visibility_reset_simple">Use simple rules instead</button>
+                            </div>
+                            <fieldset class="admin-services__intake-vis-fieldset" id="manageServiceIntakeVisibilitySimpleFieldset">
+                              <legend class="admin-services__intake-vis-legend" data-i18n="common.admin_services.intake.visibility_when">When should this field appear?</legend>
+                              <label class="admin-services__intake-radio-label">
+                                <input type="radio" name="msiVisibilityMode" value="always" id="manageServiceIntakeVisAlways" checked />
+                                <span data-i18n="common.admin_services.intake.vis_always">Always show</span>
+                              </label>
+                              <label class="admin-services__intake-radio-label">
+                                <input type="radio" name="msiVisibilityMode" value="conditional" id="manageServiceIntakeVisConditional" />
+                                <span data-i18n="common.admin_services.intake.vis_conditional">Show only when another answer matches…</span>
+                              </label>
+                            </fieldset>
+                            <div id="manageServiceIntakeVisibilityConditionalBlock" class="admin-services__intake-conditional-block" hidden>
+                              <label class="lhai-label" for="manageServiceIntakeVisibilitySourceField" data-i18n="common.admin_services.intake.vis_source_field">Other field</label>
+                              <select class="lhai-select" id="manageServiceIntakeVisibilitySourceField"></select>
+                              <p class="lhai-help" data-i18n="common.admin_services.intake.vis_source_help">Only earlier fields in this list are available.</p>
+                              <label class="lhai-label" for="manageServiceIntakeVisibilityMatchText" id="manageServiceIntakeVisibilityMatchLabel" data-i18n="common.admin_services.intake.vis_match_value">Their answer must be</label>
+                              <select class="lhai-select" id="manageServiceIntakeVisibilityMatchSelect" hidden></select>
+                              <input class="lhai-input" id="manageServiceIntakeVisibilityMatchText" type="text" maxlength="500" autocomplete="off" />
+                            </div>
+                            <details class="admin-services__intake-vis-advanced-details u-mt-3">
+                              <summary data-i18n="common.admin_services.intake.visibility_advanced_summary">Advanced: raw rule (JSON)</summary>
+                              <p class="lhai-help" data-i18n="common.admin_services.intake.visibility_advanced_help">For integrations or rules the simple builder cannot express. Most admins never need this.</p>
+                              <textarea class="lhai-textarea" id="manageServiceIntakeVisibilityJsonAdvanced" rows="4" placeholder="{}"></textarea>
+                            </details>
+                          </section>
+
+                          <section class="admin-services__intake-form-section admin-services__intake-form-actions-section" aria-labelledby="manageServiceIntakeSecActions">
+                            <h4 class="admin-services__intake-section-title visually-hidden" id="manageServiceIntakeSecActions">Actions</h4>
+                            <div class="lhai-dialog__actions admin-services__intake-dialog-actions">
+                              <button type="button" class="lhai-button lhai-button--primary" id="manageServiceIntakeDialogSaveBtn" data-i18n="common.actions.save">Save</button>
+                              <button type="button" class="lhai-button lhai-button--secondary" id="manageServiceIntakeDialogCancelBtn" data-i18n="common.actions.cancel">Cancel</button>
+                            </div>
+                          </section>
+                        </form>
+                      </dialog>
                     </div>
                   </div>
                 </section>

@@ -14,19 +14,70 @@
       <section class="lhai-page-header">
         <div>
           <h1 class="lhai-title">내 정보</h1>
-          <p class="lhai-subtitle">로그인 세션에 저장된 값입니다. 서버 프로필 API 연동 시 이 화면을 확장하세요.</p>
+          <p class="lhai-subtitle">회원가입 시 입력한 정보를 확인하고 수정할 수 있습니다.</p>
         </div>
       </section>
       <section class="lhai-card">
-        <h2 class="lhai-card__title">세션</h2>
-        <dl class="lhai-detail-dl" id="profileDl"></dl>
+        <h2 class="lhai-card__title">기본 정보</h2>
+        <form id="profileForm" class="lhai-form" novalidate>
+          <div class="service-flow__field">
+            <label class="lhai-label" for="pfUsername">아이디</label>
+            <input class="lhai-input" id="pfUsername" type="text" disabled />
+          </div>
+          <div class="service-flow__field">
+            <label class="lhai-label" for="pfFirstName">First name</label>
+            <input class="lhai-input" id="pfFirstName" type="text" maxlength="80" />
+          </div>
+          <div class="service-flow__field">
+            <label class="lhai-label" for="pfLastName">Last name</label>
+            <input class="lhai-input" id="pfLastName" type="text" maxlength="80" />
+          </div>
+          <div class="service-flow__field">
+            <label class="lhai-label" for="pfBirthDate">생년월일</label>
+            <input class="lhai-input" id="pfBirthDate" type="date" />
+          </div>
+          <div class="service-flow__field">
+            <label class="lhai-label" for="pfGender">성별</label>
+            <select class="lhai-select" id="pfGender">
+              <option value="">선택</option>
+              <option value="male">남성</option>
+              <option value="female">여성</option>
+              <option value="other">기타</option>
+              <option value="unspecified">응답 안 함</option>
+            </select>
+          </div>
+          <div class="service-flow__field">
+            <label class="lhai-label" for="pfEmail">이메일</label>
+            <input class="lhai-input" id="pfEmail" type="email" maxlength="320" />
+          </div>
+          <button type="submit" class="lhai-button lhai-button--primary">정보 저장</button>
+        </form>
+      </section>
+      <section class="lhai-card u-mt-3">
+        <h2 class="lhai-card__title">비밀번호 변경</h2>
+        <form id="passwordForm" class="lhai-form" novalidate>
+          <div class="service-flow__field">
+            <label class="lhai-label" for="pfCurrentPassword">현재 비밀번호</label>
+            <input class="lhai-input" id="pfCurrentPassword" type="password" autocomplete="current-password" />
+          </div>
+          <div class="service-flow__field">
+            <label class="lhai-label" for="pfNewPassword">새 비밀번호</label>
+            <input class="lhai-input" id="pfNewPassword" type="password" autocomplete="new-password" />
+          </div>
+          <div class="service-flow__field">
+            <label class="lhai-label" for="pfNewPasswordConfirm">새 비밀번호 확인</label>
+            <input class="lhai-input" id="pfNewPasswordConfirm" type="password" autocomplete="new-password" />
+          </div>
+          <button type="submit" class="lhai-button lhai-button--primary">비밀번호 변경</button>
+        </form>
+        <p class="lhai-help u-mt-3" id="profileStatus" role="status" aria-live="polite"></p>
         <p class="lhai-help u-mt-3" id="profileEmpty" hidden>로그인 정보가 없습니다. <a href="login.html">로그인</a>하세요.</p>
       </section>
     </main>
   </div>
-  <script type="module" src="../assets/js/core/app-header.js"></script>
-  <script type="module" src="../assets/js/core/logout-button.js"></script>
-  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
-  <script type="module" src="../assets/js/pages/profile.js"></script>
+  <script type="module" src="../assets/js/core/app-header.js?v=20260401a"></script>
+  <script type="module" src="../assets/js/core/logout-button.js?v=20260401a"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js?v=20260401a"></script>
+  <script type="module" src="../assets/js/pages/profile.js?v=20260401a"></script>
 </body>
 </html>
