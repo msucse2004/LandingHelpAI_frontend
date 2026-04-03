@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Documents - Landing Help AI</title>
+  <title>문서 - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/documents.css" />
@@ -13,33 +13,33 @@
     <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
     <main class="lhai-main">
       <section class="lhai-page-header">
-        <div><h1 class="lhai-title">Document Center</h1><p class="lhai-subtitle">Upload files, track review status, and access generated documents.</p></div>
+        <div><h1 class="lhai-title">문서 센터</h1><p class="lhai-subtitle">파일을 올리고 검토 상태를 확인하며 발급 문서에 접근합니다.</p></div>
       </section>
 
       <section class="lhai-card lhai-doc-center">
-        <h2 class="lhai-card__title">Upload Document</h2>
+        <h2 class="lhai-card__title">문서 업로드</h2>
         <form class="lhai-form" id="documentUploadForm">
-          <label class="lhai-label" for="uploadName">File name</label>
-          <input class="lhai-input" id="uploadName" name="uploadName" type="text" placeholder="example.pdf" required />
-          <label class="lhai-label" for="uploadType">Section</label>
+          <label class="lhai-label" for="uploadName">파일 이름</label>
+          <input class="lhai-input" id="uploadName" name="uploadName" type="text" placeholder="예: example.pdf" required />
+          <label class="lhai-label" for="uploadType">구분</label>
           <select class="lhai-select" id="uploadType" name="uploadType">
-            <option value="documents_submitted">Documents Submitted</option>
-            <option value="consent_documents">Consent Documents</option>
-            <option value="power_of_attorney">Power of Attorney</option>
-            <option value="completion_documents">Completion Documents</option>
+            <option value="documents_submitted">제출 문서</option>
+            <option value="consent_documents">동의서</option>
+            <option value="power_of_attorney">위임장</option>
+            <option value="completion_documents">완료 관련 문서</option>
           </select>
-          <button class="lhai-button lhai-button--primary" type="submit">Upload (Stub)</button>
+          <button class="lhai-button lhai-button--primary" type="submit">업로드 (스텁)</button>
         </form>
-        <p class="lhai-help" id="documentUploadStatus">No uploads yet.</p>
+        <p class="lhai-help" id="documentUploadStatus">아직 업로드한 파일이 없습니다.</p>
       </section>
 
       <section class="lhai-doc-grid" id="documentSections">
-        <article class="lhai-card"><h2 class="lhai-card__title">Documents Received</h2><div id="sectionDocumentsReceived"></div></article>
-        <article class="lhai-card"><h2 class="lhai-card__title">Documents Submitted</h2><div id="sectionDocumentsSubmitted"></div></article>
-        <article class="lhai-card"><h2 class="lhai-card__title">Generated Documents</h2><div id="sectionGeneratedDocuments"></div></article>
-        <article class="lhai-card"><h2 class="lhai-card__title">Consent Documents</h2><div id="sectionConsentDocuments"></div></article>
-        <article class="lhai-card"><h2 class="lhai-card__title">Power of Attorney</h2><div id="sectionPowerOfAttorney"></div></article>
-        <article class="lhai-card"><h2 class="lhai-card__title">Completion Documents</h2><div id="sectionCompletionDocuments"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title">수신 문서</h2><div id="sectionDocumentsReceived"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title">제출 문서</h2><div id="sectionDocumentsSubmitted"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title">생성·발급 문서</h2><div id="sectionGeneratedDocuments"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title">동의서</h2><div id="sectionConsentDocuments"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title">위임장</h2><div id="sectionPowerOfAttorney"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title">완료 관련 문서</h2><div id="sectionCompletionDocuments"></div></article>
       </section>
     </main>
   </div>

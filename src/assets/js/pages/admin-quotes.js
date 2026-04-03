@@ -20,7 +20,7 @@ function renderPrepBanner(rows) {
   el.innerHTML = `
     <h2 class="lhai-card__title">견적 준비 필요 — 설문 접수 ${rows.length}건</h2>
     <p class="lhai-help">
-      관리자 검토 후 견적을 작성하고 <strong>저장</strong>한 다음 <strong>Propose Quote</strong>로 고객에게 보낼 수 있습니다.
+      관리자 검토 후 견적을 작성하고 <strong>저장</strong>한 다음 <strong>견적 제안</strong>으로 고객에게 보낼 수 있습니다.
     </p>
     <ul class="lhai-admin-quote-prep-banner__list">
       ${rows

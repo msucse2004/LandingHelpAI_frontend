@@ -57,6 +57,21 @@ function isAuthenticated() {
   return Boolean(getAccessToken());
 }
 
+/**
+ * 설문 제출·메시지함·헤더 배지가 같은 고객을 가리키도록 동일한 식별자를 씁니다.
+ * - 세션 이메일이 있으면 `profile::` + 소문자 이메일
+ * - 이메일이 없고 userId가 있으면 그대로(백엔드에 저장된 customer_profile_id와 맞춤)
+ * - 둘 다 없으면 데모용 `profile::demo@customer.com`
+ */
+function getCustomerMessagingProfileId() {
+  const s = getSession();
+  const email = (s?.email || "").trim().toLowerCase();
+  if (email) return `profile::${email}`;
+  const uid = s?.userId != null ? String(s.userId).trim() : "";
+  if (uid) return uid;
+  return "profile::demo@customer.com";
+}
+
 /** Clears stored token/session and sends the user to the login page. */
 function logout() {
   clearAccessToken();
@@ -71,6 +86,7 @@ export {
   clearSession,
   getAccessToken,
   getCurrentRole,
+  getCustomerMessagingProfileId,
   getSession,
   isAuthenticated,
   logout,

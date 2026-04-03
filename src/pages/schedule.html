@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Schedule - Landing Help AI</title>
+  <title>일정 - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/schedule.css" />
@@ -12,26 +12,26 @@
   <div class="lhai-layout">
     <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
     <main class="lhai-main">
-      <section class="lhai-page-header"><div><h1 class="lhai-title">Schedule Review</h1><p class="lhai-subtitle">Review proposed schedule, reasons, and confirm or request adjustment.</p></div></section>
+      <section class="lhai-page-header"><div><h1 class="lhai-title">일정 검토</h1><p class="lhai-subtitle">제안된 일정과 사유를 확인하고 확정하거나 조정을 요청하세요.</p></div></section>
       <section class="lhai-card">
-        <h2 class="lhai-card__title">Current Proposal</h2>
+        <h2 class="lhai-card__title">현재 제안</h2>
         <div id="customerScheduleSummary"></div>
       </section>
       <section class="lhai-grid lhai-grid--2">
         <article class="lhai-card">
-          <h2 class="lhai-card__title">Recommendation Reasons</h2>
+          <h2 class="lhai-card__title">추천 사유</h2>
           <div id="customerScheduleReasons"></div>
         </article>
         <article class="lhai-card">
-          <h2 class="lhai-card__title">Review & Confirmation State</h2>
+          <h2 class="lhai-card__title">검토·확정 상태</h2>
           <div id="customerScheduleState"></div>
         </article>
       </section>
       <section class="lhai-card">
-        <h2 class="lhai-card__title">Adjustment Request (Stub)</h2>
+        <h2 class="lhai-card__title">조정 요청 (스텁)</h2>
         <form id="customerScheduleFeedbackForm">
-          <label class="lhai-field"><span class="lhai-label">Adjustment feedback</span><textarea id="customerScheduleFeedbackInput" rows="3" placeholder="Please move to afternoon slot due to document appointment."></textarea></label>
-          <button class="lhai-button lhai-button--secondary" type="submit">Request Adjustment</button>
+          <label class="lhai-field"><span class="lhai-label">조정 요청 내용</span><textarea id="customerScheduleFeedbackInput" rows="3" placeholder="예: 서류 일정 때문에 오후 시간대로 옮겨 주세요."></textarea></label>
+          <button class="lhai-button lhai-button--secondary" type="submit">조정 요청 보내기</button>
         </form>
         <p id="customerScheduleFeedbackStatus" class="u-text-muted u-mt-2"></p>
       </section>

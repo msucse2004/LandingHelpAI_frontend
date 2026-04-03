@@ -10,6 +10,16 @@ import { syncHeaderRoleBadge } from "./role-header-badge.js";
 import { initAccountMenus } from "./admin-user-menu.js";
 import { initLogoutButtons } from "./logout-button.js";
 import { getAccessToken, getSession } from "./auth.js";
+
+/** app-header만 로드될 때도 구버전 auth.js(export 없음)와 호환되도록 getSession 기반으로 계산합니다. */
+function messagingCustomerProfileId() {
+  const s = getSession();
+  const email = (s?.email || "").trim().toLowerCase();
+  if (email) return `profile::${email}`;
+  const uid = s?.userId != null ? String(s.userId).trim() : "";
+  if (uid) return uid;
+  return "profile::demo@customer.com";
+}
 import { messagesApi } from "./api.js";
 
 const MAIL_ICON_SVG = `
@@ -40,7 +50,7 @@ export function resolveAppHeaderShell() {
 
   return {
     brand: adminShell
-      ? t("common.header.brand.admin", "Landing Help AI Admin")
+      ? t("common.header.brand.admin", "Landing Help AI 관리")
       : t("common.header.brand.customer", "Landing Help AI"),
     profileHref: adminShell ? "admin-profile.html" : "profile.html",
     passwordHref: adminShell ? "admin-password.html" : "password.html",
@@ -51,13 +61,6 @@ export function resolveAppHeaderShell() {
 
 const HEADER_MAIL_BADGE_POLL_MS = 45_000;
 const HEADER_MESSAGES_CHANGED = "lhai:messages-changed";
-
-function customerProfileIdFromSession() {
-  const s = getSession();
-  const email = (s?.email || "").trim().toLowerCase();
-  if (email) return `profile::${email}`;
-  return "profile::demo@customer.com";
-}
 
 /**
  * 고객: 읽지 않은 메시지 건수. 운영자 셸: 온보딩 스레드 중 고객 측 미읽음 스레드 수.
@@ -73,7 +76,7 @@ async function fetchHeaderUnreadMessageCount() {
       return threads.filter((row) => Boolean(row?.unread)).length;
     }
     const list = await messagesApi.list({
-      customerProfileId: customerProfileIdFromSession(),
+      customerProfileId: messagingCustomerProfileId(),
       unreadOnly: true,
     });
     return Array.isArray(list) ? list.length : 0;
@@ -87,7 +90,7 @@ function applyHeaderMailUnreadBadge(count) {
   const link = document.querySelector("#lhai-header-messages-link");
   if (!badge || !link) return;
   const n = Math.max(0, Number(count) || 0);
-  const baseLabel = t("common.header.messages", "Messages");
+  const baseLabel = t("common.header.messages", "메시지함");
   if (n <= 0) {
     badge.hidden = true;
     badge.textContent = "";
@@ -99,8 +102,8 @@ function applyHeaderMailUnreadBadge(count) {
   const shown = n > 99 ? "99+" : String(n);
   badge.hidden = false;
   badge.textContent = shown;
-  const unreadHint = t("common.header.messages_unread_suffix", "unread");
-  badge.setAttribute("aria-label", t("common.header.messages_unread_badge", `${n} new messages`));
+  const unreadHint = t("common.header.messages_unread_suffix", "읽지 않음");
+  badge.setAttribute("aria-label", t("common.header.messages_unread_badge", `새 메시지 ${n}건`));
   link.setAttribute("aria-label", `${baseLabel} · ${unreadHint} ${shown}`);
   link.setAttribute("title", `${baseLabel} · ${unreadHint} ${shown}`);
 }
@@ -141,8 +144,8 @@ export function mountAppHeader(rootSelector = "#lhai-app-header-root") {
 async function mountAppHeaderAsync(rootSelector = "#lhai-app-header-root") {
   const root = document.querySelector(rootSelector);
   if (!root) return;
-  await initCommonI18nAndApplyDom(document);
 
+  // i18n API가 느리거나 응답이 없어도 상단바가 비어 보이지 않도록, 먼저 DOM을 채운 뒤 번역을 불러옵니다.
   const { brand, profileHref, passwordHref, messagesIsCurrent } = resolveAppHeaderShell();
   const currentAttr = messagesIsCurrent ? ' aria-current="page"' : "";
 
@@ -150,7 +153,7 @@ async function mountAppHeaderAsync(rootSelector = "#lhai-app-header-root") {
 <header class="lhai-topbar" role="banner">
   <div class="lhai-brand">${brand}</div>
   <div class="lhai-topbar__right">
-    <a class="lhai-topbar-mail" id="lhai-header-messages-link" href="messages.html" data-i18n-title="common.header.messages" data-i18n-aria-label="common.header.messages" title="Messages" aria-label="Messages"${currentAttr}>
+    <a class="lhai-topbar-mail" id="lhai-header-messages-link" href="messages.html" data-i18n-title="common.header.messages" data-i18n-aria-label="common.header.messages" title="메시지함" aria-label="메시지함"${currentAttr}>
       ${MAIL_ICON_SVG}
       <span id="lhai-header-mail-unread" class="lhai-topbar-mail__badge" role="status" aria-live="polite" hidden></span>
     </a>
@@ -160,15 +163,24 @@ async function mountAppHeaderAsync(rootSelector = "#lhai-app-header-root") {
         <span class="lhai-user-menu__chevron" aria-hidden="true">▾</span>
       </button>
       <div class="lhai-user-menu__panel" role="menu" aria-orientation="vertical" hidden>
-        <a class="lhai-user-menu__item" role="menuitem" href="${profileHref}" data-i18n="common.header.menu.profile">Profile</a>
-        <a class="lhai-user-menu__item" role="menuitem" href="${passwordHref}" data-i18n="common.header.menu.password">Change password</a>
-        <button type="button" class="lhai-user-menu__item lhai-user-menu__item--button" role="menuitem" data-lhai-logout data-i18n="common.header.menu.logout">Log out</button>
+        <a class="lhai-user-menu__item" role="menuitem" href="${profileHref}" data-i18n="common.header.menu.profile">내 정보</a>
+        <a class="lhai-user-menu__item" role="menuitem" href="${passwordHref}" data-i18n="common.header.menu.password">비밀번호 변경</a>
+        <button type="button" class="lhai-user-menu__item lhai-user-menu__item--button" role="menuitem" data-lhai-logout data-i18n="common.header.menu.logout">로그아웃</button>
       </div>
     </div>
   </div>
 </header>
 `.trim();
-  applyI18nToDom(root);
+
+  try {
+    await initCommonI18nAndApplyDom(document);
+    applyI18nToDom(root);
+    const brandEl = root.querySelector(".lhai-brand");
+    if (brandEl) brandEl.textContent = resolveAppHeaderShell().brand;
+  } catch {
+    // 번역 로드 실패 시에도 위에서 넣은 기본 문구·연결로 동작 유지
+  }
+
   // 헤더가 비동기로 그려지므로, 배지·계정 메뉴는 마운트 직후에만 확실히 연결됨
   syncHeaderRoleBadge();
   initAccountMenus(root);
@@ -178,4 +190,6 @@ async function mountAppHeaderAsync(rootSelector = "#lhai-app-header-root") {
   startHeaderMailBadgePolling();
 }
 
-void mountAppHeaderAsync();
+void mountAppHeaderAsync().catch((err) => {
+  console.error("[lhai] app-header mount failed", err);
+});

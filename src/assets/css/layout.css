@@ -34,8 +34,35 @@ body {
 }
 
 .lhai-sidebar {
+  display: flex;
+  flex-direction: column;
   border-right: 1px solid var(--lhai-color-border);
   padding: var(--lhai-space-6) var(--lhai-space-4);
+}
+
+.lhai-sidebar__inner {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: min(560px, calc(100vh - 140px));
+}
+
+.lhai-sidebar__footer {
+  margin-top: auto;
+  padding-top: var(--lhai-space-4);
+  border-top: 1px solid var(--lhai-color-border);
+}
+
+.lhai-sidebar__dev-hint {
+  font-size: var(--lhai-font-size-sm);
+  color: var(--lhai-color-text-muted);
+  margin: 0 0 var(--lhai-space-2);
+  line-height: 1.4;
+}
+
+.lhai-sidebar__dev-btn {
+  width: 100%;
+  justify-content: center;
 }
 
 .lhai-main {

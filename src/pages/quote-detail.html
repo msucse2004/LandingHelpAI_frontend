@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml" />
   <title>견적 확인 - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
@@ -12,73 +13,127 @@
   <div class="lhai-layout">
     <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
     <main class="lhai-main">
-      <section class="lhai-page-header">
-        <div>
-          <h1 class="lhai-title">견적 확인</h1>
-          <p class="lhai-subtitle">포함 범위, 예상 비용, 다음 단계 안내를 확인해 주세요.</p>
-        </div>
+      <section class="lhai-page-header lhai-quote-page-header">
+        <h1 class="lhai-title lhai-quote-page-header__title" id="quotePageTitle" data-i18n="customer.quote.page_title">Review your quote</h1>
       </section>
 
       <section class="lhai-card lhai-quote-view">
-        <div id="quoteLoadingState" class="lhai-state lhai-state--loading">견적을 불러오는 중…</div>
+        <div id="quoteLoadingState" class="lhai-state lhai-state--loading">Loading your quote…</div>
         <div id="quoteEmptyState" class="lhai-state lhai-state--empty" style="display:none;">
-          아직 견적을 확인할 수 없습니다. 운영팀이 제안(Propose)하면 여기에 표시됩니다.
+          No quote is available here yet. When the team sends a proposal, it will appear on this page.
         </div>
 
         <div id="quoteContent" style="display:none;">
-          <div class="lhai-quote-meta">
-            <div class="lhai-quote-meta__row">
-              <span class="u-text-muted">견적</span>
-              <strong id="quoteTitle">-</strong>
+          <header class="lhai-quote-hero" aria-labelledby="quoteHeroTitle">
+            <h2 class="lhai-quote-hero__title" id="quoteHeroTitle"></h2>
+            <p class="lhai-quote-hero__subtitle" id="quoteHeroSubtitle"></p>
+            <div class="lhai-quote-hero__status-row">
+              <span id="quoteHeroStatus" class="lhai-badge" role="status"></span>
             </div>
-            <div class="lhai-quote-meta__row"><span class="u-text-muted">상태</span><span id="quoteStatus" class="lhai-badge">-</span></div>
-            <div class="lhai-quote-meta__row"><span class="u-text-muted">견적 ID</span><strong id="quoteId">-</strong></div>
-            <div class="lhai-quote-meta__row"><span class="u-text-muted">서비스</span><strong id="quoteServiceName">-</strong></div>
-            <div class="lhai-quote-meta__row"><span class="u-text-muted">예상 비용</span><strong id="quoteEstimatedCost">-</strong></div>
-          </div>
+            <p class="lhai-quote-hero__reassurance" id="quoteHeroReassurance"></p>
+            <div class="lhai-quote-hero__focus">
+              <div class="lhai-quote-hero__block lhai-quote-hero__block--service">
+                <span class="lhai-quote-hero__label" id="quoteHeroServiceLabel"></span>
+                <p class="lhai-quote-hero__value lhai-quote-hero__value--service" id="quoteHeroServiceName"></p>
+              </div>
+              <div class="lhai-quote-hero__block lhai-quote-hero__block--cost">
+                <div class="lhai-quote-hero__cost-card" id="quoteHeroCostCard">
+                  <span class="lhai-quote-hero__label" id="quoteHeroCostLabel"></span>
+                  <p class="lhai-quote-hero__cost-eyebrow" id="quoteHeroCostEyebrow" data-i18n="customer.quote.cost.eyebrow">For the scope in this proposal</p>
+                  <p class="lhai-quote-hero__value lhai-quote-hero__value--cost" id="quoteHeroEstimatedCost"></p>
+                  <p class="lhai-quote-hero__cost-breakdown" id="quoteHeroCostBreakdown" hidden></p>
+                  <p class="lhai-quote-hero__cost-note" id="quoteHeroCostNote"></p>
+                  <div class="lhai-quote-hero__cost-footer">
+                    <span class="lhai-quote-hero__demo-pill" id="quoteCostDemoPill" hidden data-i18n="customer.quote.cost.demo_pill">Sample quote</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p class="lhai-quote-hero__next" id="quoteHeroNextCue"></p>
+          </header>
 
-          <p class="lhai-help lhai-quote-request-summary" id="quoteRequestSummary"></p>
-
-          <section class="lhai-quote-download" id="quotePdfSection" hidden>
-            <h2 class="lhai-card__title">Proposed 견적 PDF</h2>
-            <p class="lhai-help u-mt-1">다운로드하거나 메시지에서 첨부된 링크를 확인해 주세요.</p>
-            <a class="lhai-button lhai-button--secondary" id="quotePdfDownloadLink" href="#" target="_blank" rel="noopener">PDF 다운로드</a>
+          <section class="lhai-quote-request-block" id="quoteRequestBlock" aria-labelledby="quoteRequestBlockTitle">
+            <h2 class="lhai-quote-request-block__title" id="quoteRequestBlockTitle" data-i18n="customer.quote.request_section.title">Your request</h2>
+            <p class="lhai-quote-request-block__intro" data-i18n="customer.quote.request_section.intro">Please confirm this quote matches what you asked for.</p>
+            <div class="lhai-quote-request-block__grid">
+              <div class="lhai-quote-request-block__cell">
+                <h3 class="lhai-quote-request-block__subhead" id="quoteRequestHelpLabel" data-i18n="customer.quote.request_section.help_areas">Requested help</h3>
+                <ul class="lhai-quote-request-block__list" id="quoteRequestHelpAreas"></ul>
+              </div>
+              <div class="lhai-quote-request-block__cell">
+                <h3 class="lhai-quote-request-block__subhead" id="quoteRequestServicesLabel" data-i18n="customer.quote.request_section.services_in_quote">Services in this quote</h3>
+                <ul class="lhai-quote-request-block__list" id="quoteRequestServicesList"></ul>
+              </div>
+            </div>
+            <div class="lhai-quote-request-block__understood" id="quoteRequestUnderstoodWrap" hidden>
+              <h3 class="lhai-quote-request-block__subhead" id="quoteRequestUnderstoodTitle" data-i18n="customer.quote.request_section.understood">What we understood</h3>
+              <ul class="lhai-quote-request-block__list lhai-quote-request-block__list--qa" id="quoteRequestUnderstoodList"></ul>
+            </div>
           </section>
 
-          <div class="lhai-quote-columns">
-            <section class="lhai-quote-list-block">
-              <h2 class="lhai-card__title">포함 항목</h2>
-              <ul id="quoteIncludedItems"></ul>
-            </section>
-            <section class="lhai-quote-list-block">
-              <h2 class="lhai-card__title">제외 항목</h2>
-              <ul id="quoteExcludedItems"></ul>
-            </section>
-            <section class="lhai-quote-list-block">
-              <h2 class="lhai-card__title">AI 지원 범위</h2>
-              <p id="quoteAiSupportScope" class="u-text-muted">-</p>
-            </section>
-            <section class="lhai-quote-list-block">
-              <h2 class="lhai-card__title">가능한 추가 비용</h2>
-              <ul id="quotePossibleExtraCosts"></ul>
-            </section>
-            <section class="lhai-quote-list-block">
-              <h2 class="lhai-card__title">다음 단계 안내</h2>
-              <p id="quoteNextStepGuidance" class="u-text-muted">-</p>
-            </section>
-          </div>
+          <section class="lhai-quote-ai" aria-labelledby="quoteAiHeading">
+            <h2 class="lhai-card__title" id="quoteAiHeading" data-i18n="customer.quote.ai.section_title">How AI and support work for you</h2>
+            <p class="lhai-quote-ai__lede" data-i18n="customer.quote.ai.lede">Practical roles—what the assistant does, what you do, and when a person steps in.</p>
+            <p class="lhai-quote-ai__delivery" id="quoteAiDeliverySummary" hidden></p>
+            <div class="lhai-quote-ai__grid">
+              <div class="lhai-quote-ai__block">
+                <h3 class="lhai-quote-ai__subhead" id="quoteAiHelpSubhead" data-i18n="customer.quote.ai.what_ai_helps">What AI will help with</h3>
+                <ul class="lhai-quote-ai__list" id="quoteAiHelpList"></ul>
+              </div>
+              <div class="lhai-quote-ai__block">
+                <h3 class="lhai-quote-ai__subhead" id="quoteAiYouSubhead" data-i18n="customer.quote.ai.what_you_do">What you may need to do directly</h3>
+                <ul class="lhai-quote-ai__list" id="quoteAiYouList"></ul>
+              </div>
+              <div class="lhai-quote-ai__block">
+                <h3 class="lhai-quote-ai__subhead" id="quoteAiHumanSubhead" data-i18n="customer.quote.ai.when_human">When human help may be needed</h3>
+                <ul class="lhai-quote-ai__list" id="quoteAiHumanList"></ul>
+              </div>
+            </div>
+          </section>
 
           <section class="lhai-quote-customer-note" id="quoteCustomerNoteSection" hidden>
-            <h2 class="lhai-card__title">고객에게 전달 메모</h2>
+            <h2 class="lhai-card__title" id="quoteCustomerNoteTitle">Note from your team</h2>
             <p id="quoteCustomerNote" class="u-text-muted"></p>
           </section>
 
-          <div class="lhai-quote-actions">
-            <button type="button" class="lhai-button lhai-button--primary" id="approveQuoteBtn">승인</button>
-            <button type="button" class="lhai-button lhai-button--danger" id="rejectQuoteBtn">거절</button>
-            <button type="button" class="lhai-button lhai-button--secondary" id="requestHelpBtn">도움 요청</button>
+          <section class="lhai-quote-whats-next" id="quoteWhatsNextSection" aria-labelledby="quoteWhatsNextHeading">
+            <h2 class="lhai-quote-whats-next__title lhai-card__title" id="quoteWhatsNextHeading" data-i18n="customer.quote.whats_next.title">What happens next</h2>
+            <p class="lhai-quote-whats-next__lede" data-i18n="customer.quote.whats_next.lede">A simple path from reading this quote to moving forward.</p>
+            <ol class="lhai-quote-whats-next__steps" id="quoteWhatsNextSteps"></ol>
+          </section>
+
+          <div class="lhai-quote-actions-wrap" id="quoteActionsWrap">
+            <p class="lhai-quote-actions__intro" data-i18n="customer.quote.actions.intro">Choose an action below. Nothing is final until you confirm.</p>
+            <div id="quoteDecisionFeedback" class="lhai-quote-decision-feedback" hidden role="status" aria-live="polite"></div>
+            <div class="lhai-quote-actions" role="group" id="quoteActionsGroup" aria-label="Quote decision">
+              <div class="lhai-quote-actions__col lhai-quote-actions__col--primary">
+                <button type="button" class="lhai-button lhai-button--primary lhai-quote-actions__btn-approve" id="approveQuoteBtn">Approve</button>
+                <p class="lhai-quote-actions__hint" id="approveQuoteHint"></p>
+              </div>
+              <div class="lhai-quote-actions__col">
+                <button type="button" class="lhai-button lhai-button--secondary lhai-quote-actions__btn-help" id="requestHelpBtn">Ask for help</button>
+                <p class="lhai-quote-actions__hint" id="helpQuoteHint"></p>
+              </div>
+              <div class="lhai-quote-actions__col lhai-quote-actions__col--reject">
+                <button type="button" class="lhai-button lhai-button--secondary lhai-quote-actions__btn-reject" id="rejectQuoteBtn">Reject</button>
+                <p class="lhai-quote-actions__hint lhai-quote-actions__hint--reject" id="rejectQuoteHint"></p>
+              </div>
+            </div>
+            <p class="lhai-help lhai-quote-actions__status" id="quoteActionStatus"></p>
           </div>
-          <p class="lhai-help" id="quoteActionStatus">이 견적은 운영팀이 제안(Propose)한 경우에만 승인/거절을 할 수 있습니다.</p>
+
+          <details class="lhai-quote-secondary lhai-quote-secondary--footer">
+            <summary class="lhai-quote-secondary__summary" data-i18n="customer.quote.secondary.summary">Quote details (reference only)</summary>
+            <p class="lhai-quote-secondary__hint" data-i18n="customer.quote.secondary.hint">
+              Use these when you contact support. You do not need them to understand your proposal.
+            </p>
+            <dl class="lhai-quote-secondary__dl">
+              <dt data-i18n="customer.quote.secondary.ref_id">Reference ID</dt>
+              <dd id="quoteId" class="lhai-quote-secondary__mono">—</dd>
+              <dt data-i18n="customer.quote.secondary.doc_label">Document title on file</dt>
+              <dd id="quoteSecondaryTitle" class="lhai-quote-secondary__doc">—</dd>
+            </dl>
+          </details>
         </div>
       </section>
     </main>

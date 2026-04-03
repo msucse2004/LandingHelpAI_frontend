@@ -41,7 +41,7 @@ export function applyI18nToDom(root = document) {
 
 /** Load `common` domain once, then apply declarative data-i18n* attributes under `root`. */
 export async function initCommonI18nAndApplyDom(root = document) {
-  const lang = document.documentElement.lang || "en";
+  const lang = document.documentElement.lang || "ko";
   try {
     await initI18nDomains(["common"], lang);
   } catch {

@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title data-i18n="common.dashboard.meta.title">Customer Dashboard - Landing Help AI</title>
+  <title data-i18n="common.dashboard.meta.title">고객 대시보드 - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/dashboard.css" />
@@ -14,50 +14,50 @@
     <main class="lhai-main">
       <section class="lhai-page-header">
         <div>
-          <h1 class="lhai-title" data-i18n="common.dashboard.header.title">Dashboard</h1>
-          <p class="lhai-subtitle" data-i18n="common.dashboard.header.subtitle">See your current status and next required action at a glance.</p>
+          <h1 class="lhai-title" data-i18n="common.dashboard.header.title">대시보드</h1>
+          <p class="lhai-subtitle" data-i18n="common.dashboard.header.subtitle">진행 상태와 다음에 할 일을 한눈에 확인하세요.</p>
         </div>
-        <a class="lhai-button lhai-button--secondary" id="aiQuickLinkBtn" href="ai-assistant.html" data-i18n="common.dashboard.actions.open_ai_assistant">Open AI Assistant</a>
+        <a class="lhai-button lhai-button--secondary" id="aiQuickLinkBtn" href="ai-assistant.html" data-i18n="common.dashboard.actions.open_ai_assistant">AI 안내 열기</a>
       </section>
 
       <section class="lhai-card lhai-next-action">
-        <h2 class="lhai-card__title" data-i18n="common.dashboard.next_action.title">What To Do Next</h2>
-        <p id="dashboardNextAction" class="lhai-next-action__text" data-i18n="common.dashboard.next_action.loading">Loading next action...</p>
-        <div class="lhai-next-action__meta" data-service-label="Service" data-payment-label="Payment" data-schedule-label="Schedule">
-          <span class="lhai-badge" id="dashboardServiceStatusBadge">Service: -</span>
-          <span class="lhai-badge" id="dashboardPaymentStatusBadge">Payment: -</span>
-          <span class="lhai-badge" id="dashboardScheduleStatusBadge">Schedule: -</span>
+        <h2 class="lhai-card__title" data-i18n="common.dashboard.next_action.title">다음 할 일</h2>
+        <p id="dashboardNextAction" class="lhai-next-action__text" data-i18n="common.dashboard.next_action.loading">다음 단계를 불러오는 중…</p>
+        <div class="lhai-next-action__meta" data-service-label="서비스" data-payment-label="결제" data-schedule-label="일정">
+          <span class="lhai-badge" id="dashboardServiceStatusBadge">서비스: -</span>
+          <span class="lhai-badge" id="dashboardPaymentStatusBadge">결제: -</span>
+          <span class="lhai-badge" id="dashboardScheduleStatusBadge">일정: -</span>
         </div>
       </section>
 
       <section class="lhai-grid lhai-grid--4" id="dashboardStatusCards">
-        <article class="lhai-card"><h2 class="lhai-card__title" data-i18n="common.dashboard.loading">Loading...</h2></article>
+        <article class="lhai-card"><h2 class="lhai-card__title" data-i18n="common.dashboard.loading">불러오는 중…</h2></article>
       </section>
 
       <section class="lhai-grid lhai-grid--2">
         <article class="lhai-card">
-          <h2 class="lhai-card__title" data-i18n="common.dashboard.sections.progress_timeline">Progress Timeline</h2>
+          <h2 class="lhai-card__title" data-i18n="common.dashboard.sections.progress_timeline">진행 타임라인</h2>
           <div id="dashboardTimelineContainer"></div>
         </article>
         <article class="lhai-card">
-          <h2 class="lhai-card__title" data-i18n="common.dashboard.sections.checklist_summary">Checklist Summary</h2>
+          <h2 class="lhai-card__title" data-i18n="common.dashboard.sections.checklist_summary">체크리스트 요약</h2>
           <div id="dashboardChecklistSummary"></div>
         </article>
       </section>
 
       <section class="lhai-grid lhai-grid--2">
         <article class="lhai-card">
-          <h2 class="lhai-card__title" data-i18n="common.dashboard.sections.recent_messages">Recent Messages</h2>
+          <h2 class="lhai-card__title" data-i18n="common.dashboard.sections.recent_messages">최근 메시지</h2>
           <div id="dashboardRecentMessages"></div>
         </article>
         <article class="lhai-card">
-          <h2 class="lhai-card__title" data-i18n="common.dashboard.sections.document_status">Document Status</h2>
+          <h2 class="lhai-card__title" data-i18n="common.dashboard.sections.document_status">문서 상태</h2>
           <div id="dashboardDocumentStatus"></div>
         </article>
       </section>
 
       <section class="lhai-card">
-        <h2 class="lhai-card__title" data-i18n="common.dashboard.sections.recent_activity">Recent Activity</h2>
+        <h2 class="lhai-card__title" data-i18n="common.dashboard.sections.recent_activity">최근 활동</h2>
         <div id="dashboardRecentActivity"></div>
       </section>
     </main>

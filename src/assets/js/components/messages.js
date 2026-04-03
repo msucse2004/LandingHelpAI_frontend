@@ -9,7 +9,7 @@ function renderThreads(threads = [], targetSelector = "[data-message-threads]") 
   if (!target) return;
 
   if (!threads.length) {
-    target.innerHTML = "<div class='lhai-state lhai-state--empty'>No message threads.</div>";
+    target.innerHTML = "<div class='lhai-state lhai-state--empty'>메시지 스레드가 없습니다.</div>";
     return;
   }
 

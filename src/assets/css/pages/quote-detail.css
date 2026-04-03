@@ -3,22 +3,387 @@
   gap: var(--lhai-space-4);
 }
 
-.lhai-quote-meta {
+.lhai-quote-page-header {
+  margin-bottom: var(--lhai-space-2);
+}
+
+.lhai-quote-page-header__title {
+  font-size: var(--lhai-font-size-lg, 1.15rem);
+  font-weight: 600;
+  opacity: 0.92;
+}
+
+/* Hero: 고객이 먼저 읽는 핵심 요약 */
+.lhai-quote-hero {
+  padding: var(--lhai-space-5) var(--lhai-space-4);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid rgba(110, 168, 254, 0.28);
+  background: linear-gradient(165deg, rgba(18, 42, 78, 0.55) 0%, rgba(6, 14, 28, 0.65) 100%);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.lhai-quote-hero__title {
+  margin: 0 0 var(--lhai-space-2);
+  font-size: clamp(1.35rem, 2.8vw, 1.65rem);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+
+.lhai-quote-hero__subtitle {
+  margin: 0 0 var(--lhai-space-3);
+  font-size: var(--lhai-font-size-sm, 0.95rem);
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.72));
+  line-height: 1.55;
+  max-width: 40rem;
+}
+
+.lhai-quote-hero__status-row {
+  margin-bottom: var(--lhai-space-3);
+}
+
+.lhai-quote-hero__reassurance {
+  margin: 0 0 var(--lhai-space-4);
+  font-size: var(--lhai-font-size-xs, 0.85rem);
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.68));
+  line-height: 1.5;
+  padding: var(--lhai-space-3);
+  border-radius: var(--lhai-radius-sm);
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lhai-quote-hero__focus {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--lhai-space-4) var(--lhai-space-6);
+  align-items: start;
+}
+
+.lhai-quote-hero__block--cost {
+  text-align: right;
+}
+
+.lhai-quote-hero__cost-card {
+  text-align: right;
+  max-width: 22rem;
+  margin-left: auto;
+  padding: var(--lhai-space-3) var(--lhai-space-4);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid rgba(46, 160, 120, 0.35);
+  background: linear-gradient(145deg, rgba(16, 48, 40, 0.45) 0%, rgba(6, 18, 36, 0.55) 100%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.lhai-quote-hero__cost-eyebrow {
+  margin: 0 0 var(--lhai-space-1);
+  font-size: var(--lhai-font-size-xs, 0.78rem);
+  font-weight: 500;
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.62));
+  line-height: 1.4;
+}
+
+.lhai-quote-hero__cost-breakdown {
+  margin: var(--lhai-space-2) 0 0;
+  font-size: var(--lhai-font-size-xs, 0.8rem);
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.68));
+  line-height: 1.45;
+}
+
+.lhai-quote-hero__cost-note {
+  margin: var(--lhai-space-3) 0 0;
+  font-size: var(--lhai-font-size-xs, 0.8rem);
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.7));
+  line-height: 1.5;
+  text-align: right;
+}
+
+.lhai-quote-hero__cost-footer {
+  margin-top: var(--lhai-space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.lhai-quote-hero__demo-pill {
+  font-size: var(--lhai-font-size-xs, 0.72rem);
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 200, 120, 0.45);
+  background: rgba(80, 50, 20, 0.35);
+  color: rgba(255, 220, 170, 0.95);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.lhai-quote-hero__value--cost-pending {
+  font-size: clamp(1.05rem, 2.5vw, 1.35rem) !important;
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.75)) !important;
+  font-weight: 600 !important;
+}
+
+.lhai-quote-hero__label {
+  display: block;
+  font-size: var(--lhai-font-size-xs, 0.8rem);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.55));
+  margin-bottom: var(--lhai-space-1);
+}
+
+.lhai-quote-hero__value {
+  margin: 0;
+  font-size: var(--lhai-font-size-md, 1rem);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.lhai-quote-hero__value--service {
+  max-width: 28rem;
+}
+
+.lhai-quote-hero__value--cost {
+  font-size: clamp(1.35rem, 3vw, 1.85rem);
+  font-weight: 700;
+  color: var(--lhai-color-accent, #8ec5ff);
+  letter-spacing: -0.02em;
+}
+
+.lhai-quote-hero__next {
+  margin: var(--lhai-space-4) 0 0;
+  padding-top: var(--lhai-space-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: var(--lhai-font-size-sm, 0.92rem);
+  font-weight: 500;
+  line-height: 1.55;
+  color: var(--lhai-color-text, rgba(255, 255, 255, 0.92));
+}
+
+/* 보조: 내부 참조용 — 기본 접힘, 본문 하단에 배치 */
+.lhai-quote-secondary {
+  margin-top: var(--lhai-space-2);
+  padding: var(--lhai-space-2) 0;
+  border-bottom: 1px solid var(--lhai-color-border);
+}
+
+.lhai-quote-secondary--footer {
+  margin-top: var(--lhai-space-5);
+  padding: var(--lhai-space-3) 0 0;
+  border-bottom: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  opacity: 0.92;
+}
+
+.lhai-quote-secondary--footer .lhai-quote-secondary__summary {
+  font-size: var(--lhai-font-size-xs, 0.76rem);
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.lhai-quote-secondary__hint {
+  margin: var(--lhai-space-2) 0 0;
+  font-size: var(--lhai-font-size-xs, 0.72rem);
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.42);
+  max-width: 32rem;
+}
+
+.lhai-quote-secondary__summary {
+  cursor: pointer;
+  font-size: var(--lhai-font-size-xs, 0.82rem);
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.55));
+  list-style: none;
+}
+
+.lhai-quote-secondary__summary::-webkit-details-marker {
+  display: none;
+}
+
+.lhai-quote-secondary__summary::before {
+  content: "▸ ";
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.lhai-quote-secondary[open] .lhai-quote-secondary__summary::before {
+  transform: rotate(90deg);
+}
+
+.lhai-quote-secondary__dl {
+  margin: var(--lhai-space-3) 0 0;
+  display: grid;
+  gap: var(--lhai-space-2);
+  font-size: var(--lhai-font-size-xs, 0.82rem);
+}
+
+.lhai-quote-secondary__dl dt {
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.5));
+  font-weight: 500;
+}
+
+.lhai-quote-secondary__dl dd {
+  margin: 0;
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.78));
+}
+
+.lhai-quote-secondary__mono {
+  font-family: ui-monospace, monospace;
+  word-break: break-all;
+  font-size: 0.9em;
+}
+
+.lhai-quote-secondary__doc {
+  font-size: var(--lhai-font-size-xs, 0.8rem);
+  line-height: 1.4;
+}
+
+/* AI·지원 역할: 운영 중심, 고객 언어 */
+.lhai-quote-ai {
+  margin: var(--lhai-space-4) 0;
+  padding: var(--lhai-space-4) var(--lhai-space-4);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid rgba(110, 168, 254, 0.22);
+  background: rgba(12, 28, 52, 0.4);
+}
+
+.lhai-quote-ai__lede {
+  margin: 0 0 var(--lhai-space-3);
+  font-size: var(--lhai-font-size-sm, 0.9rem);
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.7));
+  line-height: 1.5;
+  max-width: 42rem;
+}
+
+.lhai-quote-ai__delivery {
+  margin: 0 0 var(--lhai-space-4);
+  padding: var(--lhai-space-2) var(--lhai-space-3);
+  border-radius: var(--lhai-radius-sm);
+  font-size: var(--lhai-font-size-sm, 0.9rem);
+  line-height: 1.5;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--lhai-color-text, rgba(255, 255, 255, 0.9));
+}
+
+.lhai-quote-ai__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--lhai-space-4);
+  align-items: start;
+}
+
+.lhai-quote-ai__subhead {
+  margin: 0 0 var(--lhai-space-2);
+  font-size: var(--lhai-font-size-xs, 0.8rem);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.58));
+}
+
+.lhai-quote-ai__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--lhai-space-2);
+}
+
+.lhai-quote-ai__list li {
+  margin: 0;
+  padding: 0;
+  padding-left: 1.1em;
+  position: relative;
+  font-size: var(--lhai-font-size-sm, 0.9rem);
+  line-height: 1.5;
+  color: var(--lhai-color-text, rgba(255, 255, 255, 0.88));
+}
+
+.lhai-quote-ai__list li::before {
+  content: "·";
+  position: absolute;
+  left: 0;
+  font-weight: 700;
+  color: var(--lhai-color-accent, #8ec5ff);
+}
+
+.lhai-quote-ai__team-note {
+  margin: var(--lhai-space-4) 0 0;
+  padding-top: var(--lhai-space-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: var(--lhai-font-size-sm, 0.88rem);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+/* 승인 전·후 고객 동선 — 버튼 직전에 배치 */
+.lhai-quote-whats-next {
+  margin: var(--lhai-space-5) 0 var(--lhai-space-3);
+  padding: var(--lhai-space-4) var(--lhai-space-4);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(10, 24, 48, 0.55);
+}
+
+.lhai-quote-whats-next__title {
+  margin: 0 0 var(--lhai-space-2);
+}
+
+.lhai-quote-whats-next__lede {
+  margin: 0 0 var(--lhai-space-4);
+  font-size: var(--lhai-font-size-sm, 0.9rem);
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.7));
+  line-height: 1.5;
+  max-width: 40rem;
+}
+
+.lhai-quote-whats-next__steps {
+  margin: 0;
+  padding: 0 0 0 1.25rem;
   display: grid;
   gap: var(--lhai-space-3);
+  font-size: var(--lhai-font-size-sm, 0.92rem);
+  line-height: 1.55;
+  color: var(--lhai-color-text, rgba(255, 255, 255, 0.9));
+}
+
+.lhai-quote-whats-next__steps li {
+  padding-left: var(--lhai-space-1);
+}
+
+.lhai-quote-whats-next__team {
+  margin-top: var(--lhai-space-4);
+  padding-top: var(--lhai-space-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lhai-quote-whats-next__team-label {
+  margin: 0 0 var(--lhai-space-1);
+  font-size: var(--lhai-font-size-xs, 0.78rem);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.55));
+}
+
+.lhai-quote-whats-next__team-text {
+  margin: 0;
+  font-size: var(--lhai-font-size-sm, 0.88rem);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 960px) {
+  .lhai-quote-ai__grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .lhai-quote-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--lhai-space-4);
-}
-
-.lhai-quote-meta__row {
-  display: flex;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--lhai-color-border);
-  padding-bottom: var(--lhai-space-2);
 }
 
 .lhai-quote-list-block ul {
@@ -36,16 +401,235 @@
   background: rgba(6, 18, 36, 0.3);
 }
 
-.lhai-quote-actions {
-  display: flex;
-  gap: var(--lhai-space-2);
-  flex-wrap: wrap;
+.lhai-quote-actions-wrap {
+  margin-top: var(--lhai-space-4);
+  padding: var(--lhai-space-4) var(--lhai-space-4);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(4, 14, 32, 0.55);
 }
 
-.lhai-quote-request-summary {
-  margin: var(--lhai-space-3) 0 var(--lhai-space-4);
-  white-space: pre-wrap;
-  line-height: 1.6;
+.lhai-quote-actions__intro {
+  margin: 0 0 var(--lhai-space-4);
+  font-size: var(--lhai-font-size-sm, 0.9rem);
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.72));
+  line-height: 1.5;
+  max-width: 36rem;
+}
+
+/* 승인·거절 결과 및 처리 중 — 고객이 확실히 인지할 수 있게 */
+.lhai-quote-decision-feedback {
+  margin: 0 0 var(--lhai-space-4);
+  padding: var(--lhai-space-3) var(--lhai-space-4);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(8, 24, 48, 0.65);
+}
+
+.lhai-quote-decision-feedback__title {
+  display: block;
+  margin: 0 0 var(--lhai-space-2);
+  font-size: var(--lhai-font-size-md, 1.05rem);
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.lhai-quote-decision-feedback__body {
+  margin: 0;
+  font-size: var(--lhai-font-size-sm, 0.9rem);
+  line-height: 1.55;
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.78));
+}
+
+.lhai-quote-decision-feedback__body--solo {
+  margin: 0;
+  font-weight: 500;
+  color: var(--lhai-color-text, rgba(255, 255, 255, 0.88));
+}
+
+.lhai-quote-decision-feedback--loading {
+  border-color: rgba(110, 168, 254, 0.35);
+  background: rgba(18, 40, 72, 0.55);
+}
+
+.lhai-quote-decision-feedback--success {
+  border-color: rgba(72, 180, 130, 0.55);
+  background: linear-gradient(135deg, rgba(16, 56, 44, 0.5) 0%, rgba(8, 28, 40, 0.65) 100%);
+  box-shadow: 0 0 0 1px rgba(72, 180, 130, 0.12);
+}
+
+.lhai-quote-decision-feedback--success .lhai-quote-decision-feedback__title {
+  color: rgba(160, 235, 200, 0.98);
+}
+
+.lhai-quote-decision-feedback--rejected {
+  border-color: rgba(200, 120, 100, 0.4);
+  background: rgba(48, 22, 18, 0.45);
+}
+
+.lhai-quote-decision-feedback--rejected .lhai-quote-decision-feedback__title {
+  color: rgba(255, 200, 190, 0.95);
+}
+
+.lhai-quote-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--lhai-space-4) var(--lhai-space-3);
+  align-items: start;
+}
+
+.lhai-quote-actions__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-2);
+  min-width: 0;
+}
+
+.lhai-quote-actions__col--primary .lhai-quote-actions__btn-approve {
+  min-height: 2.75rem;
+  padding: 12px 18px;
+  font-size: var(--lhai-font-size-md, 1rem);
+  box-shadow: 0 4px 18px rgba(46, 120, 200, 0.35);
+}
+
+.lhai-quote-actions__btn-reject {
+  border-color: rgba(220, 90, 90, 0.45);
+  background: rgba(40, 12, 16, 0.35);
+  color: rgba(255, 200, 200, 0.92);
+  font-weight: 500;
+}
+
+.lhai-quote-actions__btn-reject:hover:not(:disabled) {
+  border-color: rgba(240, 120, 120, 0.65);
+  background: rgba(55, 18, 22, 0.5);
+}
+
+.lhai-quote-actions__btn-help {
+  font-weight: 600;
+}
+
+.lhai-quote-actions__hint {
+  margin: 0;
+  font-size: var(--lhai-font-size-xs, 0.78rem);
+  line-height: 1.45;
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.62));
+}
+
+.lhai-quote-actions__hint--reject {
+  color: rgba(255, 190, 190, 0.55);
+}
+
+.lhai-quote-actions__status {
+  margin: var(--lhai-space-4) 0 0;
+  font-size: var(--lhai-font-size-sm, 0.88rem);
+  line-height: 1.5;
+}
+
+.lhai-quote-actions__status--error {
+  padding: var(--lhai-space-2) var(--lhai-space-3);
+  border-radius: var(--lhai-radius-sm);
+  border: 1px solid rgba(220, 100, 100, 0.45);
+  background: rgba(48, 16, 20, 0.4);
+  color: rgba(255, 200, 200, 0.95);
+}
+
+@media (max-width: 720px) {
+  .lhai-quote-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .lhai-quote-actions__col--reject {
+    order: 3;
+  }
+
+  .lhai-quote-actions__col--primary {
+    order: 1;
+  }
+
+  .lhai-quote-actions__col:not(.lhai-quote-actions__col--primary):not(.lhai-quote-actions__col--reject) {
+    order: 2;
+  }
+}
+
+/* 신청·요청 요약: 고객이 “내가 신청한 것”과 대조 */
+.lhai-quote-request-block {
+  margin: var(--lhai-space-4) 0 var(--lhai-space-4);
+  padding: var(--lhai-space-4) var(--lhai-space-4);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(8, 20, 40, 0.45);
+}
+
+.lhai-quote-request-block__title {
+  margin: 0 0 var(--lhai-space-2);
+  font-size: var(--lhai-font-size-md, 1.05rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.lhai-quote-request-block__intro {
+  margin: 0 0 var(--lhai-space-4);
+  font-size: var(--lhai-font-size-sm, 0.9rem);
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.7));
+  line-height: 1.5;
+  max-width: 36rem;
+}
+
+.lhai-quote-request-block__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--lhai-space-4) var(--lhai-space-5);
+}
+
+.lhai-quote-request-block__subhead {
+  margin: 0 0 var(--lhai-space-2);
+  font-size: var(--lhai-font-size-xs, 0.78rem);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.55));
+}
+
+.lhai-quote-request-block__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--lhai-space-2);
+}
+
+.lhai-quote-request-block__list li {
+  margin: 0;
+  padding: var(--lhai-space-2) var(--lhai-space-3);
+  border-radius: var(--lhai-radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.18);
+  font-size: var(--lhai-font-size-sm, 0.92rem);
+  line-height: 1.45;
+  color: var(--lhai-color-text, rgba(255, 255, 255, 0.9));
+}
+
+.lhai-quote-request-block__list li.lhai-quote-request-block__empty {
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.5));
+  font-style: italic;
+}
+
+.lhai-quote-request-block__list--qa li strong {
+  font-weight: 600;
+  color: var(--lhai-color-text, rgba(255, 255, 255, 0.88));
+}
+
+.lhai-quote-request-block__understood {
+  margin-top: var(--lhai-space-4);
+  padding-top: var(--lhai-space-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 720px) {
+  .lhai-quote-request-block__grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .lhai-quote-customer-note {
@@ -64,6 +648,32 @@
   border-radius: var(--lhai-radius-md);
   border: 1px solid rgba(110, 168, 254, 0.25);
   background: rgba(110, 168, 254, 0.06);
+}
+
+@media (max-width: 720px) {
+  .lhai-quote-hero__focus {
+    grid-template-columns: 1fr;
+  }
+
+  .lhai-quote-hero__block--cost {
+    text-align: left;
+    padding-top: var(--lhai-space-2);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .lhai-quote-hero__cost-card {
+    margin-left: 0;
+    max-width: none;
+    text-align: left;
+  }
+
+  .lhai-quote-hero__cost-note {
+    text-align: left;
+  }
+
+  .lhai-quote-hero__cost-footer {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 960px) {

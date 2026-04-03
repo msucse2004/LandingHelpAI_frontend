@@ -15,7 +15,7 @@ function renderStatusCards(cards = []) {
   const target = qs("#dashboardStatusCards");
   if (!target) return;
   if (!cards.length) {
-    target.innerHTML = `<article class='lhai-card'><h2 class='lhai-card__title'>${t("common.dashboard.empty.status_data", "No status data")}</h2></article>`;
+    target.innerHTML = `<article class='lhai-card'><h2 class='lhai-card__title'>${t("common.dashboard.empty.status_data", "상태 데이터가 없습니다")}</h2></article>`;
     return;
   }
 
@@ -36,10 +36,10 @@ function renderChecklistSummary(summary) {
   if (!target) return;
   target.innerHTML = `
     <ul class="lhai-list-compact">
-      <li>${t("common.dashboard.checklist.total_items", "Total items")}: <strong>${summary.total}</strong></li>
-      <li>${t("common.dashboard.checklist.completed", "Completed")}: <strong>${summary.completed}</strong></li>
-      <li>${t("common.dashboard.checklist.required_remaining", "Required remaining")}: <strong>${summary.required_remaining}</strong></li>
-      <li>${t("common.dashboard.checklist.next_required", "Next required")}: <strong>${summary.next_required_item || "-"}</strong></li>
+      <li>${t("common.dashboard.checklist.total_items", "전체 항목")}: <strong>${summary.total}</strong></li>
+      <li>${t("common.dashboard.checklist.completed", "완료")}: <strong>${summary.completed}</strong></li>
+      <li>${t("common.dashboard.checklist.required_remaining", "남은 필수 항목")}: <strong>${summary.required_remaining}</strong></li>
+      <li>${t("common.dashboard.checklist.next_required", "다음 필수")}: <strong>${summary.next_required_item || "-"}</strong></li>
     </ul>
   `;
 }
@@ -48,7 +48,7 @@ function renderRecentMessages(messages = []) {
   const target = qs("#dashboardRecentMessages");
   if (!target) return;
   if (!messages.length) {
-    target.innerHTML = `<div class='lhai-state lhai-state--empty'>${t("common.dashboard.empty.recent_messages", "No recent messages.")}</div>`;
+    target.innerHTML = `<div class='lhai-state lhai-state--empty'>${t("common.dashboard.empty.recent_messages", "최근 메시지가 없습니다.")}</div>`;
     return;
   }
   target.innerHTML = `
@@ -70,7 +70,7 @@ function renderDocumentStatus(documents = []) {
   const target = qs("#dashboardDocumentStatus");
   if (!target) return;
   if (!documents.length) {
-    target.innerHTML = `<div class='lhai-state lhai-state--empty'>${t("common.dashboard.empty.document_status", "No document status available.")}</div>`;
+    target.innerHTML = `<div class='lhai-state lhai-state--empty'>${t("common.dashboard.empty.document_status", "문서 상태 정보가 없습니다.")}</div>`;
     return;
   }
   target.innerHTML = `
@@ -92,16 +92,16 @@ function renderRecentActivity(activity = []) {
   const target = qs("#dashboardRecentActivity");
   if (!target) return;
   if (!activity.length) {
-    target.innerHTML = `<div class='lhai-state lhai-state--empty'>${t("common.dashboard.empty.recent_activity", "No recent activity.")}</div>`;
+    target.innerHTML = `<div class='lhai-state lhai-state--empty'>${t("common.dashboard.empty.recent_activity", "최근 활동이 없습니다.")}</div>`;
     return;
   }
   target.innerHTML = `<ul class="lhai-list-compact">${activity.map((line) => `<li>${line}</li>`).join("")}</ul>`;
 }
 
 function applyDashboardBadgeLabels(aggregate) {
-  const servicePrefix = t("common.dashboard.badge.service", "Service");
-  const paymentPrefix = t("common.dashboard.badge.payment", "Payment");
-  const schedulePrefix = t("common.dashboard.badge.schedule", "Schedule");
+  const servicePrefix = t("common.dashboard.badge.service", "서비스");
+  const paymentPrefix = t("common.dashboard.badge.payment", "결제");
+  const schedulePrefix = t("common.dashboard.badge.schedule", "일정");
   qs("#dashboardServiceStatusBadge").textContent = `${servicePrefix}: ${aggregate.current_service_status}`;
   qs("#dashboardPaymentStatusBadge").textContent = `${paymentPrefix}: ${aggregate.payment_status}`;
   qs("#dashboardScheduleStatusBadge").textContent = `${schedulePrefix}: ${aggregate.schedule_status}`;
@@ -152,7 +152,7 @@ async function initDashboardPage() {
       const stored = JSON.parse(window.localStorage.getItem("lhai_dashboard_summary") || "{}");
       dashboardSummary = { ...dashboardSummary, ...stored };
       if (stored.paymentStatus) {
-        qs("#dashboardPaymentStatusBadge").textContent = `${t("common.dashboard.badge.payment", "Payment")}: ${stored.paymentStatus}`;
+        qs("#dashboardPaymentStatusBadge").textContent = `${t("common.dashboard.badge.payment", "결제")}: ${stored.paymentStatus}`;
       }
     } catch {
       // ignore malformed storage

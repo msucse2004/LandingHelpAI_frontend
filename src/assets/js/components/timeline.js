@@ -9,7 +9,7 @@ function renderTimeline(items = [], targetSelector = "[data-timeline]") {
   if (!target) return;
 
   if (!items.length) {
-    target.innerHTML = "<div class='lhai-state lhai-state--empty'>No timeline items yet.</div>";
+    target.innerHTML = "<div class='lhai-state lhai-state--empty'>아직 타임라인 항목이 없습니다.</div>";
     return;
   }
 

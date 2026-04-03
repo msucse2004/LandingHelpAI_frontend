@@ -1,10 +1,10 @@
 import { mountMessagesSidebar } from "../components/sidebar.js";
 import { messagesApi } from "../core/api.js";
-import { getSession } from "../core/auth.js";
+import { getCustomerMessagingProfileId } from "../core/auth.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { canAccessAdminShell } from "../core/role-tiers.js";
 import { syncHeaderRoleBadge } from "../core/role-header-badge.js";
-import { formatDate, safeText } from "../core/utils.js";
+import { formatMessageTimestamp, safeText } from "../core/utils.js";
 
 let customerProfileId = "profile::demo@customer.com";
 /** 티어 1~3 운영자 화면: 선택한 스레드의 고객 profile::email */
@@ -16,6 +16,8 @@ let currentThreadMessages = [];
 let chatSendLocked = false;
 /** init 시점에 한 번 설정 — 운영자는 고객센터(온보딩) 스레드만 목록·답장 */
 let operatorInboxMode = false;
+/** @type {string} */
+let threadListLoadError = "";
 
 /** @returns {string} optional initial thread id from URL */
 function applyMessagesPageQuery() {
@@ -42,6 +44,12 @@ function extractQuoteIdFromText(text) {
   return m ? decodeURIComponent(m[1]) : "";
 }
 
+function extractInvoiceIdFromText(text) {
+  const s = String(text || "");
+  const m = s.match(/[?&]invoice_id=([^&#\s]+)/);
+  return m ? decodeURIComponent(m[1]) : "";
+}
+
 function extractMockStoragePdfUrl(text) {
   const s = String(text || "");
   const m = s.match(/(?:\/api)?\/mock-storage\/[^ \n\r\t]+\.pdf/i);
@@ -52,14 +60,41 @@ function renderQuoteProposedLinksHtml(message) {
   if (!message || typeof message !== "object") return "";
   if (String(message.event_code || "") !== "quote.proposed") return "";
 
-  const qid = extractQuoteIdFromText(message.body);
-  const pdfUrl = extractMockStoragePdfUrl(message.body);
+  const qid =
+    String(message.linked_quote_id || "").trim() || extractQuoteIdFromText(message.body);
+  const pdfUrl =
+    String(message.linked_pdf_url || "").trim() || extractMockStoragePdfUrl(message.body);
   const parts = [];
 
   if (qid) {
     const href = `quote-detail.html?quote_id=${encodeURIComponent(qid)}`;
     parts.push(
-      `<a class="lhai-button lhai-button--secondary lhai-quote-proposed-link" href="${href}">견적 보기 (View Quote)</a>`
+      `<a class="lhai-button lhai-button--secondary lhai-quote-proposed-link" href="${href}">견적 보기</a>`
+    );
+  }
+  if (pdfUrl) {
+    parts.push(
+      `<a class="lhai-button lhai-button--secondary lhai-quote-proposed-link" href="${pdfUrl}" target="_blank" rel="noopener">PDF 다운로드/보기 (Download/View PDF)</a>`
+    );
+  }
+  if (!parts.length) return "";
+  return `<div class="lhai-quote-proposed-links">${parts.join(" ")}</div>`;
+}
+
+function renderInvoiceSentLinksHtml(message) {
+  if (!message || typeof message !== "object") return "";
+  if (String(message.event_code || "") !== "invoice.sent") return "";
+
+  const invoiceId =
+    String(message.linked_invoice_id || "").trim() || extractInvoiceIdFromText(message.body);
+  const pdfUrl =
+    String(message.linked_pdf_url || "").trim() || extractMockStoragePdfUrl(message.body);
+  const parts = [];
+
+  if (invoiceId) {
+    const href = `invoice-detail.html?invoice_id=${encodeURIComponent(invoiceId)}`;
+    parts.push(
+      `<a class="lhai-button lhai-button--secondary lhai-quote-proposed-link" href="${href}">청구서 보기</a>`
     );
   }
   if (pdfUrl) {
@@ -75,6 +110,10 @@ function renderThreadList(threads = []) {
   const container = document.querySelector("#messageListContainer");
   if (!container) return;
   if (!threads.length) {
+    if (threadListLoadError) {
+      container.innerHTML = `<div class="lhai-state lhai-state--error" role="alert">${safeText(threadListLoadError)}</div>`;
+      return;
+    }
     container.innerHTML = `<div class="lhai-state lhai-state--empty">대화가 없습니다.</div>`;
     return;
   }
@@ -84,7 +123,7 @@ function renderThreadList(threads = []) {
       <article class="lhai-message-item ${row.unread ? "is-unread" : ""} ${selectedThreadId === row.thread_id ? "is-active" : ""}" data-thread-id="${safeText(row.thread_id)}" data-customer-profile-id="${safeText(row.customer_profile_id || "")}">
         <div class="lhai-message-item__meta">
           <span class="lhai-badge">${safeText(row.message_type)}</span>
-          <span class="u-text-muted">${formatDate(row.last_message_at)}</span>
+          <span class="u-text-muted">${formatMessageTimestamp(row.last_message_at)}</span>
         </div>
         <h3>${safeText(row.title)}</h3>
         <p class="u-text-muted lhai-message-item__preview">${safeText(row.preview)}</p>
@@ -119,8 +158,8 @@ function renderChatBubbles() {
         <div class="lhai-chat-bubble ${bubbleClass}">
           ${titleLine}
           <p class="lhai-chat-bubble__body">${safeText(m.body)}</p>
-          ${mine ? "" : renderQuoteProposedLinksHtml(m)}
-          <time class="lhai-chat-bubble__time" datetime="${safeText(m.created_at)}">${formatDate(m.created_at)}</time>
+          ${mine ? "" : `${renderQuoteProposedLinksHtml(m)}${renderInvoiceSentLinksHtml(m)}`}
+          <time class="lhai-chat-bubble__time" datetime="${safeText(m.created_at)}">${formatMessageTimestamp(m.created_at)}</time>
         </div>
       </div>`;
     })
@@ -199,6 +238,7 @@ async function loadThreadMessages() {
 }
 
 async function refresh() {
+  threadListLoadError = "";
   const categoryFilter = document.querySelector("#messageCategoryFilter");
   const unreadOnlyFilter = document.querySelector("#messageUnreadOnly");
   const category = categoryFilter instanceof HTMLSelectElement ? categoryFilter.value : "";
@@ -213,7 +253,9 @@ async function refresh() {
           category,
           unreadOnly,
         });
-  } catch {
+  } catch (err) {
+    const msg = err && typeof err.message === "string" ? err.message : "";
+    threadListLoadError = msg || "대화 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
     threads = [];
   }
 
@@ -326,10 +368,7 @@ async function initMessagesPage() {
   const q = new URLSearchParams(window.location.search);
   const explicitProfile = (q.get("customer_profile_id") || q.get("customer") || "").trim();
   if (!operatorInboxMode && !explicitProfile) {
-    const email = getSession()?.email;
-    if (email && String(email).trim()) {
-      customerProfileId = `profile::${String(email).trim().toLowerCase()}`;
-    }
+    customerProfileId = getCustomerMessagingProfileId();
   }
   if (initialThreadId) selectedThreadId = initialThreadId;
 

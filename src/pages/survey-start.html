@@ -16,13 +16,13 @@
       <div>
         <h1 class="lhai-title" data-i18n="common.service_flow.heading">견적신청</h1>
         <p class="lhai-subtitle" data-i18n="common.service_flow.subtitle">
-          Choose a category, pick how you want delivery, then tell us only what we need to help you. No prices in this step.
+          도움이 필요한 영역을 고르고 진행 방식을 선택한 뒤, 필요한 정보만 알려 주세요. 이 단계에서는 가격이 표시되지 않습니다.
         </p>
       </div>
     </section>
 
     <section class="lhai-card lhai-card--center lhai-container__card service-flow__card">
-      <div class="service-flow__progress" aria-label="Progress" role="region">
+      <div class="service-flow__progress" aria-label="진행 단계" role="region">
         <div class="service-flow__progress-bar" aria-hidden="true">
           <div class="service-flow__progress-fill" id="sfProgressFill"></div>
         </div>
@@ -30,8 +30,8 @@
       </div>
 
       <div id="sfStepCategory" class="service-flow__step">
-        <h2 class="service-flow__step-title" data-i18n="common.service_flow.step_category">1. What area do you need help with?</h2>
-        <p class="lhai-help" data-i18n="common.service_flow.help_category">Select all that apply. You can choose more than one area.</p>
+        <h2 class="service-flow__step-title" data-i18n="common.service_flow.step_category">1. 어떤 영역에서 도움이 필요하신가요?</h2>
+        <p class="lhai-help" data-i18n="common.service_flow.help_category">해당되는 항목을 모두 선택해 주세요. 여러 영역을 선택할 수 있습니다.</p>
         <p class="lhai-help service-flow__step-note" id="sfCategoryStepNote">
           해당되는 항목을 모두 선택해 주세요. 여러 개를 선택할 수 있고, 선택한 항목 기준으로 다음 질문이 달라집니다.
         </p>
@@ -140,49 +140,49 @@
       </div>
 
       <div id="sfStepServices" class="service-flow__step" hidden>
-        <h2 class="service-flow__step-title">3. Choose services for this area</h2>
+        <h2 class="service-flow__step-title">3. 이 영역에서 받을 서비스를 선택하세요</h2>
         <p class="lhai-help service-flow__services-lead">
-          We’ll guide you through one selected area at a time.
+          선택하신 영역을 한 번에 하나씩 안내합니다.
         </p>
         <p class="lhai-help service-flow__services-lead">
-          Choose the services you want help with in this area.
+          이 영역에서 도움이 필요한 서비스를 선택해 주세요.
         </p>
         <div class="service-flow__services-substep">
-          <p class="lhai-help service-flow__services-substep-index" id="sfServicesSubstepIndex" aria-live="polite">Area 1 of 1</p>
+          <p class="lhai-help service-flow__services-substep-index" id="sfServicesSubstepIndex" aria-live="polite">영역 1 / 1</p>
           <h3 class="service-flow__services-substep-title" id="sfServicesCurrentCategoryTitle">-</h3>
           <p class="lhai-help service-flow__services-substep-desc" id="sfServicesCurrentCategoryDesc" hidden></p>
           <p class="lhai-help service-flow__services-substep-help" id="sfServicesCurrentCategoryHelp" hidden></p>
-          <div class="service-flow__services-substep-nav" role="group" aria-label="Category navigation inside services step">
-            <button type="button" class="lhai-button lhai-button--secondary" id="sfServicesPrevCategoryBtn">Previous category</button>
-            <button type="button" class="lhai-button lhai-button--secondary" id="sfServicesNextCategoryBtn">Next category</button>
+          <div class="service-flow__services-substep-nav" role="group" aria-label="서비스 단계 내 영역 이동">
+            <button type="button" class="lhai-button lhai-button--secondary" id="sfServicesPrevCategoryBtn">이전 영역</button>
+            <button type="button" class="lhai-button lhai-button--secondary" id="sfServicesNextCategoryBtn">다음 카테고리</button>
           </div>
         </div>
         <div id="sfMixedDeliveryNote" class="service-flow__mixed-note" hidden></div>
-        <div id="sfServiceList" class="service-flow__service-list" role="group" aria-label="Services"></div>
-        <p class="lhai-help" id="sfServiceHint" data-i18n="common.service_flow.service_hint">Select at least one service.</p>
+        <div id="sfServiceList" class="service-flow__service-list" role="group" aria-label="서비스 목록"></div>
+        <p class="lhai-help" id="sfServiceHint" data-i18n="common.service_flow.service_hint">서비스를 하나 이상 선택해 주세요.</p>
       </div>
 
       <div id="sfStepReview" class="service-flow__step" hidden>
-        <p class="service-flow__summary-kicker" data-i18n="common.service_flow.summary_kicker">Final check</p>
-        <h2 class="service-flow__step-title" data-i18n="common.service_flow.step_summary">Please confirm your request before final submission</h2>
+        <p class="service-flow__summary-kicker" data-i18n="common.service_flow.summary_kicker">최종 확인</p>
+        <h2 class="service-flow__step-title" data-i18n="common.service_flow.step_summary">제출 전 요청 내용을 확인해 주세요</h2>
         <p class="lhai-help service-flow__summary-lead" data-i18n="common.service_flow.help_summary">
-          We organized your answers so you can make a final check before submitting.
+          답변을 정리해 두었으니, 제출 전에 한 번 더 살펴보세요.
         </p>
         <p class="lhai-help service-flow__summary-disclaimer" data-i18n="common.service_flow.summary_not_quote">
-          This is a pre-submit confirmation page.
+          제출 직전 확인 화면입니다.
         </p>
         <div id="sfReviewBody" class="service-flow__review"></div>
       </div>
 
-      <div class="survey-actions service-flow__actions" role="group" aria-label="Navigation">
-        <button type="button" class="lhai-button lhai-button--secondary" id="sfBackBtn" data-i18n="common.service_flow.btn_back">Back</button>
-        <button type="button" class="lhai-button lhai-button--primary" id="sfNextBtn" data-i18n="common.service_flow.btn_next">Next</button>
+      <div class="survey-actions service-flow__actions" role="group" aria-label="단계 이동">
+        <button type="button" class="lhai-button lhai-button--secondary" id="sfBackBtn" data-i18n="common.service_flow.btn_back">이전</button>
+        <button type="button" class="lhai-button lhai-button--primary" id="sfNextBtn" data-i18n="common.service_flow.btn_next">다음</button>
       </div>
       <p class="lhai-help" id="sfStatus" role="status" aria-live="polite"></p>
 
       <p class="lhai-help u-mt-3">
-        <span data-i18n="common.service_flow.legacy_note">Looking for the older questionnaire-style flow?</span>
-        <a href="survey-branching.html" data-i18n="common.service_flow.legacy_link">Open branching survey</a>
+        <span data-i18n="common.service_flow.legacy_note">이전 설문(분기형) 흐름이 필요하신가요?</span>
+        <a href="survey-branching.html" data-i18n="common.service_flow.legacy_link">분기형 설문 열기</a>
       </p>
     </section>
   </main>

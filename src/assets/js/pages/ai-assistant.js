@@ -17,7 +17,7 @@ function renderConversation() {
     .map(
       (item) => `
       <article class="lhai-ai-msg ${item.role === "assistant" ? "lhai-ai-msg--assistant" : ""}">
-        <strong>${item.role === "assistant" ? "Assistant" : "You"}</strong>
+        <strong>${item.role === "assistant" ? "AI 안내" : "나"}</strong>
         <p>${safeText(item.text)}</p>
       </article>
     `
@@ -29,10 +29,10 @@ function renderTrustIndicators(contract) {
   const target = document.querySelector("#aiTrustIndicators");
   if (!target || !contract) return;
   target.innerHTML = `
-    <span class="lhai-badge">${contract.internal_guide_based ? "Internal guide based" : "General guidance"}</span>
-    <span class="lhai-badge">${contract.web_verified ? "Web verified (support only)" : "Web not verified"}</span>
-    <span class="lhai-badge ${contract.review_needed ? "lhai-badge--warning" : "lhai-badge--success"}">${contract.review_needed ? "Review needed" : "Review not needed"}</span>
-    <span class="lhai-badge">Scope: ${safeText(contract.allowed_scope || "-")}</span>
+    <span class="lhai-badge">${contract.internal_guide_based ? "내부 가이드 기반" : "일반 안내"}</span>
+    <span class="lhai-badge">${contract.web_verified ? "웹 검증(참고용)" : "웹 미검증"}</span>
+    <span class="lhai-badge ${contract.review_needed ? "lhai-badge--warning" : "lhai-badge--success"}">${contract.review_needed ? "검토 필요" : "검토 불필요"}</span>
+    <span class="lhai-badge">범위: ${safeText(contract.allowed_scope || "-")}</span>
   `;
 }
 
@@ -47,8 +47,8 @@ async function initAiAssistantPage() {
 
   const windowStatus = await aiApi.getContextWindow(entryDate);
   const windowText = windowStatus.available
-    ? `AI available. ${windowStatus.reason} (${windowStatus.allowed_from} ~ ${windowStatus.allowed_until})`
-    : `AI limited. ${windowStatus.reason} (${windowStatus.allowed_from} ~ ${windowStatus.allowed_until})`;
+    ? `AI 이용 가능. ${windowStatus.reason} (${windowStatus.allowed_from} ~ ${windowStatus.allowed_until})`
+    : `AI 이용 제한. ${windowStatus.reason} (${windowStatus.allowed_from} ~ ${windowStatus.allowed_until})`;
   const scopeWindow = document.querySelector("#aiScopeWindow");
   if (scopeWindow) scopeWindow.textContent = windowText;
 
@@ -89,12 +89,12 @@ async function initAiAssistantPage() {
 
   document.querySelector("#escalateAskAdminBtn")?.addEventListener("click", () => {
     const status = document.querySelector("#aiEscalationStatus");
-    if (status) status.textContent = "Admin escalation request recorded (stub).";
+    if (status) status.textContent = "운영자 에스컬레이션 요청이 기록되었습니다. (스텁)";
   });
 
   document.querySelector("#escalateInPersonBtn")?.addEventListener("click", () => {
     const status = document.querySelector("#aiEscalationStatus");
-    if (status) status.textContent = "In-person help request recorded (stub).";
+    if (status) status.textContent = "대면 지원 요청이 기록되었습니다. (스텁)";
   });
 }
 

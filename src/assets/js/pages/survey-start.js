@@ -3,7 +3,7 @@
  * category → common info → service(s) with inline questions → review.
  */
 import { serviceCatalogBrowseApi, serviceIntakeCustomerApi, surveyCustomerApi, userCustomerApi } from "../core/api.js";
-import { getSession, getAccessToken } from "../core/auth.js";
+import { getSession, getAccessToken, getCustomerMessagingProfileId } from "../core/auth.js";
 import { t } from "../core/i18n-client.js";
 import { initCommonI18nAndApplyDom } from "../core/i18n-dom.js";
 import { qs, safeText } from "../core/utils.js";
@@ -13,22 +13,20 @@ const esc = safeText;
 /** Default badge + explanation (overridden via `t()` keys `common.service_flow.delivery.{mode}.*`). */
 const DELIVERY_FALLBACK = {
   ai_guide: {
-    badge: "AI Guide",
-    explain:
-      "This service is delivered through AI guidance, checklists, and digital assistance.",
+    badge: "AI 안내",
+    explain: "이 서비스는 AI 안내, 체크리스트, 디지털 도움으로 진행됩니다.",
   },
   in_person: {
-    badge: "In-person Support",
-    explain: "This service requires human or on-site support.",
+    badge: "대면 지원",
+    explain: "이 서비스는 담당자 또는 현장 지원이 필요합니다.",
   },
   ai_plus_human: {
-    badge: "AI + Optional Human Help",
-    explain:
-      "This service starts with AI guidance and can include optional human support if needed.",
+    badge: "AI + 선택 대면",
+    explain: "AI 안내로 시작하며, 필요 시 선택적으로 대면 지원을 받을 수 있습니다.",
   },
   general: {
-    badge: "Guided service",
-    explain: "We’ll walk you through the next steps in a clear, simple way.",
+    badge: "안내형 서비스",
+    explain: "다음 단계를 명확하고 단순하게 안내해 드립니다.",
   },
 };
 
@@ -85,22 +83,8 @@ let conditionalLoadedGroup = "";
 let profilePrefillAttempted = false;
 let submittingReview = false;
 
-function getCustomerProfileId() {
-  const s = getSession();
-  const email = (s?.email || "").trim().toLowerCase();
-  if (email) return `profile::${email}`;
-  const cid = getCustomerId();
-  return String(cid || "profile::demo@customer.com");
-}
-
 function conditionalQuestionKey(serviceId, fieldId) {
   return `${serviceId}::${fieldId}`;
-}
-
-function getCustomerId() {
-  const s = getSession();
-  if (s?.userId) return String(s.userId);
-  return "profile::demo@customer.com";
 }
 
 function setStatus(msg) {
@@ -174,10 +158,10 @@ function categoryDeliveryMeta(modeSet) {
   if (mixed) {
     return {
       mode: "ai_plus_human",
-      badge: t("common.service_flow.category_mixed_badge", "AI + Optional Human Help"),
+      badge: t("common.service_flow.category_mixed_badge", "AI + 선택 대면"),
       explain: t(
         "common.service_flow.category_mixed_explain",
-        "This category includes mixed delivery types. Check each service card before selecting."
+        "이 영역에는 여러 진행 방식이 섞여 있을 수 있습니다. 선택 전 각 서비스 카드를 확인해 주세요."
       ),
     };
   }
@@ -225,7 +209,7 @@ function updateProgress() {
   const pct = total <= 1 ? 0 : ((n - 1) / (total - 1)) * 100;
   if (fill) fill.style.width = `${Math.round(pct)}%`;
   if (label) {
-    label.textContent = t("common.service_flow.progress_label", "Step {current} of {total}")
+    label.textContent = t("common.service_flow.progress_label", "총 {total}단계 중 {current}단계")
       .replace("{current}", String(n))
       .replace("{total}", String(total));
   }
@@ -249,20 +233,20 @@ function updateChrome() {
   if (back) {
     back.disabled = phase === "category" || submittingReview;
     back.textContent = phase === "review"
-      ? t("common.service_flow.btn_back_edit", "Go back and edit")
-      : t("common.service_flow.btn_back", "Back");
+      ? t("common.service_flow.btn_back_edit", "돌아가서 수정")
+      : t("common.service_flow.btn_back", "이전");
   }
   const next = qs("#sfNextBtn");
   if (next) {
     next.disabled = (phase === "category" && selectedCategoryIds.length < 1) || submittingReview;
     if (phase === "review") {
       next.textContent = submittingReview
-        ? t("common.service_flow.btn_submitting_request", "Submitting request...")
-        : t("common.service_flow.btn_submit_request", "Submit this request");
+        ? t("common.service_flow.btn_submitting_request", "요청 제출 중…")
+        : t("common.service_flow.btn_submit_request", "이 요청 제출하기");
     } else if (phase === "services" && servicesCategoryIndex < servicesCategoryOrder.length - 1) {
-      next.textContent = "Next category";
+      next.textContent = t("common.service_flow.btn_next_category", "다음 카테고리");
     } else {
-      next.textContent = t("common.service_flow.btn_next", "Next");
+      next.textContent = t("common.service_flow.btn_next", "다음");
     }
   }
 }
@@ -271,7 +255,50 @@ function updateCategorySelectedCount() {
   const el = qs("#sfCategorySelectedCount");
   if (!el) return;
   const n = selectedCategoryIds.length;
-  el.textContent = n > 0 ? `${n} selected` : "0 selected";
+  el.textContent = n > 0 ? `${n}개 선택됨` : "0개 선택됨";
+}
+
+/**
+ * 내 정보(/users/me)와 동일 규칙: first_name·last_name 우선, 없으면 full_name 분해.
+ * @param {object} me
+ * @returns {{ profile_first_name: string; profile_last_name: string; profile_birth_date: string; profile_email: string } | null}
+ */
+function profileIdentityFromMeBasicInfo(me) {
+  if (!me || typeof me !== "object") return null;
+  const firstName = (me.first_name || "").trim();
+  const lastName = (me.last_name || "").trim();
+  const fullName = (me.full_name || "").trim();
+  const parts = fullName ? fullName.split(" ").filter(Boolean) : [];
+  const profile_first_name = firstName || (parts[0] || "");
+  const profile_last_name =
+    lastName || (parts.length > 1 ? parts.slice(1).join(" ") : "");
+  const profile_birth_date = me.birth_date != null && String(me.birth_date).trim() !== "" ? String(me.birth_date) : "";
+  const profile_email = (me.email || "").trim();
+  return { profile_first_name, profile_last_name, profile_birth_date, profile_email };
+}
+
+/**
+ * 로그인 시 commonInfo 신원 필드를 DB 등록 값으로 맞춤(이름=firstname+lastname, 생년월일, 이메일).
+ * @param {Record<string, unknown>} info
+ */
+async function mergeRegisteredIdentityFromMeIntoCommonInfo(info) {
+  if (!info || typeof info !== "object") return;
+  if (getAccessToken()) {
+    const un = (getSession()?.username || "").trim();
+    if (un) info.customer_username = un;
+  }
+  if (!getAccessToken()) return;
+  try {
+    const me = await userCustomerApi.getMeBasicInfo();
+    const idn = profileIdentityFromMeBasicInfo(me);
+    if (!idn) return;
+    if (idn.profile_first_name) info.profile_first_name = idn.profile_first_name;
+    if (idn.profile_last_name) info.profile_last_name = idn.profile_last_name;
+    if (idn.profile_birth_date) info.profile_birth_date = idn.profile_birth_date;
+    if (idn.profile_email && idn.profile_email.includes("@")) info.profile_email = idn.profile_email;
+  } catch {
+    /* 폼·스냅샷 유지 */
+  }
 }
 
 async function prefillProfileBasicInfo() {
@@ -285,34 +312,38 @@ async function prefillProfileBasicInfo() {
   if (profilePrefillAttempted) return;
   profilePrefillAttempted = true;
 
-  // Best-effort fallback from local session (email/username only).
+  // 로그인 아이디(username)는 이름이 아님 — First name에 넣지 않음(내 정보 /users/me 값만 사용).
   const s = getSession();
-  if (s?.username && !String(firstNameInput.value || "").trim()) firstNameInput.value = String(s.username || "");
-  if (s?.email && !String(emailInput.value || "").trim()) emailInput.value = String(s.email || "");
-
   const token = getAccessToken();
-  if (!token) return;
 
   try {
-    const me = await userCustomerApi.getMeBasicInfo();
-    if (!me) return;
-
-    const firstName = (me.first_name || "").trim();
-    const lastName = (me.last_name || "").trim();
-    const fullName = (me.full_name || "").trim();
-    const fallbackParts = fullName ? fullName.split(" ").filter(Boolean) : [];
-    const birthDate = me.birth_date ? String(me.birth_date) : "";
-    const email = (me.email || "").trim();
-
-    // Set only if empty to keep edits.
-    if (firstName && !String(firstNameInput.value || "").trim()) firstNameInput.value = firstName;
-    else if (fallbackParts.length && !String(firstNameInput.value || "").trim()) firstNameInput.value = fallbackParts[0];
-    if (lastName && !String(lastNameInput.value || "").trim()) lastNameInput.value = lastName;
-    else if (fallbackParts.length > 1 && !String(lastNameInput.value || "").trim()) lastNameInput.value = fallbackParts.slice(1).join(" ");
-    if (birthDate && !String(birthDateInput.value || "").trim()) birthDateInput.value = birthDate;
-    if (email && !String(emailInput.value || "").trim()) emailInput.value = email;
+    if (token) {
+      const me = await userCustomerApi.getMeBasicInfo();
+      const idn = profileIdentityFromMeBasicInfo(me);
+      if (idn) {
+        // Set only if empty to keep edits (초기 진입 시에만 채움).
+        if (idn.profile_first_name && !String(firstNameInput.value || "").trim()) firstNameInput.value = idn.profile_first_name;
+        if (idn.profile_last_name && !String(lastNameInput.value || "").trim()) lastNameInput.value = idn.profile_last_name;
+        if (idn.profile_birth_date && !String(birthDateInput.value || "").trim()) birthDateInput.value = idn.profile_birth_date;
+        if (idn.profile_email && !String(emailInput.value || "").trim()) emailInput.value = idn.profile_email;
+      }
+    }
   } catch {
-    // Keep whatever we've already filled (session fallback or manual edits).
+    // 토큰은 있으나 /me 실패 시 이메일만 세션으로 보조
+  }
+
+  if (s?.email && !String(emailInput.value || "").trim()) emailInput.value = String(s.email || "");
+
+  // 로그인 상태에서 이메일이 채워졌으면 읽기 전용(제출 시 서버도 등록 이메일로 정합성 유지).
+  if (token && String(emailInput.value || "").trim()) {
+    emailInput.readOnly = true;
+    emailInput.setAttribute(
+      "title",
+      t(
+        "common.service_flow.email_locked_hint",
+        "회원 등록 이메일입니다. 제출·관리자 화면에는 이 주소가 사용됩니다."
+      )
+    );
   }
 }
 
@@ -327,7 +358,7 @@ function renderCategories() {
     .map(
       (c) => `
     <button type="button" class="service-flow__category-card ${selectedCategoryIds.includes(c.id) ? "is-selected" : ""}" data-category-id="${esc(c.id)}" role="listitem" aria-pressed="${selectedCategoryIds.includes(c.id) ? "true" : "false"}">
-      ${selectedCategoryIds.includes(c.id) ? `<span class="service-flow__category-selected-pill">✓ Selected</span>` : ""}
+      ${selectedCategoryIds.includes(c.id) ? `<span class="service-flow__category-selected-pill">✓ 선택됨</span>` : ""}
       <span class="service-flow__category-card-title">${esc(categoryTitle(c))}</span>
       <span class="service-flow__badge service-flow__badge--${esc(categoryDeliveryMetaById.get(c.id)?.mode || "general")}">${esc(
         categoryDeliveryMetaById.get(c.id)?.badge || deliveryMeta("general").badge
@@ -733,7 +764,7 @@ function renderServicesSubstepHeader() {
 
   const total = servicesCategoryOrder.length;
   const n = total ? servicesCategoryIndex + 1 : 0;
-  if (idxEl) idxEl.textContent = total ? `Area ${n} of ${total}` : "Area 0 of 0";
+  if (idxEl) idxEl.textContent = total ? `영역 ${n} / ${total}` : "영역 0 / 0";
 
   const category = currentServicesCategory();
   if (titleEl) titleEl.textContent = category ? categoryTitle(category) : t("common.service_flow.unknown_category", "선택한 문제 영역");
@@ -969,7 +1000,7 @@ function buildServiceFlowSubmitPayload() {
   });
 
   return {
-    customer_profile_id: getCustomerProfileId(),
+    customer_profile_id: getCustomerMessagingProfileId(),
     selected_categories: selectedCategoryRows,
     selected_services: selectedServiceRows,
     common_info: commonInfo,
@@ -1019,7 +1050,7 @@ function renderReview() {
   })();
 
   const nextStepHints = [
-    "Submit 버튼을 누르면 고객님의 요청이 먼저 안전하게 접수됩니다.",
+    "「이 요청 제출하기」를 누르면 고객님의 요청이 먼저 안전하게 접수됩니다.",
     "접수된 정보는 운영팀(담당자)이 확인하고, 필요한 내용을 검토합니다.",
     "검토가 완료되면 상황에 맞는 견적서를 준비해 이메일과 메시지함으로 보내드립니다.",
   ];
@@ -1060,8 +1091,10 @@ function renderReview() {
       "요청 서비스"
     )}</h3><p>${esc(selectedServiceNames.join(", ") || "—")}</p><p class="lhai-help">${esc(deliverySummary)}</p></div>`
   );
+  const reviewCustomerId = (commonInfo.customer_username || getSession()?.username || "").trim() || "—";
   parts.push(
     `<div class="service-flow__review-block service-flow__review-panel"><h3 class="service-flow__review-h">기본 정보</h3><dl class="service-flow__review-dl">
+      <dt>${esc(t("common.service_flow.review_customer_id", "아이디"))}</dt><dd>${esc(reviewCustomerId)}</dd>
       <dt>이름</dt><dd>${esc(`${commonInfo.profile_first_name || ""} ${commonInfo.profile_last_name || ""}`.trim() || "—")}</dd>
       <dt>생년월일</dt><dd>${esc(commonInfo.profile_birth_date || "—")}</dd>
       <dt>이메일</dt><dd>${esc(commonInfo.profile_email || "—")}</dd>
@@ -1123,7 +1156,7 @@ async function goNext() {
   setStatus("");
   if (phase === "category") {
     if (!selectedCategoryIds.length) {
-      setStatus("Select all that apply. You can choose more than one.");
+      setStatus("해당되는 항목을 모두 선택해 주세요. 여러 개를 선택할 수 있습니다.");
       return;
     }
     await loadServicesAndGo();
@@ -1139,6 +1172,7 @@ async function goNext() {
       return;
     }
     commonInfo = info;
+    await mergeRegisteredIdentityFromMeIntoCommonInfo(commonInfo);
     const loaded = await loadServicesForSelectedCategory();
     if (!loaded) return;
     await loadConditionalQuestions([]);
@@ -1158,15 +1192,16 @@ async function goNext() {
       return;
     }
     if (!selectedServiceIds.length) {
-      setStatus(t("common.service_flow.pick_service", "Select at least one service."));
+      setStatus(t("common.service_flow.pick_service", "서비스를 하나 이상 선택해 주세요."));
       return;
     }
     const missingConditional = validateInlineConditionalRequired();
     if (missingConditional) {
-      setStatus(t("common.service_flow.required_missing", "Please complete: {field}").replace("{field}", missingConditional));
+      setStatus(t("common.service_flow.required_missing", "다음 항목을 완료해 주세요: {field}").replace("{field}", missingConditional));
       return;
     }
     await loadConditionalQuestions(selectedServiceIds);
+    await mergeRegisteredIdentityFromMeIntoCommonInfo(commonInfo);
     phase = "review";
     showOnlyStep("review");
     renderReview();
@@ -1180,6 +1215,7 @@ async function goNext() {
     updateChrome();
     setStatus("설문을 접수하는 중입니다...");
     try {
+      await mergeRegisteredIdentityFromMeIntoCommonInfo(commonInfo);
       const payload = buildServiceFlowSubmitPayload();
       const result = await surveyCustomerApi.submitServiceFlow(payload);
       const quoteId = result?.quote?.quote_id || "";

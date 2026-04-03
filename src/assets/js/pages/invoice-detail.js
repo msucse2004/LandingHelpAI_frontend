@@ -1,4 +1,4 @@
-import { invoiceApi, paymentApi } from "../core/api.js";
+import { invoiceApi, paymentApi, quoteApi } from "../core/api.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { patchState } from "../core/state.js";
 import { loadSidebar } from "../components/sidebar.js";
@@ -30,6 +30,27 @@ function renderInvoice(invoice) {
   const statusEl = qs("#invoiceStatus");
   statusEl.textContent = invoice.status || "-";
   statusEl.className = statusClass(invoice.status);
+}
+
+/** 청구 API가 폴백(mock)일 때 견적 API가 살아 있으면 금액·표시명을 견적과 맞춥니다. */
+async function resolveInvoiceForDisplay(invoiceId) {
+  let invoice = await invoiceApi.getDetail(invoiceId);
+  if (invoice && invoice.quote_id && invoice.mocked) {
+    try {
+      const q = await quoteApi.getDetail(invoice.quote_id);
+      if (q && Number.isFinite(Number(q.estimated_cost))) {
+        invoice = {
+          ...invoice,
+          amount_due: Number(q.estimated_cost),
+          service_name: q.service_name || invoice.service_name,
+          currency: q.currency || invoice.currency,
+        };
+      }
+    } catch {
+      /* 견적 조회 실패 시 청구 폴백 금액 유지 */
+    }
+  }
+  return invoice;
 }
 
 function renderPaymentResult(result) {
@@ -85,7 +106,7 @@ async function initInvoiceDetailPage() {
   await loadSidebar("#sidebar", "customer");
   applyI18nToDom(document);
   const invoiceId = new URLSearchParams(window.location.search).get("invoice_id") || "inv-demo-1";
-  const invoice = await invoiceApi.getDetail(invoiceId);
+  const invoice = await resolveInvoiceForDisplay(invoiceId);
   patchState({ invoice });
   renderInvoice(invoice);
 
@@ -101,7 +122,7 @@ async function initInvoiceDetailPage() {
     // Web-only flow: in mock mode we directly mark success for local verification.
     setMessage("Web checkout started. Completing in mock mode...");
     await handlePaymentResult(start.payment_id, "success");
-    const refreshed = await invoiceApi.getDetail(invoice.id);
+    const refreshed = await resolveInvoiceForDisplay(invoice.id);
     renderInvoice(refreshed);
     setMessage("Payment completed.");
   });

@@ -13,12 +13,12 @@ function renderSummary(schedule) {
   const target = document.querySelector("#customerScheduleSummary");
   if (!target) return;
   if (!schedule) {
-    target.innerHTML = `<div class="lhai-state lhai-state--empty">No proposed schedule.</div>`;
+    target.innerHTML = `<div class="lhai-state lhai-state--empty">제안된 일정이 없습니다.</div>`;
     return;
   }
   target.innerHTML = `
-    <p><strong>Status:</strong> ${safeText(schedule.status)}</p>
-    <p><strong>Customer Feedback:</strong> ${safeText(schedule.customer_feedback || "None")}</p>
+    <p><strong>상태:</strong> ${safeText(schedule.status)}</p>
+    <p><strong>고객 피드백:</strong> ${safeText(schedule.customer_feedback || "없음")}</p>
     <div>
       ${(schedule.proposed_slots || []).map((slot) => `<div class="lhai-schedule-slot">${formatDate(slot)} (${safeText(slot)})</div>`).join("")}
     </div>
@@ -38,14 +38,14 @@ function renderState(schedule) {
   const target = document.querySelector("#customerScheduleState");
   if (!target) return;
   if (!schedule) {
-    target.innerHTML = `<div class="lhai-state lhai-state--empty">No schedule state.</div>`;
+    target.innerHTML = `<div class="lhai-state lhai-state--empty">일정 상태 정보가 없습니다.</div>`;
     return;
   }
   target.innerHTML = `
     <ul class="lhai-list">
-      <li class="lhai-list__item"><strong>Current state:</strong> ${safeText(schedule.status)}</li>
-      <li class="lhai-list__item"><strong>Revision notes:</strong> ${safeText((schedule.revision_notes || []).join(" | ") || "None")}</li>
-      <li class="lhai-list__item"><strong>Final confirmed:</strong> ${safeText(JSON.stringify(schedule.final_confirmed_version || {}))}</li>
+      <li class="lhai-list__item"><strong>현재 상태:</strong> ${safeText(schedule.status)}</li>
+      <li class="lhai-list__item"><strong>수정 메모:</strong> ${safeText((schedule.revision_notes || []).join(" | ") || "없음")}</li>
+      <li class="lhai-list__item"><strong>최종 확정:</strong> ${safeText(JSON.stringify(schedule.final_confirmed_version || {}))}</li>
     </ul>
   `;
 }
@@ -67,12 +67,12 @@ async function initSchedulePage() {
 
   document.querySelector("#customerScheduleFeedbackForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!selected?.id) return setFeedbackStatus("No schedule to update.");
+    if (!selected?.id) return setFeedbackStatus("업데이트할 일정이 없습니다.");
     const input = document.querySelector("#customerScheduleFeedbackInput");
     const feedback = input instanceof HTMLTextAreaElement ? input.value.trim() : "";
-    if (!feedback) return setFeedbackStatus("Please enter adjustment feedback.");
+    if (!feedback) return setFeedbackStatus("조정 요청 내용을 입력해 주세요.");
     await scheduleApi.requestAdjustment(selected.id, feedback);
-    setFeedbackStatus("Adjustment request submitted (stub).");
+    setFeedbackStatus("조정 요청이 전송되었습니다. (스텁)");
     if (input instanceof HTMLTextAreaElement) input.value = "";
     await refresh();
   });

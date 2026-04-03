@@ -31,8 +31,8 @@ if (form) {
       });
       setStatus(`${result.role} 역할로 로그인했습니다. 이동 중…`);
       const roleKey = String(result.role || "").trim().toLowerCase().replace(/-/g, "_");
-      const destination =
-        roleKey.includes("admin") || roleKey === "supervisor" ? "admin-dashboard.html" : "dashboard.html";
+      const adminDashboardRoles = new Set(["super_admin", "admin", "supervisor"]);
+      const destination = adminDashboardRoles.has(roleKey) ? "admin-dashboard.html" : "dashboard.html";
       window.location.href = destination;
     } catch (error) {
       setStatus(`로그인 실패: ${error.message}`);

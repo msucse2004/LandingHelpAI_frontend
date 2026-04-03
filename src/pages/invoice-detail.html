@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Invoice Detail - Landing Help AI</title>
+  <title>청구서 - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/quote-detail.css" />
@@ -12,28 +12,28 @@
   <div class="lhai-layout">
     <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
     <main class="lhai-main">
-      <section class="lhai-page-header"><div><h1 class="lhai-title">Invoice Detail</h1><p class="lhai-subtitle">Web-only payment summary and checkout actions.</p></div></section>
+      <section class="lhai-page-header"><div><h1 class="lhai-title">청구서</h1><p class="lhai-subtitle">웹 결제 요약과 결제 동작입니다.</p></div></section>
       <section class="lhai-card lhai-quote-view">
         <div class="lhai-quote-meta">
-          <div class="lhai-quote-meta__row"><span class="u-text-muted">Invoice ID</span><strong id="invoiceId">-</strong></div>
-          <div class="lhai-quote-meta__row"><span class="u-text-muted">Quote ID</span><strong id="invoiceQuoteId">-</strong></div>
-          <div class="lhai-quote-meta__row"><span class="u-text-muted">Service</span><strong id="invoiceServiceName">-</strong></div>
-          <div class="lhai-quote-meta__row"><span class="u-text-muted">Amount Due</span><strong id="invoiceAmountDue">-</strong></div>
-          <div class="lhai-quote-meta__row"><span class="u-text-muted">Status</span><span id="invoiceStatus" class="lhai-badge">-</span></div>
+          <div class="lhai-quote-meta__row"><span class="u-text-muted">청구서 ID</span><strong id="invoiceId">-</strong></div>
+          <div class="lhai-quote-meta__row"><span class="u-text-muted">견적 ID</span><strong id="invoiceQuoteId">-</strong></div>
+          <div class="lhai-quote-meta__row"><span class="u-text-muted">서비스</span><strong id="invoiceServiceName">-</strong></div>
+          <div class="lhai-quote-meta__row"><span class="u-text-muted">결제 금액</span><strong id="invoiceAmountDue">-</strong></div>
+          <div class="lhai-quote-meta__row"><span class="u-text-muted">상태</span><span id="invoiceStatus" class="lhai-badge">-</span></div>
         </div>
 
         <div class="lhai-quote-actions">
-          <button class="lhai-button lhai-button--primary" id="payNowBtn" type="button">Pay on Web</button>
-          <button class="lhai-button lhai-button--secondary" id="simulateFailureBtn" type="button">Simulate Failure</button>
-          <button class="lhai-button lhai-button--secondary" id="simulateCancelBtn" type="button">Simulate Cancel</button>
+          <button class="lhai-button lhai-button--primary" id="payNowBtn" type="button">웹에서 결제</button>
+          <button class="lhai-button lhai-button--secondary" id="simulateFailureBtn" type="button">실패 시뮬레이션</button>
+          <button class="lhai-button lhai-button--secondary" id="simulateCancelBtn" type="button">취소 시뮬레이션</button>
         </div>
 
         <section class="lhai-section-container" id="paymentResultSection" style="display:none;">
-          <h2 class="lhai-card__title">Payment Result</h2>
+          <h2 class="lhai-card__title">결제 결과</h2>
           <p class="u-text-muted" id="paymentResultMessage">-</p>
           <div id="paymentStubSummary"></div>
         </section>
-        <p class="lhai-help" id="invoiceStatusMessage">Web payment only.</p>
+        <p class="lhai-help" id="invoiceStatusMessage">웹 결제만 지원합니다.</p>
       </section>
     </main>
   </div>

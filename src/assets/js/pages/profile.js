@@ -17,6 +17,9 @@ const emailInput = document.getElementById("pfEmail");
 const currentPasswordInput = document.getElementById("pfCurrentPassword");
 const newPasswordInput = document.getElementById("pfNewPassword");
 const newPasswordConfirmInput = document.getElementById("pfNewPasswordConfirm");
+const profileFeedbackDialog = document.getElementById("profileFeedbackDialog");
+const profileFeedbackTitle = document.getElementById("profileFeedbackTitle");
+const profileFeedbackBody = document.getElementById("profileFeedbackBody");
 
 function escapeHtml(s) {
   return String(s)
@@ -28,6 +31,30 @@ function escapeHtml(s) {
 
 function setStatus(msg) {
   if (profileStatus) profileStatus.textContent = msg || "";
+}
+
+/**
+ * 기본 정보 저장·비밀번호 변경 등 결과를 모달로 안내합니다.
+ * @param {{ ok: boolean; title: string; message?: string }} opts
+ */
+function showProfileFeedback(opts) {
+  const dlg = profileFeedbackDialog;
+  const titleEl = profileFeedbackTitle;
+  const bodyEl = profileFeedbackBody;
+  if (!dlg || !titleEl || !bodyEl || typeof dlg.showModal !== "function") {
+    setStatus(opts.message || opts.title || "");
+    return;
+  }
+  titleEl.textContent = opts.title || "";
+  const msg = (opts.message || "").trim();
+  bodyEl.replaceChildren();
+  if (msg) {
+    const p = document.createElement("p");
+    p.textContent = msg;
+    bodyEl.appendChild(p);
+  }
+  dlg.classList.toggle("lhai-dialog--error", !opts.ok);
+  dlg.showModal();
 }
 
 function parseName(fullName) {
@@ -80,7 +107,12 @@ async function main() {
     const gender = (genderInput?.value || "").trim() || null;
     const email = (emailInput?.value || "").trim();
     if (!first_name || !last_name || !email) {
-      setStatus("이름/이메일을 입력해 주세요.");
+      setStatus("");
+      showProfileFeedback({
+        ok: false,
+        title: "입력 확인",
+        message: "이름(First/Last)과 이메일을 모두 입력해 주세요.",
+      });
       return;
     }
     try {
@@ -95,9 +127,19 @@ async function main() {
         ...s,
         email: updated.email || email,
       });
-      setStatus(`저장되었습니다. 권한 티어: ${escapeHtml(getCurrentRoleTierLabelKo())}`);
+      setStatus("");
+      showProfileFeedback({
+        ok: true,
+        title: "저장 완료",
+        message: `회원 정보가 서버에 저장되었습니다. (권한 티어: ${getCurrentRoleTierLabelKo()})`,
+      });
     } catch (err) {
-      setStatus(err?.message || "저장에 실패했습니다.");
+      setStatus("");
+      showProfileFeedback({
+        ok: false,
+        title: "저장 실패",
+        message: err?.message || "저장에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+      });
     }
   });
 
@@ -107,7 +149,12 @@ async function main() {
     const new_password = newPasswordInput?.value || "";
     const new_password_confirm = newPasswordConfirmInput?.value || "";
     if (!current_password || !new_password || !new_password_confirm) {
-      setStatus("비밀번호 항목을 모두 입력해 주세요.");
+      setStatus("");
+      showProfileFeedback({
+        ok: false,
+        title: "입력 확인",
+        message: "비밀번호 항목을 모두 입력해 주세요.",
+      });
       return;
     }
     try {
@@ -119,9 +166,19 @@ async function main() {
       if (currentPasswordInput) currentPasswordInput.value = "";
       if (newPasswordInput) newPasswordInput.value = "";
       if (newPasswordConfirmInput) newPasswordConfirmInput.value = "";
-      setStatus("비밀번호가 변경되었습니다.");
+      setStatus("");
+      showProfileFeedback({
+        ok: true,
+        title: "비밀번호 변경 완료",
+        message: "새 비밀번호로 변경되었습니다.",
+      });
     } catch (err) {
-      setStatus(err?.message || "비밀번호 변경에 실패했습니다.");
+      setStatus("");
+      showProfileFeedback({
+        ok: false,
+        title: "비밀번호 변경 실패",
+        message: err?.message || "비밀번호 변경에 실패했습니다. 현재 비밀번호를 확인해 주세요.",
+      });
     }
   });
 }

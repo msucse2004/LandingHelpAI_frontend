@@ -14,7 +14,7 @@
 <body>
   <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar" aria-label="Admin navigation"></aside>
+    <aside class="lhai-sidebar" id="sidebar" aria-label="관리자 메뉴"></aside>
     <main class="lhai-main lhai-quote-prep">
       <div class="lhai-quote-prep__toolbar">
         <div>
@@ -41,7 +41,7 @@
             <span id="qpStatusBadge" class="lhai-quote-prep__badge lhai-quote-prep__badge--draft"></span>
           </h2>
           <p class="lhai-quote-prep__panel-kicker">
-            저장하면 Draft만 갱신됩니다. 만족하시면 이 화면에서 <strong>Propose Quote</strong>로 고객 검토용 상태로 전환하세요.
+            저장하면 초안만 갱신됩니다. 만족하시면 이 화면에서 <strong>견적 제안</strong>으로 고객 검토용 상태로 전환하세요.
           </p>
           <div id="qpEditorWarn" class="lhai-quote-prep__warn" hidden></div>
           <form class="lhai-form lhai-quote-editor" id="qpForm" novalidate>
@@ -59,6 +59,7 @@
             <div class="lhai-quote-editor__section">
               <label class="lhai-label" for="qpEstimated">예상 비용 (자동 합계)</label>
               <input class="lhai-input" id="qpEstimated" type="number" min="0" step="0.01" readonly />
+              <p class="lhai-help">예상 비용은 위 선택 서비스 단가의 합계입니다. 저장 후 필요하면 <strong>견적 제안</strong>으로 고객 검토 단계로 넘깁니다.</p>
             </div>
             <div class="lhai-quote-editor__section">
               <label class="lhai-label" for="qpCustomerNote">고객에게 보여줄 메모 (선택)</label>
@@ -71,7 +72,7 @@
             </div>
             <div class="lhai-quote-prep__editor-actions">
               <button type="submit" class="lhai-button lhai-button--primary" id="qpSaveBtn">초안 저장</button>
-              <button type="button" class="lhai-button lhai-button--secondary" id="qpProposeBtn">Propose Quote</button>
+              <button type="button" class="lhai-button lhai-button--secondary" id="qpProposeBtn">견적 제안</button>
               <a class="lhai-button lhai-button--secondary" id="qpProposeLink" href="admin-quotes.html">견적 목록으로 이동</a>
             </div>
           </form>

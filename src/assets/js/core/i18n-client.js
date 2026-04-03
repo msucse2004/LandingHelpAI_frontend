@@ -1,6 +1,6 @@
 import { APP_CONFIG } from "./config.js";
 
-const DEFAULT_LANG = "en";
+const DEFAULT_LANG = "ko";
 
 // language-domain -> strings
 const _bundleCache = new Map();
@@ -56,5 +56,28 @@ export function t(key, fallback) {
   const v = _stringsByKey[String(key)];
   if (v === undefined || v === null || v === "") return fallback !== undefined ? fallback : String(key);
   return v;
+}
+
+/**
+ * API 번역이 비어 있을 때 견적 등 페이지 전용 폴백을 채웁니다.
+ * 이미 값이 있으면 덮어쓰지 않습니다.
+ * @param {Record<string, string>} strings
+ */
+export function mergeFallbackStrings(strings) {
+  if (!strings || typeof strings !== "object") return;
+  for (const [k, v] of Object.entries(strings)) {
+    if (v === undefined || v === null || v === "") continue;
+    const key = String(k);
+    const cur = _stringsByKey[key];
+    if (cur === undefined || cur === null || cur === "") {
+      _stringsByKey[key] = v;
+    }
+  }
+}
+
+/** 설문 선호 언어 등으로 UI 언어를 바꿀 때, 이전 언어 문자열이 남지 않도록 초기화합니다. */
+export function resetI18nClientState() {
+  _stringsByKey = {};
+  _bundleCache.clear();
 }
 

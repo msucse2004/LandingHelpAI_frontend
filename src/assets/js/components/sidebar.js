@@ -1,4 +1,5 @@
 import { getCurrentRole } from "../core/auth.js";
+import { adminDevApi } from "../core/api.js";
 import { canAccessAdminShell } from "../core/role-tiers.js";
 import { initI18nDomains, t } from "../core/i18n-client.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
@@ -72,6 +73,29 @@ function applyRoleBasedNavVisibility(target) {
   });
 }
 
+function bindAdminDevResetQuotesInvoices(sidebarRoot) {
+  const btn = sidebarRoot.querySelector("#lhaiDevResetQuotesInvoices");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    const ok = window.confirm(
+      "개발용: 저장소(DB 또는 메모리)의 모든 견적과 청구서를 삭제합니다. 복구할 수 없습니다. 진행할까요?"
+    );
+    if (!ok) return;
+    btn.disabled = true;
+    try {
+      const result = await adminDevApi.resetQuotesAndInvoices();
+      window.alert(
+        `삭제 완료: 견적 ${result.quotes_deleted}건, 청구서 ${result.invoices_deleted}건. 관리자 견적·청구서 화면을 새로고침하세요.`
+      );
+    } catch (err) {
+      const msg = err && typeof err.message === "string" ? err.message : String(err);
+      window.alert(`실패: ${msg}`);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
 async function loadSidebar(targetSelector = "#sidebar", variant = "customer") {
   const target = document.querySelector(targetSelector);
   if (!target) return;
@@ -81,13 +105,16 @@ async function loadSidebar(targetSelector = "#sidebar", variant = "customer") {
     const res = await fetch(`../partials/${partialFile}`);
     if (!res.ok) throw new Error(`Sidebar load failed: ${res.status}`);
     target.innerHTML = await res.text();
-    const lang = document.documentElement.lang || "en";
+    const lang = document.documentElement.lang || "ko";
     await initI18nDomains(["common"], lang);
     applyI18nToDom(target);
     applyRoleBasedNavVisibility(target);
     applyActiveNavHighlight(target, variant);
+    if (variant === "admin") {
+      bindAdminDevResetQuotesInvoices(target);
+    }
   } catch (e) {
-    target.innerHTML = `<div class='lhai-placeholder'>${t("common.sidebar.placeholder.todo", "TODO: Sidebar will render here.")}</div>`;
+    target.innerHTML = `<div class='lhai-placeholder'>${t("common.sidebar.placeholder.todo", "사이드바를 불러오는 중입니다…")}</div>`;
   }
 }
 

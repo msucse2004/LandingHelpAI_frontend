@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AI Assistant - Landing Help AI</title>
+  <title>AI 안내 - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/ai-assistant.css" />
@@ -14,31 +14,31 @@
     <main class="lhai-main">
       <section class="lhai-page-header">
         <div>
-          <h1 class="lhai-title">Restricted AI Assistant</h1>
+          <h1 class="lhai-title">제한형 AI 안내</h1>
           <p class="lhai-subtitle">서비스 진행 범위(견적/청구/결제/문서/일정) 내 안내만 제공하며, 상태 변경은 직접 수행하지 않습니다.</p>
         </div>
       </section>
       <section class="lhai-card">
-        <h2 class="lhai-card__title">Scope & Trust</h2>
-        <p id="aiScopeWindow" class="u-mb-2">Checking access window...</p>
+        <h2 class="lhai-card__title">범위·신뢰 안내</h2>
+        <p id="aiScopeWindow" class="u-mb-2">접근 가능 여부를 확인하는 중…</p>
         <div id="aiTrustIndicators" class="lhai-ai-trust"></div>
       </section>
       <section class="lhai-card">
-        <h2 class="lhai-card__title">Conversation</h2>
+        <h2 class="lhai-card__title">대화</h2>
         <div id="aiConversation" class="lhai-ai-conversation"></div>
         <form id="aiQuestionForm" class="u-mt-3">
           <label class="lhai-field">
-            <span class="lhai-label">Question (in service scope)</span>
-            <textarea id="aiQuestionInput" rows="4" placeholder="e.g. My invoice says SENT. What should I do next?"></textarea>
+            <span class="lhai-label">질문 (서비스 범위 내)</span>
+            <textarea id="aiQuestionInput" rows="4" placeholder="예: 청구서 상태가 발송(SENT)인데 다음에 뭘 하면 되나요?"></textarea>
           </label>
-          <button class="lhai-button lhai-button--primary" type="submit">Ask Assistant</button>
+          <button class="lhai-button lhai-button--primary" type="submit">질문하기</button>
         </form>
       </section>
       <section class="lhai-card">
-        <h2 class="lhai-card__title">Escalation</h2>
+        <h2 class="lhai-card__title">에스컬레이션</h2>
         <div class="lhai-ai-escalation">
-          <button class="lhai-button lhai-button--secondary" id="escalateAskAdminBtn" type="button">Ask Admin</button>
-          <button class="lhai-button lhai-button--secondary" id="escalateInPersonBtn" type="button">Request In-person Help</button>
+          <button class="lhai-button lhai-button--secondary" id="escalateAskAdminBtn" type="button">운영자에게 요청</button>
+          <button class="lhai-button lhai-button--secondary" id="escalateInPersonBtn" type="button">대면 지원 요청</button>
         </div>
         <p id="aiEscalationStatus" class="u-text-muted u-mt-2"></p>
       </section>

@@ -315,17 +315,21 @@ const quoteApi = {
         id: quoteId || "q-1001",
         title: "",
         service_name: "Starter Landing Package",
-        included_items: ["Initial workflow setup", "Customer onboarding"],
-        excluded_items: ["Custom on-site training"],
         estimated_cost: 3200,
-        ai_support_scope: "Checklist guidance and document QA support.",
-        possible_extra_costs: ["Urgent turnaround surcharge"],
-        next_step_guidance: "Review and decide to approve or reject.",
         internal_notes: "",
         customer_facing_note: "",
         currency: "USD",
         status: "PROPOSED",
-        request_details: {},
+        mocked: true,
+        items: [],
+        subtotal: 0,
+        tax_amount: 0,
+        total_amount: 0,
+        request_details: {
+          survey_submission: {
+            selected_services: [{ id: "svc-demo-1", title: "Starter Landing Package", delivery_mode: "ai_plus_human" }],
+          },
+        },
       };
     }
   },
@@ -355,39 +359,22 @@ const quoteApi = {
   },
   /**
    * Admin update shape:
-   * { service_name, included_items[], excluded_items[], estimated_cost, ai_support_scope, possible_extra_costs[], next_step_guidance }
+   * { service_name, estimated_cost, service_unit_prices, internal_notes, customer_facing_note }
    */
   async update(quoteId, payload) {
     try {
-      const response = await fetch(`${APP_CONFIG.apiBaseUrl}/api/quotes/${encodeURIComponent(quoteId)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || "Failed to update quote");
-      return data;
+      return await tryBackendPatch(`/api/quotes/${encodeURIComponent(quoteId)}`, payload);
     } catch {
       await mockDelay();
       return { id: quoteId, ...payload, status: "DRAFT", mocked: true };
     }
   },
   async transition(quoteId, toStatus, note = "") {
-    try {
-      return await tryBackendPost(`/api/quotes/${encodeURIComponent(quoteId)}/transition`, {
-        to_status: toStatus,
-        note,
-      });
-    } catch {
-      await mockDelay();
-      return {
-        quote_id: quoteId,
-        from_status: "DRAFT",
-        to_status: toStatus,
-        message: `Mock transition to ${toStatus}`,
-        mocked: true,
-      };
-    }
+    // Propose 등은 서버에서 인앱·메일 로그를 생성하므로 mock 성공으로 숨기면 안 됩니다.
+    return await tryBackendPost(`/api/quotes/${encodeURIComponent(quoteId)}/transition`, {
+      to_status: toStatus,
+      note,
+    });
   },
 };
 
@@ -402,13 +389,14 @@ const invoiceApi = {
           id: "inv-demo-1",
           quote_id: "q-demo-1",
           customer_profile_id: "profile::demo@customer.com",
-          amount_due: 3200,
+          amount_due: 0.1,
           service_name: "Starter Landing Package",
           currency: "USD",
           status: "SENT",
           due_date: "2026-04-20",
           in_person_only: false,
           draft_notes: "",
+          mocked: true,
         },
       ];
     }
@@ -422,7 +410,7 @@ const invoiceApi = {
         id: `inv-${Date.now()}`,
         quote_id: payload.quote_id,
         customer_profile_id: "profile::mock@example.com",
-        amount_due: 3200,
+        amount_due: 0.1,
         service_name: "Starter Landing Package",
         currency: "USD",
         status: "DRAFT",
@@ -465,7 +453,7 @@ const invoiceApi = {
         id: invoiceId || "inv-demo-1",
         quote_id: "q-demo-1",
         customer_profile_id: "profile::demo@customer.com",
-        amount_due: 3200,
+        amount_due: 0.1,
         service_name: "Starter Landing Package",
         currency: "USD",
         due_date: "2026-04-20",
@@ -612,7 +600,8 @@ const messagesApi = {
     if (unreadOnly) params.set("unread_only", "true");
     try {
       return await tryBackendGet(`/api/messages?${params.toString()}`);
-    } catch {
+    } catch (err) {
+      if (getAccessToken()) throw err;
       await mockDelay();
       const ts = new Date().toISOString();
       return [
@@ -621,8 +610,8 @@ const messagesApi = {
           customer_profile_id: customerProfileId,
           sender_user_id: null,
           message_type: "SYSTEM",
-          title: "Quote Proposed",
-          body: "Your quote is now proposed and ready for review.",
+          title: "📋 견적 제안이 도착했어요",
+          body: "📬 견적 초안이 준비되었습니다. 아래에서 확인해 주세요.\n\n💬 궁금한 점은 메시지로 편하게 알려 주세요.",
           unread: true,
           read_at: "",
           event_code: "quote.proposed",
@@ -639,7 +628,8 @@ const messagesApi = {
     if (unreadOnly) params.set("unread_only", "true");
     try {
       return await tryBackendGet(`/api/messages/threads?${params.toString()}`);
-    } catch {
+    } catch (err) {
+      if (getAccessToken()) throw err;
       await mockDelay();
       const messages = await this.list({ customerProfileId, category, unreadOnly });
       return messages.map((message) => ({
@@ -758,7 +748,7 @@ const emailLogsApi = {
           id: "eml-1",
           customer_profile_id: customerProfileId,
           template_code: "quote_proposed_notice",
-          subject: `견적 제안 안내 — 웹: ${webUrl} / PDF: ${pdfUrl}`,
+          subject: `[Landing Help AI] 📋 견적 제안 — 웹: ${webUrl} / PDF: ${pdfUrl}`,
           to_email: "demo@customer.com",
           status: "queued",
           linked_message_id: "msg-1",
@@ -1021,7 +1011,7 @@ const adminApi = {
         customer_profile_id: customerProfileId,
         overview: { owner: "Operator A", current_phase: "PROPOSED", risk_level: "high" },
         quote_status: { count: 1, latest_status: "PROPOSED", latest_quote_id: "q-demo-1", estimated_cost: 3200 },
-        invoice_payment_status: { count: 1, latest_invoice_id: "inv-demo-1", invoice_status: "FAILED", amount_due: 3200 },
+        invoice_payment_status: { count: 1, latest_invoice_id: "inv-demo-1", invoice_status: "FAILED", amount_due: 0.1 },
         document_status: { total: 3, requested_or_rejected: 1, under_review: 1, approved: 1 },
         recent_messages: [{ id: "msg-1", title: "Escalation requested", type: "AI", preview: "Customer requested in-person support." }],
         schedule_status: { latest_status: "REVISED", revision_count: 2, proposed_slot_count: 1 },
@@ -1029,6 +1019,13 @@ const adminApi = {
         audit_history: [{ id: "aud-1", event_type: "quote.status_changed", target_type: "quote", target_id: "q-demo-1", created_at: new Date().toISOString() }],
       };
     }
+  },
+};
+
+/** 개발용 관리자 도구 (환경·플래그에 따라 서버에서 403 가능). */
+const adminDevApi = {
+  async resetQuotesAndInvoices() {
+    return await tryBackendPost("/api/admin/dev/reset-quotes-and-invoices", {});
   },
 };
 
@@ -3468,6 +3465,7 @@ const surveyCustomerApi = {
 export {
   APP_CONFIG,
   adminApi,
+  adminDevApi,
   apiFetch,
   checklistApi,
   documentsApi,

@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title data-i18n="common.services.meta.title">Services - Landing Help AI</title>
+  <title data-i18n="common.services.meta.title">서비스 - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
 </head>
@@ -10,21 +10,21 @@
   <main class="lhai-container">
     <header class="lhai-page-header">
       <div>
-        <h1 class="lhai-title" data-i18n="common.services.header.title">Service Catalog</h1>
-        <p class="lhai-subtitle" data-i18n="common.services.header.subtitle">Browse public services and request quote-ready support.</p>
+        <h1 class="lhai-title" data-i18n="common.services.header.title">서비스 목록</h1>
+        <p class="lhai-subtitle" data-i18n="common.services.header.subtitle">공개 서비스를 둘러보고 견적 신청에 맞는 지원을 선택하세요.</p>
       </div>
       <div>
-        <label class="lhai-label" for="categoryFilter" data-i18n="common.services.filters.category">Category</label>
+        <label class="lhai-label" for="categoryFilter" data-i18n="common.services.filters.category">카테고리</label>
         <select class="lhai-select" id="categoryFilter">
-          <option value="" data-i18n="common.filters.all_categories">All categories</option>
+          <option value="" data-i18n="common.filters.all_categories">전체 카테고리</option>
         </select>
       </div>
     </header>
 
-    <p class="lhai-help" id="serviceStatus" data-i18n="common.services.status.loading">Loading...</p>
+    <p class="lhai-help" id="serviceStatus" data-i18n="common.services.status.loading">불러오는 중…</p>
 
     <section class="lhai-grid lhai-grid--2" id="serviceList">
-      <div class="lhai-state lhai-state--loading" data-i18n="common.services.loading.catalog">Loading service catalog...</div>
+      <div class="lhai-state lhai-state--loading" data-i18n="common.services.loading.catalog">서비스 목록을 불러오는 중…</div>
     </section>
   </main>
   <script type="module" src="../assets/js/pages/services.js"></script>

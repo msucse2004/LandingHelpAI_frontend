@@ -2,6 +2,7 @@ import { loadSidebar } from "../components/sidebar.js";
 import { quoteApi, serviceCatalogAdminApi } from "../core/api.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
+import { formatSurveyAnswerForDisplay } from "../core/survey-answer-display.js";
 import { formatDate, formatMoney, safeText } from "../core/utils.js";
 
 const DELIVERY_KO = {
@@ -36,6 +37,17 @@ function getServiceUnitPriceMapFromInputs() {
     out[sid] = Math.round(n * 100) / 100;
   });
   return out;
+}
+
+function buildQuoteEditorPayload() {
+  const unitPriceMap = getServiceUnitPriceMapFromInputs();
+  return {
+    service_name: (qs("#qpServiceName")?.value || "").trim(),
+    estimated_cost: Number(qs("#qpEstimated")?.value || 0),
+    service_unit_prices: unitPriceMap,
+    internal_notes: qs("#qpInternalNotes")?.value || "",
+    customer_facing_note: qs("#qpCustomerNote")?.value || "",
+  };
 }
 
 function syncSelectedServiceTotal() {
@@ -96,15 +108,8 @@ function renderSelectedServicePriceSummary(selectedServices, priceByServiceId) {
 
 function parseAnswerDisplay(aj) {
   if (!aj || typeof aj !== "object") return "—";
-  const snap = aj.label_snapshot;
-  if (snap && typeof snap === "object") {
-    if (snap.value_label != null && String(snap.value_label).trim() !== "") return String(snap.value_label);
-    if (Array.isArray(snap.value_labels) && snap.value_labels.length) return snap.value_labels.map(String).join(", ");
-  }
-  if (typeof aj.value === "boolean") return aj.value ? "예" : "아니요";
-  if (Array.isArray(aj.values) && aj.values.length) return aj.values.map(String).join(", ");
-  if (aj.value != null && String(aj.value).trim() !== "") return String(aj.value);
-  return "—";
+  const line = formatSurveyAnswerForDisplay(aj, { yes: "예", no: "아니요" });
+  return line.trim() !== "" ? line : "—";
 }
 
 function formatHousehold(common) {
@@ -130,6 +135,7 @@ function renderRequest(quote, priceByServiceId = {}) {
   }
 
   const common = survey.common_info && typeof survey.common_info === "object" ? survey.common_info : {};
+  const customerUsername = common.customer_username ? String(common.customer_username).trim() : "";
   const name = [common.profile_first_name, common.profile_last_name].filter(Boolean).join(" ").trim() || "—";
   const email = common.profile_email ? String(common.profile_email) : "—";
   const cats = (survey.selected_categories || [])
@@ -139,6 +145,7 @@ function renderRequest(quote, priceByServiceId = {}) {
   const answers = Array.isArray(survey.detailed_answers) ? survey.detailed_answers : [];
 
   let html = `<h3 class="lhai-quote-prep__subhead">기본 정보</h3><dl class="lhai-quote-prep__dl">`;
+  html += `<dt>아이디</dt><dd>${safeText(customerUsername || "—")}</dd>`;
   html += `<dt>이름</dt><dd>${safeText(name)}</dd>`;
   html += `<dt>이메일</dt><dd>${safeText(email)}</dd>`;
   html += `<dt>생년월일</dt><dd>${safeText(common.profile_birth_date || "—")}</dd>`;
@@ -195,10 +202,14 @@ function renderRequest(quote, priceByServiceId = {}) {
 }
 
 function fillEditor(quote) {
-  qs("#qpServiceName").value = quote.service_name || "";
-  qs("#qpEstimated").value = quote.estimated_cost != null ? String(quote.estimated_cost) : "";
-  qs("#qpCustomerNote").value = quote.customer_facing_note || "";
-  qs("#qpInternalNotes").value = quote.internal_notes || "";
+  const sn = qs("#qpServiceName");
+  if (sn) sn.value = quote.service_name || "";
+  const est = qs("#qpEstimated");
+  if (est) est.value = quote.estimated_cost != null ? String(quote.estimated_cost) : "";
+  const cn = qs("#qpCustomerNote");
+  if (cn) cn.value = quote.customer_facing_note || "";
+  const inn = qs("#qpInternalNotes");
+  if (inn) inn.value = quote.internal_notes || "";
 
   const propose = qs("#qpProposeLink");
   if (propose instanceof HTMLAnchorElement) {
@@ -249,8 +260,21 @@ async function main() {
     uniqueIds.map(async (sid) => {
       try {
         const pkg = await serviceCatalogAdminApi.getPackage(sid);
-        if (!pkg) return;
-        priceByServiceId[sid] = { amount: pkg.base_price, currency: pkg.currency || "USD" };
+        if (pkg) {
+          priceByServiceId[sid] = { amount: pkg.base_price, currency: pkg.currency || "USD" };
+          return;
+        }
+      } catch {
+        // 설문 스냅샷 id는 패키지가 아니라 service-item UUID인 경우가 많음 → 단가 조회 폴백.
+      }
+      try {
+        const item = await serviceCatalogAdminApi.getServiceItem(sid);
+        if (item && item.extra_price != null) {
+          priceByServiceId[sid] = {
+            amount: Number(item.extra_price || 0),
+            currency: item.currency || "USD",
+          };
+        }
       } catch {
         // Ignore missing pricing.
       }
@@ -288,7 +312,7 @@ async function main() {
     if (!isDraft) {
       warn.hidden = false;
       warn.textContent =
-        "이 견적은 Draft가 아닙니다. 저장은 서버 정책에 따라 거부되거나 반영되지 않을 수 있습니다. 필요하면 견적 목록에서 상태를 확인하세요.";
+        "이 견적은 초안이 아닙니다. 저장은 서버 정책에 따라 거부되거나 반영되지 않을 수 있습니다. 필요하면 견적 목록에서 상태를 확인하세요.";
     } else {
       warn.hidden = true;
       warn.textContent = "";
@@ -310,36 +334,29 @@ async function main() {
 
   proposeBtn?.addEventListener("click", async () => {
     if (String(quote?.status || "").toUpperCase() !== "DRAFT") {
-      if (statusEl) statusEl.textContent = "Draft 상태에서만 Propose 할 수 있습니다.";
+      if (statusEl) statusEl.textContent = "초안 상태에서만 견적 제안을 할 수 있습니다.";
       return;
     }
 
     const serviceName = (qs("#qpServiceName")?.value || "").trim();
     const estimated = Number(qs("#qpEstimated")?.value || 0);
-    const unitPriceMap = getServiceUnitPriceMapFromInputs();
 
     const clientErrors = [];
     if (!serviceName) clientErrors.push("서비스/패키지 표시명");
     if (!(estimated > 0)) clientErrors.push("예상 비용(0 초과)");
     if (clientErrors.length) {
-      if (statusEl) statusEl.textContent = `제안(Propose) 전 필수 항목을 채워 주세요: ${clientErrors.join(", ")}`;
+      if (statusEl) statusEl.textContent = `견적 제안 전 필수 항목을 채워 주세요: ${clientErrors.join(", ")}`;
       return;
     }
 
-    if (statusEl) statusEl.textContent = "Propose 전환 중…";
+    if (statusEl) statusEl.textContent = "견적 제안 처리 중…";
     if (proposeBtn instanceof HTMLButtonElement) proposeBtn.disabled = true;
     if (saveBtn instanceof HTMLButtonElement) saveBtn.disabled = true;
 
     try {
       // Propose 직전에 현재 단가/합계를 서버 Draft에 먼저 저장해
       // 서버 전환 검증(estimated_cost > 0)과 화면 상태를 일치시킵니다.
-      await quoteApi.update(qid, {
-        service_name: serviceName,
-        estimated_cost: estimated,
-        service_unit_prices: unitPriceMap,
-        internal_notes: qs("#qpInternalNotes").value,
-        customer_facing_note: qs("#qpCustomerNote").value,
-      });
+      await quoteApi.update(qid, buildQuoteEditorPayload());
       await quoteApi.transition(qid, "PROPOSED", "Proposed by admin panel");
       const refreshed = await quoteApi.getDetail(qid);
       renderRequest(refreshed, priceByServiceId);
@@ -357,7 +374,7 @@ async function main() {
         if (!nowIsDraft) {
           warn.hidden = false;
           warn.textContent =
-            "이 견적은 Draft가 아닙니다. 고객에게 제안(Proposed)되었으므로 이 화면에서는 더 이상 수정되지 않습니다.";
+            "이 견적은 초안이 아닙니다. 고객에게 제안된 상태이므로 이 화면에서는 더 이상 수정되지 않습니다.";
         } else {
           warn.hidden = true;
           warn.textContent = "";
@@ -375,14 +392,14 @@ async function main() {
       if (proposeBtn instanceof HTMLButtonElement) proposeBtn.disabled = !nowIsDraft;
       if (statusEl) {
         if (nowIsDraft) {
-          statusEl.textContent = "Propose 전환에 실패했습니다. 필수 항목을 다시 확인해 주세요.";
+          statusEl.textContent = "견적 제안에 실패했습니다. 필수 항목을 다시 확인해 주세요.";
         } else {
-          statusEl.textContent = "견적이 Proposed로 전환되었고, 고객에게 검토용 알림이 발송되었습니다.";
+          statusEl.textContent = "견적이 제안 상태로 전환되었고, 고객에게 검토용 알림이 발송되었습니다.";
         }
       }
     } catch (e) {
       const msg = e && typeof e.message === "string" ? e.message : String(e);
-      if (statusEl) statusEl.textContent = `Propose 실패: ${msg}`;
+      if (statusEl) statusEl.textContent = `견적 제안 실패: ${msg}`;
     } finally {
       if (saveBtn instanceof HTMLButtonElement) saveBtn.disabled = false;
     }
@@ -391,22 +408,15 @@ async function main() {
   form?.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     if (!isDraft) {
-      if (statusEl) statusEl.textContent = "Draft 상태에서만 초안을 저장할 수 있습니다.";
+      if (statusEl) statusEl.textContent = "초안 상태에서만 초안을 저장할 수 있습니다.";
       return;
     }
     if (saveBtn instanceof HTMLButtonElement) saveBtn.disabled = true;
     if (statusEl) statusEl.textContent = "저장 중…";
     try {
-      const unitPriceMap = getServiceUnitPriceMapFromInputs();
-      const payload = {
-        service_name: qs("#qpServiceName").value.trim(),
-        estimated_cost: Number(qs("#qpEstimated").value || 0),
-        service_unit_prices: unitPriceMap,
-        internal_notes: qs("#qpInternalNotes").value,
-        customer_facing_note: qs("#qpCustomerNote").value,
-      };
+      const payload = buildQuoteEditorPayload();
       await quoteApi.update(qid, payload);
-      if (statusEl) statusEl.textContent = "초안이 저장되었습니다. 고객에게 전달하려면 견적 목록에서 Propose 하세요.";
+      if (statusEl) statusEl.textContent = "초안이 저장되었습니다. 고객에게 전달하려면 견적 제안을 진행하세요.";
     } catch (e) {
       const msg = e && typeof e.message === "string" ? e.message : String(e);
       if (statusEl) statusEl.textContent = `저장 실패: ${msg}`;
