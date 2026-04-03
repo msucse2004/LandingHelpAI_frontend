@@ -1,5 +1,5 @@
 import { surveyCustomerApi } from "../core/api.js";
-import { qs, safeText } from "../core/utils.js";
+import { qs, safeText, scrollPageToTop } from "../core/utils.js";
 
 const NEED_CARDS = [
   {
@@ -98,6 +98,7 @@ function showNeedsStep() {
   qs("#surveyStepNeeds").hidden = false;
   qs("#surveyStepQuestion").hidden = true;
   qs("#surveyStepReview").hidden = true;
+  scrollPageToTop();
 }
 
 function showQuestionStep() {
@@ -130,6 +131,7 @@ function showReviewStep() {
       ${summaryLines}
     `;
   }
+  scrollPageToTop();
 }
 
 function setNeedCardsPressed() {
@@ -257,6 +259,7 @@ async function renderQuestionStep() {
   }
 
   renderInputForItem(q, existingAnswer);
+  scrollPageToTop();
 }
 
 function getAnswerFromInput(item) {
@@ -496,6 +499,7 @@ async function init() {
       stepIndex = visibleQuestions.length ? 1 : visibleQuestions.length + 1;
       updateNavButtons();
       if (stepIndex <= visibleQuestions.length) {
+        showQuestionStep();
         await renderQuestionStep();
       } else {
         showReviewStep();

@@ -1,0 +1,452 @@
+/* 고객 청구서: 히어로·법·운영 안내 (다크 테마 유지) */
+
+.lhai-invoice-hero.lhai-quote-hero {
+  border-color: rgba(251, 191, 36, 0.22);
+  background: linear-gradient(165deg, rgba(42, 32, 12, 0.5) 0%, rgba(8, 18, 36, 0.72) 55%, rgba(6, 14, 28, 0.68) 100%);
+}
+
+.lhai-invoice-hero__web-note {
+  margin: var(--lhai-space-4) 0 0;
+  font-size: var(--lhai-font-size-xs, 0.82rem);
+  line-height: 1.5;
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.68));
+  padding: var(--lhai-space-2) var(--lhai-space-3);
+  border-radius: var(--lhai-radius-sm);
+  border: 1px solid rgba(251, 191, 36, 0.18);
+  background: rgba(0, 0, 0, 0.22);
+  max-width: 40rem;
+}
+
+.lhai-invoice-hero__web-note[hidden] {
+  display: none !important;
+}
+
+.lhai-invoice-hero__cost-card--settled {
+  border-color: rgba(110, 168, 254, 0.32);
+  background: linear-gradient(145deg, rgba(18, 42, 78, 0.4) 0%, rgba(6, 18, 36, 0.55) 100%);
+}
+
+.lhai-invoice-meta {
+  margin-top: var(--lhai-space-4);
+  padding: var(--lhai-space-4) var(--lhai-space-3);
+  border-radius: var(--lhai-radius-md, 8px);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.lhai-invoice-meta__dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--lhai-space-3) var(--lhai-space-5);
+}
+
+@media (max-width: 560px) {
+  .lhai-invoice-meta__dates {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lhai-invoice-meta__date-label {
+  font-size: var(--lhai-font-size-xs, 0.78rem);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.55));
+  margin-bottom: 0.35rem;
+}
+
+.lhai-invoice-meta__date-value {
+  font-size: clamp(1.05rem, 2.4vw, 1.2rem);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--lhai-color-text, #e2e8f0);
+}
+
+.lhai-invoice-meta__date-value--muted {
+  font-size: var(--lhai-font-size-sm, 0.92rem);
+  font-weight: 500;
+  color: var(--lhai-color-text-muted, #94a3b8);
+}
+
+.lhai-invoice-meta__dl {
+  margin: 0;
+  padding-top: var(--lhai-space-3);
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--lhai-space-3);
+  row-gap: 0.55rem;
+  align-items: center;
+}
+
+.lhai-invoice-meta__dt {
+  margin: 0;
+  font-size: var(--lhai-font-size-xs, 0.78rem);
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.55));
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.lhai-invoice-meta__dd {
+  margin: 0;
+  font-size: var(--lhai-font-size-sm, 0.9rem);
+  line-height: 1.45;
+  color: var(--lhai-color-text, #e2e8f0);
+  word-break: break-word;
+}
+
+.lhai-invoice-meta__dd--mono {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--lhai-color-text-muted, #94a3b8);
+}
+
+.lhai-invoice-meta__dd--status .lhai-badge {
+  vertical-align: middle;
+}
+
+.lhai-invoice-meta__support-hint {
+  margin-bottom: 0;
+  font-size: var(--lhai-font-size-xs, 0.8rem);
+}
+
+.lhai-invoice-parties {
+  margin-top: var(--lhai-space-4);
+  padding-top: var(--lhai-space-4);
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.lhai-invoice-parties__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--lhai-space-4) var(--lhai-space-6);
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .lhai-invoice-parties__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lhai-invoice-parties__party-title {
+  margin: 0 0 var(--lhai-space-2);
+  font-size: var(--lhai-font-size-sm, 0.9rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lhai-color-text-muted, #94a3b8);
+}
+
+.lhai-invoice-parties__dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--lhai-space-3);
+  row-gap: 0.5rem;
+  align-items: baseline;
+}
+
+.lhai-invoice-parties__dt {
+  margin: 0;
+  font-size: var(--lhai-font-size-xs, 0.78rem);
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.55));
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.lhai-invoice-parties__dd {
+  margin: 0;
+  font-size: var(--lhai-font-size-sm, 0.92rem);
+  line-height: 1.45;
+  color: var(--lhai-color-text, #e2e8f0);
+  word-break: break-word;
+  white-space: pre-line;
+}
+
+.lhai-invoice-parties__empty {
+  margin: 0.25rem 0 0;
+  font-size: var(--lhai-font-size-xs, 0.82rem);
+}
+
+.lhai-invoice-scope {
+  margin-top: var(--lhai-space-4);
+  padding-top: var(--lhai-space-4);
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.lhai-invoice-scope__subhead {
+  font-size: var(--lhai-font-size-md, 1rem);
+  font-weight: 600;
+  margin: 0;
+  color: var(--lhai-color-text, #e2e8f0);
+}
+
+.lhai-invoice-scope__service-name {
+  margin: 0.35rem 0 0;
+  font-size: clamp(1.05rem, 2.2vw, 1.2rem);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--lhai-color-accent, #8ec5ff);
+}
+
+.lhai-invoice-scope__label {
+  margin: 0 0 0.35rem;
+  font-size: var(--lhai-font-size-xs, 0.78rem);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--lhai-color-text-muted, #94a3b8);
+}
+
+.lhai-invoice-scope__prose {
+  margin: 0;
+  font-size: var(--lhai-font-size-sm, 0.93rem);
+  line-height: 1.55;
+  color: var(--lhai-color-text-muted, #cbd5e1);
+  white-space: pre-line;
+}
+
+.lhai-invoice-scope__list {
+  margin-top: 0.35rem;
+}
+
+.lhai-invoice-scope__quote-note {
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--lhai-radius-sm);
+  border: 1px solid rgba(110, 168, 254, 0.22);
+  background: rgba(18, 42, 78, 0.35);
+  font-size: var(--lhai-font-size-sm, 0.9rem);
+  line-height: 1.5;
+}
+
+.lhai-invoice-scope__limitation {
+  padding: 1rem 1.125rem;
+  border-radius: var(--lhai-radius-md, 8px);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.55);
+  font-size: var(--lhai-font-size-sm, 0.9rem);
+  line-height: 1.55;
+  color: var(--lhai-color-text-muted, #94a3b8);
+}
+
+.lhai-invoice-customer__legal {
+  margin-top: 1.25rem;
+  padding: 1rem 1.125rem;
+  border-radius: var(--lhai-radius-md, 8px);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.65);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--lhai-color-text-muted, #94a3b8);
+}
+
+.lhai-invoice-customer__legal strong {
+  color: var(--lhai-color-text, #e2e8f0);
+  font-weight: 600;
+}
+
+.lhai-invoice-after-payment {
+  margin-top: var(--lhai-space-4);
+  padding-top: var(--lhai-space-4);
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.lhai-invoice-after-payment__subhead {
+  margin: 0;
+  font-size: var(--lhai-font-size-sm, 0.92rem);
+  font-weight: 600;
+  color: var(--lhai-color-text, #e2e8f0);
+}
+
+.lhai-invoice-after-payment__list {
+  margin-top: 0.5rem;
+}
+
+.lhai-invoice-customer__after-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  color: var(--lhai-color-text-muted, #94a3b8);
+  line-height: 1.55;
+}
+
+.lhai-invoice-customer__after-list li {
+  margin-bottom: 0.5rem;
+}
+
+.lhai-invoice-payment-notice {
+  margin-top: var(--lhai-space-4);
+  margin-bottom: var(--lhai-space-3);
+  padding: 1.125rem 1.25rem;
+  border-radius: var(--lhai-radius-md, 8px);
+  border: 1px solid rgba(110, 168, 254, 0.26);
+  border-left-width: 4px;
+  border-left-color: rgba(110, 168, 254, 0.55);
+  background: rgba(18, 42, 78, 0.38);
+}
+
+.lhai-invoice-payment-notice__title {
+  margin: 0 0 0.65rem;
+  font-size: var(--lhai-font-size-sm, 0.95rem);
+  font-weight: 600;
+  color: var(--lhai-color-text, #e2e8f0);
+}
+
+.lhai-invoice-payment-notice__lead {
+  margin: 0 0 0.85rem;
+  font-size: var(--lhai-font-size-sm, 0.95rem);
+  line-height: 1.6;
+  color: var(--lhai-color-text, #e2e8f0);
+  font-weight: 500;
+}
+
+.lhai-invoice-payment-notice__list {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--lhai-color-text-muted, #94a3b8);
+  font-size: var(--lhai-font-size-sm, 0.88rem);
+  line-height: 1.55;
+}
+
+.lhai-invoice-payment-notice__list li {
+  margin-bottom: 0.45rem;
+}
+
+.lhai-invoice-customer__scope-list {
+  margin: 0.35rem 0 0;
+  padding-left: 1.25rem;
+  line-height: 1.5;
+}
+
+.lhai-invoice-customer__scope-list li {
+  margin-bottom: 0.35rem;
+}
+
+.lhai-invoice-amount-summary {
+  margin-top: var(--lhai-space-4);
+  padding-top: var(--lhai-space-4);
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.lhai-invoice-amount-summary__table-wrap {
+  overflow-x: auto;
+  border-radius: var(--lhai-radius-md, 8px);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.lhai-invoice-amount-summary__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--lhai-font-size-sm, 0.92rem);
+}
+
+.lhai-invoice-amount-summary__table th,
+.lhai-invoice-amount-summary__table td {
+  padding: 0.55rem 0.85rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.lhai-invoice-amount-summary__table thead th {
+  font-size: var(--lhai-font-size-xs, 0.78rem);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--lhai-color-text-muted, #94a3b8);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.lhai-invoice-amount-summary__th-amount {
+  text-align: right;
+  width: 9.5rem;
+}
+
+.lhai-invoice-amount-summary__amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, monospace;
+  white-space: nowrap;
+  color: var(--lhai-color-text, #e2e8f0);
+}
+
+.lhai-invoice-amount-summary__row--total td {
+  font-weight: 600;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.lhai-invoice-amount-summary__row--paid td {
+  color: var(--lhai-color-text-muted, #94a3b8);
+  font-size: var(--lhai-font-size-sm, 0.9rem);
+}
+
+.lhai-invoice-amount-summary__row--payable td {
+  font-weight: 700;
+  font-size: clamp(1rem, 2.2vw, 1.12rem);
+  border-bottom: none;
+  padding-top: 0.65rem;
+  color: var(--lhai-color-accent, #8ec5ff);
+}
+
+.lhai-invoice-amount-summary__table tfoot tr:last-child td {
+  border-bottom: none;
+}
+
+.lhai-invoice-customer__empty {
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.lhai-invoice-customer__actions.lhai-invoice-actions {
+  margin-top: 1.25rem;
+  padding-top: var(--lhai-space-3, 0.75rem);
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-4, 1rem);
+}
+
+.lhai-invoice-actions__pay-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-3, 0.75rem);
+  align-items: flex-start;
+}
+
+.lhai-invoice-actions__pay-block[hidden] {
+  display: none !important;
+}
+
+.lhai-invoice-actions__helper-wrap {
+  max-width: 38rem;
+}
+
+.lhai-invoice-actions__helper-line {
+  margin: 0;
+  font-size: var(--lhai-font-size-xs, 0.82rem);
+  line-height: 1.55;
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.68));
+}
+
+.lhai-invoice-actions__helper-line + .lhai-invoice-actions__helper-line {
+  margin-top: 0.35rem;
+}
+
+.lhai-invoice-actions__pay-btn {
+  min-width: 11rem;
+}
+
+.lhai-invoice-actions__secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2, 0.5rem);
+  align-items: center;
+}
+
+.lhai-invoice-actions__secondary a[hidden] {
+  display: none !important;
+}

@@ -4,7 +4,7 @@ import { getCustomerMessagingProfileId } from "../core/auth.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { canAccessAdminShell } from "../core/role-tiers.js";
 import { syncHeaderRoleBadge } from "../core/role-header-badge.js";
-import { formatMessageTimestamp, safeText } from "../core/utils.js";
+import { formatMessageTimestamp, resolveBackendMediaUrl, safeText } from "../core/utils.js";
 
 let customerProfileId = "profile::demo@customer.com";
 /** 티어 1~3 운영자 화면: 선택한 스레드의 고객 profile::email */
@@ -62,8 +62,8 @@ function renderQuoteProposedLinksHtml(message) {
 
   const qid =
     String(message.linked_quote_id || "").trim() || extractQuoteIdFromText(message.body);
-  const pdfUrl =
-    String(message.linked_pdf_url || "").trim() || extractMockStoragePdfUrl(message.body);
+  let pdfUrl = String(message.linked_pdf_url || "").trim() || extractMockStoragePdfUrl(message.body);
+  if (pdfUrl) pdfUrl = resolveBackendMediaUrl(pdfUrl);
   const parts = [];
 
   if (qid) {
@@ -87,8 +87,8 @@ function renderInvoiceSentLinksHtml(message) {
 
   const invoiceId =
     String(message.linked_invoice_id || "").trim() || extractInvoiceIdFromText(message.body);
-  const pdfUrl =
-    String(message.linked_pdf_url || "").trim() || extractMockStoragePdfUrl(message.body);
+  let pdfUrl = String(message.linked_pdf_url || "").trim() || extractMockStoragePdfUrl(message.body);
+  if (pdfUrl) pdfUrl = resolveBackendMediaUrl(pdfUrl);
   const parts = [];
 
   if (invoiceId) {

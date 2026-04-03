@@ -39,11 +39,18 @@ function getServiceUnitPriceMapFromInputs() {
   return out;
 }
 
+/** 고객 제안 총액 = 선택 서비스 단가 합계(서버도 동일 규칙으로 저장). */
+function getServiceUnitPricesSum() {
+  const vals = Object.values(getServiceUnitPriceMapFromInputs());
+  const sum = vals.reduce((s, v) => s + Number(v || 0), 0);
+  return Math.round(sum * 100) / 100;
+}
+
 function buildQuoteEditorPayload() {
   const unitPriceMap = getServiceUnitPriceMapFromInputs();
   return {
     service_name: (qs("#qpServiceName")?.value || "").trim(),
-    estimated_cost: Number(qs("#qpEstimated")?.value || 0),
+    estimated_cost: getServiceUnitPricesSum(),
     service_unit_prices: unitPriceMap,
     internal_notes: qs("#qpInternalNotes")?.value || "",
     customer_facing_note: qs("#qpCustomerNote")?.value || "",
@@ -52,27 +59,23 @@ function buildQuoteEditorPayload() {
 
 function syncSelectedServiceTotal() {
   const totalEl = qs("#qpSelectedServiceTotal");
-  const estEl = qs("#qpEstimated");
-  if (!totalEl || !(estEl instanceof HTMLInputElement)) return;
+  if (!totalEl) return;
   const vals = Object.values(getServiceUnitPriceMapFromInputs());
   const total = vals.reduce((sum, v) => sum + Number(v || 0), 0);
   totalEl.textContent = formatMoney(total, "USD");
-  estEl.value = String(Math.round(total * 100) / 100);
 }
 
 function renderSelectedServicePriceSummary(selectedServices, priceByServiceId) {
   const listEl = qs("#qpSelectedServicePriceEditor");
   const emptyEl = qs("#qpSelectedServicePriceEmpty");
   const totalEl = qs("#qpSelectedServiceTotal");
-  const estEl = qs("#qpEstimated");
-  if (!listEl || !totalEl || !(estEl instanceof HTMLInputElement)) return;
+  if (!listEl || !totalEl) return;
 
   const rows = Array.isArray(selectedServices) ? selectedServices : [];
   if (!rows.length) {
     listEl.innerHTML = "";
     if (emptyEl) emptyEl.hidden = false;
     totalEl.textContent = "—";
-    estEl.value = "0";
     return;
   }
 
@@ -204,8 +207,6 @@ function renderRequest(quote, priceByServiceId = {}) {
 function fillEditor(quote) {
   const sn = qs("#qpServiceName");
   if (sn) sn.value = quote.service_name || "";
-  const est = qs("#qpEstimated");
-  if (est) est.value = quote.estimated_cost != null ? String(quote.estimated_cost) : "";
   const cn = qs("#qpCustomerNote");
   if (cn) cn.value = quote.customer_facing_note || "";
   const inn = qs("#qpInternalNotes");
@@ -339,11 +340,11 @@ async function main() {
     }
 
     const serviceName = (qs("#qpServiceName")?.value || "").trim();
-    const estimated = Number(qs("#qpEstimated")?.value || 0);
+    const lineSum = getServiceUnitPricesSum();
 
     const clientErrors = [];
     if (!serviceName) clientErrors.push("서비스/패키지 표시명");
-    if (!(estimated > 0)) clientErrors.push("예상 비용(0 초과)");
+    if (!(lineSum > 0)) clientErrors.push("서비스 단가 합계(0 초과)");
     if (clientErrors.length) {
       if (statusEl) statusEl.textContent = `견적 제안 전 필수 항목을 채워 주세요: ${clientErrors.join(", ")}`;
       return;

@@ -6,7 +6,7 @@ import { serviceCatalogBrowseApi, serviceIntakeCustomerApi, surveyCustomerApi, u
 import { getSession, getAccessToken, getCustomerMessagingProfileId } from "../core/auth.js";
 import { t } from "../core/i18n-client.js";
 import { initCommonI18nAndApplyDom } from "../core/i18n-dom.js";
-import { qs, safeText } from "../core/utils.js";
+import { qs, safeText, scrollPageToTop } from "../core/utils.js";
 
 const esc = safeText;
 
@@ -226,6 +226,7 @@ function showOnlyStep(which) {
   if (stepServices) stepServices.hidden = which !== "services";
   if (stepReview) stepReview.hidden = which !== "review";
   updateChrome();
+  scrollPageToTop();
 }
 
 function updateChrome() {
@@ -1189,6 +1190,7 @@ async function goNext() {
       servicesCategoryIndex += 1;
       renderServiceCards();
       updateProgress();
+      scrollPageToTop();
       return;
     }
     if (!selectedServiceIds.length) {
@@ -1247,6 +1249,7 @@ function goBack() {
       servicesCategoryIndex -= 1;
       renderServiceCards();
       updateProgress();
+      scrollPageToTop();
       return;
     }
     phase = "common_info";
@@ -1272,6 +1275,7 @@ function moveServicesCategory(delta) {
   servicesCategoryIndex = nextIdx;
   renderServiceCards();
   updateProgress();
+  scrollPageToTop();
 }
 
 async function init() {

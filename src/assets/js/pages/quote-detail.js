@@ -1,4 +1,5 @@
 import { quoteApi } from "../core/api.js";
+import { getCustomerMessagingProfileId } from "../core/auth.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { patchState } from "../core/state.js";
 import { loadSidebar } from "../components/sidebar.js";
@@ -793,6 +794,30 @@ function renderQuote(quote) {
   renderDecisionFeedbackPanel(quote);
 }
 
+/**
+ * URL·localStorage에 유효한 id가 없거나 404인 경우, 현재 세션 고객의 최신 비초안 견적을 고릅니다.
+ * (사이드바 "견적"은 quote_id 없이 열리며, 오래된 localStorage id로 404가 나던 문제 완화)
+ */
+async function fetchLatestCustomerQuoteDetail() {
+  const profileId = getCustomerMessagingProfileId();
+  try {
+    const rows = await quoteApi.list("", profileId);
+    const visible = (Array.isArray(rows) ? rows : []).filter(
+      (q) => String(q?.status || "").toUpperCase() !== "DRAFT"
+    );
+    visible.sort((a, b) => {
+      const ta = new Date(a?.updated_at || 0).getTime();
+      const tb = new Date(b?.updated_at || 0).getTime();
+      return tb - ta;
+    });
+    const pick = visible[0];
+    if (!pick?.id) return null;
+    return await quoteApi.getDetail(String(pick.id));
+  } catch {
+    return null;
+  }
+}
+
 function applyQuotePageShell() {
   const titleEl = qs("#quotePageTitle");
   if (titleEl) titleEl.textContent = t("customer.quote.page_title", "Review your quote");
@@ -820,13 +845,28 @@ async function initQuoteDetailPage() {
   const quoteIdFromUrl =
     (params.get("quote_id") || params.get("quoteId") || params.get("id") || params.get("qid") || params.get("pending_quote_id") || "").trim();
   const quoteIdFromStore = window.localStorage.getItem("lhai_latest_quote_id") || "";
-  const quoteId = quoteIdFromUrl || quoteIdFromStore || "q-demo-1";
 
   let quote = null;
-  try {
-    quote = await quoteApi.getDetail(quoteId);
-  } catch {
-    quote = null;
+  if (quoteIdFromUrl) {
+    try {
+      quote = await quoteApi.getDetail(quoteIdFromUrl);
+    } catch {
+      quote = null;
+    }
+  } else {
+    const storeId = (quoteIdFromStore || "").trim();
+    if (storeId) {
+      try {
+        quote = await quoteApi.getDetail(storeId);
+      } catch {
+        window.localStorage.removeItem("lhai_latest_quote_id");
+        quote = null;
+      }
+    }
+  }
+
+  if (!quote) {
+    quote = await fetchLatestCustomerQuoteDetail();
   }
 
   const uiLang = quote ? resolveQuoteUiLang(quote) : "ko";

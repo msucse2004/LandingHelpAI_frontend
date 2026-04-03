@@ -54,12 +54,11 @@
               <label class="lhai-label">선택 서비스 / 단가</label>
               <div id="qpSelectedServicePriceEditor"></div>
               <p class="lhai-help" id="qpSelectedServicePriceEmpty" hidden>선택 서비스 정보가 없습니다.</p>
-              <p class="lhai-help"><strong>자동 합계:</strong> <span id="qpSelectedServiceTotal">—</span></p>
-            </div>
-            <div class="lhai-quote-editor__section">
-              <label class="lhai-label" for="qpEstimated">예상 비용 (자동 합계)</label>
-              <input class="lhai-input" id="qpEstimated" type="number" min="0" step="0.01" readonly />
-              <p class="lhai-help">예상 비용은 위 선택 서비스 단가의 합계입니다. 저장 후 필요하면 <strong>견적 제안</strong>으로 고객 검토 단계로 넘깁니다.</p>
+              <p class="lhai-help">
+                <strong>제안 총액(단가 합계):</strong> <span id="qpSelectedServiceTotal">—</span>
+                — 고객 견적서·청구 금액은 위 합계와 동일합니다. 단가를 조정하면 합계가 바뀝니다.
+                저장 후 <strong>견적 제안</strong>으로 고객 검토 단계로 넘깁니다.
+              </p>
             </div>
             <div class="lhai-quote-editor__section">
               <label class="lhai-label" for="qpCustomerNote">고객에게 보여줄 메모 (선택)</label>

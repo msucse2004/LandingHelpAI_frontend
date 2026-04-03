@@ -279,13 +279,21 @@ const dashboardApi = {
 };
 
 const quoteApi = {
-  async list(statusFilter = "") {
-    const query = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : "";
+  /**
+   * @param {string} [statusFilter] PROPOSED 등
+   * @param {string} [customerProfileId] profile::email — 지정 시 해당 고객 견적만
+   */
+  async list(statusFilter = "", customerProfileId = "") {
+    const q = new URLSearchParams();
+    if (statusFilter) q.set("status", statusFilter);
+    if (customerProfileId) q.set("customer_profile_id", customerProfileId);
+    const qs = q.toString();
+    const query = qs ? `?${qs}` : "";
     try {
       return await tryBackendGet(`/api/quotes${query}`);
     } catch {
       await mockDelay();
-      return [
+      const base = [
         {
           id: "q-demo-1",
           customer_profile_id: "profile::demo@customer.com",
@@ -296,6 +304,10 @@ const quoteApi = {
           updated_at: new Date().toISOString(),
         },
       ];
+      if (customerProfileId) {
+        return base.filter((row) => String(row.customer_profile_id || "") === customerProfileId);
+      }
+      return base;
     }
   },
   /** Admin: 설문 제출 후 견적 작성이 필요한 Draft 견적 큐 (티어 1–3, JWT). */
@@ -307,12 +319,15 @@ const quoteApi = {
     }
   },
   async getDetail(quoteId) {
+    const id = String(quoteId || "").trim();
     try {
-      return await tryBackendGet(`/api/quotes/${encodeURIComponent(quoteId || "q-1001")}`);
-    } catch {
+      return await tryBackendGet(`/api/quotes/${encodeURIComponent(id || "invalid-missing-id")}`);
+    } catch (err) {
+      // 404/403 등은 목 데이터(3200달러 등)로 숨기면 안 됩니다 — 오프라인·CORS일 때만 목 사용.
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
       return {
-        id: quoteId || "q-1001",
+        id: id || "q-demo-offline",
         title: "",
         service_name: "Starter Landing Package",
         estimated_cost: 3200,
@@ -359,7 +374,7 @@ const quoteApi = {
   },
   /**
    * Admin update shape:
-   * { service_name, estimated_cost, service_unit_prices, internal_notes, customer_facing_note }
+   * { service_name, estimated_cost (합계와 맞춰 전송; 서버는 service_unit_prices 합으로 재설정), service_unit_prices, internal_notes, customer_facing_note }
    */
   async update(quoteId, payload) {
     try {
@@ -375,6 +390,45 @@ const quoteApi = {
       to_status: toStatus,
       note,
     });
+  },
+};
+
+const MOCK_INVOICE_CREATED_AT = "2026-04-01T09:00:00+00:00";
+
+function mockInvoiceBillingSummary(amountDue, currency, status) {
+  const paid = String(status || "").toUpperCase() === "PAID";
+  const a = Number(amountDue) || 0;
+  const cur = String(currency || "USD").toUpperCase();
+  return {
+    currency: cur,
+    base_service_amount: a,
+    add_ons_amount: 0,
+    discounts_amount: 0,
+    surcharges_amount: 0,
+    taxes_and_fees_amount: 0,
+    subtotal_excluding_tax: a,
+    invoice_total: a,
+    amount_already_paid: paid ? a : 0,
+    current_payable_amount: paid ? 0 : a,
+    reconciliation_note: "",
+  };
+}
+
+/** Mock invoice API: mirrors backend `billing_from` / `billing_to` shape when offline. */
+const MOCK_INVOICE_PARTY_BLOCKS = {
+  billing_from: {
+    legal_name: "Landing Help AI",
+    registered_address: "",
+    email: "",
+    phone: "",
+    tax_id: "",
+  },
+  billing_to: {
+    full_name: "Demo Customer",
+    email: "demo@customer.com",
+    phone: "",
+    company_name: "",
+    address: "",
   },
 };
 
@@ -397,6 +451,9 @@ const invoiceApi = {
           in_person_only: false,
           draft_notes: "",
           mocked: true,
+          created_at: MOCK_INVOICE_CREATED_AT,
+          billing_summary: mockInvoiceBillingSummary(0.1, "USD", "SENT"),
+          ...MOCK_INVOICE_PARTY_BLOCKS,
         },
       ];
     }
@@ -418,6 +475,13 @@ const invoiceApi = {
         in_person_only: Boolean(payload.in_person_only),
         draft_notes: payload.draft_notes || "",
         mocked: true,
+        created_at: new Date().toISOString(),
+        billing_from: { ...MOCK_INVOICE_PARTY_BLOCKS.billing_from },
+        billing_to: {
+          ...MOCK_INVOICE_PARTY_BLOCKS.billing_to,
+          email: "mock@example.com",
+        },
+        billing_summary: mockInvoiceBillingSummary(0.1, "USD", "DRAFT"),
       };
     }
   },
@@ -461,6 +525,9 @@ const invoiceApi = {
         in_person_only: false,
         draft_notes: "",
         mocked: true,
+        created_at: MOCK_INVOICE_CREATED_AT,
+        billing_summary: mockInvoiceBillingSummary(0.1, "USD", "SENT"),
+        ...MOCK_INVOICE_PARTY_BLOCKS,
       };
     }
   },
