@@ -294,6 +294,8 @@
                           data-i18n="common.admin_services.intake.tab_service_details">Service details</button>
                         <button type="button" class="admin-services__tab-btn" data-service-editor-tab="intake" role="tab" aria-selected="false" id="manageServiceTabIntakeBtn" disabled
                           data-i18n="common.admin_services.intake.tab_required_info">Required Customer Info</button>
+                        <button type="button" class="admin-services__tab-btn" data-service-editor-tab="documents" role="tab" aria-selected="false" id="manageServiceTabDocumentsBtn" disabled
+                          data-i18n="common.admin_services.documents.tab_label">Required Documents</button>
                       </div>
 
                       <div class="admin-services__service-editor-panels">
@@ -361,6 +363,9 @@
                           <p class="lhai-help u-mt-2" data-i18n="common.admin_services.manage.service.intake_bridge_hint">
                             Define what customers must answer before delivery in the “Required Customer Info” tab (same service).
                           </p>
+                          <p class="lhai-help u-mt-2" data-i18n="common.admin_services.manage.service.documents_bridge_hint">
+                            After payment, use the “Required Documents” tab to list files customers must prepare for this service.
+                          </p>
                         </section>
 
                         <section class="admin-services__editor-section">
@@ -427,7 +432,117 @@
                           <pre class="admin-services__intake-pre" id="manageServiceIntakeTechnicalPre" aria-label="Technical JSON"></pre>
                         </details>
                       </div>
+
+                      <div class="admin-services__service-editor-panel" id="manageServiceDocumentsPanel" data-service-editor-panel="documents" hidden>
+                        <div class="admin-services__intake-intro">
+                          <p class="lhai-help admin-services__intake-lead" id="manageServiceDocumentsLead"
+                            data-i18n="common.admin_services.documents.lead">Define the documents customers must prepare after payment for this service.</p>
+                          <p class="lhai-help admin-services__documents-sublead"
+                            data-i18n="common.admin_services.documents.sublead">Linked to this service item. Requests are generated after payment; customers are guided via inbox and email (not on the pre-payment survey).</p>
+                        </div>
+                        <div class="admin-services__intake-toolbar u-flex-between u-gap-4 u-mb-3" style="flex-wrap:wrap;align-items:center;">
+                          <p class="lhai-help u-m-0" id="manageServiceDocumentsStatus" aria-live="polite"></p>
+                          <button type="button" class="lhai-button lhai-button--primary" id="manageServiceDocumentsAddBtn"
+                            data-i18n="common.admin_services.documents.add_document">+ Add Document</button>
+                        </div>
+                        <div id="manageServiceDocumentsList" class="admin-services__doc-fields" aria-live="polite"></div>
                       </div>
+                      </div>
+
+                      <dialog class="lhai-dialog admin-services__intake-dialog admin-services__doc-dialog" id="manageServiceDocumentDialog" aria-labelledby="manageServiceDocumentDialogHeading">
+                        <form class="admin-services__intake-dialog-form admin-services__doc-dialog-form" id="manageServiceDocumentForm">
+                          <div class="admin-services__doc-dialog-header">
+                            <div class="admin-services__doc-dialog-head-row">
+                              <span id="manageServiceDocumentDialogBadge" class="admin-services__msd-mode-badge" aria-hidden="true">New</span>
+                              <h3 class="lhai-dialog__title admin-services__doc-dialog-title" id="manageServiceDocumentDialogHeading">Create New Document Requirement</h3>
+                            </div>
+                            <p class="lhai-help admin-services__doc-dialog-lead" data-i18n="common.admin_services.documents.dialog_lead">Customers see this only after payment. Use clear, operational language — not internal codes.</p>
+                          </div>
+                          <input type="hidden" id="manageServiceDocumentEditId" value="" />
+                          <input type="checkbox" id="manageServiceDocumentRequired" class="visually-hidden" checked tabindex="-1" aria-hidden="true" />
+
+                          <section class="admin-services__intake-form-section admin-services__doc-section" aria-labelledby="manageServiceDocumentSecBasic">
+                            <h4 class="admin-services__intake-section-title" id="manageServiceDocumentSecBasic" data-i18n="common.admin_services.documents.sec_basic">Basic Info</h4>
+                            <label class="lhai-label" for="manageServiceDocumentName" data-i18n="common.admin_services.documents.label_name">Document name</label>
+                            <input class="lhai-input" id="manageServiceDocumentName" type="text" required maxlength="300" autocomplete="off" placeholder="e.g. Proof of address" />
+                            <label class="lhai-label" for="manageServiceDocumentShortDesc" data-i18n="common.admin_services.documents.label_short">Short description</label>
+                            <textarea class="lhai-textarea" id="manageServiceDocumentShortDesc" rows="2" maxlength="2000" placeholder="One line for admins and customer-facing summaries"></textarea>
+                          </section>
+
+                          <section class="admin-services__intake-form-section admin-services__doc-section" aria-labelledby="manageServiceDocumentSecRequirement">
+                            <h4 class="admin-services__intake-section-title" id="manageServiceDocumentSecRequirement" data-i18n="common.admin_services.documents.sec_requirement">Requirement</h4>
+                            <p class="lhai-help u-mb-2" id="manageServiceDocumentReqHint" data-i18n="common.admin_services.documents.req_hint">Is this mandatory for the customer after payment?</p>
+                            <div class="admin-services__msd-segment" role="group" aria-labelledby="manageServiceDocumentReqHint">
+                              <button type="button" class="admin-services__msd-segment-btn is-active" id="msdSegRequired" data-msd-segment-req="true" aria-pressed="true">
+                                <span data-i18n="common.admin_services.documents.seg_required">Required</span>
+                              </button>
+                              <button type="button" class="admin-services__msd-segment-btn" id="msdSegOptional" data-msd-segment-req="false" aria-pressed="false">
+                                <span data-i18n="common.admin_services.documents.seg_optional">Optional</span>
+                              </button>
+                            </div>
+                            <label class="lhai-label u-mt-3" for="manageServiceDocumentReason" data-i18n="common.admin_services.documents.label_reason">Why it is needed (customer-facing)</label>
+                            <textarea class="lhai-textarea" id="manageServiceDocumentReason" rows="3" maxlength="2000" placeholder="Plain language: what this proves and why it matters for their case."></textarea>
+                          </section>
+
+                          <section class="admin-services__intake-form-section admin-services__doc-section" aria-labelledby="manageServiceDocumentSecGuidance">
+                            <h4 class="admin-services__intake-section-title" id="manageServiceDocumentSecGuidance" data-i18n="common.admin_services.documents.sec_guidance">Guidance</h4>
+                            <label class="lhai-label" for="manageServiceDocumentFormats" data-i18n="common.admin_services.documents.label_formats">Accepted file formats</label>
+                            <input class="lhai-input" id="manageServiceDocumentFormats" type="text" maxlength="500" placeholder="PDF, JPG, PNG — comma separated" autocomplete="off" />
+                            <p class="lhai-help" data-i18n="common.admin_services.documents.formats_help">What uploads you will accept; customers see this as guidance, not a strict validator yet.</p>
+                            <label class="lhai-label u-mt-2" for="manageServiceDocumentExample" data-i18n="common.admin_services.documents.label_example">Example or extra notes for the customer</label>
+                            <textarea class="lhai-textarea" id="manageServiceDocumentExample" rows="2" maxlength="2000" placeholder="e.g. A utility bill dated within the last 60 days"></textarea>
+                          </section>
+
+                          <section class="admin-services__intake-form-section admin-services__doc-section" aria-labelledby="manageServiceDocumentSecApplicability">
+                            <h4 class="admin-services__intake-section-title" id="manageServiceDocumentSecApplicability" data-i18n="common.admin_services.documents.sec_applicability">Applicability</h4>
+                            <p class="lhai-help u-mb-2" data-i18n="common.admin_services.documents.apply_intro">US jurisdiction: when should this document be requested?</p>
+                            <fieldset class="admin-services__msd-scope-fieldset">
+                              <legend class="visually-hidden" data-i18n="common.admin_services.documents.apply_legend">State scope</legend>
+                              <label class="admin-services__msd-scope-option">
+                                <input type="radio" name="msdStateScope" value="all" id="msdScopeAll" checked />
+                                <span class="admin-services__msd-scope-label" data-i18n="common.admin_services.documents.scope_all">All states</span>
+                                <span class="admin-services__msd-scope-desc lhai-help" data-i18n="common.admin_services.documents.scope_all_desc">Applies everywhere you serve US customers.</span>
+                              </label>
+                              <label class="admin-services__msd-scope-option">
+                                <input type="radio" name="msdStateScope" value="only" id="msdScopeOnly" />
+                                <span class="admin-services__msd-scope-label" data-i18n="common.admin_services.documents.scope_only">Only these states</span>
+                                <span class="admin-services__msd-scope-desc lhai-help" data-i18n="common.admin_services.documents.scope_only_desc">Select every state where this document applies.</span>
+                              </label>
+                              <label class="admin-services__msd-scope-option">
+                                <input type="radio" name="msdStateScope" value="except" id="msdScopeExcept" />
+                                <span class="admin-services__msd-scope-label" data-i18n="common.admin_services.documents.scope_except">All states except these</span>
+                                <span class="admin-services__msd-scope-desc lhai-help" data-i18n="common.admin_services.documents.scope_except_desc">Select states to exclude; all others stay included.</span>
+                              </label>
+                            </fieldset>
+                            <div id="manageServiceDocumentStatePickerWrap" class="admin-services__msd-picker-wrap" hidden>
+                              <p class="lhai-label u-mb-2" id="manageServiceDocumentPickerLabel" data-i18n="common.admin_services.documents.picker_label">Select states</p>
+                              <div class="admin-services__msd-picker-toolbar u-mb-2">
+                                <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceDocumentStateSelectAll" data-i18n="common.admin_services.documents.picker_all">Select all</button>
+                                <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceDocumentStateClear" data-i18n="common.admin_services.documents.picker_clear">Clear</button>
+                              </div>
+                              <div id="manageServiceDocumentStatePicker" class="admin-services__msd-state-grid" role="group" aria-labelledby="manageServiceDocumentPickerLabel"></div>
+                              <p class="lhai-help u-mt-2" data-i18n="common.admin_services.documents.picker_help">Customers do not see this picker — only the resulting guidance in messages and email.</p>
+                            </div>
+                          </section>
+
+                          <section class="admin-services__intake-form-section admin-services__doc-section" aria-labelledby="manageServiceDocumentSecTiming">
+                            <h4 class="admin-services__intake-section-title" id="manageServiceDocumentSecTiming" data-i18n="common.admin_services.documents.sec_timing_condition">Timing &amp; condition</h4>
+                            <label class="lhai-label" for="manageServiceDocumentTiming" data-i18n="common.admin_services.documents.label_timing">When it is needed</label>
+                            <input class="lhai-input" id="manageServiceDocumentTiming" type="text" maxlength="500" placeholder="e.g. Within 7 days of payment" autocomplete="off" />
+                            <label class="lhai-label u-mt-2" for="manageServiceDocumentConditionJson" data-i18n="common.admin_services.documents.label_condition_friendly">Extra condition rule (optional)</label>
+                            <p class="lhai-help" data-i18n="common.admin_services.documents.condition_help">For advanced workflows only. Valid JSON object, or leave empty. Not shown to customers as raw data.</p>
+                            <textarea class="lhai-textarea admin-services__doc-condition-textarea" id="manageServiceDocumentConditionJson" rows="3" placeholder="{ }"></textarea>
+                          </section>
+
+                          <section class="admin-services__intake-form-section admin-services__intake-form-actions-section admin-services__doc-section" aria-labelledby="manageServiceDocumentSecActions">
+                            <h4 class="admin-services__intake-section-title visually-hidden" id="manageServiceDocumentSecActions">Actions</h4>
+                            <div class="lhai-dialog__actions admin-services__intake-dialog-actions">
+                              <button type="button" class="lhai-button lhai-button--primary" id="manageServiceDocumentDialogSaveBtn" data-i18n="common.actions.save">Save</button>
+                              <button type="button" class="lhai-button lhai-button--secondary" id="manageServiceDocumentDialogCancelBtn" data-i18n="common.actions.cancel">Cancel</button>
+                            </div>
+                          </section>
+                        </form>
+                      </dialog>
 
                       <dialog class="lhai-dialog admin-services__intake-dialog" id="manageServiceIntakeFieldDialog" aria-labelledby="manageServiceIntakeDialogTitle">
                         <form class="admin-services__intake-dialog-form" id="manageServiceIntakeFieldForm">

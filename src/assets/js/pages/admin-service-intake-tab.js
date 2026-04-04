@@ -2,6 +2,7 @@
  * Required Customer Info tab — service-linked intake (admin-service-intake API).
  */
 import { serviceIntakeAdminApi } from "../core/api.js";
+import { msdOnServiceContextChanged, msdRefresh } from "./admin-service-documents-tab.js";
 import { t } from "../core/i18n-client.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
 import { qs, qsa, safeText } from "../core/utils.js";
@@ -60,24 +61,49 @@ function msiSortedFields() {
   return [...msiFields].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 }
 
-function msiSwitchTab(which) {
+function setServiceEditorTab(which) {
   const detailsBtn = qs("#manageServiceTabDetailsBtn");
   const intakeBtn = qs("#manageServiceTabIntakeBtn");
+  const docsBtn = qs("#manageServiceTabDocumentsBtn");
   const detailsPanel = qs("#manageServiceDetailsPanel");
   const intakePanel = qs("#manageServiceIntakePanel");
+  const docsPanel = qs("#manageServiceDocumentsPanel");
   if (!detailsPanel || !intakePanel) return;
-  const showIntake = which === "intake";
+
+  let showDetails = which === "details";
+  let showIntake = which === "intake";
+  let showDocs = which === "documents" && docsPanel;
+  if (which === "documents" && !docsPanel) {
+    showDetails = true;
+    showIntake = false;
+    showDocs = false;
+  }
+
   if (detailsBtn) {
-    detailsBtn.classList.toggle("is-active", !showIntake);
-    detailsBtn.setAttribute("aria-selected", showIntake ? "false" : "true");
+    detailsBtn.classList.toggle("is-active", showDetails);
+    detailsBtn.setAttribute("aria-selected", showDetails ? "true" : "false");
   }
   if (intakeBtn) {
     intakeBtn.classList.toggle("is-active", showIntake);
     intakeBtn.setAttribute("aria-selected", showIntake ? "true" : "false");
   }
-  detailsPanel.hidden = showIntake;
+  if (docsBtn) {
+    docsBtn.classList.toggle("is-active", showDocs);
+    docsBtn.setAttribute("aria-selected", showDocs ? "true" : "false");
+  }
+
+  detailsPanel.hidden = !showDetails;
   intakePanel.hidden = !showIntake;
+  if (docsPanel) docsPanel.hidden = !showDocs;
+
   if (showIntake) void msiRefresh();
+  if (showDocs) void msdRefresh();
+}
+
+/** @deprecated internal — use setServiceEditorTab */
+function msiSwitchTab(which) {
+  if (which === "intake") setServiceEditorTab("intake");
+  else setServiceEditorTab("details");
 }
 
 function msiRenderTechnical() {
@@ -397,11 +423,14 @@ export async function msiRefresh() {
 
 export function msiOnServiceContextChanged() {
   const intakeBtn = qs("#manageServiceTabIntakeBtn");
+  const docsBtn = qs("#manageServiceTabDocumentsBtn");
   const id = qs("#manageServiceId")?.value?.trim() || "";
   if (intakeBtn) intakeBtn.disabled = !id;
+  if (docsBtn) docsBtn.disabled = !id;
+  msdOnServiceContextChanged();
   msiUpdateIntakeHint();
   if (!id) {
-    msiSwitchTab("details");
+    setServiceEditorTab("details");
     msiTemplate = null;
     msiFields = [];
     msiRenderFieldCards();
@@ -410,6 +439,9 @@ export function msiOnServiceContextChanged() {
   }
   if (qs("#manageServiceIntakePanel") && !qs("#manageServiceIntakePanel").hidden) {
     void msiRefresh();
+  }
+  if (qs("#manageServiceDocumentsPanel") && !qs("#manageServiceDocumentsPanel").hidden) {
+    void msdRefresh();
   }
 }
 
@@ -746,8 +778,12 @@ export function initManageServiceIntakeTab() {
   qsa("#manageServiceEditorTabs [data-service-editor-tab]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const tab = btn.getAttribute("data-service-editor-tab");
-      if (tab === "intake" && btn.disabled) return;
-      msiSwitchTab(tab === "intake" ? "intake" : "details");
+      if ((tab === "intake" || tab === "documents") && btn.disabled) return;
+      if (tab === "details" || tab === "intake" || tab === "documents") {
+        setServiceEditorTab(tab);
+      } else {
+        setServiceEditorTab("details");
+      }
     });
   });
 

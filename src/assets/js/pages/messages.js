@@ -106,6 +106,25 @@ function renderInvoiceSentLinksHtml(message) {
   return `<div class="lhai-quote-proposed-links">${parts.join(" ")}</div>`;
 }
 
+/** 결제 완료 후 필수 서류 안내 — 문서 센터를 메시지함에서 바로 열 수 있게 함 */
+function renderPaymentCompletedLinksHtml(message) {
+  if (!message || typeof message !== "object") return "";
+  if (String(message.event_code || "") !== "payment.completed") return "";
+
+  const invoiceId =
+    String(message.linked_invoice_id || "").trim() || extractInvoiceIdFromText(message.body);
+  const parts = [
+    `<a class="lhai-button lhai-button--secondary lhai-quote-proposed-link" href="documents.html">문서 센터 (Documents)</a>`,
+  ];
+  if (invoiceId) {
+    const href = `invoice-detail.html?invoice_id=${encodeURIComponent(invoiceId)}`;
+    parts.push(
+      `<a class="lhai-button lhai-button--secondary lhai-quote-proposed-link" href="${href}">관련 청구서 (Invoice)</a>`
+    );
+  }
+  return `<div class="lhai-quote-proposed-links">${parts.join(" ")}</div>`;
+}
+
 function renderThreadList(threads = []) {
   const container = document.querySelector("#messageListContainer");
   if (!container) return;
@@ -158,7 +177,7 @@ function renderChatBubbles() {
         <div class="lhai-chat-bubble ${bubbleClass}">
           ${titleLine}
           <p class="lhai-chat-bubble__body">${safeText(m.body)}</p>
-          ${mine ? "" : `${renderQuoteProposedLinksHtml(m)}${renderInvoiceSentLinksHtml(m)}`}
+          ${mine ? "" : `${renderQuoteProposedLinksHtml(m)}${renderInvoiceSentLinksHtml(m)}${renderPaymentCompletedLinksHtml(m)}`}
           <time class="lhai-chat-bubble__time" datetime="${safeText(m.created_at)}">${formatMessageTimestamp(m.created_at)}</time>
         </div>
       </div>`;

@@ -216,8 +216,9 @@ const timelineApi = {
     } catch {
       await mockDelay();
       return [
-        { id: "tl-1", title: "Kickoff complete", dueDate: "2026-04-01", status: "done" },
-        { id: "tl-2", title: "Document review", dueDate: "2026-04-03", status: "in_progress" },
+        { id: "tl-1", title: "Request received", dueDate: "2026-04-01", status: "done" },
+        { id: "tl-2", title: "Quote and invoice", dueDate: "2026-04-08", status: "in_progress" },
+        { id: "tl-3", title: "Payment", dueDate: "2026-04-20", status: "upcoming" },
       ];
     }
   },
@@ -227,8 +228,8 @@ const checklistApi = {
   async listByCustomer(customerId) {
     await mockDelay();
     return [
-      { id: "cl-1", label: "Submit ID document", done: true, required: true },
-      { id: "cl-2", label: "Approve quote", done: false, required: true },
+      { id: "cl-1", label: "Review quote", done: true, required: true },
+      { id: "cl-2", label: "Complete invoice payment", done: false, required: true },
     ];
   },
 };
@@ -241,25 +242,33 @@ const dashboardApi = {
       await mockDelay();
       return {
         customer_profile_id: customerProfileId,
-        current_service_status: "Document review stage",
-        next_action: "Upload signed consent form and review proposed invoice.",
+        current_service_status: "Awaiting payment",
+        next_action: "Open your invoice and complete payment to activate your service.",
         payment_status: "Pending payment",
-        schedule_status: "Awaiting final confirmation",
+        schedule_status: "After payment",
         ai_assistant_quick_link: "/src/pages/ai-assistant.html",
-        checklist_summary: { total: 8, completed: 5, required_remaining: 2, next_required_item: "Upload signed consent form" },
+        checklist_summary: {
+          total: 5,
+          completed: 2,
+          required_remaining: 1,
+          next_required_item: "Complete invoice payment",
+        },
         status_cards: [
-          { key: "service", label: "Service Status", value: "In Progress", state: "info" },
+          { key: "service", label: "Service Status", value: "Pending activation", state: "info" },
           { key: "payment", label: "Payment", value: "Pending", state: "warning" },
-          { key: "documents", label: "Documents", value: "2 Under Review", state: "warning" },
+          { key: "documents", label: "Documents", value: "After payment", state: "neutral" },
           { key: "schedule", label: "Schedule", value: "Draft Proposed", state: "neutral" },
         ],
         recent_messages: [
-          { id: "msg-1", title: "Operator update", preview: "Please upload signed consent form.", created_at: "2026-03-27T10:00:00Z" },
+          {
+            id: "msg-1",
+            title: "Invoice ready",
+            preview: "Open the invoice from messages or email to review and pay.",
+            created_at: "2026-03-27T10:00:00Z",
+          },
         ],
-        document_status: [
-          { id: "doc-1", name: "ID verification.pdf", status: "APPROVED", updated_at: "2026-03-26" },
-        ],
-        recent_activity: ["Quote transitioned to PROPOSED", "Invoice draft created"],
+        document_status: [],
+        recent_activity: ["Quote transitioned to PROPOSED", "Invoice draft created", "Awaiting payment to start delivery"],
       };
     }
   },
@@ -269,10 +278,10 @@ const dashboardApi = {
     } catch {
       await mockDelay();
       return {
-        total: 8,
-        completed: 5,
-        required_remaining: 2,
-        next_required_item: "Upload signed consent form",
+        total: 5,
+        completed: 2,
+        required_remaining: 1,
+        next_required_item: "Complete invoice payment",
       };
     }
   },
@@ -580,9 +589,14 @@ const paymentApi = {
         invoice_status: "PAID",
         message: "Mock payment success.",
         checklist_stub: { created: true },
-        document_request_stub: { created: true },
-        in_app_message_stub: { created: true },
-        email_logs_stub: [],
+        document_request_stub: { created: true, count: 2, source: "required_documents_templates", requests: [] },
+        in_app_message_stub: {
+          created: true,
+          event_code: "payment.completed",
+          channels: ["in_app_message", "email_log"],
+          note: "Mock: same channels as backend after payment success.",
+        },
+        email_logs_stub: [{ template: "payment_completed_notice", to: "demo@customer.com", status: "queued" }],
         mocked: true,
       };
     }
@@ -598,9 +612,14 @@ const paymentApi = {
         payment_status: "FAILED",
         invoice_status: "FAILED",
         message: "Mock payment failure.",
-        checklist_stub: { created: true },
-        document_request_stub: { created: true },
-        in_app_message_stub: { created: true },
+        checklist_stub: { created: false, items: [] },
+        document_request_stub: {
+          created: false,
+          count: 0,
+          source: "required_documents_templates",
+          requests: [],
+        },
+        in_app_message_stub: { created: false, event_code: "", channels: [], note: "" },
         email_logs_stub: [],
         mocked: true,
       };
@@ -617,9 +636,14 @@ const paymentApi = {
         payment_status: "CANCELED",
         invoice_status: "CANCELED",
         message: "Mock payment canceled.",
-        checklist_stub: { created: true },
-        document_request_stub: { created: true },
-        in_app_message_stub: { created: true },
+        checklist_stub: { created: false, items: [] },
+        document_request_stub: {
+          created: false,
+          count: 0,
+          source: "required_documents_templates",
+          requests: [],
+        },
+        in_app_message_stub: { created: false, event_code: "", channels: [], note: "" },
         email_logs_stub: [],
         mocked: true,
       };
@@ -931,6 +955,21 @@ const documentsApi = {
       versionLabel: document.version_label,
       reviewStatus: document.review_status,
     }));
+  },
+};
+
+/** 고객 필수 서류(결제 완료·요청 생성 후) — GET /api/customer/required-documents */
+const requiredDocumentsCustomerApi = {
+  async list(customerProfileId) {
+    const cp = customerProfileId || "profile::demo@customer.com";
+    try {
+      return await tryBackendGet(
+        `/api/customer/required-documents?customer_profile_id=${encodeURIComponent(cp)}`
+      );
+    } catch {
+      await mockDelay();
+      return [];
+    }
   },
 };
 
@@ -2800,6 +2839,53 @@ const serviceIntakeAdminApi = {
   },
 };
 
+/** Admin: Required Documents (post-payment) per ServiceItem. /api/admin/service-documents/... */
+const serviceDocumentsAdminApi = {
+  async getEditorBundle(serviceItemId, params = {}) {
+    const q = new URLSearchParams();
+    if (params.include_archived_items != null) q.set("include_archived_items", String(params.include_archived_items));
+    if (params.include_inactive_items != null) q.set("include_inactive_items", String(params.include_inactive_items));
+    const queryStr = q.toString();
+    const path = `/api/admin/service-documents/service-items/${encodeURIComponent(serviceItemId)}/editor${queryStr ? `?${queryStr}` : ""}`;
+    return await tryBackendGet(path);
+  },
+
+  async ensureTemplate(serviceItemId, body = {}) {
+    return await tryBackendPost(
+      `/api/admin/service-documents/service-items/${encodeURIComponent(serviceItemId)}/template/ensure`,
+      body
+    );
+  },
+
+  async createItem(serviceItemId, payload) {
+    return await tryBackendPost(
+      `/api/admin/service-documents/service-items/${encodeURIComponent(serviceItemId)}/items`,
+      payload
+    );
+  },
+
+  async updateItem(serviceItemId, itemId, payload) {
+    return await tryBackendPatch(
+      `/api/admin/service-documents/service-items/${encodeURIComponent(serviceItemId)}/items/${encodeURIComponent(itemId)}`,
+      payload
+    );
+  },
+
+  async reorderItems(serviceItemId, orderedItemIds) {
+    return await tryBackendPost(
+      `/api/admin/service-documents/service-items/${encodeURIComponent(serviceItemId)}/items/reorder`,
+      { ordered_item_ids: orderedItemIds }
+    );
+  },
+
+  async archiveItem(serviceItemId, itemId, archived = true) {
+    return await tryBackendPatch(
+      `/api/admin/service-documents/service-items/${encodeURIComponent(serviceItemId)}/items/${encodeURIComponent(itemId)}/archive`,
+      { archived }
+    );
+  },
+};
+
 /** Customer: browse categories & services (no prices). GET /api/service-catalog/browse/... */
 const serviceCatalogBrowseApi = {
   async listCategories() {
@@ -3559,6 +3645,7 @@ export {
   apiFetch,
   checklistApi,
   documentsApi,
+  requiredDocumentsCustomerApi,
   scheduleApi,
   invoiceApi,
   messagesApi,
@@ -3570,6 +3657,7 @@ export {
   serviceCatalogAdminApi,
   surveyBuilderAdminApi,
   serviceIntakeAdminApi,
+  serviceDocumentsAdminApi,
   serviceCatalogBrowseApi,
   serviceIntakeCustomerApi,
   userCustomerApi,

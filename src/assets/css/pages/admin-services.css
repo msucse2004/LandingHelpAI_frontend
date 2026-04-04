@@ -795,6 +795,259 @@
   word-break: break-word;
 }
 
+/* Required Documents tab (post-payment) */
+.admin-services__documents-sublead {
+  max-width: 42rem;
+  color: var(--lhai-color-text-muted, #9aa3b2);
+}
+
+.admin-services__doc-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.admin-services__doc-section-title {
+  font-size: var(--lhai-font-size-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--lhai-color-text-muted, #9aa3b2);
+  margin: 0 0 var(--lhai-space-2);
+}
+
+.admin-services__doc-card {
+  padding: var(--lhai-space-4);
+  margin-bottom: var(--lhai-space-3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--lhai-radius-lg, 12px);
+  border-left: 3px solid rgba(100, 180, 255, 0.45);
+}
+
+.admin-services__doc-card--archived {
+  opacity: 0.72;
+  border-left-color: rgba(255, 255, 255, 0.15);
+}
+
+.admin-services__doc-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--lhai-space-3);
+}
+
+.admin-services__doc-card-title {
+  font-weight: 700;
+  font-size: var(--lhai-font-size-lg);
+  margin: 0;
+}
+
+.admin-services__doc-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+}
+
+.admin-services__doc-card-meta,
+.admin-services__doc-card-help {
+  margin-top: var(--lhai-space-2);
+  margin-bottom: 0;
+  font-size: var(--lhai-font-size-sm);
+}
+
+.admin-services__doc-state-block {
+  margin-top: var(--lhai-space-3);
+}
+
+.admin-services__doc-condition-textarea {
+  font-family: ui-monospace, monospace;
+  font-size: var(--lhai-font-size-xs);
+}
+
+/* Required Documents — create/edit dialog */
+.admin-services__doc-dialog {
+  max-width: min(44rem, 96vw);
+}
+
+.admin-services__doc-dialog-form {
+  max-height: min(85vh, 48rem);
+  overflow-y: auto;
+  padding-right: var(--lhai-space-1);
+}
+
+.admin-services__doc-dialog-header {
+  margin-bottom: var(--lhai-space-4);
+  padding-bottom: var(--lhai-space-3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-services__doc-dialog-head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lhai-space-3);
+  margin-bottom: var(--lhai-space-2);
+}
+
+.admin-services__msd-mode-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  font-size: var(--lhai-font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-radius: 999px;
+  background: rgba(100, 180, 255, 0.2);
+  color: var(--lhai-color-text, #e8eaed);
+}
+
+.admin-services__doc-dialog-form.is-msd-edit .admin-services__msd-mode-badge {
+  background: rgba(255, 200, 120, 0.2);
+}
+
+.admin-services__doc-dialog-title {
+  margin: 0;
+  flex: 1;
+  min-width: 12rem;
+}
+
+.admin-services__doc-dialog-lead {
+  margin: 0;
+  max-width: 40rem;
+}
+
+.admin-services__doc-section {
+  padding-bottom: var(--lhai-space-3);
+  margin-bottom: var(--lhai-space-3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.admin-services__doc-section:last-of-type {
+  border-bottom: none;
+}
+
+.admin-services__msd-segment {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: var(--lhai-radius-md, 10px);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 2px;
+}
+
+.admin-services__msd-segment-btn {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.45rem 1rem;
+  font-size: var(--lhai-font-size-sm);
+  font-weight: 600;
+  color: var(--lhai-color-text-muted, #9aa3b2);
+  background: transparent;
+  border-radius: calc(var(--lhai-radius-md, 10px) - 4px);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.admin-services__msd-segment-btn:hover {
+  color: var(--lhai-color-text, #e8eaed);
+}
+
+.admin-services__msd-segment-btn.is-active {
+  background: rgba(100, 180, 255, 0.25);
+  color: var(--lhai-color-text, #e8eaed);
+}
+
+.admin-services__msd-scope-fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-2);
+}
+
+.admin-services__msd-scope-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: var(--lhai-space-3);
+  row-gap: 0.15rem;
+  align-items: start;
+  padding: var(--lhai-space-3);
+  border-radius: var(--lhai-radius-md, 10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+
+.admin-services__msd-scope-option:has(input:focus-visible) {
+  outline: 2px solid rgba(100, 180, 255, 0.6);
+  outline-offset: 2px;
+}
+
+.admin-services__msd-scope-option input[type="radio"] {
+  margin-top: 0.2rem;
+  grid-row: 1 / span 2;
+}
+
+.admin-services__msd-scope-label {
+  font-weight: 600;
+  font-size: var(--lhai-font-size-sm);
+}
+
+.admin-services__msd-scope-desc {
+  grid-column: 2;
+  margin: 0;
+  font-size: var(--lhai-font-size-xs);
+}
+
+.admin-services__msd-picker-wrap {
+  margin-top: var(--lhai-space-3);
+  padding: var(--lhai-space-3);
+  border-radius: var(--lhai-radius-md, 10px);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-services__msd-picker-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+}
+
+.admin-services__msd-state-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: var(--lhai-space-2);
+  max-height: 14rem;
+  overflow-y: auto;
+  padding: var(--lhai-space-2);
+  border-radius: var(--lhai-radius-sm);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.admin-services__msd-state-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--lhai-radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: var(--lhai-font-size-xs);
+  cursor: pointer;
+  user-select: none;
+}
+
+.admin-services__msd-state-chip:has(input:checked) {
+  border-color: rgba(100, 180, 255, 0.55);
+  background: rgba(100, 180, 255, 0.12);
+}
+
+.admin-services__msd-state-chip input {
+  margin: 0;
+  flex-shrink: 0;
+}
+
 .admin-services__intake-dialog {
   max-width: min(40rem, 96vw);
   padding: var(--lhai-space-5);

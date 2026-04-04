@@ -13,7 +13,29 @@
     <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
     <main class="lhai-main">
       <section class="lhai-page-header">
-        <div><h1 class="lhai-title">문서 센터</h1><p class="lhai-subtitle">파일을 올리고 검토 상태를 확인하며 발급 문서에 접근합니다.</p></div>
+        <div>
+          <h1 class="lhai-title" id="documentsPageTitle" data-i18n="customer.documents.page_title">문서 센터</h1>
+          <p class="lhai-subtitle" id="documentsPageSubtitle" data-i18n="customer.documents.page_subtitle">
+            파일을 올리고 검토 상태를 확인하며 발급 문서에 접근합니다.
+          </p>
+        </div>
+      </section>
+
+      <section class="lhai-card" id="documentsPrePaymentGate" hidden>
+        <h2 class="lhai-card__title" id="documentsGateTitle" data-i18n="customer.documents.gate.title">결제 완료 후 이용 가능</h2>
+        <p class="lhai-help u-mt-2" id="documentsGateBody" data-i18n="customer.documents.gate.body"></p>
+      </section>
+
+      <div id="documentsGatedContent" hidden>
+      <section class="lhai-card lhai-required-docs-section" id="customerRequiredDocsSection" hidden>
+        <h2 class="lhai-card__title" data-i18n="customer.documents.required.section_title">필수 서류 (서비스 준비)</h2>
+        <p class="lhai-help u-mt-1" data-i18n="customer.documents.required.section_lead"></p>
+        <p class="lhai-help u-mt-2" id="customerRequiredDocsStatus" aria-live="polite"></p>
+        <div class="lhai-required-docs-list u-mt-2" id="customerRequiredDocsList"></div>
+        <p class="lhai-help u-mt-3">
+          <a class="lhai-required-docs-msglink" href="../pages/messages.html" data-i18n="customer.documents.required.link_messages"
+            >메시지함에서 안내 확인</a>
+        </p>
       </section>
 
       <section class="lhai-card lhai-doc-center">
@@ -41,6 +63,7 @@
         <article class="lhai-card"><h2 class="lhai-card__title">위임장</h2><div id="sectionPowerOfAttorney"></div></article>
         <article class="lhai-card"><h2 class="lhai-card__title">완료 관련 문서</h2><div id="sectionCompletionDocuments"></div></article>
       </section>
+      </div>
     </main>
   </div>
   <script type="module" src="../assets/js/core/app-header.js"></script>

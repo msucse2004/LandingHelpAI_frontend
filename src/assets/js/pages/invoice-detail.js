@@ -12,6 +12,9 @@ function qs(selector) {
   return document.querySelector(selector);
 }
 
+/** 직후 `markSuccess` 응답 — 문서 건수 표시에 한 번만 사용 */
+let lastPaymentSuccessApiResult = null;
+
 function setMessage(message) {
   const el = qs("#invoiceStatusMessage");
   if (el) el.textContent = message || "";
@@ -525,13 +528,72 @@ function renderInvoiceAmountSummary(invoice, quote) {
   }
 }
 
-function renderAfterPaymentList() {
+/**
+ * 결제 완료(PAID)일 때만 ‘다음 단계’ 패널을 표시한다. 결제 전에는 필수 서류·체크리스트 성격의 상세 안내를 두지 않는다.
+ * 직전 결제 성공 API 응답에 서류 건수가 있으면 한 줄 힌트로 표시한다.
+ * @param {Record<string, unknown>} invoice
+ */
+function syncPostPaymentContinuationPanel(invoice) {
+  const panel = qs("#invoicePostPayContinuation");
+  if (!panel) return;
+
+  const st = String(invoice?.status || "").toUpperCase();
+  if (st !== "PAID") {
+    panel.hidden = true;
+    return;
+  }
+
+  panel.hidden = false;
+
+  const stub =
+    lastPaymentSuccessApiResult &&
+    typeof lastPaymentSuccessApiResult === "object" &&
+    lastPaymentSuccessApiResult.document_request_stub;
+  const countRaw =
+    stub && typeof stub === "object" && stub !== null && "count" in stub ? stub.count : undefined;
+  const count = typeof countRaw === "number" ? countRaw : null;
+
+  const hint = qs("#invoicePostPayDocCountHint");
+  if (hint) {
+    if (count !== null && count > 0) {
+      const tpl = t("customer.invoice.postpay.docs_count", "");
+      hint.hidden = false;
+      hint.textContent = tpl.includes("{n}") ? tpl.split("{n}").join(String(count)) : `${tpl} (${count})`;
+    } else {
+      hint.hidden = true;
+      hint.textContent = "";
+    }
+  }
+}
+
+function renderAfterPaymentList(invoice) {
+  const st = String(invoice?.status || "").toUpperCase();
+  const paid = st === "PAID";
+  const mainH = qs("#invoiceAfterMainHeading");
+  const intro = qs("#invoiceAfterIntro");
+  const sub = qs("#invoiceAfterSubhead");
+  if (mainH) {
+    mainH.textContent = paid
+      ? t("customer.invoice.after.section_main_title", "")
+      : t("customer.invoice.before_pay.section_main_title", "");
+  }
+  if (intro) {
+    intro.textContent = paid
+      ? t("customer.invoice.after.section_intro", "")
+      : t("customer.invoice.before_pay.section_intro", "");
+  }
+  if (sub) {
+    sub.textContent = paid
+      ? t("customer.invoice.after.subsection_next_steps", "")
+      : t("customer.invoice.before_pay.subsection_next_steps", "");
+  }
   const ol = qs("#invoiceAfterList");
   if (!ol) return;
   ol.innerHTML = "";
+  const prefix = paid ? "customer.invoice.after" : "customer.invoice.before_pay.after";
   for (let i = 1; i <= 5; i += 1) {
     const li = document.createElement("li");
-    li.textContent = t(`customer.invoice.after.${i}`, "");
+    li.textContent = t(`${prefix}.${i}`, "");
     ol.appendChild(li);
   }
 }
@@ -772,6 +834,8 @@ function renderInvoice(invoice, quote = null) {
   renderInvoiceParties(invoice, quote);
   renderInvoiceScopeSection(invoice, quote);
   renderInvoiceAmountSummary(invoice, quote);
+  renderAfterPaymentList(invoice);
+  syncPostPaymentContinuationPanel(invoice);
 }
 
 /**
@@ -820,6 +884,7 @@ function renderPaymentResult(result, success) {
 async function handlePaymentSuccess(paymentId, invoiceId) {
   const result = await paymentApi.markSuccess(paymentId);
   if (!result) return;
+  lastPaymentSuccessApiResult = result;
   renderPaymentResult(result, true);
   patchState({
     dashboardSummary: {
@@ -842,6 +907,12 @@ async function handlePaymentSuccess(paymentId, invoiceId) {
   );
   const refreshed = await resolveInvoiceForDisplay(invoiceId);
   renderInvoice(refreshed.invoice, refreshed.quote);
+  lastPaymentSuccessApiResult = null;
+  try {
+    qs("#invoicePostPayContinuation")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } catch {
+    /* non-browser */
+  }
 }
 
 async function initInvoiceDetailPage() {
@@ -912,7 +983,6 @@ async function initInvoiceDetailPage() {
   applyI18nToDom(document);
 
   patchState({ invoice });
-  renderAfterPaymentList();
   renderInvoice(invoice, quote);
 
   await resolveAppHeaderShell({ variant: "customer" });

@@ -1,5 +1,6 @@
 import { serviceCatalogAdminApi } from "../core/api.js";
 import { initManageServiceIntakeTab, msiOnServiceContextChanged } from "./admin-service-intake-tab.js";
+import { initManageServiceDocumentsTab } from "./admin-service-documents-tab.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { loadSidebar } from "../components/sidebar.js";
 import { initI18nDomains, t } from "../core/i18n-client.js";
@@ -3963,6 +3964,7 @@ async function initAdminServicesUcdPage() {
   ucdRenderManage();
   ucdBindManageEvents();
   initManageServiceIntakeTab();
+  initManageServiceDocumentsTab();
   return true;
 }
 

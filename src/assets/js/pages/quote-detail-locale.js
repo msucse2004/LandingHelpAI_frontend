@@ -34,7 +34,7 @@ const KO = {
   "common.sidebar.placeholder.todo": "사이드바를 불러오는 중입니다…",
   "common.service_flow.delivery.ai_guide.badge": "AI 안내",
   "common.service_flow.delivery.ai_guide.explain":
-    "다음 할 일, 제출할 서류, 아직 부족한 항목을 앱에서 단계별로 안내합니다.",
+    "다음 할 일과 진행 단계를 앱에서 순서대로 안내합니다. (운영에서 정한 필수 서류 요청은 결제 완료 후에 별도로 안내됩니다.)",
   "common.service_flow.delivery.in_person.badge": "대면·현장 지원",
   "common.service_flow.delivery.in_person.explain":
     "패키지에 포함된 경우 전화·미팅·방문 등 사람이 직접 조율하는 지원이 포함됩니다. 채팅만으로 끝나지 않습니다.",
@@ -98,7 +98,7 @@ const KO = {
   "customer.quote.ai.delivery_multi_hint": "아래 항목에서 실제로 어떤 의미인지 자세히 적어 두었습니다.",
   "customer.quote.ai.team_note_label": "팀 안내",
   "customer.quote.ai.help.ai_guide.1":
-    "다음 할 일, 제출할 서류, 빠진 항목을 보여 주어 진행이 멈추지 않도록 돕습니다.",
+    "다음 할 일과 아직 채워야 할 항목을 보여 주어 진행이 멈추지 않도록 돕습니다.",
   "customer.quote.ai.help.ai_guide.2":
     "양식 용어를 쉬운 말로 설명하되, 이 견적 범위 안에서만 안내합니다.",
   "customer.quote.ai.help.in_person.1":
@@ -131,8 +131,9 @@ const KO = {
   "customer.quote.whats_next.step_help": "먼저 질문이 있으면 도움 요청을 쓰거나 팀과의 스레드에 남겨 주세요.",
   "customer.quote.whats_next.approved_pay":
     "메시지함·이메일의 청구서 링크를 열어 금액·납기를 확인한 뒤 결제를 진행해 주세요.",
-  "customer.quote.whats_next.approved_workflow": "결제가 확인되면 팀이 대시보드에서 다음 업무(체크리스트 등)를 안내합니다.",
-  "customer.quote.whats_next.approved_help": "일정·금액·서류가 불분명하면 메시지로 회신해 주세요.",
+  "customer.quote.whats_next.approved_workflow":
+    "결제가 확인되면 팀이 대시보드와 메시지함에서 다음 업무를 안내합니다. 필수 제출 서류 목록은 결제 완료 후에 전달됩니다.",
+  "customer.quote.whats_next.approved_help": "일정·금액이 불분명하면 메시지로 회신해 주세요.",
   "customer.quote.whats_next.closed_no_action": "이 견적에 대해 더 하실 작업은 없습니다.",
   "customer.quote.whats_next.closed_reach_out":
     "여전히 지원이 필요하면 범위 조정이나 다른 옵션을 위해 팀에 메시지를 보내 주세요.",
@@ -179,7 +180,7 @@ const KO = {
   "customer.quote.feedback.reject_submitting": "거절 내용을 서버에 전송하는 중입니다…",
   "customer.quote.feedback.approved_title": "승인이 완료되었습니다",
   "customer.quote.feedback.approved_body":
-    "청구서가 생성되어 인앱 메시지함과 등록 이메일로 발송되었습니다. 메시지 또는 메일의 링크에서 청구서를 연 뒤 금액·납기를 확인하고 결제를 완료해 주세요. 결제 후에는 대시보드에서 다음 단계를 이어갈 수 있습니다.",
+    "청구서가 생성되어 인앱 메시지함과 등록 이메일로 발송되었습니다. 메시지 또는 메일의 링크에서 청구서를 연 뒤 금액·납기를 확인하고 결제를 완료해 주세요. 결제가 완료된 뒤에 필요 서류·다음 단계가 메시지함과 문서 센터로 안내됩니다.",
   "customer.quote.feedback.rejected_title": "이 견적은 거절 처리되었습니다",
   "customer.quote.feedback.rejected_body":
     "이 견적에 대한 요금은 청구되지 않습니다. 나중에 다른 옵션이 필요하면 메시지로 문의해 주세요.",
@@ -209,7 +210,7 @@ const EN = {
   "common.sidebar.placeholder.todo": "Loading sidebar…",
   "common.service_flow.delivery.ai_guide.badge": "AI guide",
   "common.service_flow.delivery.ai_guide.explain":
-    "Digital steps, checklists, and uploads—so you always know what to do next.",
+    "Clear next steps in the app. Formal required-document requests are sent only after you complete payment.",
   "common.service_flow.delivery.in_person.badge": "In-person support",
   "common.service_flow.delivery.in_person.explain":
     "Includes coordinated human or on-site help where your package says so, not chat-only.",
@@ -273,7 +274,7 @@ const EN = {
   "customer.quote.ai.delivery_multi_hint": "The bullets below spell out what that means in practice.",
   "customer.quote.ai.team_note_label": "Note from your team",
   "customer.quote.ai.help.ai_guide.1":
-    "Shows the next task, what to upload, and what is still missing so the case does not stall.",
+    "Highlights the next task and what is still missing so the case does not stall.",
   "customer.quote.ai.help.ai_guide.2":
     "Explains form fields and jargon in plain language while staying inside this quote’s scope.",
   "customer.quote.ai.help.in_person.1":
@@ -306,8 +307,9 @@ const EN = {
   "customer.quote.whats_next.step_help": "Questions first? Use Ask for help or write in your existing thread with the team.",
   "customer.quote.whats_next.approved_pay":
     "Open the invoice link from your messages or email, confirm the amount and due date, then complete payment.",
-  "customer.quote.whats_next.approved_workflow": "After payment is confirmed, the team will guide your next steps (checklist, tasks) from your dashboard.",
-  "customer.quote.whats_next.approved_help": "Reply in messages if dates, amounts, or documents need clarification.",
+  "customer.quote.whats_next.approved_workflow":
+    "After payment is confirmed, the team guides next steps via your dashboard and messages. Required document requests appear only after payment.",
+  "customer.quote.whats_next.approved_help": "Reply in messages if dates or amounts need clarification.",
   "customer.quote.whats_next.closed_no_action": "You do not need to take further action on this quote.",
   "customer.quote.whats_next.closed_reach_out":
     "If you still need support, message the team to adjust the scope or explore another option.",
@@ -355,7 +357,7 @@ const EN = {
   "customer.quote.feedback.reject_submitting": "Submitting your decision…",
   "customer.quote.feedback.approved_title": "Approval complete",
   "customer.quote.feedback.approved_body":
-    "An invoice was created and sent to your in-app messages and registered email. Open it from either place, confirm the amount and due date, and complete payment. After payment, continue with the next steps on your dashboard.",
+    "An invoice was created and sent to your in-app messages and registered email. Open it from either place, confirm the amount and due date, and complete payment. Required documents and detailed next steps are provided only after payment, via messages and the Documents page.",
   "customer.quote.feedback.rejected_title": "This quote was declined",
   "customer.quote.feedback.rejected_body":
     "You will not be charged for this quote. Message the team if you would like a different option later.",

@@ -450,3 +450,51 @@
 .lhai-invoice-actions__secondary a[hidden] {
   display: none !important;
 }
+
+/* 결제 완료 후 — 준비 서류·메시지함 안내 */
+.lhai-invoice-postpay-continuation {
+  border: 1px solid rgba(110, 168, 254, 0.28);
+  background: linear-gradient(160deg, rgba(18, 42, 78, 0.35) 0%, rgba(8, 18, 36, 0.55) 100%);
+  padding: var(--lhai-space-4, 1rem) var(--lhai-space-4, 1rem) var(--lhai-space-5, 1.25rem);
+  border-radius: var(--lhai-radius-md, 8px);
+}
+
+.lhai-invoice-postpay-continuation[hidden] {
+  display: none !important;
+}
+
+.lhai-invoice-postpay__bullets {
+  margin: 0;
+  padding-left: 1.25rem;
+  line-height: 1.65;
+  color: var(--lhai-color-text, #e2e8f0);
+  font-size: var(--lhai-font-size-sm, 0.92rem);
+}
+
+.lhai-invoice-postpay__bullets li + li {
+  margin-top: 0.4rem;
+}
+
+.lhai-invoice-postpay__channels {
+  font-weight: 500;
+  color: var(--lhai-color-text, #e2e8f0);
+  border-left: 3px solid rgba(110, 168, 254, 0.55);
+  padding-left: var(--lhai-space-3, 0.75rem);
+}
+
+.lhai-invoice-postpay__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2, 0.5rem);
+  align-items: center;
+}
+
+.lhai-invoice-postpay__cta--secondary {
+  opacity: 0.92;
+}
+
+.lhai-invoice-postpay__legal-hint {
+  font-size: var(--lhai-font-size-xs, 0.82rem);
+  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.62));
+  line-height: 1.55;
+}

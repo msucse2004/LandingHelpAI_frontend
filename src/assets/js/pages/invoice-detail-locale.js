@@ -150,9 +150,19 @@ const KO = {
   "customer.invoice.after.subsection_next_steps": "결제 이후 다음 단계",
   "customer.invoice.after.1": "결제가 정상적으로 확인·반영됩니다.",
   "customer.invoice.after.2": "결제 완료 시점부터 계약이 유효하며, 약속된 범위에 맞춰 진행됩니다.",
-  "customer.invoice.after.3": "대시보드와 메시지함에서 다음 할 일·체크리스트·필요 서류 제출 안내를 받으실 수 있습니다.",
+  "customer.invoice.after.3":
+    "메시지함·등록 이메일과 「문서」센터에서 다음 할 일과 필요 서류 안내를 받으실 수 있습니다. 대시보드에서도 진행 요약을 확인할 수 있습니다.",
   "customer.invoice.after.4": "안내에 따라 준비가 완료되면, 합의된 범위에 따라 서비스 제공이 순서대로 시작됩니다.",
   "customer.invoice.after.5": "진행 중 궁금한 점은 이 앱의 메시지함으로 편하게 문의해 주세요.",
+  "customer.invoice.before_pay.section_main_title": "결제를 완료하신 뒤 진행",
+  "customer.invoice.before_pay.section_intro":
+    "아래는 결제를 마친 뒤의 일반적인 흐름입니다. 구체적인 필수 서류·제출 목록은 결제 완료 후에만 안내됩니다.",
+  "customer.invoice.before_pay.subsection_next_steps": "결제 완료 후 예상 단계",
+  "customer.invoice.before_pay.after.1": "결제가 정상적으로 확인·반영됩니다.",
+  "customer.invoice.before_pay.after.2": "결제 완료 시점부터 계약이 유효하며, 합의된 범위에 따라 서비스가 시작됩니다.",
+  "customer.invoice.before_pay.after.3": "이후 단계·일정 안내는 메시지함·이메일 등으로 전달됩니다.",
+  "customer.invoice.before_pay.after.4": "팀 안내에 따라 준비가 완료되면, 합의된 범위에 따라 서비스 제공이 순서대로 이어집니다.",
+  "customer.invoice.before_pay.after.5": "진행 중 궁금한 점은 이 앱의 메시지함으로 편하게 문의해 주세요.",
   "customer.invoice.pay_button": "웹에서 결제하기",
   "customer.invoice.action.helper_web_only": "이 버튼으로 진행하는 결제는 이 웹 화면에서만 이루어집니다.",
   "customer.invoice.action.helper_contract": "결제가 완료되면 계약이 성립하고, 합의된 범위에 따라 서비스 진행이 시작됩니다.",
@@ -161,11 +171,29 @@ const KO = {
   "customer.invoice.action.view_quote": "관련 견적 보기",
   "customer.invoice.action.view_pdf": "청구서 PDF 보기",
   "customer.invoice.pay_processing": "결제를 준비하는 중입니다…",
-  "customer.invoice.pay_success": "결제가 완료되었습니다. 대시보드에서 다음 단계를 확인해 주세요.",
+  "customer.invoice.pay_success":
+    "결제가 완료되었습니다. 메시지함과 문서 센터에서 다음 단계·필수 서류 안내를 확인해 주세요.",
   "customer.invoice.pay_error": "결제 처리 중 문제가 발생했습니다. 잠시 후 다시 시도하거나 메시지함으로 문의해 주세요.",
   "customer.invoice.result_title": "결제 결과",
   "customer.invoice.result_success_detail":
     "결제가 정상적으로 반영되었습니다. 서비스 제공은 계약·결제 완료 후 순차적으로 시작됩니다.",
+  "customer.invoice.postpay.section_title": "다음 단계 — 준비 서류 확인",
+  "customer.invoice.postpay.lead":
+    "결제가 완료되었습니다. 계약이 성립되었고 서비스 준비가 시작되었습니다. 아래에서 안내를 확인한 뒤 바로 이동해 주세요.",
+  "customer.invoice.postpay.bullet_payment": "결제가 정상적으로 완료·확인되었습니다.",
+  "customer.invoice.postpay.bullet_contract": "위 ‘계약·청구 범위 안내’와 같이, 결제 완료 시 계약이 성립하고 합의된 범위가 적용됩니다.",
+  "customer.invoice.postpay.bullet_prep": "선택하신 서비스에 맞춰 준비 및 진행 단계가 시작됩니다.",
+  "customer.invoice.postpay.bullet_docs":
+    "이제 진행에 필요한 서류 목록을 확인하실 수 있습니다. 결제 전에는 표시되지 않았을 수 있습니다.",
+  "customer.invoice.postpay.channels_primary":
+    "안내의 중심은 인앱 메시지함과 등록하신 이메일입니다. 같은 내용을 문서 센터에서도 확인해 주세요.",
+  "customer.invoice.postpay.docs_count": "지금 확인·제출할 서류 요청은 {n}건입니다.",
+  "customer.invoice.postpay.actions_aria": "결제 완료 후 이동할 화면",
+  "customer.invoice.postpay.cta_documents": "필수 서류 확인 (문서 센터)",
+  "customer.invoice.postpay.cta_messages": "메시지함 열기",
+  "customer.invoice.postpay.cta_dashboard": "대시보드 (요약)",
+  "customer.invoice.postpay.legal_align":
+    "범위·책임 한도는 이 청구서 상단의 계약·청구 범위 안내와 동일합니다. 세부 서류·일정은 메시지함·이메일로 이어집니다.",
   "customer.invoice.status.SENT": "결제 대기",
   "customer.invoice.status.DRAFT": "작성 중",
   "customer.invoice.status.PAID": "결제 완료",
@@ -317,9 +345,19 @@ const EN = {
   "customer.invoice.after.subsection_next_steps": "Next steps after payment",
   "customer.invoice.after.1": "Your payment is confirmed and recorded.",
   "customer.invoice.after.2": "From that point, the contract is in effect and work proceeds under the agreed scope.",
-  "customer.invoice.after.3": "Your dashboard and messages will guide you with next tasks, checklists, and any documents we need from you.",
+  "customer.invoice.after.3":
+    "Your in-app inbox, registered email, and the Documents section will carry next steps and required-file guidance. You can also review a summary on your dashboard.",
   "customer.invoice.after.4": "Once those steps are complete, service delivery continues in order under the agreed scope.",
   "customer.invoice.after.5": "If you have questions along the way, message us anytime in the app.",
+  "customer.invoice.before_pay.section_main_title": "After you complete payment",
+  "customer.invoice.before_pay.section_intro":
+    "Below is the usual flow after payment. Required-document requests and upload tasks are provided only after payment succeeds.",
+  "customer.invoice.before_pay.subsection_next_steps": "Typical steps after payment",
+  "customer.invoice.before_pay.after.1": "Your payment is confirmed and recorded.",
+  "customer.invoice.before_pay.after.2": "From that point, the contract is in effect and work begins under the agreed scope.",
+  "customer.invoice.before_pay.after.3": "Next steps and scheduling guidance are delivered via messages and email.",
+  "customer.invoice.before_pay.after.4": "Once you follow team guidance, service delivery continues in order under the agreed scope.",
+  "customer.invoice.before_pay.after.5": "If you have questions along the way, message us anytime in the app.",
   "customer.invoice.pay_button": "Pay on the web",
   "customer.invoice.action.helper_web_only": "Payment from this button is web-only on this site.",
   "customer.invoice.action.helper_contract": "Completing payment forms the contract and starts the agreed service workflow.",
@@ -328,11 +366,30 @@ const EN = {
   "customer.invoice.action.view_quote": "View related quote",
   "customer.invoice.action.view_pdf": "View invoice PDF",
   "customer.invoice.pay_processing": "Preparing checkout…",
-  "customer.invoice.pay_success": "Payment completed. Check your dashboard for next steps.",
+  "customer.invoice.pay_success":
+    "Payment completed. Check Messages and the Documents page for required files and next steps.",
   "customer.invoice.pay_error": "We could not complete payment. Please try again or message the team.",
   "customer.invoice.result_title": "Payment result",
   "customer.invoice.result_success_detail":
     "Your payment was recorded. Service will proceed in order after contract and payment are complete.",
+  "customer.invoice.postpay.section_title": "Next — review required documents",
+  "customer.invoice.postpay.lead":
+    "Your payment is complete. Your agreement is in effect and service preparation has started. Review the guidance below, then continue in the app.",
+  "customer.invoice.postpay.bullet_payment": "Your payment has been completed and confirmed.",
+  "customer.invoice.postpay.bullet_contract":
+    "As in the Contract & billing scope notice above, completing payment forms the contract and the agreed scope applies.",
+  "customer.invoice.postpay.bullet_prep": "We are starting preparation and next steps for the services you selected.",
+  "customer.invoice.postpay.bullet_docs":
+    "Required documents for your case can now be reviewed. They were not shown before payment by design.",
+  "customer.invoice.postpay.channels_primary":
+    "Your in-app message inbox and the email on your account are the main channels for follow-up. Please also open Documents for the checklist.",
+  "customer.invoice.postpay.docs_count": "You have {n} document request(s) to review or submit.",
+  "customer.invoice.postpay.actions_aria": "Where to go after payment",
+  "customer.invoice.postpay.cta_documents": "View required documents",
+  "customer.invoice.postpay.cta_messages": "Open inbox / messages",
+  "customer.invoice.postpay.cta_dashboard": "Dashboard (summary)",
+  "customer.invoice.postpay.legal_align":
+    "Scope and limits match the Contract & billing scope notice on this invoice. Details for files and timing continue in messages and email.",
   "customer.invoice.status.SENT": "Awaiting payment",
   "customer.invoice.status.DRAFT": "Draft",
   "customer.invoice.status.PAID": "Paid",

@@ -147,8 +147,8 @@
 
         <section class="lhai-invoice-after-payment" id="invoiceAfterPaymentSection" aria-labelledby="invoiceAfterMainHeading">
           <h2 class="lhai-card__title" id="invoiceAfterMainHeading" data-i18n="customer.invoice.after.section_main_title"></h2>
-          <p class="lhai-help u-mt-1" data-i18n="customer.invoice.after.section_intro"></p>
-          <h3 class="lhai-invoice-after-payment__subhead u-mt-3" data-i18n="customer.invoice.after.subsection_next_steps"></h3>
+          <p class="lhai-help u-mt-1" id="invoiceAfterIntro" data-i18n="customer.invoice.after.section_intro"></p>
+          <h3 class="lhai-invoice-after-payment__subhead u-mt-3" id="invoiceAfterSubhead" data-i18n="customer.invoice.after.subsection_next_steps"></h3>
           <ol class="lhai-invoice-customer__after-list lhai-invoice-after-payment__list" id="invoiceAfterList"></ol>
         </section>
 
@@ -176,6 +176,53 @@
           <h2 class="lhai-card__title" data-i18n="customer.invoice.result_title">결제 결과</h2>
           <p class="u-text-muted u-mt-2" id="paymentResultMessage">-</p>
           <p class="lhai-help u-mt-2" id="paymentResultDetail" hidden></p>
+        </section>
+
+        <section
+          class="lhai-card lhai-invoice-postpay-continuation u-mt-3"
+          id="invoicePostPayContinuation"
+          hidden
+          aria-labelledby="invoicePostPayHeading"
+        >
+          <h2 class="lhai-card__title" id="invoicePostPayHeading" data-i18n="customer.invoice.postpay.section_title">
+            다음 단계 — 준비 서류
+          </h2>
+          <p class="lhai-help u-mt-1" data-i18n="customer.invoice.postpay.lead">
+            결제가 완료되었습니다. 아래를 확인한 뒤 바로 이동해 주세요.
+          </p>
+          <ul class="lhai-invoice-postpay__bullets u-mt-2">
+            <li data-i18n="customer.invoice.postpay.bullet_payment"></li>
+            <li data-i18n="customer.invoice.postpay.bullet_contract"></li>
+            <li data-i18n="customer.invoice.postpay.bullet_prep"></li>
+            <li data-i18n="customer.invoice.postpay.bullet_docs"></li>
+          </ul>
+          <p class="lhai-help u-mt-3 lhai-invoice-postpay__channels" data-i18n="customer.invoice.postpay.channels_primary"></p>
+          <p class="lhai-help u-mt-1" id="invoicePostPayDocCountHint" hidden></p>
+          <nav
+            class="lhai-invoice-postpay__actions u-mt-3"
+            aria-label=""
+            data-i18n-aria-label="customer.invoice.postpay.actions_aria"
+          >
+            <a
+              class="lhai-button lhai-button--primary"
+              id="invoicePostPayCtaDocuments"
+              href="../pages/documents.html"
+              data-i18n="customer.invoice.postpay.cta_documents"
+              >필수 서류 확인</a>
+            <a
+              class="lhai-button lhai-button--secondary"
+              id="invoicePostPayCtaMessages"
+              href="../pages/messages.html"
+              data-i18n="customer.invoice.postpay.cta_messages"
+              >메시지함</a>
+            <a
+              class="lhai-button lhai-button--secondary lhai-invoice-postpay__cta--secondary"
+              id="invoicePostPayCtaDashboard"
+              href="../pages/dashboard.html"
+              data-i18n="customer.invoice.postpay.cta_dashboard"
+              >대시보드</a>
+          </nav>
+          <p class="lhai-help u-mt-3 lhai-invoice-postpay__legal-hint" data-i18n="customer.invoice.postpay.legal_align"></p>
         </section>
 
         <p class="lhai-help u-mt-2" id="invoiceStatusMessage" role="status" aria-live="polite"></p>
