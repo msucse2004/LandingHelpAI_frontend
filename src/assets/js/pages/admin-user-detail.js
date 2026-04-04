@@ -1,7 +1,8 @@
 import { getCurrentRole } from "../core/auth.js";
-import { adminApi, messagesApi } from "../core/api.js";
+import { adminApi, invoiceApi, messagesApi, quoteApi } from "../core/api.js";
 import { protectCurrentPage } from "../core/guards.js";
 import { canManageLowerTierRole } from "../core/role-tiers.js";
+import { formatDate, formatMoney } from "../core/utils.js";
 
 const detailAlert = document.getElementById("detailAlert");
 const detailCard = document.getElementById("detailCard");
@@ -28,6 +29,79 @@ function escapeHtml(s) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+async function renderQuotesAndInvoices(customerProfileRef) {
+  const quotesCard = document.getElementById("quotesCard");
+  const invoicesCard = document.getElementById("invoicesCard");
+  const quotesList = document.getElementById("adminUserQuotesList");
+  const invoicesList = document.getElementById("adminUserInvoicesList");
+  if (!quotesCard || !invoicesCard || !quotesList || !invoicesList) return;
+  const ref = String(customerProfileRef || "").trim();
+  if (!ref) {
+    quotesCard.hidden = true;
+    invoicesCard.hidden = true;
+    return;
+  }
+  quotesCard.hidden = false;
+  invoicesCard.hidden = false;
+  quotesList.innerHTML = `<p class="lhai-help">불러오는 중…</p>`;
+  invoicesList.innerHTML = `<p class="lhai-help">불러오는 중…</p>`;
+  try {
+    const [quotes, invoices] = await Promise.all([quoteApi.list("", ref), invoiceApi.list("", ref)]);
+    const qRows = Array.isArray(quotes) ? quotes : [];
+    const iRows = Array.isArray(invoices) ? invoices : [];
+    qRows.sort((a, b) => {
+      const ta = new Date(a.updated_at || a.created_at || 0).getTime();
+      const tb = new Date(b.updated_at || b.created_at || 0).getTime();
+      return tb - ta;
+    });
+    iRows.sort((a, b) => {
+      const ta = new Date(a.created_at || a.updated_at || 0).getTime();
+      const tb = new Date(b.created_at || b.updated_at || 0).getTime();
+      return tb - ta;
+    });
+
+    if (!qRows.length) {
+      quotesList.innerHTML = `<p class="lhai-help">연결된 견적이 없습니다.</p>`;
+    } else {
+      quotesList.innerHTML = `<ul class="lhai-list">
+        ${qRows
+          .map((q) => {
+            const id = String(q.id || "").trim();
+            const href = `admin-quote-prepare.html?id=${encodeURIComponent(id)}`;
+            const name = escapeHtml(String(q.customer_display_name || q.service_name || "견적"));
+            const svc = escapeHtml(String(q.service_name || "—"));
+            const st = escapeHtml(String(q.status || ""));
+            const when = escapeHtml(formatDate(q.updated_at || q.created_at));
+            return `<li class="lhai-list__item"><a href="${href}"><strong>${name}</strong></a><div class="u-text-muted u-mt-1">${when} · ${svc} · 상태 ${st} · <code>${escapeHtml(id)}</code></div></li>`;
+          })
+          .join("")}
+      </ul>`;
+    }
+
+    if (!iRows.length) {
+      invoicesList.innerHTML = `<p class="lhai-help">연결된 청구서가 없습니다.</p>`;
+    } else {
+      invoicesList.innerHTML = `<ul class="lhai-list">
+        ${iRows
+          .map((inv) => {
+            const id = String(inv.id || "").trim();
+            const href = `invoice-detail.html?invoice_id=${encodeURIComponent(id)}`;
+            const svc = escapeHtml(String(inv.service_name || "—"));
+            const st = escapeHtml(String(inv.status || ""));
+            const when = escapeHtml(formatDate(inv.created_at || inv.updated_at));
+            const cur = String(inv.currency || "USD").trim() || "USD";
+            const amt = escapeHtml(formatMoney(Number(inv.amount_due || 0), cur));
+            return `<li class="lhai-list__item"><a href="${href}"><strong>${svc}</strong></a><div class="u-text-muted u-mt-1">${when} · ${amt} · 상태 ${st} · <code>${escapeHtml(id)}</code></div></li>`;
+          })
+          .join("")}
+      </ul>`;
+    }
+  } catch {
+    quotesList.innerHTML = `<p class="lhai-field-error">견적 목록을 불러오지 못했습니다.</p>`;
+    invoicesList.innerHTML = `<p class="lhai-field-error">청구서 목록을 불러오지 못했습니다.</p>`;
+  }
 }
 
 async function renderMessageSessions(d) {
@@ -70,10 +144,12 @@ async function renderMessageSessions(d) {
 
 function renderDetail(d) {
   if (!detailDl || !detailCard) return;
+  const profileRef = (d.customer_profile_ref || `profile::${d.email}` || "").trim();
   const rows = [
     ["아이디", d.username || "—"],
     ["이름", d.full_name || "—"],
     ["이메일", d.email],
+    ["고객 프로필 참조", profileRef || "—"],
     ["역할", d.role],
     ["가입 상태", membershipLabel(d.membership_status)],
     ["이메일 인증", d.email_verified ? "완료" : "미완료"],
@@ -143,6 +219,9 @@ function setupRegistrationEdit(accountId, d) {
         renderDetail(d2);
         emailVerifiedEl.value = d2.email_verified ? "true" : "false";
         membershipEl.value = d2.membership_status === "active" ? "active" : "pending_verification";
+        const pr2 = (d2.customer_profile_ref || `profile::${d2.email}` || "").trim();
+        void renderQuotesAndInvoices(pr2);
+        void renderMessageSessions(d2);
         setupDeleteZone(id, d2);
       } catch (e) {
         setRegEditAlert(`저장 실패: ${e.message || e}`, { error: true });
@@ -197,10 +276,12 @@ async function main() {
   setAlert("불러오는 중…");
   try {
     const d = await adminApi.getAuthAccount(accountId);
+    const profileRef = (d.customer_profile_ref || `profile::${d.email}` || "").trim();
     setAlert("");
     renderDetail(d);
     setupRegistrationEdit(accountId, d);
     await renderMessageSessions(d);
+    await renderQuotesAndInvoices(profileRef);
     setupDeleteZone(accountId, d);
   } catch (e) {
     setAlert(`불러오지 못했습니다. ${e.message || e}`, { error: true });

@@ -18,7 +18,21 @@
 
       <section class="lhai-grid">
         <article class="lhai-card lhai-quote-list">
-          <h2 class="lhai-card__title">견적 목록</h2>
+          <div class="lhai-admin-quotes__toolbar">
+            <h2 class="lhai-card__title lhai-admin-quotes__title">견적 목록</h2>
+            <div class="lhai-admin-quotes__filter">
+              <label class="lhai-label lhai-admin-quotes__filter-label" for="adminQuoteStatusFilter">상태로 조회</label>
+              <select class="lhai-select lhai-admin-quotes__select" id="adminQuoteStatusFilter" aria-describedby="adminQuoteStatusFilterHelp">
+                <option value="">전체</option>
+                <option value="DRAFT">초안 (DRAFT)</option>
+                <option value="PROPOSED">제안됨 (PROPOSED)</option>
+                <option value="APPROVED">승인됨 (APPROVED)</option>
+                <option value="REJECTED">거절 (REJECTED)</option>
+                <option value="EXPIRED">만료 (EXPIRED)</option>
+              </select>
+            </div>
+          </div>
+          <p class="lhai-help u-mb-2" id="adminQuoteStatusFilterHelp">상태를 바꾸면 해당 견적만 불러옵니다. 필터는 주소의 <code>?status=</code>와 맞춰 저장되므로 링크로 공유할 수 있습니다.</p>
           <div id="adminQuoteList"></div>
         </article>
       </section>

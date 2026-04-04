@@ -53,6 +53,16 @@
         <p class="lhai-help u-mb-2">해당 회원의 메시지함에서 대화 내용을 확인합니다. 스레드가 있으면 바로 열 수 있습니다.</p>
         <div id="messageSessionsList"></div>
       </section>
+      <section class="lhai-card u-mt-4" id="quotesCard" hidden>
+        <h2 class="lhai-card__title">견적</h2>
+        <p class="lhai-help u-mb-2">데이터베이스에 저장된 견적 중 이 회원 프로필(<code>customer_profile_ref</code>)과 연결된 항목입니다. 항목을 누르면 견적 초안·검토 화면으로 이동합니다.</p>
+        <div id="adminUserQuotesList"></div>
+      </section>
+      <section class="lhai-card u-mt-4" id="invoicesCard" hidden>
+        <h2 class="lhai-card__title">청구서</h2>
+        <p class="lhai-help u-mb-2">데이터베이스에 저장된 청구서 중 이 회원과 연결된 항목입니다. 항목을 누르면 청구서 상세 화면으로 이동합니다.</p>
+        <div id="adminUserInvoicesList"></div>
+      </section>
       <section class="lhai-card u-mt-4" id="dangerZone" hidden aria-labelledby="dangerTitle">
         <h2 class="lhai-card__title" id="dangerTitle">계정 삭제</h2>
         <p class="lhai-help u-mb-3">삭제하면 되돌릴 수 없습니다. 데모 시드 계정은 삭제할 수 없습니다.</p>

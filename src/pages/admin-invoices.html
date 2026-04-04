@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Admin Invoices - Landing Help AI</title>
+  <title>청구서 관리 - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/admin-invoices.css" />
@@ -12,32 +12,25 @@
   <div class="lhai-layout">
     <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial admin-sidebar.html --></aside>
     <main class="lhai-main">
-      <section class="lhai-page-header"><div><h1 class="lhai-title">Invoices</h1><p class="lhai-subtitle">Invoice monitoring and collection status.</p></div></section>
-      <section class="lhai-invoice-layout">
+      <section class="lhai-page-header"><div><h1 class="lhai-title">청구서</h1><p class="lhai-subtitle">청구 발행·결제·수금 상태를 관리합니다.</p></div></section>
+      <section class="lhai-grid">
         <article class="lhai-card lhai-invoice-list">
-          <h2 class="lhai-card__title">Invoices</h2>
-          <div id="adminInvoiceList"></div>
-        </article>
-        <article class="lhai-card">
-          <h2 class="lhai-card__title">Create / Edit Invoice</h2>
-          <form class="lhai-form" id="adminInvoiceForm">
-            <label class="lhai-label" for="approvedQuoteId">Approved Quote ID</label>
-            <input class="lhai-input" id="approvedQuoteId" name="approvedQuoteId" type="text" placeholder="q-demo-1" />
-            <label class="lhai-label" for="invoiceDueDate">Due date</label>
-            <input class="lhai-input" id="invoiceDueDate" name="invoiceDueDate" type="date" />
-            <label class="lhai-label" for="invoiceInPersonOnly">In-person only</label>
-            <select class="lhai-select" id="invoiceInPersonOnly" name="invoiceInPersonOnly">
-              <option value="false">No</option>
-              <option value="true">Yes</option>
-            </select>
-            <label class="lhai-label" for="invoiceDraftNotes">Draft notes (L3+ in-person-only edit stub)</label>
-            <textarea class="lhai-textarea" id="invoiceDraftNotes" name="invoiceDraftNotes" rows="4"></textarea>
-            <div class="u-flex u-gap-2">
-              <button class="lhai-button lhai-button--primary" type="button" id="createInvoiceBtn">Create from Approved Quote</button>
-              <button class="lhai-button lhai-button--secondary" type="button" id="saveDraftBtn">Save Draft Stub</button>
+          <div class="lhai-admin-invoices__toolbar">
+            <h2 class="lhai-card__title lhai-admin-invoices__title">청구서 목록</h2>
+            <div class="lhai-admin-invoices__filter">
+              <label class="lhai-label lhai-admin-invoices__filter-label" for="adminInvoiceStatusFilter">상태로 조회</label>
+              <select class="lhai-select lhai-admin-invoices__select" id="adminInvoiceStatusFilter" aria-describedby="adminInvoiceStatusFilterHelp">
+                <option value="">전체</option>
+                <option value="DRAFT">초안 (DRAFT)</option>
+                <option value="SENT">발송됨 (SENT)</option>
+                <option value="PAID">결제완료 (PAID)</option>
+                <option value="FAILED">실패 (FAILED)</option>
+                <option value="CANCELED">취소 (CANCELED)</option>
+              </select>
             </div>
-          </form>
-          <p class="lhai-help" id="adminInvoiceStatus">Select an invoice or create from approved quote.</p>
+          </div>
+          <p class="lhai-help u-mb-2" id="adminInvoiceStatusFilterHelp">상태를 바꾸면 해당 청구서만 불러옵니다. 필터는 주소의 <code>?status=</code>와 맞춰 저장됩니다.</p>
+          <div id="adminInvoiceList"></div>
         </article>
       </section>
     </main>

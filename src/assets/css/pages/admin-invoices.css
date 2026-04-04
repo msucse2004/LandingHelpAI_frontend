@@ -1,16 +1,43 @@
-.lhai-invoice-layout {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--lhai-space-4);
+.lhai-admin-invoices__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--lhai-space-3);
+  margin-bottom: var(--lhai-space-2);
+}
+
+.lhai-admin-invoices__title {
+  margin-bottom: 0;
+}
+
+.lhai-admin-invoices__filter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-1);
+  min-width: min(100%, 220px);
+}
+
+.lhai-admin-invoices__filter-label {
+  margin: 0;
+  font-size: var(--lhai-font-size-sm);
+}
+
+.lhai-admin-invoices__select {
+  width: 100%;
 }
 
 .lhai-invoice-list {
-  max-height: 520px;
+  max-height: min(70vh, 640px);
   overflow: auto;
 }
 
-@media (max-width: 960px) {
-  .lhai-invoice-layout {
-    grid-template-columns: 1fr;
-  }
+.lhai-invoice-list button.lhai-list__item {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lhai-invoice-list .lhai-list__item:hover {
+  border-color: rgba(110, 168, 254, 0.35);
 }

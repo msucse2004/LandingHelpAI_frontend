@@ -293,7 +293,7 @@ const quoteApi = {
       return await tryBackendGet(`/api/quotes${query}`);
     } catch {
       await mockDelay();
-      const base = [
+      let rows = [
         {
           id: "q-demo-1",
           customer_profile_id: "profile::demo@customer.com",
@@ -305,9 +305,13 @@ const quoteApi = {
         },
       ];
       if (customerProfileId) {
-        return base.filter((row) => String(row.customer_profile_id || "") === customerProfileId);
+        rows = rows.filter((row) => String(row.customer_profile_id || "") === customerProfileId);
       }
-      return base;
+      if (statusFilter) {
+        const st = String(statusFilter).toUpperCase();
+        rows = rows.filter((row) => String(row.status || "").toUpperCase() === st);
+      }
+      return rows;
     }
   },
   /** Admin: 설문 제출 후 견적 작성이 필요한 Draft 견적 큐 (티어 1–3, JWT). */
@@ -433,12 +437,21 @@ const MOCK_INVOICE_PARTY_BLOCKS = {
 };
 
 const invoiceApi = {
-  async list() {
+  /**
+   * @param {string} [statusFilter] DRAFT|SENT|PAID|…
+   * @param {string} [customerProfileId] profile::email
+   */
+  async list(statusFilter = "", customerProfileId = "") {
+    const q = new URLSearchParams();
+    if (statusFilter) q.set("status", statusFilter);
+    if (customerProfileId) q.set("customer_profile_id", customerProfileId);
+    const qs = q.toString();
+    const query = qs ? `?${qs}` : "";
     try {
-      return await tryBackendGet("/api/invoices");
+      return await tryBackendGet(`/api/invoices${query}`);
     } catch {
       await mockDelay();
-      return [
+      let rows = [
         {
           id: "inv-demo-1",
           quote_id: "q-demo-1",
@@ -456,6 +469,14 @@ const invoiceApi = {
           ...MOCK_INVOICE_PARTY_BLOCKS,
         },
       ];
+      if (statusFilter) {
+        const st = String(statusFilter).toUpperCase();
+        rows = rows.filter((row) => String(row.status || "").toUpperCase() === st);
+      }
+      if (customerProfileId) {
+        rows = rows.filter((row) => String(row.customer_profile_id || "") === customerProfileId);
+      }
+      return rows;
     }
   },
   async createFromApprovedQuote(payload) {
@@ -1025,15 +1046,17 @@ const adminApi = {
     await mockDelay();
     return [{ id: "c-1", name: "Acme Corp", riskLevel: "medium", owner: "Operator A" }];
   },
-  async listQuotes() {
-    return quoteApi.list();
+  /** @param {string} [statusFilter] DRAFT|PROPOSED|APPROVED|… 빈 문자열이면 전체 */
+  async listQuotes(statusFilter = "") {
+    return quoteApi.list(statusFilter);
   },
   async listServices() {
     await mockDelay();
     return [{ id: "svc-1", name: "Starter Landing Package", active: true }];
   },
-  async listInvoices() {
-    return invoiceApi.list();
+  /** @param {string} [statusFilter] @param {string} [customerProfileId] */
+  async listInvoices(statusFilter = "", customerProfileId = "") {
+    return invoiceApi.list(statusFilter, customerProfileId);
   },
   async listRiskCards() {
     try {

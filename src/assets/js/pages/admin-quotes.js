@@ -43,11 +43,20 @@ function renderPrepBanner(rows) {
 
 }
 
-function renderQuoteList(quotes, pendingIds) {
+const QUOTE_STATUS_FILTER_VALUES = new Set(["", "DRAFT", "PROPOSED", "APPROVED", "REJECTED", "EXPIRED"]);
+
+function normalizeStatusFilterParam(raw) {
+  const s = String(raw || "").trim().toUpperCase();
+  if (!s) return "";
+  return QUOTE_STATUS_FILTER_VALUES.has(s) ? s : "";
+}
+
+function renderQuoteList(quotes, pendingIds, emptyMessage) {
   const target = qs("#adminQuoteList");
   if (!target) return;
   if (!quotes.length) {
-    target.innerHTML = "<div class='lhai-state lhai-state--empty'>No quotes available.</div>";
+    const msg = emptyMessage || "표시할 견적이 없습니다.";
+    target.innerHTML = `<div class="lhai-state lhai-state--empty">${safeText(msg)}</div>`;
     return;
   }
 
@@ -77,6 +86,27 @@ function renderQuoteList(quotes, pendingIds) {
   });
 }
 
+function syncQuoteListUrlStatus(statusFilter) {
+  try {
+    const u = new URL(window.location.href);
+    if (statusFilter) u.searchParams.set("status", statusFilter);
+    else u.searchParams.delete("status");
+    window.history.replaceState({}, "", u);
+  } catch {
+    /* non-browser */
+  }
+}
+
+async function loadQuotesForAdmin(statusFilter, pendingIds) {
+  const quotesRaw = await adminApi.listQuotes(statusFilter);
+  const quotes = [...(Array.isArray(quotesRaw) ? quotesRaw : [])].sort((a, b) => {
+    const ao = pendingIds.has(a.id) ? 0 : 1;
+    const bo = pendingIds.has(b.id) ? 0 : 1;
+    return ao - bo;
+  });
+  return quotes;
+}
+
 async function initAdminQuotesPage() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
@@ -88,15 +118,33 @@ async function initAdminQuotesPage() {
   const pendingIds = new Set(pendingRows.map((r) => r.quote_id).filter(Boolean));
   renderPrepBanner(pendingRows);
 
-  const quotesRaw = await adminApi.listQuotes();
-  const quotes = [...quotesRaw].sort((a, b) => {
-    const ao = pendingIds.has(a.id) ? 0 : 1;
-    const bo = pendingIds.has(b.id) ? 0 : 1;
-    return ao - bo;
-  });
-  renderQuoteList(quotes, pendingIds);
-
   const params = new URLSearchParams(window.location.search);
+  const initialStatus = normalizeStatusFilterParam(params.get("status"));
+  const statusSelect = qs("#adminQuoteStatusFilter");
+  if (statusSelect instanceof HTMLSelectElement) {
+    statusSelect.value = initialStatus || "";
+  }
+
+  const emptyMsgForFilter = initialStatus
+    ? `상태가 «${initialStatus}»인 견적이 없습니다. 필터를 바꿔 보세요.`
+    : "표시할 견적이 없습니다.";
+
+  let quotes = await loadQuotesForAdmin(initialStatus, pendingIds);
+  renderQuoteList(quotes, pendingIds, emptyMsgForFilter);
+
+  if (statusSelect instanceof HTMLSelectElement) {
+    statusSelect.addEventListener("change", async () => {
+      const st = normalizeStatusFilterParam(statusSelect.value);
+      statusSelect.value = st || "";
+      syncQuoteListUrlStatus(st);
+      const listEl = qs("#adminQuoteList");
+      if (listEl) listEl.innerHTML = "<div class='lhai-state'>불러오는 중…</div>";
+      quotes = await loadQuotesForAdmin(st, pendingIds);
+      const emptyMsg = st ? `상태가 «${st}»인 견적이 없습니다. 필터를 바꿔 보세요.` : "표시할 견적이 없습니다.";
+      renderQuoteList(quotes, pendingIds, emptyMsg);
+    });
+  }
+
   const prepareId = (params.get("prepare") || "").trim();
   if (prepareId && quotes.some((q) => q.id === prepareId)) {
     window.location.href = `admin-quote-prepare.html?id=${encodeURIComponent(prepareId)}`;

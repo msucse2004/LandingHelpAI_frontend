@@ -1,55 +1,92 @@
 import { invoiceApi } from "../core/api.js";
-import { getCurrentRole } from "../core/auth.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { loadSidebar } from "../components/sidebar.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
+import { formatDate, formatMoney, safeText } from "../core/utils.js";
 
-let selectedInvoiceId = "";
+/** @type {Array<Record<string, unknown>>} */
+let invoicesCache = [];
+
+const INVOICE_STATUS_FILTER_VALUES = new Set(["", "DRAFT", "SENT", "PAID", "FAILED", "CANCELED"]);
+
+function normalizeStatusFilterParam(raw) {
+  const s = String(raw || "").trim().toUpperCase();
+  if (!s) return "";
+  return INVOICE_STATUS_FILTER_VALUES.has(s) ? s : "";
+}
 
 function qs(selector) {
   return document.querySelector(selector);
 }
 
-function setStatus(message) {
-  const status = qs("#adminInvoiceStatus");
-  if (status) status.textContent = message;
+function syncInvoiceListUrlStatus(statusFilter) {
+  try {
+    const u = new URL(window.location.href);
+    if (statusFilter) u.searchParams.set("status", statusFilter);
+    else u.searchParams.delete("status");
+    window.history.replaceState({}, "", u);
+  } catch {
+    /* non-browser */
+  }
 }
 
-function renderInvoiceList(invoices) {
+/** 견적 목록과 동일: 청구 대상 표시명 (billing_to → profile::) */
+function invoiceListCustomerTitle(inv) {
+  const bt = inv && typeof inv.billing_to === "object" && inv.billing_to ? inv.billing_to : {};
+  const name = String(bt.full_name || "").trim();
+  if (name) return name;
+  const cp = String(inv.customer_profile_id || "").trim();
+  if (cp.toLowerCase().startsWith("profile::")) {
+    const rest = cp.slice("profile::".length).trim();
+    return rest || "고객";
+  }
+  return cp || "고객";
+}
+
+function renderInvoiceList(invoices, emptyMessage) {
+  invoicesCache = Array.isArray(invoices) ? invoices : [];
   const target = qs("#adminInvoiceList");
   if (!target) return;
-  if (!invoices.length) {
-    target.innerHTML = "<div class='lhai-state lhai-state--empty'>No invoices yet.</div>";
+  if (!invoicesCache.length) {
+    const msg = emptyMessage || "표시할 청구서가 없습니다.";
+    target.innerHTML = `<div class="lhai-state">${safeText(msg)}</div>`;
     return;
   }
-  target.innerHTML = invoices
-    .map(
-      (invoice) => `
-      <button class="lhai-list__item" data-invoice-id="${invoice.id}">
-        <strong>${invoice.id}</strong><br />
-        <span class="u-text-muted">${invoice.service_name || "-"} - ${invoice.status}</span>
-      </button>
-    `
-    )
+  target.innerHTML = invoicesCache
+    .map((invoice) => {
+      const id = String(invoice.id || "").trim();
+      const title = safeText(invoiceListCustomerTitle(invoice));
+      const issued = formatDate(invoice.created_at || invoice.updated_at);
+      const svc = safeText(invoice.service_name || "—");
+      const st = safeText(String(invoice.status || ""));
+      const cur = String(invoice.currency || "USD").trim() || "USD";
+      const amt = formatMoney(Number(invoice.amount_due || 0), cur);
+      return `
+      <button type="button" class="lhai-list__item" data-invoice-id="${safeText(id)}">
+        <strong>${title}</strong><br />
+        <span class="u-text-muted">발행 ${safeText(issued)} · ${svc} · ${amt} · 청구서 ${safeText(id)} · 상태 ${st}</span>
+      </button>`;
+    })
     .join("");
 
   target.querySelectorAll("[data-invoice-id]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      selectedInvoiceId = button.getAttribute("data-invoice-id") || "";
-      if (!selectedInvoiceId) return;
-      const invoice = await invoiceApi.getDetail(selectedInvoiceId);
-      qs("#approvedQuoteId").value = invoice.quote_id || "";
-      qs("#invoiceDueDate").value = invoice.due_date || "";
-      qs("#invoiceInPersonOnly").value = String(Boolean(invoice.in_person_only));
-      qs("#invoiceDraftNotes").value = invoice.draft_notes || "";
-      setStatus(`Selected invoice ${invoice.id}`);
+    button.addEventListener("click", () => {
+      const invoiceId = button.getAttribute("data-invoice-id") || "";
+      if (!invoiceId) return;
+      window.location.href = `invoice-detail.html?invoice_id=${encodeURIComponent(invoiceId)}`;
     });
   });
 }
 
-async function refreshInvoices() {
-  const invoices = await invoiceApi.list();
-  renderInvoiceList(invoices);
+async function loadInvoicesForAdmin(statusFilter) {
+  const raw = await invoiceApi.list(statusFilter);
+  const rows = Array.isArray(raw) ? raw : [];
+  rows.sort((a, b) => {
+    const ta = new Date(a.created_at || a.updated_at || 0).getTime();
+    const tb = new Date(b.created_at || b.updated_at || 0).getTime();
+    return tb - ta;
+  });
+  return rows;
 }
 
 async function initAdminInvoicesPage() {
@@ -57,57 +94,33 @@ async function initAdminInvoicesPage() {
   if (!ensureAdminAccess()) return;
   await loadSidebar("#sidebar", "admin");
   applyI18nToDom(document);
-  const currentRole = getCurrentRole();
-  const l3PlusRoles = ["supervisor", "admin", "super_admin"];
-  const canUseInPersonDraftStub = l3PlusRoles.includes(currentRole);
-  if (!canUseInPersonDraftStub) {
-    qs("#saveDraftBtn").disabled = true;
-    setStatus("Draft editing stub for in-person-only invoices is limited to L3+ roles.");
+
+  const params = new URLSearchParams(window.location.search);
+  const initialStatus = normalizeStatusFilterParam(params.get("status"));
+  const statusSelect = qs("#adminInvoiceStatusFilter");
+  if (statusSelect instanceof HTMLSelectElement) {
+    statusSelect.value = initialStatus || "";
   }
 
-  await refreshInvoices();
+  const emptyMsg = initialStatus
+    ? `상태가 «${initialStatus}»인 청구서가 없습니다. 필터를 바꿔 보세요.`
+    : "표시할 청구서가 없습니다.";
 
-  qs("#createInvoiceBtn")?.addEventListener("click", async () => {
-    const quoteId = qs("#approvedQuoteId").value.trim();
-    if (!quoteId) {
-      setStatus("Approved quote ID is required.");
-      return;
-    }
-    try {
-      const invoice = await invoiceApi.createFromApprovedQuote({
-        quote_id: quoteId,
-        due_date: qs("#invoiceDueDate").value || null,
-        in_person_only: qs("#invoiceInPersonOnly").value === "true",
-        draft_notes: qs("#invoiceDraftNotes").value.trim(),
-      });
-      selectedInvoiceId = invoice.id;
-      setStatus(`Invoice created: ${invoice.id}`);
-      await refreshInvoices();
-    } catch (error) {
-      setStatus(`Create failed: ${error.message}`);
-    }
-  });
+  if (statusSelect instanceof HTMLSelectElement) {
+    statusSelect.addEventListener("change", async () => {
+      const st = normalizeStatusFilterParam(statusSelect.value);
+      statusSelect.value = st || "";
+      syncInvoiceListUrlStatus(st);
+      const listEl = qs("#adminInvoiceList");
+      if (listEl) listEl.innerHTML = "<div class=\"lhai-state\">불러오는 중…</div>";
+      const rows = await loadInvoicesForAdmin(st);
+      const msg = st ? `상태가 «${st}»인 청구서가 없습니다. 필터를 바꿔 보세요.` : "표시할 청구서가 없습니다.";
+      renderInvoiceList(rows, msg);
+    });
+  }
 
-  qs("#saveDraftBtn")?.addEventListener("click", async () => {
-    if (!canUseInPersonDraftStub) {
-      setStatus("L3+ role required for this draft editing stub.");
-      return;
-    }
-    if (!selectedInvoiceId) {
-      setStatus("Select an invoice first for draft editing.");
-      return;
-    }
-    try {
-      await invoiceApi.updateDraft(selectedInvoiceId, {
-        due_date: qs("#invoiceDueDate").value || null,
-        draft_notes: qs("#invoiceDraftNotes").value.trim(),
-      });
-      setStatus("In-person-only draft editing stub saved (L3+ policy to be enforced server-side).");
-      await refreshInvoices();
-    } catch (error) {
-      setStatus(`Draft save failed: ${error.message}`);
-    }
-  });
+  let rows = await loadInvoicesForAdmin(initialStatus);
+  renderInvoiceList(rows, emptyMsg);
 }
 
 initAdminInvoicesPage();

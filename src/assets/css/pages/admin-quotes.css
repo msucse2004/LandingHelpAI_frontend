@@ -10,6 +10,35 @@
   background: rgba(6, 18, 36, 0.2);
 }
 
+.lhai-admin-quotes__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--lhai-space-3);
+  margin-bottom: var(--lhai-space-2);
+}
+
+.lhai-admin-quotes__title {
+  margin-bottom: 0;
+}
+
+.lhai-admin-quotes__filter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-1);
+  min-width: min(100%, 220px);
+}
+
+.lhai-admin-quotes__filter-label {
+  margin: 0;
+  font-size: var(--lhai-font-size-sm);
+}
+
+.lhai-admin-quotes__select {
+  width: 100%;
+}
+
 .lhai-quote-list {
   max-height: 520px;
   overflow: auto;
