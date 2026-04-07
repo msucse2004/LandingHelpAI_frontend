@@ -1,3 +1,190 @@
+.lhai-schedule-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-2);
+}
+
+.lhai-schedule-status-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: rgba(96, 165, 250, 0.15);
+  color: var(--lhai-color-text, #e2e8f0);
+  border: 1px solid rgba(96, 165, 250, 0.35);
+}
+
+.lhai-schedule-status-badge[data-status="CONFIRMED"] {
+  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(52, 211, 153, 0.4);
+}
+
+.lhai-schedule-status-badge[data-status="DRAFT"] {
+  background: rgba(148, 163, 184, 0.12);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.lhai-schedule-status-badge[data-status="REVISED"] {
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.4);
+}
+
+.lhai-schedule-meta {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--lhai-color-text-muted, #94a3b8);
+}
+
+.lhai-schedule-meta strong {
+  color: var(--lhai-color-text, #e2e8f0);
+  font-weight: 600;
+}
+
+.lhai-schedule-release-note {
+  margin: 0;
+  padding: var(--lhai-space-2);
+  border-radius: var(--lhai-radius-sm);
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--lhai-color-border);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.lhai-schedule-hint {
+  margin: var(--lhai-space-2) 0 0;
+  font-size: 0.82rem;
+}
+
+.lhai-schedule-timeline {
+  position: relative;
+  padding-left: 1.25rem;
+  border-left: 2px solid var(--lhai-color-border);
+  margin-left: 0.5rem;
+}
+
+.lhai-schedule-day {
+  position: relative;
+  margin-bottom: var(--lhai-space-4);
+}
+
+.lhai-schedule-day:last-child {
+  margin-bottom: 0;
+}
+
+.lhai-schedule-day__head {
+  display: flex;
+  align-items: center;
+  gap: var(--lhai-space-2);
+  margin-bottom: var(--lhai-space-2);
+}
+
+.lhai-schedule-day__dot {
+  position: absolute;
+  left: calc(-1.25rem - 0.5rem - 5px);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--lhai-color-accent, #60a5fa);
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.9);
+}
+
+.lhai-schedule-day__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.lhai-schedule-day__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-2);
+}
+
+.lhai-schedule-card {
+  display: grid;
+  grid-template-columns: minmax(7rem, 9.5rem) 1fr;
+  gap: var(--lhai-space-3);
+  padding: var(--lhai-space-3);
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-sm);
+  background: rgba(15, 23, 42, 0.35);
+}
+
+@media (max-width: 560px) {
+  .lhai-schedule-card {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lhai-schedule-card__time {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--lhai-color-text, #e2e8f0);
+  line-height: 1.4;
+}
+
+.lhai-schedule-card__dur {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--lhai-color-text-muted, #94a3b8);
+}
+
+.lhai-schedule-card__title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.lhai-schedule-card__delivery {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  color: var(--lhai-color-accent, #93c5fd);
+}
+
+.lhai-schedule-card__note {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--lhai-color-text-muted, #94a3b8);
+}
+
+.lhai-schedule-card__doc {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #fcd34d;
+}
+
+.lhai-schedule-doc-cta {
+  margin-top: var(--lhai-space-3);
+  padding-top: var(--lhai-space-2);
+  border-top: 1px solid var(--lhai-color-border);
+}
+
+.lhai-schedule-doc-link {
+  display: inline-flex;
+}
+
+.lhai-button--ghost {
+  background: transparent;
+  border: 1px solid var(--lhai-color-border);
+  color: var(--lhai-color-text, #e2e8f0);
+}
+
+.lhai-button--ghost:hover {
+  border-color: var(--lhai-color-accent, #60a5fa);
+  color: var(--lhai-color-accent, #93c5fd);
+}
+
 .lhai-schedule-slot {
   padding: var(--lhai-space-2);
   border: 1px solid var(--lhai-color-border);

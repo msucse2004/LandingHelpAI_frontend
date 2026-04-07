@@ -11,6 +11,8 @@ let customerProfileId = "profile::demo@customer.com";
 let threadOwnerProfileId = "";
 
 let selectedThreadId = "";
+/** 스레드 메타(백엔드 thread_role; 단일 고객센터 스레드) */
+let selectedThreadRole = "";
 /** @type {Array<Record<string, unknown>>} */
 let currentThreadMessages = [];
 let chatSendLocked = false;
@@ -18,7 +20,6 @@ let chatSendLocked = false;
 let operatorInboxMode = false;
 /** @type {string} */
 let threadListLoadError = "";
-
 /** @returns {string} optional initial thread id from URL */
 function applyMessagesPageQuery() {
   const q = new URLSearchParams(window.location.search);
@@ -48,6 +49,22 @@ function extractInvoiceIdFromText(text) {
   const s = String(text || "");
   const m = s.match(/[?&]invoice_id=([^&#\s]+)/);
   return m ? decodeURIComponent(m[1]) : "";
+}
+
+function extractScheduleIdFromText(text) {
+  const s = String(text || "");
+  let m = s.match(/[?&]schedule_id=([^&#\s]+)/);
+  if (m) return decodeURIComponent(m[1]);
+  m = s.match(/schedule_id=([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/i);
+  return m ? m[1] : "";
+}
+
+/** 정착 일정 공개 알림 — `event_code` 또는(구버전·메타 누락 시) 제목 패턴 */
+function isScheduleReleasedToCustomerMessage(message) {
+  if (!message || typeof message !== "object") return false;
+  if (String(message.event_code || "").trim() === "schedule.released_to_customer") return true;
+  const t = String(message.title || "");
+  return /정착\s*일정/.test(t) && /준비/.test(t);
 }
 
 function extractMockStoragePdfUrl(text) {
@@ -125,6 +142,29 @@ function renderPaymentCompletedLinksHtml(message) {
   return `<div class="lhai-quote-proposed-links">${parts.join(" ")}</div>`;
 }
 
+/** 정착 일정 고객 공개 알림 — 앱 내 `schedule.html` 버튼 (`linked_schedule_id` 또는 본문 URL) */
+function renderScheduleReleasedLinksHtml(message) {
+  if (!isScheduleReleasedToCustomerMessage(message)) return "";
+  const sid =
+    String(message.linked_schedule_id || "").trim() || extractScheduleIdFromText(message.body);
+  if (!sid) return "";
+  const href = `schedule.html?schedule_id=${encodeURIComponent(sid)}`;
+  return `<div class="lhai-quote-proposed-links"><a class="lhai-button lhai-button--secondary lhai-quote-proposed-link" href="${href}">일정 보기</a></div>`;
+}
+
+/** 본문 끝의 "일정 보기:\\nURL" 블록은 버튼과 중복되므로 표시용 본문에서 제거 */
+function scheduleReleasedMessageDisplayBody(message) {
+  let b = String(message?.body || "");
+  if (!isScheduleReleasedToCustomerMessage(message)) return b;
+  if (!renderScheduleReleasedLinksHtml(message)) return b;
+  const normalized = b.replace(/\r\n/g, "\n");
+  return normalized
+    .replace(/\n*일정 보기:\s*\n\s*https?:\/\/\S+\s*\n*/g, "\n")
+    .replace(/\n*일정 보기:\s*\n\s*[^\n]*schedule_id=[^\n]+\s*\n*/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trimEnd();
+}
+
 function renderThreadList(threads = []) {
   const container = document.querySelector("#messageListContainer");
   if (!container) return;
@@ -176,8 +216,8 @@ function renderChatBubbles() {
       <div class="lhai-chat-row ${mine ? "lhai-chat-row--mine" : "lhai-chat-row--them"}">
         <div class="lhai-chat-bubble ${bubbleClass}">
           ${titleLine}
-          <p class="lhai-chat-bubble__body">${safeText(m.body)}</p>
-          ${mine ? "" : `${renderQuoteProposedLinksHtml(m)}${renderInvoiceSentLinksHtml(m)}${renderPaymentCompletedLinksHtml(m)}`}
+          <p class="lhai-chat-bubble__body">${safeText(scheduleReleasedMessageDisplayBody(m))}</p>
+          ${mine ? "" : `${renderQuoteProposedLinksHtml(m)}${renderInvoiceSentLinksHtml(m)}${renderPaymentCompletedLinksHtml(m)}${renderScheduleReleasedLinksHtml(m)}`}
           <time class="lhai-chat-bubble__time" datetime="${safeText(m.created_at)}">${formatMessageTimestamp(m.created_at)}</time>
         </div>
       </div>`;
@@ -199,19 +239,33 @@ function renderMessageDetailShell() {
     container.innerHTML = "왼쪽에서 대화를 선택하세요.";
     return;
   }
+  const customerExtras =
+    !operatorInboxMode
+      ? `<div class="lhai-messages-ai-scope u-text-muted u-mb-2" role="note">
+           이 대화는 고객센터입니다. 결제가 완료되면 같은 창에서 Landing Help AI Agent가 질문에 이어질 수 있습니다. 운영자 도움이 필요하면 아래 버튼으로 요청을 남겨 주세요.
+         </div>
+         <div class="lhai-messages-ai-escalation u-mb-2">
+           <button type="button" class="lhai-button lhai-button--secondary" id="lhaiEscalateToOpsBtn">운영자에게 요청</button>
+           <button type="button" class="lhai-button lhai-button--secondary" id="lhaiEscalateInPersonBtn">대면 지원 요청</button>
+         </div>`
+      : "";
+  const placeholder = "메시지를 입력하세요";
+  const sendLabel = "보내기";
+
   container.className = "lhai-message-detail lhai-message-detail--chat";
   container.innerHTML = `
     <div class="lhai-chat-header">
       <h3 id="messageChatTitle" class="lhai-chat-header__title">대화</h3>
     </div>
+    ${customerExtras}
     <div id="messageChatScroll" class="lhai-chat-scroll" role="log" aria-live="polite">
       <div id="messageChatStream" class="lhai-chat-stream"></div>
     </div>
     <form id="messageChatForm" class="lhai-chat-composer" autocomplete="off">
       <label class="lhai-chat-composer__field">
-        <textarea id="messageChatInput" class="lhai-chat-composer__input" rows="2" placeholder="메시지를 입력하세요" maxlength="4000" aria-label="메시지 입력"></textarea>
+        <textarea id="messageChatInput" class="lhai-chat-composer__input" rows="2" placeholder="${safeText(placeholder)}" maxlength="4000" aria-label="메시지 입력"></textarea>
       </label>
-      <button type="submit" class="lhai-button lhai-button--primary lhai-chat-composer__send">보내기</button>
+      <button type="submit" class="lhai-button lhai-button--primary lhai-chat-composer__send">${safeText(sendLabel)}</button>
     </form>
   `;
 }
@@ -312,8 +366,6 @@ async function refresh() {
     }
   }
 
-  renderThreadList(threads);
-  renderMessageDetailShell();
   const threadMeta = threads.find((t) => {
     if (operatorInboxMode) {
       return (
@@ -323,6 +375,7 @@ async function refresh() {
     }
     return String(t.thread_id) === selectedThreadId;
   });
+  selectedThreadRole = threadMeta ? String(threadMeta.thread_role || "") : "";
   const headerTitle = threadMeta
     ? String(threadMeta.title)
     : selectedThreadId
@@ -330,12 +383,30 @@ async function refresh() {
         ? "고객센터 대화"
         : `[${customerProfileId}] 정착 서비스`
       : "";
+
+  renderThreadList(threads);
   setDetailHeader(headerTitle);
+  renderMessageDetailShell();
   await loadThreadMessages();
   window.dispatchEvent(new CustomEvent("lhai:messages-changed"));
 }
 
-/** @param {SubmitEvent} event */
+async function escalateToCustomerCenter(body) {
+  if (operatorInboxMode || !customerProfileId || !selectedThreadId) return;
+  try {
+    await messagesApi.sendThreadMessage(body, {
+      threadId: String(selectedThreadId),
+      customerProfileId,
+      title: "요청",
+    });
+    window.alert("이 대화에 요청을 남겼습니다. 운영팀이 같은 스레드에서 답변드립니다.");
+    await refresh();
+  } catch (err) {
+    const msg = err && typeof err.message === "string" ? err.message : "전송에 실패했습니다.";
+    window.alert(msg);
+  }
+}
+
 async function onComposerSubmit(event) {
   event.preventDefault();
   if (!selectedThreadId || chatSendLocked) return;
@@ -380,7 +451,7 @@ async function initMessagesPage() {
   if (subtitle) {
     subtitle.textContent = operatorInboxMode
       ? "가입 고객의 고객센터 스레드입니다. 고객이 보낸 메시지에 같은 대화창에서 답장할 수 있습니다."
-      : "시스템·결제·문서 알림을 스레드로 모아 보고, 카카오톡처럼 답장할 수 있습니다.";
+      : "고객센터 대화 한 곳에서 시스템·결제·문서 알림과 운영 답변을 확인할 수 있습니다. 결제가 완료되면 같은 대화에서 Landing Help AI Agent가 이어질 수 있습니다.";
   }
 
   const initialThreadId = applyMessagesPageQuery();
@@ -389,7 +460,9 @@ async function initMessagesPage() {
   if (!operatorInboxMode && !explicitProfile) {
     customerProfileId = getCustomerMessagingProfileId();
   }
-  if (initialThreadId) selectedThreadId = initialThreadId;
+  if (initialThreadId) {
+    selectedThreadId = initialThreadId;
+  }
 
   const categoryFilter = document.querySelector("#messageCategoryFilter");
   const unreadOnlyFilter = document.querySelector("#messageUnreadOnly");
@@ -417,6 +490,18 @@ async function initMessagesPage() {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       event.target.closest("form")?.requestSubmit();
+    }
+  });
+
+  detail?.addEventListener("click", (event) => {
+    if (event.target.closest("#lhaiEscalateToOpsBtn")) {
+      event.preventDefault();
+      void escalateToCustomerCenter("[운영자 요청] 운영자의 도움이 필요합니다.");
+      return;
+    }
+    if (event.target.closest("#lhaiEscalateInPersonBtn")) {
+      event.preventDefault();
+      void escalateToCustomerCenter("[대면 지원 요청] 대면 지원을 요청드립니다.");
     }
   });
 

@@ -12,26 +12,21 @@
   <div class="lhai-layout">
     <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
     <main class="lhai-main">
-      <section class="lhai-page-header"><div><h1 class="lhai-title">일정 검토</h1><p class="lhai-subtitle">제안된 일정과 사유를 확인하고 확정하거나 조정을 요청하세요.</p></div></section>
+      <section class="lhai-page-header"><div><h1 class="lhai-title">내 일정표</h1><p class="lhai-subtitle">날짜별로 정리된 서비스 일정과 안내를 확인하세요. 변경이 필요하면 아래에서 조정을 요청할 수 있습니다.</p></div></section>
       <section class="lhai-card">
-        <h2 class="lhai-card__title">현재 제안</h2>
+        <h2 class="lhai-card__title">요약</h2>
         <div id="customerScheduleSummary"></div>
       </section>
-      <section class="lhai-grid lhai-grid--2">
-        <article class="lhai-card">
-          <h2 class="lhai-card__title">추천 사유</h2>
-          <div id="customerScheduleReasons"></div>
-        </article>
-        <article class="lhai-card">
-          <h2 class="lhai-card__title">검토·확정 상태</h2>
-          <div id="customerScheduleState"></div>
-        </article>
+      <section class="lhai-card">
+        <h2 class="lhai-card__title">일정 타임라인</h2>
+        <div id="customerScheduleTimeline"></div>
       </section>
       <section class="lhai-card">
-        <h2 class="lhai-card__title">조정 요청 (스텁)</h2>
+        <h2 class="lhai-card__title">일정 조정·도움 요청</h2>
+        <p class="u-text-muted u-mb-2">시간대 변경이나 단계 설명이 필요하면 내용을 남겨 주세요. 담당자가 메시지 또는 일정 수정으로 안내합니다.</p>
         <form id="customerScheduleFeedbackForm">
-          <label class="lhai-field"><span class="lhai-label">조정 요청 내용</span><textarea id="customerScheduleFeedbackInput" rows="3" placeholder="예: 서류 일정 때문에 오후 시간대로 옮겨 주세요."></textarea></label>
-          <button class="lhai-button lhai-button--secondary" type="submit">조정 요청 보내기</button>
+          <label class="lhai-field"><span class="lhai-label">요청 내용</span><textarea id="customerScheduleFeedbackInput" rows="3" placeholder="예: 다음 주 화요일 오후로 옮겨 주세요. 서류 제출 일정과 맞추고 싶어요."></textarea></label>
+          <button class="lhai-button lhai-button--secondary" type="submit">조정·도움 요청 보내기</button>
         </form>
         <p id="customerScheduleFeedbackStatus" class="u-text-muted u-mt-2"></p>
       </section>

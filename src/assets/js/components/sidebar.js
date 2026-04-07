@@ -13,6 +13,7 @@ function basename(pathname) {
 function resolveSidebarActiveHref(currentFile, variant) {
   const adminMap = {
     "admin-user-detail.html": "admin-users.html",
+    "admin-schedule-builder.html": "admin-schedules.html",
     "admin-customer-detail.html": "admin-customers.html",
     "admin-profile.html": "admin-dashboard.html",
     "admin-password.html": "admin-dashboard.html",
@@ -78,14 +79,19 @@ function bindAdminDevResetQuotesInvoices(sidebarRoot) {
   if (!btn) return;
   btn.addEventListener("click", async () => {
     const ok = window.confirm(
-      "개발용: 저장소(DB 또는 메모리)의 모든 견적과 청구서를 삭제합니다. 복구할 수 없습니다. 진행할까요?"
+      "개발용: 저장소(DB 또는 메모리)의 모든 견적·청구서·일정(스케줄 초안·카드·릴리스 기록)과 각 계정 메시지함의 인앱 메시지(및 DB 사용 시 메시지 스레드)를 삭제합니다. 복구할 수 없습니다. 진행할까요?"
     );
     if (!ok) return;
     btn.disabled = true;
     try {
       const result = await adminDevApi.resetQuotesAndInvoices();
+      const sch = result.schedules_deleted != null ? result.schedules_deleted : "—";
+      const msg = result.messages_deleted != null ? result.messages_deleted : "—";
+      const thr = result.message_threads_deleted != null ? result.message_threads_deleted : "—";
+      const thrPart =
+        thr !== "—" && Number(thr) > 0 ? `, 메시지 스레드 ${thr}건` : "";
       window.alert(
-        `삭제 완료: 견적 ${result.quotes_deleted}건, 청구서 ${result.invoices_deleted}건. 관리자 견적·청구서 화면을 새로고침하세요.`
+        `삭제 완료: 견적 ${result.quotes_deleted}건, 청구서 ${result.invoices_deleted}건, 일정 ${sch}건, 메시지 ${msg}건${thrPart}. 관련 화면을 새로고침하세요.`
       );
     } catch (err) {
       const msg = err && typeof err.message === "string" ? err.message : String(err);

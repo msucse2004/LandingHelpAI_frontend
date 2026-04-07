@@ -246,7 +246,7 @@ const dashboardApi = {
         next_action: "Open your invoice and complete payment to activate your service.",
         payment_status: "Pending payment",
         schedule_status: "After payment",
-        ai_assistant_quick_link: "/src/pages/ai-assistant.html",
+        ai_assistant_quick_link: "messages.html",
         checklist_summary: {
           total: 5,
           completed: 2,
@@ -973,6 +973,80 @@ const requiredDocumentsCustomerApi = {
   },
 };
 
+/** 고객용 일정표(비공개 필드 제외) — GET /api/customer/schedules */
+function buildMockCustomerScheduleView(scheduleId) {
+  const t0 = new Date();
+  const d1 = new Date(Date.UTC(t0.getUTCFullYear(), t0.getUTCMonth(), t0.getUTCDate() + 2, 10, 0, 0));
+  const d2 = new Date(Date.UTC(d1.getUTCFullYear(), d1.getUTCMonth(), d1.getUTCDate() + 2, 14, 0, 0));
+  const iso = (d) => d.toISOString().replace(/\.\d{3}Z$/, "Z");
+  const isoNow = iso(t0);
+  const id = String(scheduleId || "sch-demo-1").trim() || "sch-demo-1";
+  return {
+    id,
+    status: "PROPOSED",
+    created_at: isoNow,
+    updated_at: isoNow,
+    last_release: {
+      version_number: 1,
+      released_at: isoNow,
+      release_note: "고객 안내용 첫 일정표입니다.",
+    },
+    items: [
+      {
+        id: "item-mock-1",
+        service_name_snapshot: "입국 후 첫 정착 안내",
+        delivery_type: "ai_guide",
+        scheduled_start: iso(d1),
+        scheduled_end: iso(new Date(d1.getTime() + 90 * 60000)),
+        duration_label: "약 90분",
+        customer_note: "앱 안내에 따라 준비물을 확인해 주세요.",
+        document_hint: "이 단계와 관련해 제출할 서류가 있을 수 있어요. 문서 메뉴에서 확인해 주세요.",
+        sort_order: 0,
+      },
+      {
+        id: "item-mock-2",
+        service_name_snapshot: "현장 동행 지원",
+        delivery_type: "in_person",
+        scheduled_start: iso(d2),
+        scheduled_end: iso(new Date(d2.getTime() + 120 * 60000)),
+        duration_label: "2시간",
+        customer_note: "약속 장소는 전날 메시지로 안내드립니다.",
+        document_hint: "",
+        sort_order: 1,
+      },
+    ],
+    customer_feedback: "",
+    mocked: true,
+  };
+}
+
+const customerScheduleApi = {
+  async list(customerProfileId) {
+    const cp = customerProfileId || "profile::demo@customer.com";
+    try {
+      return await tryBackendGet(`/api/customer/schedules?customer_profile_id=${encodeURIComponent(cp)}`);
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
+      await mockDelay();
+      return [buildMockCustomerScheduleView("sch-demo-1")];
+    }
+  },
+  async get(scheduleId, customerProfileId) {
+    const id = String(scheduleId || "").trim();
+    const cp = customerProfileId || "profile::demo@customer.com";
+    if (!id) throw new Error("Schedule id is required");
+    try {
+      return await tryBackendGet(
+        `/api/customer/schedules/${encodeURIComponent(id)}?customer_profile_id=${encodeURIComponent(cp)}`
+      );
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
+      await mockDelay();
+      return buildMockCustomerScheduleView(id);
+    }
+  },
+};
+
 const scheduleApi = {
   async list(customerProfileId = "profile::demo@customer.com") {
     try {
@@ -1032,12 +1106,186 @@ const scheduleApi = {
       return { id: scheduleId, status: "CONFIRMED", mocked: true };
     }
   },
+  /** 고객에게 일정 버전 공개(스냅샷 저장) — 최종 확정(CONFIRM)과 별개 */
+  async releaseToCustomer(scheduleId, note = "") {
+    try {
+      return await tryBackendPost(`/api/schedules/${encodeURIComponent(scheduleId)}/release-to-customer`, { note });
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
+      await mockDelay();
+      const base = await scheduleApi.get(scheduleId);
+      const prev = Array.isArray(base.release_versions) ? base.release_versions : [];
+      const nextV = prev.reduce((m, r) => Math.max(m, r.version_number || 0), 0) + 1;
+      const isoNow = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+      return {
+        ...base,
+        status: base.status === "DRAFT" || base.status === "REVISED" ? "PROPOSED" : base.status,
+        release_versions: [
+          ...prev,
+          {
+            id: `rv-mock-${nextV}`,
+            schedule_draft_id: base.id,
+            version_number: nextV,
+            released_at: isoNow,
+            released_by: "mock-admin",
+            customer_notified_at: null,
+            release_note: note || `Released to customer (v${nextV})`,
+            snapshot_json: { schema: "schedule_customer_release_snapshot_v1", mocked: true },
+          },
+        ],
+        updated_at: isoNow,
+        mocked: true,
+      };
+    }
+  },
   async requestAdjustment(scheduleId, feedback) {
     try {
       return await tryBackendPost(`/api/schedules/${encodeURIComponent(scheduleId)}/feedback`, { feedback });
     } catch {
       await mockDelay();
       return { id: scheduleId, customer_feedback: feedback, status: "REVISED", mocked: true };
+    }
+  },
+  /** 단건 스케줄(서비스 카드·draft 메타) — Schedule Draft Builder */
+  async get(scheduleId) {
+    const id = String(scheduleId || "").trim();
+    if (!id) throw new Error("Schedule id is required");
+    try {
+      return await tryBackendGet(`/api/schedules/${encodeURIComponent(id)}`);
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
+      await mockDelay();
+      const t0 = new Date();
+      const d1 = new Date(Date.UTC(t0.getUTCFullYear(), t0.getUTCMonth(), t0.getUTCDate() + 2, 10, 0, 0));
+      const d2 = new Date(Date.UTC(d1.getUTCFullYear(), d1.getUTCMonth(), d1.getUTCDate() + 2, 10, 0, 0));
+      const iso = (d) => d.toISOString().replace(/\.\d{3}Z$/, "Z");
+      return {
+        id,
+        customer_profile_id: "profile::demo@customer.com",
+        proposed_slots: [iso(d1), iso(d2)],
+        notes: "Mock builder draft",
+        recommendation_reasons: ["Heuristic spacing after entry anchor"],
+        revision_notes: [],
+        customer_feedback: "",
+        final_confirmed_version: {},
+        draft: {
+          source: "mock",
+          context_snapshot: {
+            entry_anchor_iso: iso(t0),
+            service_count: 2,
+            invoice_id: "inv-mock-1",
+          },
+        },
+        edits: [],
+        customer_reaction: {},
+        final_result: {},
+        status: "DRAFT",
+        related_quote_id: "q-demo-1",
+        related_invoice_id: "inv-mock-1",
+        generation_method: "heuristic_initial",
+        items: [
+          {
+            id: "item-mock-1",
+            schedule_draft_id: id,
+            service_item_id: "svc-1",
+            service_name_snapshot: "Arrival logistics",
+            delivery_type: "in_person",
+            scheduled_start: iso(d1),
+            scheduled_end: iso(new Date(d1.getTime() + 2 * 3600000)),
+            duration_minutes: 120,
+            duration_label: "2h",
+            prerequisites_json: { suggestion_reasons: ["Entry day afternoon slot"] },
+            document_requirements_summary_json: {},
+            internal_note: "",
+            customer_note: "",
+            created_by_system: true,
+            adjusted_by_admin: false,
+            sort_order: 0,
+            active: true,
+            created_at: iso(t0),
+            updated_at: iso(t0),
+          },
+          {
+            id: "item-mock-2",
+            schedule_draft_id: id,
+            service_item_id: "svc-2",
+            service_name_snapshot: "Document intake",
+            delivery_type: "ai_guide",
+            scheduled_start: iso(d2),
+            scheduled_end: iso(new Date(d2.getTime() + 2 * 3600000)),
+            duration_minutes: 120,
+            duration_label: "2h",
+            prerequisites_json: { suggestion_reasons: ["Post-arrival sequence"] },
+            document_requirements_summary_json: { pending_on_invoice_at_suggestion: 0 },
+            internal_note: "",
+            customer_note: "",
+            created_by_system: true,
+            adjusted_by_admin: false,
+            sort_order: 1,
+            active: true,
+            created_at: iso(t0),
+            updated_at: iso(t0),
+          },
+        ],
+        release_versions: [],
+        edit_events: [],
+        created_at: iso(t0),
+        updated_at: iso(t0),
+        mocked: true,
+      };
+    }
+  },
+  /** 관리자 빌더: 카드 시간·노트 등 부분 갱신 */
+  async patchBuilder(scheduleId, body) {
+    try {
+      return await tryBackendPatch(`/api/schedules/${encodeURIComponent(scheduleId)}/builder`, body);
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
+      await mockDelay();
+      const base = await scheduleApi.get(scheduleId);
+      const patches = Array.isArray(body?.items) ? body.items : [];
+      const items = (base.items || []).map((row) => ({ ...row }));
+      const byId = Object.fromEntries(items.map((x) => [x.id, x]));
+      for (const p of patches) {
+        const it = byId[p.id];
+        if (!it) continue;
+        if (p.scheduled_start != null) it.scheduled_start = p.scheduled_start;
+        if (p.scheduled_end != null) it.scheduled_end = p.scheduled_end;
+        if (p.internal_note != null) it.internal_note = p.internal_note;
+        if (p.customer_note != null) it.customer_note = p.customer_note;
+        if (p.duration_minutes != null) it.duration_minutes = p.duration_minutes;
+        if (p.sort_order != null) it.sort_order = p.sort_order;
+        if (p.active != null) it.active = p.active;
+        it.adjusted_by_admin = true;
+      }
+      const mergedItems = items.slice().sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+      const isoNow = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+      return {
+        ...base,
+        items: mergedItems,
+        updated_at: isoNow,
+        mocked: true,
+      };
+    }
+  },
+};
+
+/** 결제 완료 고객 목록(관리자 일정 화면 피커) — GET /api/admin/scheduling/paid-customers */
+const schedulingAdminApi = {
+  async listPaidCustomers() {
+    try {
+      return await tryBackendGet("/api/admin/scheduling/paid-customers");
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
+      await mockDelay();
+      return [
+        {
+          customer_profile_id: "profile::demo@customer.com",
+          display_label: "demo@customer.com",
+          paid_invoice_count: 1,
+          latest_paid_invoice_id: "inv-mock-paid",
+        },
+      ];
     }
   },
 };
@@ -3646,7 +3894,9 @@ export {
   checklistApi,
   documentsApi,
   requiredDocumentsCustomerApi,
+  customerScheduleApi,
   scheduleApi,
+  schedulingAdminApi,
   invoiceApi,
   messagesApi,
   quoteApi,

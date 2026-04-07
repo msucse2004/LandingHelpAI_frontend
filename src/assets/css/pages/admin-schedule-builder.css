@@ -1,0 +1,369 @@
+.lhai-main--schedule-builder {
+  max-width: 100%;
+}
+
+.lhai-page-header--compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--lhai-space-3);
+}
+
+.lhai-sb-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+  align-items: center;
+}
+
+.lhai-sb-context {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--lhai-space-2);
+  padding: var(--lhai-space-3);
+  margin-bottom: var(--lhai-space-3);
+  background: var(--lhai-color-surface-raised, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-md);
+}
+
+.lhai-sb-context__cell {
+  min-width: 0;
+}
+
+.lhai-sb-context__label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--lhai-color-text-muted);
+  margin-bottom: var(--lhai-space-1);
+}
+
+.lhai-sb-context__value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.lhai-sb-context__value--status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lhai-space-1);
+}
+
+.lhai-sb-workspace {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(320px, 1fr) minmax(260px, 320px);
+  gap: var(--lhai-space-3);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .lhai-sb-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lhai-sb-panel {
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-md);
+  padding: var(--lhai-space-3);
+  background: var(--lhai-color-surface, rgba(0, 0, 0, 0.2));
+  min-height: 200px;
+}
+
+.lhai-sb-panel--center {
+  min-height: 480px;
+}
+
+.lhai-sb-panel__title {
+  font-size: 0.85rem;
+  margin: 0 0 var(--lhai-space-2);
+  color: var(--lhai-color-text);
+}
+
+.lhai-sb-panel__hint {
+  font-size: 0.75rem;
+  color: var(--lhai-color-text-muted);
+  margin: 0 0 var(--lhai-space-3);
+  line-height: 1.4;
+}
+
+.lhai-sb-week-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lhai-space-3);
+  margin-bottom: var(--lhai-space-3);
+}
+
+.lhai-sb-week-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-width: 12rem;
+  text-align: center;
+}
+
+.lhai-sb-week-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-x: auto;
+}
+
+.lhai-sb-week-head {
+  display: grid;
+  grid-template-columns: 48px repeat(7, minmax(72px, 1fr));
+  gap: 2px;
+  margin-bottom: 2px;
+}
+
+.lhai-sb-week-head__corner {
+  border-radius: var(--lhai-radius-sm);
+}
+
+.lhai-sb-week-head__day {
+  text-align: center;
+  font-size: 0.7rem;
+  padding: var(--lhai-space-2) var(--lhai-space-1);
+  background: var(--lhai-color-surface-raised, rgba(255, 255, 255, 0.06));
+  border-radius: var(--lhai-radius-sm);
+  color: var(--lhai-color-text-muted);
+}
+
+.lhai-sb-week-head__day strong {
+  display: block;
+  color: var(--lhai-color-text);
+  font-size: 0.85rem;
+}
+
+.lhai-sb-week-body {
+  display: grid;
+  grid-template-columns: 48px repeat(7, minmax(72px, 1fr));
+  gap: 2px;
+  min-height: 400px;
+}
+
+.lhai-sb-time-rail {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.65rem;
+  color: var(--lhai-color-text-muted);
+  padding-top: 0;
+}
+
+.lhai-sb-time-rail__tick {
+  flex: 1;
+  border-top: 1px dashed var(--lhai-color-border);
+  padding-top: 2px;
+  min-height: 28px;
+}
+
+.lhai-sb-day {
+  position: relative;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: var(--lhai-radius-sm);
+  min-height: 392px;
+  border: 1px dashed transparent;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.lhai-sb-day.lhai-sb-day--drop-target {
+  border-color: var(--lhai-color-primary);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+/** 드롭 타깃은 슬롯 영역(시간 그리드) 기준으로 표시 */
+.lhai-sb-day-slots--drop-target {
+  box-shadow: inset 0 0 0 2px var(--lhai-color-primary);
+  background: rgba(99, 102, 241, 0.07);
+}
+
+/**
+ * 캘린더 블록이 드롭을 가로막지 않도록: 드래그 중에는 다른 블록으로 이벤트가 슬롯(그리드)으로 통과.
+ * 드래그 소스 블록(.lhai-sb-block--drag-source)은 제외 — 전부 none이면 일부 브라우저에서 그리드 드래그가 끊김.
+ */
+body.lhai-sb-is-dragging .lhai-sb-block:not(.lhai-sb-block--drag-source) {
+  pointer-events: none;
+}
+
+.lhai-sb-day-slots {
+  position: relative;
+  height: 392px;
+}
+
+.lhai-sb-block {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  min-height: 22px;
+  padding: 4px 6px;
+  border-radius: var(--lhai-radius-sm);
+  font-size: 0.7rem;
+  line-height: 1.25;
+  cursor: grab;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(34, 211, 238, 0.2));
+  z-index: 1;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.lhai-sb-block:active {
+  cursor: grabbing;
+}
+
+.lhai-sb-block.is-selected {
+  box-shadow: 0 0 0 2px var(--lhai-color-primary);
+}
+
+.lhai-sb-block__title {
+  font-weight: 600;
+  display: block;
+}
+
+.lhai-sb-block__meta {
+  opacity: 0.85;
+  font-size: 0.65rem;
+}
+
+.lhai-sb-card {
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-md);
+  padding: var(--lhai-space-2);
+  margin-bottom: var(--lhai-space-2);
+  cursor: grab;
+  background: var(--lhai-color-surface-raised, rgba(255, 255, 255, 0.04));
+  transition: border-color 0.15s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.lhai-sb-card:active {
+  cursor: grabbing;
+}
+
+.lhai-sb-card.is-selected {
+  border-color: var(--lhai-color-primary);
+}
+
+.lhai-sb-card__name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: var(--lhai-space-1);
+}
+
+.lhai-sb-card__row {
+  font-size: 0.72rem;
+  color: var(--lhai-color-text-muted);
+  margin-bottom: 2px;
+}
+
+.lhai-sb-card__badge {
+  display: inline-block;
+  margin-top: var(--lhai-space-1);
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+}
+
+.lhai-sb-right__empty {
+  color: var(--lhai-color-text-muted);
+  font-size: 0.85rem;
+}
+
+.lhai-sb-reasons {
+  list-style: disc;
+  padding-left: 1.2rem;
+  margin: 0 0 var(--lhai-space-3);
+  font-size: 0.8rem;
+  color: var(--lhai-color-text-muted);
+}
+
+.lhai-sb-warn {
+  font-size: 0.75rem;
+  padding: var(--lhai-space-2);
+  border-radius: var(--lhai-radius-sm);
+  background: rgba(251, 113, 133, 0.12);
+  border: 1px solid rgba(251, 113, 133, 0.35);
+  margin-bottom: var(--lhai-space-3);
+}
+
+.lhai-sb-field {
+  margin-bottom: var(--lhai-space-3);
+}
+
+.lhai-sb-note-hint {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  margin: 0 0 var(--lhai-space-2);
+}
+
+.lhai-sb-field textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+}
+
+.lhai-sb-status {
+  margin-top: var(--lhai-space-3);
+  min-height: 1.25rem;
+}
+
+.lhai-sb-history {
+  margin-top: var(--lhai-space-4);
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-md);
+  padding: var(--lhai-space-2) var(--lhai-space-3);
+  background: var(--lhai-color-surface, rgba(0, 0, 0, 0.15));
+}
+
+.lhai-sb-history__summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.lhai-sb-history__intro {
+  font-size: 0.72rem;
+  margin: var(--lhai-space-2) 0 var(--lhai-space-2);
+  line-height: 1.4;
+}
+
+.lhai-sb-history__body {
+  font-size: 0.75rem;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.lhai-sb-history__row {
+  display: grid;
+  grid-template-columns: 9rem 1fr;
+  gap: var(--lhai-space-2);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--lhai-color-border);
+}
+
+.lhai-sb-history__row:last-child {
+  border-bottom: none;
+}
+
+.lhai-sb-history__action {
+  font-family: ui-monospace, monospace;
+  color: var(--lhai-color-primary, #a5b4fc);
+}
+
+.lhai-sb-section-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--lhai-color-text-muted);
+  margin: var(--lhai-space-2) 0 var(--lhai-space-1);
+}

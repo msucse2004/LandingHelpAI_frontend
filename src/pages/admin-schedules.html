@@ -2,7 +2,8 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Admin Schedules - Landing Help AI</title>
+  <title>일정 관리 - Landing Help AI</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/admin-schedules.css" />
@@ -11,29 +12,23 @@
     <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
     <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial admin-sidebar.html --></aside>
-    <main class="lhai-main">
-      <section class="lhai-page-header"><div><h1 class="lhai-title">Schedule Management</h1><p class="lhai-subtitle">Create draft, revise proposed schedules, and mark confirmed with audit-first data trail.</p></div></section>
-      <section class="lhai-grid lhai-grid--2">
-        <article class="lhai-card">
-          <h2 class="lhai-card__title">Schedules</h2>
-          <div id="adminScheduleList"></div>
-        </article>
-        <article class="lhai-card">
-          <h2 class="lhai-card__title">Draft / Revision Form</h2>
-          <form id="adminScheduleForm">
-            <label class="lhai-field"><span class="lhai-label">Customer Profile ID</span><input id="scheduleCustomerId" value="profile::demo@customer.com" /></label>
-            <label class="lhai-field"><span class="lhai-label">Proposed Slots (comma separated ISO)</span><textarea id="scheduleSlots" rows="3" placeholder="2026-04-30T09:00:00Z, 2026-05-01T09:00:00Z"></textarea></label>
-            <label class="lhai-field"><span class="lhai-label">Recommendation Reasons (comma separated)</span><textarea id="scheduleReasons" rows="2" placeholder="avoid peak load, aligns with docs"></textarea></label>
-            <label class="lhai-field"><span class="lhai-label">Revision Note</span><input id="scheduleRevisionNote" placeholder="Reason for revision" /></label>
-            <div class="lhai-admin-schedule-actions">
-              <button class="lhai-button lhai-button--primary" type="submit">Create Draft</button>
-              <button class="lhai-button lhai-button--secondary" id="reviseScheduleBtn" type="button">Revise Selected</button>
-              <button class="lhai-button lhai-button--secondary" id="proposeScheduleBtn" type="button">Propose Selected</button>
-              <button class="lhai-button lhai-button--primary" id="confirmScheduleBtn" type="button">Mark Confirmed</button>
-            </div>
-          </form>
-          <p id="adminScheduleStatus" class="u-text-muted u-mt-2"></p>
-        </article>
+    <main class="lhai-main lhai-main--admin-schedules">
+      <section class="lhai-page-header"><div><h1 class="lhai-title">일정 관리</h1><p class="lhai-subtitle">결제가 완료된 고객을 아래에서 고른 뒤, 일정을 열어 달력에서 서비스 카드를 드래그해 수정·저장하고 필요 시 고객에게 공개하세요.</p></div></section>
+
+      <section class="lhai-card lhai-admin-schedule-section">
+        <div class="lhai-admin-schedule-section__head">
+          <h2 class="lhai-card__title">결제 완료 고객</h2>
+          <button type="button" class="lhai-button lhai-button--secondary" id="paidCustomersReloadBtn">목록 새로고침</button>
+        </div>
+        <p class="u-text-muted lhai-admin-schedule-intro">청구서 상태가 <strong>PAID</strong>인 고객만 표시됩니다. 행을 클릭하면 해당 고객의 일정 목록이 아래에 나옵니다.</p>
+        <div id="paidCustomersList" class="lhai-admin-paid-customers" role="listbox" aria-label="결제 완료 고객"></div>
+      </section>
+
+      <section class="lhai-card lhai-admin-schedule-section">
+        <h2 class="lhai-card__title">선택한 고객의 일정</h2>
+        <p id="selectedCustomerLabel" class="lhai-admin-schedule-selected-label u-text-muted">고객을 위에서 선택해 주세요.</p>
+        <div id="adminScheduleList" class="lhai-admin-schedule-list"></div>
+        <p id="adminScheduleStatus" class="u-text-muted u-mt-2" role="status"></p>
       </section>
     </main>
   </div>

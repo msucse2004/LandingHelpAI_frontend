@@ -1,4 +1,5 @@
 import { invoiceApi, paymentApi, quoteApi } from "../core/api.js";
+import { getCustomerMessagingProfileId } from "../core/auth.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { patchState } from "../core/state.js";
 import { loadSidebar } from "../components/sidebar.js";
@@ -153,7 +154,7 @@ function heroSubtitleForStatus(st) {
 function deliveryKo(mode) {
   const raw = String(mode || "general").toLowerCase();
   const map = {
-    ai_guide: t("common.service_flow.delivery.ai_guide.badge", "AI 안내"),
+    ai_guide: t("common.service_flow.delivery.ai_guide.badge", "Landing Help AI Agent"),
     in_person: t("common.service_flow.delivery.in_person.badge", "대면·현장 지원"),
     ai_plus_human: t("common.service_flow.delivery.ai_plus_human.badge", "AI + 필요 시 사람 도움"),
     general: t("common.service_flow.delivery.general.badge", "안내형 서비스"),
@@ -863,6 +864,32 @@ async function resolveInvoiceForDisplay(invoiceId) {
   return { invoice, quote };
 }
 
+/**
+ * URL·localStorage에 유효한 id가 없거나 상세 로드가 실패한 뒤, 현재 세션 고객의 최신 비초안 청구서를 고릅니다.
+ * (사이드바 "청구서"는 `invoice_id` 없이 열립니다.)
+ *
+ * @returns {Promise<{ invoice: Record<string, unknown>, quote: Record<string, unknown> | null } | null>}
+ */
+async function fetchLatestCustomerInvoiceDetail() {
+  const profileId = getCustomerMessagingProfileId();
+  try {
+    const rows = await invoiceApi.list("", profileId);
+    const visible = (Array.isArray(rows) ? rows : []).filter(
+      (inv) => String(inv?.status || "").toUpperCase() !== "DRAFT"
+    );
+    visible.sort((a, b) => {
+      const ta = new Date(a?.created_at || 0).getTime();
+      const tb = new Date(b?.created_at || 0).getTime();
+      return tb - ta;
+    });
+    const pick = visible[0];
+    if (!pick?.id) return null;
+    return await resolveInvoiceForDisplay(String(pick.id));
+  } catch {
+    return null;
+  }
+}
+
 function renderPaymentResult(result, success) {
   const section = qs("#paymentResultSection");
   const message = qs("#paymentResultMessage");
@@ -905,6 +932,7 @@ async function handlePaymentSuccess(paymentId, invoiceId) {
       lastInvoiceId: result.invoice_id,
     })
   );
+  window.localStorage.setItem("lhai_latest_invoice_id", String(invoiceId));
   const refreshed = await resolveInvoiceForDisplay(invoiceId);
   renderInvoice(refreshed.invoice, refreshed.quote);
   lastPaymentSuccessApiResult = null;
@@ -920,14 +948,44 @@ async function initInvoiceDetailPage() {
   if (!ensureCustomerAccess()) return;
 
   const params = new URLSearchParams(window.location.search);
-  const invoiceId = (params.get("invoice_id") || "").trim();
+  const invoiceIdFromUrl = (
+    params.get("invoice_id") ||
+    params.get("invoiceId") ||
+    params.get("id") ||
+    ""
+  ).trim();
+  const invoiceIdFromStore = window.localStorage.getItem("lhai_latest_invoice_id") || "";
 
   await loadSidebar("#sidebar", "customer");
 
   const missing = qs("#invoiceMissingState");
   const main = qs("#invoiceMainCard");
 
-  if (!invoiceId) {
+  /** @type {{ invoice: Record<string, unknown>, quote: Record<string, unknown> | null } | null} */
+  let resolved = null;
+  if (invoiceIdFromUrl) {
+    try {
+      resolved = await resolveInvoiceForDisplay(invoiceIdFromUrl);
+    } catch {
+      resolved = null;
+    }
+  }
+  if (!resolved) {
+    const storeId = (invoiceIdFromStore || "").trim();
+    if (storeId) {
+      try {
+        resolved = await resolveInvoiceForDisplay(storeId);
+      } catch {
+        window.localStorage.removeItem("lhai_latest_invoice_id");
+        resolved = null;
+      }
+    }
+  }
+  if (!resolved) {
+    resolved = await fetchLatestCustomerInvoiceDetail();
+  }
+
+  if (!resolved?.invoice?.id) {
     mergeFallbackStrings(getInvoiceLocaleBundle("ko"));
     try {
       await initI18nDomains(["common", "quote"], "ko");
@@ -947,30 +1005,21 @@ async function initInvoiceDetailPage() {
   if (main) main.hidden = false;
 
   const loadErr = qs("#invoiceLoadError");
-  let invoice;
-  let quote;
-  try {
-    const resolved = await resolveInvoiceForDisplay(invoiceId);
-    invoice = resolved.invoice;
-    quote = resolved.quote;
-  } catch {
-    mergeFallbackStrings(getInvoiceLocaleBundle("ko"));
-    try {
-      await initI18nDomains(["common", "quote"], "ko");
-    } catch {
-      /* ignore */
-    }
-    mergeFallbackStrings(getInvoiceLocaleBundle("ko"));
-    applyI18nToDom(document);
-    if (loadErr) {
-      loadErr.hidden = false;
-      loadErr.textContent = t("customer.invoice.load_error", "");
-    }
-    await resolveAppHeaderShell({ variant: "customer" });
-    refreshHeaderMailUnreadBadge().catch(() => {});
-    return;
-  }
   if (loadErr) loadErr.hidden = true;
+
+  const invoice = resolved.invoice;
+  const quote = resolved.quote;
+
+  if (!invoiceIdFromUrl && invoice?.id) {
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set("invoice_id", String(invoice.id));
+      history.replaceState(null, "", u);
+    } catch {
+      /* non-browser */
+    }
+  }
+  window.localStorage.setItem("lhai_latest_invoice_id", String(invoice.id));
 
   const lang = resolveInvoiceUiLang(quote);
   mergeFallbackStrings(getInvoiceLocaleBundle(lang));

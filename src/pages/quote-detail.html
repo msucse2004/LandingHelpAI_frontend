@@ -2,6 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Quote actions: approve + reject only (no in-page "request help" button). Bump ?v= when this page changes to bust caches. -->
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml" />
   <title>견적 확인 - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
@@ -110,10 +111,6 @@
                 <button type="button" class="lhai-button lhai-button--primary lhai-quote-actions__btn-approve" id="approveQuoteBtn">Approve</button>
                 <p class="lhai-quote-actions__hint" id="approveQuoteHint"></p>
               </div>
-              <div class="lhai-quote-actions__col">
-                <button type="button" class="lhai-button lhai-button--secondary lhai-quote-actions__btn-help" id="requestHelpBtn">Ask for help</button>
-                <p class="lhai-quote-actions__hint" id="helpQuoteHint"></p>
-              </div>
               <div class="lhai-quote-actions__col lhai-quote-actions__col--reject">
                 <button type="button" class="lhai-button lhai-button--secondary lhai-quote-actions__btn-reject" id="rejectQuoteBtn">Reject</button>
                 <p class="lhai-quote-actions__hint lhai-quote-actions__hint--reject" id="rejectQuoteHint"></p>
@@ -138,9 +135,9 @@
       </section>
     </main>
   </div>
-  <script type="module" src="../assets/js/core/app-header.js"></script>
-  <script type="module" src="../assets/js/core/logout-button.js"></script>
-  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
-  <script type="module" src="../assets/js/pages/quote-detail.js"></script>
+  <script type="module" src="../assets/js/core/app-header.js?v=20260403"></script>
+  <script type="module" src="../assets/js/core/logout-button.js?v=20260403"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js?v=20260403"></script>
+  <script type="module" src="../assets/js/pages/quote-detail.js?v=20260403"></script>
 </body>
 </html>

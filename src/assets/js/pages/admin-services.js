@@ -912,8 +912,8 @@ function sf_applyAdminServicesI18n() {
   sf_applyI18nLabelFor("serviceEditorDescription", "common.admin_services.editor.label.description");
   sf_applyI18nLabelFor("serviceEditorTypeSelect", "common.admin_services.editor.section.type");
   sf_applyI18nText(qs("#serviceEditorTypeNote"), "common.admin_services.editor.type_note");
-  sf_applyI18nOptionText("#serviceEditorTypeSelect", "module", "common.admin_services.editor.type.module");
-  sf_applyI18nOptionText("#serviceEditorTypeSelect", "addon", "common.admin_services.editor.type.addon");
+  sf_applyI18nOptionText("#serviceEditorTypeSelect", "module", "common.admin_services.editor.type.module_ui");
+  sf_applyI18nOptionText("#serviceEditorTypeSelect", "addon", "common.admin_services.editor.type.addon_ui");
   sf_applyI18nLabelFor("serviceEditorAiCapable", "common.admin_services.editor.attributes.ai_capable");
   sf_applyI18nLabelFor("serviceEditorInPersonRequired", "common.admin_services.editor.attributes.in_person_required");
   sf_applyI18nLabelFor("serviceEditorExtraPrice", "common.admin_services.editor.attributes.extra_price");
@@ -979,8 +979,8 @@ function sf_applyAdminServicesI18n() {
     activeFalse: t("common.admin_services.state.inactive", "Inactive"),
     visibleTrue: t("common.admin_services.state.visible", "Visible"),
     visibleFalse: t("common.admin_services.state.hidden", "Hidden"),
-    typeModule: t("common.admin_services.service_type.module", "module"),
-    typeAddon: t("common.admin_services.service_type.addon", "addon"),
+    typeModule: t("common.admin_services.editor.type.module_ui", "AI"),
+    typeAddon: t("common.admin_services.editor.type.addon_ui", "In-person"),
     editAction: t("common.admin_services.actions.edit", "Edit"),
   };
 
@@ -1413,7 +1413,7 @@ function sf_fillEditorFromRow(row) {
 
   sf_setText(
     "#serviceEditorSubtitle",
-    `${row.type === "module" ? "모듈" : "애드온"} · ${row.package_name || ""} / ${row.category_name || ""}`
+    `${ucdServiceTypeLabel(row.type)} · ${row.package_name || ""} / ${row.category_name || ""}`
   );
 }
 
@@ -2662,8 +2662,10 @@ function ht_activatePanel(panelId) {
 }
 
 function ht_moduleAddonBadge(type) {
-  if (type === "module") return `<span class="lhai-badge admin-services__badge--module">${t("common.admin_services.service_type.module", "Module")}</span>`;
-  if (type === "addon") return `<span class="lhai-badge admin-services__badge--addon">${t("common.admin_services.service_type.addon", "Addon")}</span>`;
+  if (type === "module")
+    return `<span class="lhai-badge admin-services__badge--module">${t("common.admin_services.editor.type.module_ui", "AI")}</span>`;
+  if (type === "addon")
+    return `<span class="lhai-badge admin-services__badge--addon">${t("common.admin_services.editor.type.addon_ui", "In-person")}</span>`;
   return `<span class="lhai-badge">Service</span>`;
 }
 
@@ -2887,9 +2889,9 @@ function ucdPackageName(id) {
 }
 
 function ucdServiceTypeLabel(type) {
-  const t = String(type || "").toLowerCase();
-  if (t === "addon") return "In-person";
-  if (t === "module") return "AI";
+  const raw = String(type || "").toLowerCase();
+  if (raw === "addon") return t("common.admin_services.editor.type.addon_ui", "In-person");
+  if (raw === "module") return t("common.admin_services.editor.type.module_ui", "AI");
   return type || "-";
 }
 
@@ -3540,7 +3542,7 @@ function ucdRenderManage() {
       ? rows
           .map((r) => `<tr>
             <td>${esc(r.name || "-")}</td>
-            <td>${esc(r.type || "-")}</td>
+            <td>${esc(ucdServiceTypeLabel(r.type))}</td>
             <td>${boolBadge(Boolean(r.required), "Y", "N")}</td>
             <td><button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-remove-package-item="${esc(r.service_item_id)}">Remove</button></td>
           </tr>`)

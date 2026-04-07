@@ -92,9 +92,8 @@ function scrollDecisionFeedbackIntoView() {
 function setQuoteDecisionButtonsBusy(busy, which, workingLabel) {
   const approveBtn = qs("#approveQuoteBtn");
   const rejectBtn = qs("#rejectQuoteBtn");
-  const helpBtn = qs("#requestHelpBtn");
   const w = workingLabel || t("customer.quote.feedback.processing_short", "Processing…");
-  [approveBtn, rejectBtn, helpBtn].forEach((b) => {
+  [approveBtn, rejectBtn].forEach((b) => {
     if (b) b.disabled = !!busy;
   });
   if (approveBtn) {
@@ -196,7 +195,7 @@ function heroNextCue(quote) {
   if (st === "PROPOSED") {
     return t(
       "customer.quote.hero.next_proposed",
-      "Next: review the details below. If everything looks right, tap Approve. If you need changes, use Reject or Ask for help."
+      "Next: review the details below. If everything looks right, tap Approve. If you do not accept it, use Reject. Questions can go in your message thread."
     );
   }
   if (st === "APPROVED") {
@@ -216,9 +215,9 @@ function deliveryModeCustomerLabel(mode) {
   const raw = (mode || "general").toString().trim().toLowerCase();
   const key = ["ai_guide", "in_person", "ai_plus_human", "general"].includes(raw) ? raw : "general";
   const fallbacks = {
-    ai_guide: "AI guide",
+    ai_guide: "Landing Help AI Agent",
     in_person: "In-person support",
-    ai_plus_human: "AI + optional human help",
+    ai_plus_human: "Landing Help AI Agent + optional human help",
     general: "Guided service",
   };
   return t(`common.service_flow.delivery.${key}.badge`, fallbacks[key]);
@@ -339,7 +338,7 @@ function buildHumanEscalationBullets(modes) {
   add(
     t(
       "customer.quote.ai.human.always",
-      "Use Ask for help or your message thread if something is unclear, urgent, or not covered by the checklist."
+      "Use your message thread with the team if something is unclear, urgent, or not covered by the checklist."
     )
   );
   return out;
@@ -507,13 +506,13 @@ function renderRequestSummaryBlock(quote) {
     helpUl,
     helpAreas,
     "customer.quote.request_section.empty_help",
-    "No help area was saved with this request. If this looks wrong, use Ask for help."
+    "No help area was saved with this request. If this looks wrong, message the team."
   );
   fillTextList(
     svcUl,
     serviceLines,
     "customer.quote.request_section.empty_services",
-    "No services were saved with this request. Use Ask for help if the quote does not match what you chose."
+    "No services were saved with this request. Message the team if the quote does not match what you chose."
   );
 
   if (understoodWrap && understoodUl) {
@@ -668,7 +667,7 @@ function whatsNextProcessSteps(quote) {
       ),
       t(
         "customer.quote.whats_next.step_help",
-        "Questions first? Use Ask for help or write in your existing thread with the team."
+        "If you have questions before deciding, write to the team in your message thread."
       ),
     ];
   }
@@ -707,10 +706,8 @@ function renderQuoteActionCopy() {
   const group = qs("#quoteActionsGroup");
   const approveBtn = qs("#approveQuoteBtn");
   const rejectBtn = qs("#rejectQuoteBtn");
-  const helpBtn = qs("#requestHelpBtn");
   const approveHint = qs("#approveQuoteHint");
   const rejectHint = qs("#rejectQuoteHint");
-  const helpHint = qs("#helpQuoteHint");
 
   if (group) {
     group.setAttribute("aria-label", t("customer.quote.actions.group_label", "Decide on this quote"));
@@ -728,8 +725,6 @@ function renderQuoteActionCopy() {
     rejectBtn.setAttribute("aria-busy", "false");
     rejectBtn.textContent = t("customer.quote.actions.reject", "Reject");
   }
-  if (helpBtn) helpBtn.textContent = t("customer.quote.actions.help", "Ask for help");
-
   if (approveHint) {
     approveHint.textContent = t(
       "customer.quote.actions.approve_hint",
@@ -740,12 +735,6 @@ function renderQuoteActionCopy() {
     rejectHint.textContent = t(
       "customer.quote.actions.reject_hint",
       "Stops this quote for now. You are not charged. You can message the team later if you want a different option."
-    );
-  }
-  if (helpHint) {
-    helpHint.textContent = t(
-      "customer.quote.actions.help_hint",
-      "Sends a question or request to the operations team before you decide—no commitment."
     );
   }
 }
@@ -785,10 +774,8 @@ function renderQuote(quote) {
   const allowDecision = quote.status === "PROPOSED";
   const approveBtnEl = qs("#approveQuoteBtn");
   const rejectBtnEl = qs("#rejectQuoteBtn");
-  const helpBtnEl = qs("#requestHelpBtn");
   if (approveBtnEl) approveBtnEl.disabled = !allowDecision;
   if (rejectBtnEl) rejectBtnEl.disabled = !allowDecision;
-  if (helpBtnEl) helpBtnEl.disabled = !allowDecision;
 
   renderQuoteSecondaryDetails(quote);
   renderDecisionFeedbackPanel(quote);
@@ -1003,15 +990,6 @@ async function initQuoteDetailPage() {
     }
   });
 
-  qs("#requestHelpBtn")?.addEventListener("click", () => {
-    setStatus(
-      t(
-        "customer.quote.help_stub",
-        "We noted your request for help. The team will reply in your messages. (Messaging link coming soon.)"
-      ),
-      "default"
-    );
-  });
 }
 
 void initQuoteDetailPage().catch((err) => {

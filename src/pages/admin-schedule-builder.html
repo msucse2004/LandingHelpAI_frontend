@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Schedule Draft Builder - Landing Help AI</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="../assets/css/reset.css" />
+  <link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" />
+  <link rel="stylesheet" href="../assets/css/components.css" />
+  <link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/admin-schedule-builder.css" />
+</head>
+<body>
+  <div id="lhai-app-header-root"></div>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar"></aside>
+    <main class="lhai-main lhai-main--schedule-builder">
+      <section class="lhai-page-header lhai-page-header--compact">
+        <div>
+          <h1 class="lhai-title">Schedule Draft Builder</h1>
+          <p class="lhai-subtitle">Post-payment workspace: place service cards on the week grid, refine notes, then save.</p>
+        </div>
+        <div class="lhai-sb-header-actions">
+          <a class="lhai-button lhai-button--secondary" id="builderBackLink" href="admin-schedules.html">← 일정 관리</a>
+          <button type="button" class="lhai-button lhai-button--secondary" id="builderResetBtn" title="서버에 마지막으로 저장된 일정으로 로컬 편집 내용을 버립니다.">
+            리셋
+          </button>
+          <button type="button" class="lhai-button lhai-button--primary" id="builderSaveBtn">변경 저장</button>
+          <button type="button" class="lhai-button lhai-button--secondary" id="builderReleaseBtn">고객에게 일정 공개</button>
+        </div>
+      </section>
+
+      <header class="lhai-sb-context" id="builderContext" aria-label="Schedule context"></header>
+
+      <div class="lhai-sb-workspace">
+        <aside class="lhai-sb-panel lhai-sb-panel--left" aria-label="Service cards">
+          <h2 class="lhai-sb-panel__title">Service cards</h2>
+          <p class="lhai-sb-panel__hint">왼쪽 카드를 요일 열에 놓거나, <strong>달력 안에 이미 배치된 블록</strong>을 다른 요일/시간대로 끌어다 놓을 수 있습니다. 고객 정착 <strong>목적지 주(State)</strong>가 있으면 그 지역 표준 시간(예: NC → 동부)으로 주·시간 눈금을 보여 주며, 저장 값은 ISO(UTC)로 동기화됩니다. 세로 위치는 15분 단위입니다. 변경 후 <strong>변경 저장</strong>으로 서버에 반영하거나, <strong>리셋</strong>으로 로컬 수정을 취소할 수 있습니다.</p>
+          <div id="builderLeftList"></div>
+        </aside>
+
+        <section class="lhai-sb-panel lhai-sb-panel--center" aria-label="Week calendar">
+          <div class="lhai-sb-week-toolbar">
+            <button type="button" class="lhai-button lhai-button--secondary lhai-sb-week-nav" id="builderWeekPrev" aria-label="Previous week">←</button>
+            <span class="lhai-sb-week-label" id="builderWeekLabel"></span>
+            <button type="button" class="lhai-button lhai-button--secondary lhai-sb-week-nav" id="builderWeekNext" aria-label="Next week">→</button>
+          </div>
+          <div class="lhai-sb-week-grid" id="builderWeekGrid"></div>
+        </section>
+
+        <aside class="lhai-sb-panel lhai-sb-panel--right" aria-label="Details and recommendations">
+          <h2 class="lhai-sb-panel__title">Selection &amp; notes</h2>
+          <div id="builderRightPanel"></div>
+        </aside>
+      </div>
+
+      <p class="lhai-sb-status u-text-muted" id="builderStatus" role="status"></p>
+
+      <section class="lhai-sb-history" aria-label="Schedule edit history">
+        <details class="lhai-sb-history__details">
+          <summary class="lhai-sb-history__summary">Edit history (audit / training pipeline)</summary>
+          <p class="lhai-sb-history__intro u-text-muted">Granular events from the server: moves, duration, notes, activate/deactivate, admin-added items, and session summaries.</p>
+          <div id="builderEditHistory" class="lhai-sb-history__body"></div>
+        </details>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/app-header.js"></script>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/admin-schedule-builder.js"></script>
+</body>
+</html>

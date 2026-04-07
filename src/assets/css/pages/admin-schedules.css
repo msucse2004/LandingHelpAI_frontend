@@ -1,7 +1,93 @@
-.lhai-admin-schedule-actions {
+.lhai-main--admin-schedules {
+  max-width: 56rem;
+}
+
+.lhai-admin-schedule-section {
+  margin-bottom: var(--lhai-space-4);
+}
+
+.lhai-admin-schedule-section__head {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--lhai-space-2);
+  margin-bottom: var(--lhai-space-2);
+}
+
+.lhai-admin-schedule-section__head .lhai-card__title {
+  margin: 0;
+}
+
+.lhai-admin-schedule-intro {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0 0 var(--lhai-space-3);
+}
+
+.lhai-admin-schedule-intro code {
+  font-size: 0.85em;
+  padding: 0.1em 0.35em;
+  border-radius: var(--lhai-radius-sm);
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.lhai-admin-schedule-selected-label {
+  margin: 0 0 var(--lhai-space-2);
+  font-size: 0.95rem;
+}
+
+/* 전역 .lhai-state--empty 의 "Empty: " 접두사 제거 */
+.lhai-admin-paid-customers .lhai-state--empty-no-prefix::before,
+.lhai-admin-schedule-list .lhai-state--empty-no-prefix::before {
+  content: none;
+}
+
+.lhai-admin-paid-customers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-2);
+  min-height: 2rem;
+}
+
+.lhai-admin-paid-customer {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--lhai-space-3);
+  margin: 0;
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-md);
+  background: rgba(15, 23, 42, 0.35);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.lhai-admin-paid-customer:hover {
+  border-color: rgba(96, 165, 250, 0.45);
+}
+
+.lhai-admin-paid-customer.is-active {
+  border-color: var(--lhai-color-primary);
+  background: rgba(96, 165, 250, 0.08);
+}
+
+.lhai-admin-paid-customer__name {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.lhai-admin-paid-customer__meta {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--lhai-color-text-muted, #94a3b8);
+}
+
+.lhai-admin-schedule-list {
+  min-height: 2rem;
 }
 
 .lhai-schedule-item {
@@ -14,4 +100,16 @@
 
 .lhai-schedule-item.is-active {
   border-color: var(--lhai-color-primary);
+}
+
+.lhai-schedule-item__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lhai-space-3);
+}
+
+.lhai-schedule-item__row .lhai-button--primary {
+  flex-shrink: 0;
 }

@@ -6,7 +6,7 @@ import { formatSurveyAnswerForDisplay } from "../core/survey-answer-display.js";
 import { formatDate, formatMoney, safeText } from "../core/utils.js";
 
 const DELIVERY_KO = {
-  ai_guide: "AI 가이드",
+  ai_guide: "Landing Help AI Agent",
   in_person: "대면 지원",
   ai_plus_human: "AI + 선택 대면",
   general: "일반",

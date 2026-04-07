@@ -14,7 +14,7 @@ Framework 없는 HTML/CSS/모듈 JS 기반 고객/운영자 웹앱입니다.
 핵심 원칙:
 - React/TS 없이 디자이너 친화적 구조
 - 백엔드 API 우선, 실패 시 mock fallback
-- 역할별 접근 제어 + 제한형 AI UX
+- 역할별 접근 제어 + Landing Help AI Agent UX
 
 ## How To Run
 
@@ -51,7 +51,7 @@ python -m http.server 3000 --directory .
 6. 관리자 인보이스 발송 (`admin-invoices.html`)
 7. 고객 mock 결제 (`invoice-detail.html`)
 8. 대시보드/체크리스트/메시지/문서 상태 확인
-9. 제한형 AI 응답 확인 (`ai-assistant.html`)
+9. Landing Help AI Agent 응답 확인 (`messages.html` / `ai-assistant.html` 리다이렉트)
 10. 관리자 리스크 보드 확인 (`admin-risk-board.html`)
 
 ## Known Limitations

@@ -213,6 +213,17 @@
   flex-shrink: 0;
 }
 
+.lhai-messages-ai-escalation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+}
+
+.lhai-messages-ai-scope {
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
 /* 넓은 화면: 목록 ~26%, 대화 패널 나머지 전부 (layout 의 50:50 은 961px 미만에서만 유지) */
 @media (min-width: 961px) {
   .lhai-main > .lhai-grid.lhai-grid--2 {

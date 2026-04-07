@@ -135,7 +135,7 @@ async function initDashboardPage() {
   applyDashboardBadgeLabels(dashboardAggregate);
   const aiButton = qs("#aiQuickLinkBtn");
   if (aiButton) {
-    aiButton.setAttribute("href", dashboardAggregate.ai_assistant_quick_link || "ai-assistant.html");
+    aiButton.setAttribute("href", dashboardAggregate.ai_assistant_quick_link || "messages.html");
   }
 
   renderStatusCards(dashboardAggregate.status_cards);

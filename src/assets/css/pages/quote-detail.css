@@ -474,7 +474,7 @@
 
 .lhai-quote-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: var(--lhai-space-4) var(--lhai-space-3);
   align-items: start;
 }
@@ -503,10 +503,6 @@
 .lhai-quote-actions__btn-reject:hover:not(:disabled) {
   border-color: rgba(240, 120, 120, 0.65);
   background: rgba(55, 18, 22, 0.5);
-}
-
-.lhai-quote-actions__btn-help {
-  font-weight: 600;
 }
 
 .lhai-quote-actions__hint {
@@ -540,15 +536,11 @@
   }
 
   .lhai-quote-actions__col--reject {
-    order: 3;
+    order: 2;
   }
 
   .lhai-quote-actions__col--primary {
     order: 1;
-  }
-
-  .lhai-quote-actions__col:not(.lhai-quote-actions__col--primary):not(.lhai-quote-actions__col--reject) {
-    order: 2;
   }
 }
 

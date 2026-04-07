@@ -13,16 +13,16 @@ const esc = safeText;
 /** Default badge + explanation (overridden via `t()` keys `common.service_flow.delivery.{mode}.*`). */
 const DELIVERY_FALLBACK = {
   ai_guide: {
-    badge: "AI 안내",
-    explain: "이 서비스는 AI 안내, 체크리스트, 디지털 도움으로 진행됩니다.",
+    badge: "Landing Help AI Agent",
+    explain: "이 서비스는 Landing Help AI Agent, 체크리스트, 디지털 도움으로 진행됩니다.",
   },
   in_person: {
     badge: "대면 지원",
     explain: "이 서비스는 담당자 또는 현장 지원이 필요합니다.",
   },
   ai_plus_human: {
-    badge: "AI + 선택 대면",
-    explain: "AI 안내로 시작하며, 필요 시 선택적으로 대면 지원을 받을 수 있습니다.",
+    badge: "Landing Help AI Agent + 선택 대면",
+    explain: "Landing Help AI Agent로 시작하며, 필요 시 선택적으로 대면 지원을 받을 수 있습니다.",
   },
   general: {
     badge: "안내형 서비스",
@@ -69,8 +69,6 @@ let commonInfo = {
   minor_ages: [],
   target_state: "",
   preferred_language: "",
-  budget_range: "",
-  support_need_level: "",
 };
 
 /** phase: 'category' | 'common_info' | 'services' | 'review' */
@@ -136,11 +134,11 @@ function summarizeDeliveryModes(modeSet) {
   if (hasAi && hasInPerson) {
     return t(
       "common.service_flow.category_mixed_delivery_short",
-      "AI 안내형과 대면 지원형이 함께 있습니다."
+      "Landing Help AI Agent형과 대면 지원형이 함께 있습니다."
     );
   }
   if (hasAiOnly && !hasInPersonOnly && !hasHybrid && !hasGeneral) {
-    return t("common.service_flow.category_ai_only_short", "주로 AI 안내형 서비스로 진행됩니다.");
+    return t("common.service_flow.category_ai_only_short", "주로 Landing Help AI Agent 중심 서비스로 진행됩니다.");
   }
   if (hasInPersonOnly && !hasAiOnly && !hasHybrid && !hasGeneral) {
     return t("common.service_flow.category_inperson_only_short", "주로 대면 지원형 서비스로 진행됩니다.");
@@ -636,8 +634,6 @@ function readCommonInfoFromForm() {
     .map((x) => String(x || "").trim());
   const targetState = (qs("#sfCommonTargetState")?.value || "").trim();
   const preferredLanguage = qs("#sfCommonPreferredLanguage")?.value || "";
-  const budgetRange = qs("#sfCommonBudgetRange")?.value || "";
-  const supportNeedLevel = qs("#sfCommonSupportNeedLevel")?.value || "";
   return {
     profile_first_name: profileFirstName,
     profile_last_name: profileLastName,
@@ -649,8 +645,6 @@ function readCommonInfoFromForm() {
     minor_ages: minorAges,
     target_state: targetState,
     preferred_language: preferredLanguage,
-    budget_range: budgetRange,
-    support_need_level: supportNeedLevel,
   };
 }
 
@@ -686,12 +680,6 @@ function validateCommonInfo(info) {
   }
   if (!info.preferred_language) {
     return "선호 언어를 선택해 주세요.";
-  }
-  if (!info.budget_range) {
-    return "예산 범위를 선택해 주세요.";
-  }
-  if (!info.support_need_level) {
-    return "필요한 도움 정도를 선택해 주세요.";
   }
   return "";
 }
@@ -886,7 +874,8 @@ function isTechnicalLikeLabel(text) {
   if (s.length > 64 && /[_:-]/.test(s)) return true;
   if (/^[a-z0-9_.:-]+$/i.test(s) && (s.includes("_") || s.includes(".") || s.includes(":") || s.includes("-"))) return true;
   if (/^(field|question|qitem|item|id|code)[_ .:-]/i.test(s)) return true;
-  if (/^(first name|last name|birth_date|entry_date|adult_count|minor_count|support_need_level)$/i.test(s)) return true;
+  if (/^(first name|last name|birth_date|entry_date|adult_count|minor_count|support_need_level|budget_range)$/i.test(s))
+    return true;
   return false;
 }
 
@@ -904,6 +893,7 @@ function normalizeReviewDetailLabel(rawLabel, fallbackIndex = 1) {
     minor_count: "만 18세 이하 인원",
     minor_ages: "만 18세 이하 나이",
     support_need_level: "희망 지원 강도",
+    budget_range: "예산 우선순위",
   };
   const keyLike = label.toLowerCase().replace(/\s+/g, "_");
   if (normalizedMap[keyLike]) return normalizedMap[keyLike];
@@ -1029,16 +1019,6 @@ function renderReview() {
     mix: "한국어 + 영어",
     other: "기타",
   };
-  const budgetMap = {
-    low: "비용 최소화 우선",
-    mid: "균형형",
-    high: "속도/편의 우선",
-  };
-  const supportMap = {
-    self: "대부분 스스로 진행 가능",
-    guided: "가이드가 있으면 진행 가능",
-    high_touch: "처음부터 많이 도와주길 원함",
-  };
   const togetherMoving = (() => {
     const adults = Number.parseInt(commonInfo.adult_count || "0", 10) || 0;
     const minors = Number.parseInt(commonInfo.minor_count || "0", 10) || 0;
@@ -1103,8 +1083,6 @@ function renderReview() {
       <dt>함께 이동하는 인원</dt><dd>${esc(togetherMoving)}</dd>
       <dt>정착 희망 지역(주)</dt><dd>${esc(commonInfo.target_state || "—")}</dd>
       <dt>선호 언어</dt><dd>${esc(prefLangMap[commonInfo.preferred_language] || commonInfo.preferred_language || "—")}</dd>
-      <dt>예산 우선순위</dt><dd>${esc(budgetMap[commonInfo.budget_range] || commonInfo.budget_range || "—")}</dd>
-      <dt>희망 지원 강도</dt><dd>${esc(supportMap[commonInfo.support_need_level] || commonInfo.support_need_level || "—")}</dd>
     </dl></div>`
   );
   if (conditionalQuestions.length) {

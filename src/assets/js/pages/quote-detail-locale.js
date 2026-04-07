@@ -28,17 +28,17 @@ const KO = {
   "common.sidebar.customer.invoice": "청구서",
   "common.sidebar.customer.documents": "문서",
   "common.sidebar.customer.messages": "메시지함",
-  "common.sidebar.customer.ai_assistant": "AI 안내",
+  "common.sidebar.customer.ai_assistant": "Landing Help AI Agent",
   "common.sidebar.customer.schedule": "일정",
   "common.sidebar.customer.completion": "완료",
   "common.sidebar.placeholder.todo": "사이드바를 불러오는 중입니다…",
-  "common.service_flow.delivery.ai_guide.badge": "AI 안내",
+  "common.service_flow.delivery.ai_guide.badge": "Landing Help AI Agent",
   "common.service_flow.delivery.ai_guide.explain":
     "다음 할 일과 진행 단계를 앱에서 순서대로 안내합니다. (운영에서 정한 필수 서류 요청은 결제 완료 후에 별도로 안내됩니다.)",
   "common.service_flow.delivery.in_person.badge": "대면·현장 지원",
   "common.service_flow.delivery.in_person.explain":
     "패키지에 포함된 경우 전화·미팅·방문 등 사람이 직접 조율하는 지원이 포함됩니다. 채팅만으로 끝나지 않습니다.",
-  "common.service_flow.delivery.ai_plus_human.badge": "AI + 필요 시 사람 도움",
+  "common.service_flow.delivery.ai_plus_human.badge": "Landing Help AI Agent + 필요 시 사람 도움",
   "common.service_flow.delivery.ai_plus_human.explain":
     "먼저 앱에서 절차를 진행하고, 판단·서명·현장 확인 등이 필요할 때 사람의 도움을 받을 수 있습니다.",
   "common.service_flow.delivery.general.badge": "안내형 서비스",
@@ -59,7 +59,7 @@ const KO = {
   "customer.quote.hero.service_label": "서비스 / 요청",
   "customer.quote.hero.service_plain": "요청하신 서비스",
   "customer.quote.hero.next_proposed":
-    "다음: 아래 내용을 검토해 주세요. 문제없으면 승인을 눌러 주세요. 수정이 필요하면 거절하거나 도움 요청을 이용해 주세요.",
+    "다음: 아래 내용을 검토해 주세요. 문제없으면 승인을 눌러 주세요. 수용하기 어렵다면 거절을 눌러 주세요. 질문은 메시지함에서 팀에 남겨 주세요.",
   "customer.quote.hero.next_approved":
     "승인이 반영되었습니다. 시스템이 청구서를 만들어 메시지함과 이메일로 보냈습니다. 청구서를 연 뒤 안내에 따라 결제를 완료해 주세요.",
   "customer.quote.hero.next_rejected": "이 견적은 거절 처리되었습니다. 다른 옵션이 필요하면 메시지로 문의해 주세요.",
@@ -84,13 +84,13 @@ const KO = {
   "customer.quote.request_section.understood": "이해한 내용",
   "customer.quote.request_section.service_untitled": "선택하신 서비스",
   "customer.quote.request_section.empty_help":
-    "요청에 도움 영역이 저장되지 않았습니다. 내용이 맞지 않으면 도움 요청을 이용해 주세요.",
+    "요청에 도움 영역이 저장되지 않았습니다. 내용이 맞지 않으면 메시지함으로 문의해 주세요.",
   "customer.quote.request_section.empty_services":
-    "선택한 서비스가 저장되지 않았습니다. 견적이 선택과 다르면 도움 요청을 이용해 주세요.",
+    "선택한 서비스가 저장되지 않았습니다. 견적이 선택과 다르면 메시지함으로 문의해 주세요.",
 
-  "customer.quote.ai.section_title": "AI와 지원이 어떻게 돕는지",
-  "customer.quote.ai.lede": "역할을 나누어 설명합니다. AI가 하는 일, 고객이 직접 해야 할 일, 사람이 개입하는 경우입니다.",
-  "customer.quote.ai.what_ai_helps": "AI가 도와주는 일",
+  "customer.quote.ai.section_title": "Landing Help AI Agent와 지원이 어떻게 돕는지",
+  "customer.quote.ai.lede": "역할을 나누어 설명합니다. Agent가 하는 일, 고객이 직접 해야 할 일, 사람이 개입하는 경우입니다.",
+  "customer.quote.ai.what_ai_helps": "Agent가 도와주는 일",
   "customer.quote.ai.what_you_do": "직접 진행하실 수 있는 일",
   "customer.quote.ai.when_human": "사람의 도움이 필요할 수 있는 경우",
   "customer.quote.ai.delivery_setup": "이 견적의 제공 방식",
@@ -117,7 +117,7 @@ const KO = {
   "customer.quote.ai.human.ai_plus":
     "판단, 자필 서명, 반드시 현장에 있어야 하는 경우 등에는 사람의 도움을 요청할 수 있습니다.",
   "customer.quote.ai.human.always":
-    "체크리스트에 없거나 급하거나 불명확하면 도움 요청이나 기존 메시지 스레드를 이용해 주세요.",
+    "체크리스트에 없거나 급하거나 불명확하면 메시지함의 팀 스레드로 문의해 주세요.",
 
   "customer.quote.customer_note_title": "팀에서 전하는 메모",
 
@@ -128,7 +128,7 @@ const KO = {
   "customer.quote.whats_next.step_decide": "제안에 동의하면 승인, 아니면 거절을 눌러 주세요.",
   "customer.quote.whats_next.step_if_approved":
     "승인하면 청구서가 자동으로 만들어지고, 인앱 메시지함과 등록 이메일로 청구·결제 안내가 발송됩니다.",
-  "customer.quote.whats_next.step_help": "먼저 질문이 있으면 도움 요청을 쓰거나 팀과의 스레드에 남겨 주세요.",
+  "customer.quote.whats_next.step_help": "결정 전에 질문이 있으면 메시지함에서 팀에 남겨 주세요.",
   "customer.quote.whats_next.approved_pay":
     "메시지함·이메일의 청구서 링크를 열어 금액·납기를 확인한 뒤 결제를 진행해 주세요.",
   "customer.quote.whats_next.approved_workflow":
@@ -144,12 +144,10 @@ const KO = {
   "customer.quote.actions.group_label": "이 견적에 대한 결정",
   "customer.quote.actions.approve": "승인",
   "customer.quote.actions.reject": "거절",
-  "customer.quote.actions.help": "도움 요청",
   "customer.quote.actions.approve_hint":
     "동의 시 시스템이 청구서를 만들고, 메시지함·이메일로 보낸 뒤 결제를 기다립니다.",
   "customer.quote.actions.reject_hint":
     "당장 이 견적은 중단됩니다. 요금이 청구되지 않습니다. 나중에 다른 옵션을 원하면 메시지로 문의할 수 있습니다.",
-  "customer.quote.actions.help_hint": "결정 전에 운영팀에 질문·요청을 보냅니다. 약속 없이 문의만 가능합니다.",
 
   "customer.quote.secondary.summary": "견적 상세(참고용)",
   "customer.quote.secondary.hint": "고객 지원에 연락할 때 사용하세요. 제안 내용 이해에는 필요하지 않습니다.",
@@ -185,8 +183,6 @@ const KO = {
   "customer.quote.feedback.rejected_body":
     "이 견적에 대한 요금은 청구되지 않습니다. 나중에 다른 옵션이 필요하면 메시지로 문의해 주세요.",
 
-  "customer.quote.help_stub":
-    "도움 요청을 기록했습니다. 팀이 메시지로 답변합니다. (메시지 연결은 곧 제공 예정입니다.)",
 };
 
 const EN = {
@@ -204,17 +200,17 @@ const EN = {
   "common.sidebar.customer.invoice": "Invoice",
   "common.sidebar.customer.documents": "Documents",
   "common.sidebar.customer.messages": "Messages",
-  "common.sidebar.customer.ai_assistant": "AI guide",
+  "common.sidebar.customer.ai_assistant": "Landing Help AI Agent",
   "common.sidebar.customer.schedule": "Schedule",
   "common.sidebar.customer.completion": "Completion",
   "common.sidebar.placeholder.todo": "Loading sidebar…",
-  "common.service_flow.delivery.ai_guide.badge": "AI guide",
+  "common.service_flow.delivery.ai_guide.badge": "Landing Help AI Agent",
   "common.service_flow.delivery.ai_guide.explain":
     "Clear next steps in the app. Formal required-document requests are sent only after you complete payment.",
   "common.service_flow.delivery.in_person.badge": "In-person support",
   "common.service_flow.delivery.in_person.explain":
     "Includes coordinated human or on-site help where your package says so, not chat-only.",
-  "common.service_flow.delivery.ai_plus_human.badge": "AI + optional human help",
+  "common.service_flow.delivery.ai_plus_human.badge": "Landing Help AI Agent + optional human help",
   "common.service_flow.delivery.ai_plus_human.explain":
     "Starts in the app; you can bring in a person when something needs a human decision or visit.",
   "common.service_flow.delivery.general.badge": "Guided service",
@@ -235,7 +231,7 @@ const EN = {
   "customer.quote.hero.service_label": "Service / request",
   "customer.quote.hero.service_plain": "Your requested service",
   "customer.quote.hero.next_proposed":
-    "Next: review the details below. If everything looks right, tap Approve. If you need changes, use Reject or Ask for help.",
+    "Next: review the details below. If everything looks right, tap Approve. If you do not accept it, tap Reject. Questions can go in your message thread.",
   "customer.quote.hero.next_approved":
     "Your approval is saved. We created your invoice and sent it to your in-app messages and email. Open the invoice and complete payment as instructed.",
   "customer.quote.hero.next_rejected": "This quote was declined. Message us if you would like a different option.",
@@ -260,13 +256,13 @@ const EN = {
   "customer.quote.request_section.understood": "What we understood",
   "customer.quote.request_section.service_untitled": "Your selected service",
   "customer.quote.request_section.empty_help":
-    "No help area was saved with this request. If this looks wrong, use Ask for help.",
+    "No help area was saved with this request. If this looks wrong, message the team.",
   "customer.quote.request_section.empty_services":
-    "No services were saved with this request. Use Ask for help if the quote does not match what you chose.",
+    "No services were saved with this request. Message the team if the quote does not match what you chose.",
 
-  "customer.quote.ai.section_title": "How AI and support work for you",
-  "customer.quote.ai.lede": "Practical roles—what the assistant does, what you do, and when a person steps in.",
-  "customer.quote.ai.what_ai_helps": "What AI will help with",
+  "customer.quote.ai.section_title": "How Landing Help AI Agent and support work for you",
+  "customer.quote.ai.lede": "Practical roles—what the agent does, what you do, and when a person steps in.",
+  "customer.quote.ai.what_ai_helps": "What the agent will help with",
   "customer.quote.ai.what_you_do": "What you may need to do directly",
   "customer.quote.ai.when_human": "When human help may be needed",
   "customer.quote.ai.delivery_setup": "How this quote is set up",
@@ -293,7 +289,7 @@ const EN = {
   "customer.quote.ai.human.ai_plus":
     "You can ask for a person when a step needs judgment, a wet signature, or someone physically present.",
   "customer.quote.ai.human.always":
-    "Use Ask for help or your message thread if something is unclear, urgent, or not covered by the checklist.",
+    "Use your message thread with the team if something is unclear, urgent, or not covered by the checklist.",
 
   "customer.quote.customer_note_title": "Note from your team",
 
@@ -304,7 +300,7 @@ const EN = {
   "customer.quote.whats_next.step_decide": "Tap Approve if you accept this proposal, or Reject if you do not.",
   "customer.quote.whats_next.step_if_approved":
     "When you approve, the system creates an invoice and sends billing instructions to your messages and email.",
-  "customer.quote.whats_next.step_help": "Questions first? Use Ask for help or write in your existing thread with the team.",
+  "customer.quote.whats_next.step_help": "If you have questions before deciding, write to the team in your message thread.",
   "customer.quote.whats_next.approved_pay":
     "Open the invoice link from your messages or email, confirm the amount and due date, then complete payment.",
   "customer.quote.whats_next.approved_workflow":
@@ -320,12 +316,10 @@ const EN = {
   "customer.quote.actions.group_label": "Decide on this quote",
   "customer.quote.actions.approve": "Approve",
   "customer.quote.actions.reject": "Reject",
-  "customer.quote.actions.help": "Ask for help",
   "customer.quote.actions.approve_hint":
     "Confirms you accept this proposal. The system will create an invoice and send it via messages and email for payment.",
   "customer.quote.actions.reject_hint":
     "Stops this quote for now. You are not charged. You can message the team later if you want a different option.",
-  "customer.quote.actions.help_hint": "Sends a question or request to the operations team before you decide—no commitment.",
 
   "customer.quote.secondary.summary": "Quote details (reference only)",
   "customer.quote.secondary.hint":
@@ -361,9 +355,6 @@ const EN = {
   "customer.quote.feedback.rejected_title": "This quote was declined",
   "customer.quote.feedback.rejected_body":
     "You will not be charged for this quote. Message the team if you would like a different option later.",
-
-  "customer.quote.help_stub":
-    "We noted your request for help. The team will reply in your messages. (Messaging link coming soon.)",
 };
 
 /** @param {string} lang */
