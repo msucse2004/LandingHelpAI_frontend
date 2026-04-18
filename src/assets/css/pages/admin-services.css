@@ -381,11 +381,15 @@
 
 .admin-services__tree-legend-dot--category { background: #2563eb; }
 .admin-services__tree-legend-dot--package { background: #16a34a; }
-.admin-services__tree-legend-dot--service { background: #a855f7; }
-.admin-services__tree-legend-dot--inperson { background: #f97316; }
+.admin-services__tree-legend-dot--leaf-ai { background: #a855f7; }
+.admin-services__tree-legend-dot--leaf-inperson { background: #f97316; }
 
 .admin-services__tree-card--category { border-left: 4px solid #2563eb; }
 .admin-services__tree-card--package { border-left: 4px solid #16a34a; }
+/* Inventory leaves: catalog type (module = AI, addon = In-person) */
+.admin-services__tree-card--leaf-ai { border-left: 4px solid #a855f7; }
+.admin-services__tree-card--leaf-inperson { border-left: 4px solid #f97316; }
+/* Fallback when leaf catalog kind is not passed (legacy) */
 .admin-services__tree-card--service { border-left: 4px solid #a855f7; }
 .admin-services__tree-card--inperson { border-left: 4px solid #f97316; }
 
@@ -567,6 +571,24 @@
   margin-top: var(--lhai-space-2);
   padding-top: var(--lhai-space-2);
   border-top: 1px dashed rgba(248, 113, 113, 0.5);
+}
+
+.admin-services__manage-action-status {
+  margin: 0 0 var(--lhai-space-2) 0;
+  min-height: 1.25em;
+  font-size: var(--lhai-font-size-sm);
+}
+
+.admin-services__manage-action-status--working {
+  color: var(--lhai-color-text-muted);
+}
+
+.admin-services__manage-action-status--success {
+  color: #86efac;
+}
+
+.admin-services__manage-action-status--error {
+  color: #fda4af;
 }
 
 #manageCategoryTable tr {
@@ -1211,5 +1233,26 @@
 .admin-services__tab-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* Default unit price + currency suffix (Edit Service) */
+.admin-services__price-input-with-unit {
+  display: flex;
+  align-items: center;
+  gap: var(--lhai-space-2);
+  max-width: 22rem;
+}
+
+.admin-services__price-input-with-unit .lhai-input {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.admin-services__input-unit-suffix {
+  flex-shrink: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.72);
 }
 

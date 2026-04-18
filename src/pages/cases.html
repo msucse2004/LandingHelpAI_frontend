@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>내 문의 - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/cases.css" />
+</head>
+<body>
+  <div id="lhai-app-header-root"></div>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar" aria-label="고객 메뉴"></aside>
+    <main class="lhai-main">
+      <section class="lhai-page-header">
+        <div>
+          <h1 class="lhai-title">내 문의</h1>
+          <p class="lhai-subtitle">서비스별로 나뉜 문의입니다. 각 카드를 눌러 대화를 이어가세요.</p>
+        </div>
+        <a class="lhai-button lhai-button--secondary" href="messages.html">기존 메시지함</a>
+      </section>
+
+      <div id="casesLoadingState" class="lhai-card lhai-state lhai-state--loading" hidden>문의 목록을 불러오는 중…</div>
+      <div id="casesErrorState" class="lhai-card lhai-state lhai-state--error" hidden role="alert"></div>
+      <div id="casesEmptyState" class="lhai-card lhai-state lhai-state--empty" hidden>
+        <p class="lhai-title" style="font-size:1rem;">아직 등록된 문의가 없습니다.</p>
+        <p class="lhai-help u-mt-2">견적 신청이나 고객센터를 통해 문의를 시작하면 여기에 표시됩니다.</p>
+        <a class="lhai-button lhai-button--primary u-mt-3" href="survey-start.html">견적·서비스 신청</a>
+      </div>
+      <div id="casesListHost" class="lhai-cases__list" hidden></div>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/app-header.js"></script>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/cases.js"></script>
+</body>
+</html>

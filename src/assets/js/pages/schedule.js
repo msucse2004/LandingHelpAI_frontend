@@ -7,6 +7,11 @@ import { formatDate, safeText } from "../core/utils.js";
 
 const urlParams = new URLSearchParams(window.location.search);
 const scheduleIdFromUrl = String(urlParams.get("schedule_id") || urlParams.get("id") || "").trim();
+const CAL_HOUR_START = 6;
+const CAL_HOUR_END = 20;
+/** @type {Date} */
+let customerCalWeekStart = new Date();
+let customerCalendarView = "monthly";
 
 function setFeedbackStatus(message) {
   const target = document.querySelector("#customerScheduleFeedbackStatus");
@@ -171,6 +176,231 @@ function renderTimeline(view) {
   `;
 }
 
+function getStartOfWeekMonday(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  const dow = x.getDay();
+  const diff = (dow + 6) % 7;
+  x.setDate(x.getDate() - diff);
+  return x;
+}
+
+function addDays(base, days) {
+  const x = new Date(base);
+  x.setDate(x.getDate() + days);
+  return x;
+}
+
+function addMonths(base, months) {
+  const x = new Date(base);
+  x.setMonth(x.getMonth() + months);
+  return x;
+}
+
+function nthWeekdayOfMonth(year, monthZeroBased, weekdaySun0, nth) {
+  const first = new Date(year, monthZeroBased, 1);
+  const firstDow = first.getDay();
+  const delta = (weekdaySun0 - firstDow + 7) % 7;
+  return 1 + delta + (nth - 1) * 7;
+}
+
+function lastWeekdayOfMonth(year, monthZeroBased, weekdaySun0) {
+  const last = new Date(year, monthZeroBased + 1, 0);
+  const diff = (last.getDay() - weekdaySun0 + 7) % 7;
+  return last.getDate() - diff;
+}
+
+function usFederalHolidayNameLocal(d) {
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const dow = d.getDay();
+  const fixed = `${m}-${day}`;
+  if (fixed === "1-1") return "New Year";
+  if (fixed === "6-19") return "Juneteenth";
+  if (fixed === "7-4") return "Independence Day";
+  if (fixed === "11-11") return "Veterans Day";
+  if (fixed === "12-25") return "Christmas";
+  if (m === 1 && day === nthWeekdayOfMonth(y, 0, 1, 3)) return "MLK Day";
+  if (m === 2 && day === nthWeekdayOfMonth(y, 1, 1, 3)) return "Presidents Day";
+  if (m === 5 && day === lastWeekdayOfMonth(y, 4, 1)) return "Memorial Day";
+  if (m === 9 && day === nthWeekdayOfMonth(y, 8, 1, 1)) return "Labor Day";
+  if (m === 10 && day === nthWeekdayOfMonth(y, 9, 1, 2)) return "Columbus Day";
+  if (m === 11 && day === nthWeekdayOfMonth(y, 10, 4, 4)) return "Thanksgiving";
+  // Observed rules for fixed-date holidays
+  if (dow === 5) {
+    const next = new Date(y, m - 1, day + 1);
+    const nfixed = `${next.getMonth() + 1}-${next.getDate()}`;
+    if (nfixed === "1-1") return "New Year (Observed)";
+    if (nfixed === "6-19") return "Juneteenth (Observed)";
+    if (nfixed === "7-4") return "Independence Day (Observed)";
+    if (nfixed === "11-11") return "Veterans Day (Observed)";
+    if (nfixed === "12-25") return "Christmas (Observed)";
+  } else if (dow === 1) {
+    const prev = new Date(y, m - 1, day - 1);
+    const pfixed = `${prev.getMonth() + 1}-${prev.getDate()}`;
+    if (pfixed === "1-1") return "New Year (Observed)";
+    if (pfixed === "6-19") return "Juneteenth (Observed)";
+    if (pfixed === "7-4") return "Independence Day (Observed)";
+    if (pfixed === "11-11") return "Veterans Day (Observed)";
+    if (pfixed === "12-25") return "Christmas (Observed)";
+  }
+  return "";
+}
+
+function calendarToneClassLocal(d) {
+  if (usFederalHolidayNameLocal(d) || d.getDay() === 0) return "is-holiday";
+  if (d.getDay() === 6) return "is-saturday";
+  return "";
+}
+
+function sameLocalDay(a, b) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function blockLayoutLocal(item) {
+  const s = new Date(item.scheduled_start || "");
+  if (Number.isNaN(s.getTime())) return null;
+  const e = new Date(item.scheduled_end || "");
+  const startM = s.getHours() * 60 + s.getMinutes();
+  let endM = e instanceof Date && !Number.isNaN(e.getTime()) ? e.getHours() * 60 + e.getMinutes() : startM + 60;
+  if (endM <= startM) endM = startM + 60;
+  const windowStart = CAL_HOUR_START * 60;
+  const windowEnd = CAL_HOUR_END * 60;
+  const clampedStart = Math.min(windowEnd, Math.max(windowStart, startM));
+  const clampedEnd = Math.min(windowEnd, Math.max(clampedStart + 15, endM));
+  const span = windowEnd - windowStart;
+  const topPct = ((clampedStart - windowStart) / span) * 100;
+  const hPct = ((clampedEnd - clampedStart) / span) * 100;
+  return { topPct, hPct: Math.max(hPct, 5) };
+}
+
+function weeklyHeader(mon, dayCount) {
+  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  let head = `<div class="lhai-cs-week-head__corner"></div>`;
+  for (let i = 0; i < dayCount; i += 1) {
+    const d = addDays(mon, i);
+    const tone = calendarToneClassLocal(d);
+    const holiday = usFederalHolidayNameLocal(d);
+    head += `<div class="lhai-cs-week-head__day ${tone}"><strong>${dayNames[i]}</strong> ${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}${holiday ? ` <span class="lhai-cs-holiday-name">${safeText(holiday)}</span>` : ""}</div>`;
+  }
+  return head;
+}
+
+function renderTimeRail() {
+  let rail = "";
+  for (let h = CAL_HOUR_START; h < CAL_HOUR_END; h += 1) {
+    rail += `<div class="lhai-cs-time-rail__tick">${String(h).padStart(2, "0")}:00</div>`;
+  }
+  return rail;
+}
+
+function renderWeekLikeGrid(view, mon, dayCount) {
+  const grid = document.querySelector("#customerScheduleCalendar");
+  if (!grid) return;
+  const head = weeklyHeader(mon, dayCount);
+  const rail = renderTimeRail();
+  let daysHtml = "";
+  for (let i = 0; i < dayCount; i += 1) {
+    const day = addDays(mon, i);
+    const blocks = view.items
+      .filter((it) => {
+        const st = new Date(it.scheduled_start || "");
+        return !Number.isNaN(st.getTime()) && sameLocalDay(st, day);
+      })
+      .map((it) => {
+        const layout = blockLayoutLocal(it);
+        if (!layout) return "";
+        return `<div class="lhai-cs-block" style="top:${layout.topPct.toFixed(2)}%;height:${layout.hPct.toFixed(2)}%;">
+          <span class="lhai-cs-block__title">${safeText(it.service_name_snapshot || "서비스")}</span>
+        </div>`;
+      })
+      .join("");
+    daysHtml += `<div class="lhai-cs-day"><div class="lhai-cs-day-slots">${blocks}</div></div>`;
+  }
+  grid.innerHTML = `
+    <div class="lhai-cs-week-head lhai-cs-week-head--${dayCount}">${head}</div>
+    <div class="lhai-cs-week-body lhai-cs-week-body--${dayCount}">
+      <div class="lhai-cs-time-rail">${rail}</div>
+      ${daysHtml}
+    </div>
+  `;
+}
+
+function renderMonthlyGrid(view, anchorDate) {
+  const labelEl = document.querySelector("#customerCalWeekLabel");
+  const grid = document.querySelector("#customerScheduleCalendar");
+  if (!labelEl || !grid) return;
+  const monthStart = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
+  const monthEnd = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0);
+  labelEl.textContent = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`;
+
+  const first = getStartOfWeekMonday(monthStart);
+  let cells = "";
+  for (let i = 0; i < 42; i += 1) {
+    const d = addDays(first, i);
+    const inMonth = d >= monthStart && d <= monthEnd;
+    const tone = calendarToneClassLocal(d);
+    const holiday = usFederalHolidayNameLocal(d);
+    const dayItems = view.items.filter((it) => {
+      const st = new Date(it.scheduled_start || "");
+      return !Number.isNaN(st.getTime()) && sameLocalDay(st, d);
+    });
+    const blocks = dayItems
+      .slice(0, 3)
+      .map((it) => `<span class="lhai-cs-month-item">${safeText(it.service_name_snapshot || "서비스")}</span>`)
+      .join("");
+    const more = dayItems.length > 3 ? `<span class="lhai-cs-month-more">+${dayItems.length - 3}</span>` : "";
+    cells += `<div class="lhai-cs-month-cell ${inMonth ? "" : "is-muted"}">
+      <div class="lhai-cs-month-date ${tone}">${d.getDate()}${holiday ? ` <span class="lhai-cs-holiday-name">${safeText(holiday)}</span>` : ""}</div>
+      <div class="lhai-cs-month-items">${blocks}${more}</div>
+    </div>`;
+  }
+  grid.innerHTML = `
+    <div class="lhai-cs-month-head">
+      <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+    </div>
+    <div class="lhai-cs-month-grid">${cells}</div>
+  `;
+}
+
+function syncCalendarViewButtons() {
+  document.querySelectorAll(".lhai-cs-view-btn").forEach((btn) => {
+    const isActive = btn.getAttribute("data-view") === customerCalendarView;
+    btn.classList.toggle("is-active", isActive);
+    btn.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+}
+
+function renderReadOnlyCalendar(view) {
+  const labelEl = document.querySelector("#customerCalWeekLabel");
+  const grid = document.querySelector("#customerScheduleCalendar");
+  if (!labelEl || !grid) return;
+  if (!view || !Array.isArray(view.items)) {
+    labelEl.textContent = "";
+    grid.innerHTML = `<div class="lhai-state lhai-state--empty">표시할 일정이 없습니다.</div>`;
+    return;
+  }
+
+  const mon = new Date(customerCalWeekStart);
+  if (customerCalendarView === "daily") {
+    labelEl.textContent = `${mon.getFullYear()}-${String(mon.getMonth() + 1).padStart(2, "0")}-${String(mon.getDate()).padStart(2, "0")}`;
+    renderWeekLikeGrid(view, mon, 1);
+    return;
+  }
+  if (customerCalendarView === "monthly") {
+    renderMonthlyGrid(view, mon);
+    return;
+  }
+  const sun = addDays(mon, 6);
+  labelEl.textContent = `${mon.getFullYear()}-${String(mon.getMonth() + 1).padStart(2, "0")}-${String(mon.getDate()).padStart(2, "0")} → ${sun.getFullYear()}-${String(sun.getMonth() + 1).padStart(2, "0")}-${String(sun.getDate()).padStart(2, "0")}`;
+  renderWeekLikeGrid(view, mon, 7);
+}
+
 async function initSchedulePage() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
@@ -194,7 +424,14 @@ async function initSchedulePage() {
         setFeedbackStatus("일정을 불러오지 못했습니다. 로그인·권한을 확인하거나 고객센터로 문의해 주세요.");
       }
     }
+    if (selected?.items?.length) {
+      const first = selected.items
+        .map((it) => new Date(it.scheduled_start || ""))
+        .find((d) => !Number.isNaN(d.getTime()));
+      if (first) customerCalWeekStart = getStartOfWeekMonday(first);
+    }
     renderSummary(selected);
+    renderReadOnlyCalendar(selected);
     renderTimeline(selected);
   };
 
@@ -213,6 +450,29 @@ async function initSchedulePage() {
     if (input instanceof HTMLTextAreaElement) input.value = "";
     await refresh();
   });
+
+  document.querySelector("#customerCalPrev")?.addEventListener("click", () => {
+    if (customerCalendarView === "daily") customerCalWeekStart = addDays(customerCalWeekStart, -1);
+    else if (customerCalendarView === "monthly") customerCalWeekStart = addMonths(customerCalWeekStart, -1);
+    else customerCalWeekStart = addDays(customerCalWeekStart, -7);
+    renderReadOnlyCalendar(selected);
+  });
+  document.querySelector("#customerCalNext")?.addEventListener("click", () => {
+    if (customerCalendarView === "daily") customerCalWeekStart = addDays(customerCalWeekStart, 1);
+    else if (customerCalendarView === "monthly") customerCalWeekStart = addMonths(customerCalWeekStart, 1);
+    else customerCalWeekStart = addDays(customerCalWeekStart, 7);
+    renderReadOnlyCalendar(selected);
+  });
+  document.querySelectorAll(".lhai-cs-view-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const view = btn.getAttribute("data-view");
+      if (!view || view === customerCalendarView) return;
+      customerCalendarView = view;
+      syncCalendarViewButtons();
+      renderReadOnlyCalendar(selected);
+    });
+  });
+  syncCalendarViewButtons();
 
   await refresh();
 }

@@ -43,6 +43,11 @@
 
         <section class="lhai-sb-panel lhai-sb-panel--center" aria-label="Week calendar">
           <div class="lhai-sb-week-toolbar">
+            <div class="lhai-sb-view-switch" role="tablist" aria-label="Calendar view">
+              <button type="button" class="lhai-sb-view-btn" id="builderViewDaily" data-view="daily" role="tab" aria-selected="false">Daily</button>
+              <button type="button" class="lhai-sb-view-btn" id="builderViewWeekly" data-view="weekly" role="tab" aria-selected="false">Weekly</button>
+              <button type="button" class="lhai-sb-view-btn is-active" id="builderViewMonthly" data-view="monthly" role="tab" aria-selected="true">Monthly</button>
+            </div>
             <button type="button" class="lhai-button lhai-button--secondary lhai-sb-week-nav" id="builderWeekPrev" aria-label="Previous week">←</button>
             <span class="lhai-sb-week-label" id="builderWeekLabel"></span>
             <button type="button" class="lhai-button lhai-button--secondary lhai-sb-week-nav" id="builderWeekNext" aria-label="Next week">→</button>

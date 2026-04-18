@@ -59,6 +59,218 @@
   font-size: 0.82rem;
 }
 
+.lhai-cs-week-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lhai-space-3);
+  margin-bottom: var(--lhai-space-3);
+  flex-wrap: wrap;
+}
+
+.lhai-cs-view-switch {
+  display: inline-flex;
+  gap: 6px;
+  margin-bottom: var(--lhai-space-2);
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-sm);
+  padding: 4px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.lhai-cs-view-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--lhai-color-text-muted);
+  border-radius: var(--lhai-radius-sm);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.lhai-cs-view-btn.is-active {
+  color: var(--lhai-color-text);
+  border-color: rgba(96, 165, 250, 0.55);
+  background: rgba(96, 165, 250, 0.16);
+}
+
+.lhai-cs-week-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-width: 12rem;
+  text-align: center;
+}
+
+.lhai-cs-week-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-x: auto;
+}
+
+.lhai-cs-week-head {
+  display: grid;
+  grid-template-columns: 48px repeat(7, minmax(72px, 1fr));
+  gap: 2px;
+  margin-bottom: 2px;
+}
+.lhai-cs-week-head--1 {
+  grid-template-columns: 48px minmax(180px, 1fr);
+}
+
+.lhai-cs-week-head__day {
+  text-align: center;
+  font-size: 0.7rem;
+  padding: var(--lhai-space-2) var(--lhai-space-1);
+  background: var(--lhai-color-surface-raised, rgba(255, 255, 255, 0.06));
+  border-radius: var(--lhai-radius-sm);
+  color: var(--lhai-color-text-muted);
+}
+
+.lhai-cs-week-head__day strong {
+  display: block;
+  color: var(--lhai-color-text);
+  font-size: 0.85rem;
+}
+
+.lhai-cs-week-head__day.is-holiday strong,
+.lhai-cs-month-date.is-holiday {
+  color: #f87171;
+}
+
+.lhai-cs-week-head__day.is-saturday strong,
+.lhai-cs-month-date.is-saturday {
+  color: #60a5fa;
+}
+
+.lhai-cs-holiday-name {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #f87171;
+  vertical-align: baseline;
+}
+
+.lhai-cs-week-body {
+  display: grid;
+  grid-template-columns: 48px repeat(7, minmax(72px, 1fr));
+  gap: 2px;
+  min-height: 400px;
+}
+.lhai-cs-week-body--1 {
+  grid-template-columns: 48px minmax(180px, 1fr);
+}
+
+.lhai-cs-time-rail {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.65rem;
+  color: var(--lhai-color-text-muted);
+}
+
+.lhai-cs-time-rail__tick {
+  flex: 1;
+  border-top: 1px dashed var(--lhai-color-border);
+  padding-top: 2px;
+  min-height: 28px;
+}
+
+.lhai-cs-day {
+  position: relative;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: var(--lhai-radius-sm);
+  min-height: 392px;
+}
+
+.lhai-cs-day-slots {
+  position: relative;
+  height: 392px;
+}
+
+.lhai-cs-block {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  min-height: 22px;
+  padding: 4px 6px;
+  border-radius: var(--lhai-radius-sm);
+  font-size: 0.7rem;
+  line-height: 1.25;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(34, 211, 238, 0.2));
+}
+
+.lhai-cs-block__title {
+  font-weight: 600;
+  display: block;
+}
+
+.lhai-cs-month-head {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(72px, 1fr));
+  gap: 2px;
+  margin-bottom: 2px;
+}
+
+.lhai-cs-month-head span {
+  text-align: center;
+  padding: 0.4rem 0.25rem;
+  font-size: 0.75rem;
+  color: var(--lhai-color-text-muted);
+  border-radius: var(--lhai-radius-sm);
+  background: var(--lhai-color-surface-raised, rgba(255, 255, 255, 0.06));
+}
+
+.lhai-cs-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(72px, 1fr));
+  gap: 2px;
+}
+
+.lhai-cs-month-cell {
+  min-height: 94px;
+  padding: 6px;
+  border-radius: var(--lhai-radius-sm);
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--lhai-color-border);
+}
+
+.lhai-cs-month-cell.is-muted {
+  opacity: 0.45;
+}
+
+.lhai-cs-month-date {
+  font-size: 0.75rem;
+  margin-bottom: 4px;
+  color: var(--lhai-color-text-muted);
+}
+
+.lhai-cs-month-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lhai-cs-month-item,
+.lhai-cs-month-more {
+  display: block;
+  font-size: 0.7rem;
+  line-height: 1.25;
+  border-radius: 6px;
+  padding: 3px 5px;
+}
+
+.lhai-cs-month-item {
+  background: rgba(96, 165, 250, 0.18);
+  border: 1px solid rgba(96, 165, 250, 0.4);
+}
+
+.lhai-cs-month-more {
+  color: var(--lhai-color-text-muted);
+}
+
 .lhai-schedule-timeline {
   position: relative;
   padding-left: 1.25rem;

@@ -1,5 +1,6 @@
 import { loadSidebar } from "../components/sidebar.js";
 import { quoteApi, serviceCatalogAdminApi } from "../core/api.js";
+import { APP_CONFIG } from "../core/config.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
 import { formatSurveyAnswerForDisplay } from "../core/survey-answer-display.js";
@@ -155,6 +156,7 @@ function renderRequest(quote, priceByServiceId = {}) {
   html += `<dt>입국·시작 예정</dt><dd>${safeText(common.entry_date || "—")}</dd>`;
   html += `<dt>이동 인원</dt><dd>${safeText(formatHousehold(common))}</dd>`;
   html += `<dt>희망 주</dt><dd>${safeText(common.target_state || "—")}</dd>`;
+  html += `<dt>희망 도시</dt><dd>${safeText(common.target_city || "—")}</dd>`;
   html += `<dt>선호 언어</dt><dd>${safeText(PREF_LANG[common.preferred_language] || common.preferred_language || "—")}</dd>`;
   html += `</dl>`;
 
@@ -270,9 +272,13 @@ async function main() {
       }
       try {
         const item = await serviceCatalogAdminApi.getServiceItem(sid);
-        if (item && item.extra_price != null) {
+        if (item) {
+          const isAddon = String(item.type || "").toLowerCase() === "addon";
+          const amount = isAddon
+            ? Number(item.extra_price || 0)
+            : Number(item.ai_guide_default_price ?? APP_CONFIG.defaultAiGuideUnitPriceUsd);
           priceByServiceId[sid] = {
-            amount: Number(item.extra_price || 0),
+            amount,
             currency: item.currency || "USD",
           };
         }

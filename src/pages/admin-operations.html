@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>운영 큐 — Landing Help AI</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="../assets/css/reset.css" />
+  <link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" />
+  <link rel="stylesheet" href="../assets/css/components.css" />
+  <link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/admin-operations.css" />
+</head>
+<body>
+  <div id="lhai-app-header-root"></div>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar"></aside>
+    <main class="lhai-main lhai-main--admin-operations">
+      <section class="lhai-page-header">
+        <div>
+          <h1 class="lhai-title">운영 워크스페이스</h1>
+          <p class="lhai-subtitle lhai-ops-page-intro">
+            채팅 목록이 아니라 <strong>운영 큐</strong>에서 우선 처리할 케이스를 고르고, 중앙에서 답변·메모·상태를 관리한 뒤 필요할 때만 오른쪽(또는 아래) <strong>전체 타임라인</strong>을 확인합니다.
+          </p>
+        </div>
+      </section>
+
+      <div class="lhai-ops-workspace" id="opsWorkspace">
+        <!-- Left: queue -->
+        <aside class="lhai-ops-panel lhai-ops-queue" aria-label="운영 큐" id="opsQueuePanel">
+          <h2 class="lhai-ops-panel__title">큐</h2>
+          <div class="lhai-ops-tabs" id="opsQueueTabs" role="tablist" aria-label="큐 유형"></div>
+          <div id="opsQueueSkeleton" hidden>
+            <span class="u-sr-only">큐 목록을 불러오는 중입니다.</span>
+            <div class="lhai-ops-skeleton"></div>
+            <div class="lhai-ops-skeleton"></div>
+            <div class="lhai-ops-skeleton"></div>
+          </div>
+          <div id="opsQueueError" class="lhai-ops-state lhai-ops-state--error" hidden></div>
+          <div id="opsQueueEmpty" class="lhai-ops-state" hidden>이 큐에 표시할 케이스가 없습니다.</div>
+          <div id="opsQueueList" class="lhai-ops-queue-list" role="listbox" aria-label="큐 항목"></div>
+        </aside>
+
+        <!-- Center: case workspace -->
+        <section class="lhai-ops-panel lhai-ops-case" aria-label="케이스 작업 영역">
+          <h2 class="lhai-ops-panel__title">케이스</h2>
+          <div id="opsCaseEmpty" class="lhai-ops-state">왼쪽에서 케이스를 선택하세요.</div>
+          <div id="opsCaseBody" hidden>
+            <div id="opsLockBanner" class="lhai-ops-lock-banner" hidden></div>
+            <dl class="lhai-ops-meta-grid" id="opsCustomerMeta"></dl>
+            <dl class="lhai-ops-meta-grid" id="opsCaseMeta"></dl>
+            <div id="opsTriageOrSummary"></div>
+            <div class="lhai-ops-card">
+              <h3 class="lhai-ops-card__head">최근 메시지</h3>
+              <div class="lhai-ops-messages" id="opsKeyMessages"></div>
+            </div>
+            <div class="lhai-ops-next-action" id="opsRecommended"></div>
+            <div class="lhai-ops-form-row">
+              <label for="opsReplyInput">관리자 회신</label>
+              <textarea id="opsReplyInput" class="lhai-ops-textarea" rows="3" placeholder="고객에게 보낼 내용을 입력…"></textarea>
+              <button type="button" class="lhai-button lhai-button--primary u-mt-2" id="opsSendReplyBtn">회신 전송 (데모)</button>
+            </div>
+            <div class="lhai-ops-card">
+              <h3 class="lhai-ops-card__head">내부 메모</h3>
+              <div class="lhai-ops-notes-list" id="opsInternalNotes"></div>
+              <div class="lhai-ops-form-row u-mt-2">
+                <label for="opsNoteInput">메모 추가</label>
+                <textarea id="opsNoteInput" class="lhai-ops-textarea" rows="2" placeholder="팀 내부용 메모…"></textarea>
+                <button type="button" class="lhai-button lhai-button--secondary u-mt-2" id="opsAddNoteBtn">메모 저장</button>
+              </div>
+            </div>
+            <div class="lhai-ops-card u-mt-2">
+              <h3 class="lhai-ops-card__head">감사 로그</h3>
+              <p class="u-text-muted" style="font-size:0.8rem;margin:0 0 0.5rem">관리자 액션(인수·배정·메모 등) 기록입니다. 고객 화면에는 표시되지 않습니다.</p>
+              <button type="button" class="lhai-button lhai-button--secondary" id="opsBtnLoadAudit">감사 로그 불러오기</button>
+              <pre id="opsAuditPre" class="u-text-muted" style="font-size:0.75rem;max-height:14rem;overflow:auto;white-space:pre-wrap;margin-top:0.5rem" hidden></pre>
+            </div>
+            <div class="lhai-ops-form-row u-mt-2">
+              <label for="opsAssignTargetId" class="u-text-muted" style="font-size:0.75rem">배정 대상 (비우면 본인 계정 · 다른 관리자에게 넘길 때만 UUID 입력)</label>
+              <input type="text" id="opsAssignTargetId" class="lhai-input" autocomplete="off" placeholder="선택 사항" />
+            </div>
+            <div class="lhai-ops-actions">
+              <button type="button" class="lhai-button lhai-button--secondary" id="opsBtnAssign">배정</button>
+              <button type="button" class="lhai-button lhai-button--secondary" id="opsBtnClaim">작업 인수</button>
+              <button type="button" class="lhai-button lhai-button--secondary" id="opsBtnRelease">인수 해제</button>
+              <button type="button" class="lhai-button lhai-button--secondary" id="opsBtnSnooze">스누즈</button>
+              <button type="button" class="lhai-button lhai-button--secondary" id="opsBtnClarify">명확화 요청</button>
+              <button type="button" class="lhai-button lhai-button--secondary" id="opsBtnWaiting">고객 회신 대기</button>
+              <button type="button" class="lhai-button lhai-button--primary" id="opsBtnResolve">해결 처리</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right / bottom: full timeline -->
+        <section class="lhai-ops-panel lhai-ops-timeline" aria-label="전체 타임라인">
+          <h2 class="lhai-ops-panel__title">전체 타임라인</h2>
+          <div id="opsTimelineEmpty" class="lhai-ops-state">케이스를 선택하면 타임라인이 표시됩니다.</div>
+          <div id="opsTimelineBody" hidden>
+            <div class="lhai-ops-timeline-filters" id="opsTimelineFilters" role="group" aria-label="타임라인 필터"></div>
+            <div class="lhai-ops-timeline-list" id="opsTimelineList"></div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <div id="opsToast" class="lhai-ops-toast" role="status" aria-live="polite"></div>
+  <script type="module" src="../assets/js/core/app-header.js"></script>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/admin-operations.js"></script>
+</body>
+</html>

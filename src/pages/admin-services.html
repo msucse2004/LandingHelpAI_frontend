@@ -32,15 +32,15 @@
         <div class="admin-services__tree-legend" aria-label="카드 색상 설명">
           <span class="admin-services__tree-legend-item"><i class="admin-services__tree-legend-dot admin-services__tree-legend-dot--category"></i>Category</span>
           <span class="admin-services__tree-legend-item"><i class="admin-services__tree-legend-dot admin-services__tree-legend-dot--package"></i>Package</span>
-          <span class="admin-services__tree-legend-item"><i class="admin-services__tree-legend-dot admin-services__tree-legend-dot--service"></i>AI Service</span>
-          <span class="admin-services__tree-legend-item"><i class="admin-services__tree-legend-dot admin-services__tree-legend-dot--inperson"></i>In-person Service</span>
+          <span class="admin-services__tree-legend-item"><i class="admin-services__tree-legend-dot admin-services__tree-legend-dot--leaf-ai"></i><span data-i18n="common.admin_services.tree.legend.leaf_ai">AI (module)</span></span>
+          <span class="admin-services__tree-legend-item"><i class="admin-services__tree-legend-dot admin-services__tree-legend-dot--leaf-inperson"></i><span data-i18n="common.admin_services.tree.legend.leaf_in_person">In-person (add-on)</span></span>
         </div>
 
         <div class="admin-services__tab-panels" id="adminServicesTopPanels">
           <div class="admin-services__tab-panel" id="panel-inventory">
             <article class="lhai-card admin-services__card">
               <h2 class="lhai-card__title">인벤토리 트리</h2>
-              <p class="lhai-help">Category → Package → AI Service / In-person Service 카드 구조입니다. 카드를 클릭하면 이름을 수정할 수 있고, 드래그해서 부모를 변경할 수 있습니다.</p>
+              <p class="lhai-help" data-i18n="common.admin_services.tree.inventory_intro">Category → Package → leaf cards: purple = AI module, orange = In-person add-on. Use domain categories at the top (e.g. Arrival, Housing). Click a card to rename, or drag to reparent.</p>
               <div id="inventoryWarnings" class="lhai-state" hidden></div>
               <div id="inventoryTreeRoot" class="admin-services__tree-root"></div>
             </article>
@@ -102,17 +102,16 @@
                         </section>
                         <section class="admin-services__editor-section">
                           <h5 class="admin-services__editor-section-title">Actions</h5>
+                          <p class="lhai-help admin-services__manage-action-status" id="manageCategoryActionStatus" role="status" aria-live="polite" hidden></p>
                           <div class="admin-services__row-actions" id="manageCategoryActionsCreate">
                             <button type="submit" class="lhai-button lhai-button--primary" id="manageCategoryCreateSubmitBtn">Create</button>
-                            <button type="button" class="lhai-button lhai-button--secondary" id="manageCategoryCancelCreateBtn">Cancel</button>
                           </div>
                           <div class="admin-services__row-actions" id="manageCategoryActionsEdit" hidden>
                             <button type="submit" class="lhai-button lhai-button--primary" id="manageCategorySaveSubmitBtn">Save Changes</button>
-                            <button type="button" class="lhai-button lhai-button--secondary" id="manageCategoryCancelEditBtn">Cancel</button>
                           </div>
                           <div class="admin-services__danger-zone" id="manageCategoryDangerZone" hidden>
-                            <p class="admin-services__bool-help">Danger zone: only available when safe delete rules pass.</p>
-                            <button type="button" class="lhai-button lhai-button--danger" id="manageCategoryDeleteBtn">Archive Category (safe delete)</button>
+                            <p class="admin-services__bool-help" id="manageCategoryDeleteHelp" data-i18n="common.admin_services.manage.delete_help.category">연결된 패키지가 없을 때만 영구 삭제할 수 있습니다.</p>
+                            <button type="button" class="lhai-button lhai-button--danger" id="manageCategoryDeleteBtn" data-i18n="common.admin_services.manage.delete_button.category">카테고리 삭제</button>
                           </div>
                         </section>
                       </form>
@@ -233,17 +232,16 @@
 
                         <section class="admin-services__editor-section">
                           <h5 class="admin-services__editor-section-title">Actions</h5>
+                          <p class="lhai-help admin-services__manage-action-status" id="managePackageActionStatus" role="status" aria-live="polite" hidden></p>
                           <div class="admin-services__row-actions" id="managePackageActionsCreate">
                             <button type="submit" class="lhai-button lhai-button--primary" id="managePackageCreateSubmitBtn">Create</button>
-                            <button type="button" class="lhai-button lhai-button--secondary" id="managePackageCancelCreateBtn">Cancel</button>
                           </div>
                           <div class="admin-services__row-actions" id="managePackageActionsEdit" hidden>
                             <button type="submit" class="lhai-button lhai-button--primary" id="managePackageSaveSubmitBtn">Save Changes</button>
-                            <button type="button" class="lhai-button lhai-button--secondary" id="managePackageCancelEditBtn">Cancel</button>
                           </div>
                           <div class="admin-services__danger-zone" id="managePackageDangerZone" hidden>
-                            <p class="admin-services__bool-help">Danger zone: only available when safe delete rules pass.</p>
-                            <button type="button" class="lhai-button lhai-button--danger" id="managePackageDeleteBtn">Archive Package (safe delete)</button>
+                            <p class="admin-services__bool-help" id="managePackageDeleteHelp" data-i18n="common.admin_services.manage.delete_help.package">패키지에 연결된 서비스·구성이 없고 서버 이력 제약이 없을 때만 삭제할 수 있습니다.</p>
+                            <button type="button" class="lhai-button lhai-button--danger" id="managePackageDeleteBtn" data-i18n="common.admin_services.manage.delete_button.package">패키지 삭제</button>
                           </div>
                         </section>
                       </form>
@@ -262,8 +260,8 @@
                       <div class="admin-services__service-filters">
                         <select class="lhai-select" id="manageServiceFilterType">
                           <option value="">All types</option>
-                          <option value="module">AI</option>
-                          <option value="addon">In-person</option>
+                          <option value="module" data-i18n="common.admin_services.manage.table.classification_ai">AI</option>
+                          <option value="addon" data-i18n="common.admin_services.manage.table.classification_in_person">In-person</option>
                         </select>
                         <select class="lhai-select" id="manageServiceFilterCategory">
                           <option value="">All categories</option>
@@ -279,7 +277,7 @@
                       </div>
                       <div class="admin-services__table-wrap">
                         <table class="lhai-table" aria-label="Service list">
-                          <thead><tr><th>Name</th><th>Type</th><th>Package</th><th>Category</th><th>Active</th><th>Visible</th></tr></thead>
+                          <thead><tr><th>Name</th><th data-i18n="common.admin_services.manage.table.type">Type</th><th>Package</th><th>Category</th><th>Active</th><th>Visible</th></tr></thead>
                           <tbody id="manageServiceTable"></tbody>
                         </table>
                       </div>
@@ -314,6 +312,16 @@
                           <textarea class="lhai-textarea" id="manageServiceCustomerShortDescription" rows="2"></textarea>
                           <label class="lhai-label" for="manageServiceCustomerLongDescription">Customer long description</label>
                           <textarea class="lhai-textarea" id="manageServiceCustomerLongDescription" rows="3"></textarea>
+                          <div id="manageServiceAiGuidePricingWrap" class="u-mt-2">
+                            <label class="lhai-label" for="manageServiceAiGuideDefaultPrice" data-i18n="common.admin_services.manage.label.ai_guide_default_price">Default unit price (quote draft)</label>
+                            <p class="lhai-help u-mt-1" data-i18n="common.admin_services.manage.service.ai_guide_price_help">
+                              Used when building the quote draft after the customer service flow (not shown as a price on the customer survey step). Default 9.99 USD if unset.
+                            </p>
+                            <div class="admin-services__price-input-with-unit">
+                              <input class="lhai-input" id="manageServiceAiGuideDefaultPrice" type="number" min="0" step="0.01" value="9.99" />
+                              <span class="admin-services__input-unit-suffix" id="manageServiceAiGuideCurrencySuffix" aria-hidden="true">USD</span>
+                            </div>
+                          </div>
                         </section>
 
                         <section class="admin-services__editor-section">
@@ -335,24 +343,28 @@
 
                         <section class="admin-services__editor-section">
                           <h5 class="admin-services__editor-section-title">Delivery Settings</h5>
+                          <p class="lhai-help u-mb-2" id="manageServiceSupportedModesIntro" data-i18n="common.admin_services.manage.service.supported_modes_intro">
+                            Choose which delivery modes this service may be offered with. At least one must stay on. Customer choice and runtime routing use other data — these toggles only define what is available in the catalog.
+                          </p>
                           <div class="admin-services__bool-grid">
                             <div class="admin-services__bool-control">
                               <label class="admin-services__switch" for="manageServiceAiCapable">
                                 <input id="manageServiceAiCapable" type="checkbox" />
                                 <span class="admin-services__switch-slider" aria-hidden="true"></span>
-                                <span class="admin-services__switch-label">AI capable</span>
+                                <span class="admin-services__switch-label">AI Agent support</span>
                               </label>
-                              <p class="admin-services__bool-help">This service can be delivered through AI guidance, checklists, or digital workflows.</p>
+                              <p class="admin-services__bool-help">Offer AI-guided steps, checklists, and digital workflows for this service.</p>
                             </div>
                             <div class="admin-services__bool-control">
                               <label class="admin-services__switch" for="manageServiceInPersonRequired">
                                 <input id="manageServiceInPersonRequired" type="checkbox" />
                                 <span class="admin-services__switch-slider" aria-hidden="true"></span>
-                                <span class="admin-services__switch-label">In-person required</span>
+                                <span class="admin-services__switch-label">In-person support</span>
                               </label>
-                              <p class="admin-services__bool-help">This service requires human support or on-site help.</p>
+                              <p class="admin-services__bool-help">Offer on-site or in-person human assistance for this service.</p>
                             </div>
                           </div>
+                          <p class="lhai-help u-mt-2 admin-services__field-error" id="manageServiceSupportedModesError" role="alert" hidden></p>
                           <p class="lhai-help u-mt-2" data-i18n="common.admin_services.manage.service.delivery_badge_hint">
                             Together, these switches control the customer-facing delivery badge: AI only → “AI Guide”; in-person only → “In-person”; both on → “AI + optional human help.”
                           </p>
@@ -369,9 +381,11 @@
                         </section>
 
                         <section class="admin-services__editor-section">
-                          <h5 class="admin-services__editor-section-title">Pricing</h5>
-                          <label class="lhai-label" for="manageServiceExtraPrice">Extra price (for add-on)</label>
-                          <input class="lhai-input" id="manageServiceExtraPrice" type="number" min="0" step="0.01" value="0" />
+                          <h5 class="admin-services__editor-section-title" data-i18n="common.admin_services.manage.section.pricing">Pricing</h5>
+                          <div id="manageServiceAddonPricingWrap" hidden>
+                            <label class="lhai-label" for="manageServiceExtraPrice" data-i18n="common.admin_services.manage.label.extra_price_addon">Extra price (add-on)</label>
+                            <input class="lhai-input" id="manageServiceExtraPrice" type="number" min="0" step="0.01" value="0" />
+                          </div>
                         </section>
 
                         <section class="admin-services__editor-section">
@@ -398,17 +412,16 @@
 
                         <section class="admin-services__editor-section">
                           <h5 class="admin-services__editor-section-title">Actions</h5>
+                          <p class="lhai-help admin-services__manage-action-status" id="manageServiceActionStatus" role="status" aria-live="polite" hidden></p>
                           <div class="admin-services__row-actions" id="manageServiceActionsCreate">
                             <button type="submit" class="lhai-button lhai-button--primary" id="manageServiceCreateSubmitBtn">Create</button>
-                            <button type="button" class="lhai-button lhai-button--secondary" id="manageServiceCancelCreateBtn">Cancel</button>
                           </div>
                           <div class="admin-services__row-actions" id="manageServiceActionsEdit" hidden>
                             <button type="submit" class="lhai-button lhai-button--primary" id="manageServiceSaveSubmitBtn">Save Changes</button>
-                            <button type="button" class="lhai-button lhai-button--secondary" id="manageServiceCancelEditBtn">Cancel</button>
                           </div>
                           <div class="admin-services__danger-zone" id="manageServiceDangerZone" hidden>
-                            <p class="admin-services__bool-help">Danger zone: archive will hide this service from new workflows.</p>
-                            <button type="button" class="lhai-button lhai-button--danger" id="manageServiceArchiveBtn">Archive Service</button>
+                            <p class="admin-services__bool-help u-mb-2" id="manageServiceDeleteHelp" data-i18n="common.admin_services.manage.delete_help.service">패키지에 연결되지 않았고 견적/이력 제약이 없을 때만 삭제할 수 있습니다.</p>
+                            <button type="button" class="lhai-button lhai-button--danger" id="manageServiceDeleteBtn" data-i18n="common.admin_services.manage.delete_button.service">서비스 영구 삭제</button>
                           </div>
                         </section>
                       </form>

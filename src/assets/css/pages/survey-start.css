@@ -393,6 +393,34 @@
   margin-top: var(--lhai-space-2);
 }
 
+.service-flow__delivery-pick {
+  margin-top: var(--lhai-space-3);
+  padding-top: var(--lhai-space-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.service-flow__delivery-pick-lead {
+  margin-bottom: var(--lhai-space-2);
+}
+
+.service-flow__delivery-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-2);
+}
+
+.service-flow__radio {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lhai-space-2);
+  cursor: pointer;
+  font-size: var(--lhai-font-size-sm);
+}
+
+.service-flow__radio input {
+  margin-top: 4px;
+}
+
 /* Delivery badges (customer service cards + intake + review) */
 .service-flow__badge {
   display: inline-block;

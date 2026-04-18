@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>문의 상세 - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/cases.css" />
+</head>
+<body>
+  <div id="lhai-app-header-root"></div>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar" aria-label="고객 메뉴"></aside>
+    <main class="lhai-main lhai-case-detail__shell">
+      <section class="lhai-page-header">
+        <div>
+          <a class="lhai-help u-mb-2" href="cases.html" style="display:inline-block;">← 내 문의 목록</a>
+          <h1 class="lhai-title" id="caseDetailTitle">문의</h1>
+          <p class="lhai-subtitle" id="caseDetailSubtitle" hidden></p>
+        </div>
+      </section>
+
+      <div id="caseDetailLoading" class="lhai-card lhai-state lhai-state--loading">불러오는 중…</div>
+      <div id="caseDetailError" class="lhai-card lhai-state lhai-state--error" hidden role="alert"></div>
+      <div id="caseDetailContent" hidden>
+        <div id="caseOpsBanner" class="lhai-case-detail__banner lhai-case-detail__banner--ops" hidden>
+          <span aria-hidden="true">📋</span>
+          <div>
+            <strong>운영팀에 전달되었습니다.</strong>
+            <p class="lhai-help u-mt-1" style="margin:0;">담당자가 순서대로 확인합니다. 급하시면 아래 메시지에 「긴급」을 적어 주세요.</p>
+          </div>
+        </div>
+
+        <section class="lhai-card lhai-case-detail__hero">
+          <div class="lhai-case-detail__hero-row">
+            <span id="caseStatusBadge" class="lhai-case-badge lhai-case-badge--open">—</span>
+            <span class="lhai-case-detail__stage" id="caseStageLine">단계: —</span>
+          </div>
+          <p class="lhai-help u-mt-2" id="caseUpdatedLine">업데이트: —</p>
+        </section>
+
+        <section class="lhai-card" aria-label="대화">
+          <h2 class="lhai-card__title">대화</h2>
+          <div class="lhai-case-chat-wrap">
+            <div class="lhai-case-chat-scroll" id="caseChatScroll">
+              <div class="lhai-case-chat-stream" id="caseChatStream"></div>
+            </div>
+            <div class="lhai-case-composer">
+              <p class="lhai-help u-mb-2" style="font-size:0.85rem;">메시지는 자동으로 안내·운영에 전달됩니다. 매번 AI/사람을 고르실 필요 없습니다.</p>
+              <div class="lhai-case-quick-actions" id="caseQuickActions" aria-label="빠른 요청">
+                <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-quick="ops">운영팀에 보내기</button>
+                <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-quick="human">사람 도움 요청</button>
+                <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-quick="schedule">일정 변경 요청</button>
+                <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-quick="docs">문서 도움 요청</button>
+              </div>
+              <form class="lhai-case-composer__form" id="caseComposerForm">
+                <label class="u-sr-only" for="caseComposerInput">메시지</label>
+                <textarea id="caseComposerInput" class="lhai-case-composer__input" rows="3" maxlength="4000" placeholder="메시지를 입력하세요" required></textarea>
+                <div class="lhai-case-composer__row">
+                  <span class="lhai-help" id="caseComposerHint" aria-live="polite"></span>
+                  <button type="submit" class="lhai-button lhai-button--primary">보내기</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/app-header.js"></script>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/case-detail.js"></script>
+</body>
+</html>

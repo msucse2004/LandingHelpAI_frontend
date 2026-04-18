@@ -29,6 +29,8 @@ function resolveSidebarActiveHref(currentFile, variant) {
     "index.html": "dashboard.html",
     "app.html": "dashboard.html",
     "messages.html": "messages.html",
+    "cases.html": "cases.html",
+    "case-detail.html": "cases.html",
   };
   if (variant === "admin") return adminMap[currentFile] || currentFile;
   return customerMap[currentFile] || currentFile;
@@ -79,7 +81,7 @@ function bindAdminDevResetQuotesInvoices(sidebarRoot) {
   if (!btn) return;
   btn.addEventListener("click", async () => {
     const ok = window.confirm(
-      "개발용: 저장소(DB 또는 메모리)의 모든 견적·청구서·일정(스케줄 초안·카드·릴리스 기록)과 각 계정 메시지함의 인앱 메시지(및 DB 사용 시 메시지 스레드)를 삭제합니다. 복구할 수 없습니다. 진행할까요?"
+      "개발용: 저장소(DB 또는 메모리)의 모든 견적·청구서·일정(스케줄 초안·카드·릴리스 기록), 각 계정 메시지함의 인앱 메시지(및 DB 사용 시 메시지 스레드), 운영 큐(운영 케이스·내부 메모·라우팅/배정·케이스 요약·메시징 파이프라인 잡 큐)를 삭제합니다. 복구할 수 없습니다. 진행할까요?"
     );
     if (!ok) return;
     btn.disabled = true;
@@ -90,8 +92,15 @@ function bindAdminDevResetQuotesInvoices(sidebarRoot) {
       const thr = result.message_threads_deleted != null ? result.message_threads_deleted : "—";
       const thrPart =
         thr !== "—" && Number(thr) > 0 ? `, 메시지 스레드 ${thr}건` : "";
+      const opCases = result.operational_cases_deleted != null ? result.operational_cases_deleted : 0;
+      const opPipe = result.operational_pipeline_rows_deleted != null ? result.operational_pipeline_rows_deleted : 0;
+      const opJobs = result.messaging_jobs_cleared != null ? result.messaging_jobs_cleared : 0;
+      const opPart =
+        Number(opCases) + Number(opPipe) + Number(opJobs) > 0
+          ? `, 운영케이스 ${opCases}건·파이프라인 보조행 ${opPipe}건·메시징잡 ${opJobs}건`
+          : "";
       window.alert(
-        `삭제 완료: 견적 ${result.quotes_deleted}건, 청구서 ${result.invoices_deleted}건, 일정 ${sch}건, 메시지 ${msg}건${thrPart}. 관련 화면을 새로고침하세요.`
+        `삭제 완료: 견적 ${result.quotes_deleted}건, 청구서 ${result.invoices_deleted}건, 일정 ${sch}건, 메시지 ${msg}건${thrPart}${opPart}. 관련 화면을 새로고침하세요.`
       );
     } catch (err) {
       const msg = err && typeof err.message === "string" ? err.message : String(err);

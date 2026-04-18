@@ -1,4 +1,4 @@
-import { dashboardApi, timelineApi } from "../core/api.js";
+import { customerCasesApi, dashboardApi, timelineApi } from "../core/api.js";
 import { getSession } from "../core/auth.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { getState, patchState } from "../core/state.js";
@@ -9,6 +9,82 @@ import { initCommonI18nAndApplyDom } from "../core/i18n-dom.js";
 
 function qs(selector) {
   return document.querySelector(selector);
+}
+
+function escHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function dashboardCaseBadgeClass(status) {
+  const m = {
+    open: "lhai-case-badge--open",
+    pending_ops: "lhai-case-badge--pending_ops",
+    pending_customer: "lhai-case-badge--pending_customer",
+    resolved: "lhai-case-badge--resolved",
+  };
+  return m[status] || "lhai-case-badge--open";
+}
+
+function customerCaseStatusBadgeClass(item) {
+  const kind = String(item?.case_kind || "");
+  if (kind === "messaging") {
+    return item.unread ? "lhai-case-badge--pending_customer" : "lhai-case-badge--open";
+  }
+  const tab = String(item?.queue_tab || "").toLowerCase();
+  if (tab === "resolved") return "lhai-case-badge--resolved";
+  if (tab === "waiting_customer") return "lhai-case-badge--pending_customer";
+  if (tab === "action_required") return "lhai-case-badge--pending_ops";
+  return "lhai-case-badge--open";
+}
+
+function customerCaseStatusLabel(item) {
+  const kind = String(item?.case_kind || "");
+  if (kind === "messaging") {
+    return item.unread ? "새 메시지" : "진행 중";
+  }
+  const tab = String(item?.queue_tab || "").toLowerCase();
+  if (tab === "resolved") return "완료";
+  if (tab === "waiting_customer") return "고객 확인 대기";
+  if (tab === "action_required") return "운영 확인 중";
+  const raw = String(item?.case_status || item?.queue_status || "").trim();
+  if (raw) return raw.replace(/_/g, " ");
+  return "진행 중";
+}
+
+function renderDashboardCasesPreview(items) {
+  const target = qs("#dashboardCasesPreview");
+  if (!target) return;
+  const rows = Array.isArray(items) ? [...items] : [];
+  rows.sort((a, b) => {
+    const ta = a.last_activity_at ? new Date(a.last_activity_at).getTime() : 0;
+    const tb = b.last_activity_at ? new Date(b.last_activity_at).getTime() : 0;
+    return tb - ta;
+  });
+  const top = rows.slice(0, 8);
+  if (!top.length) {
+    target.innerHTML = `<p class="lhai-state lhai-state--empty" style="margin:0;">표시할 문의가 없습니다.</p>`;
+    return;
+  }
+  target.innerHTML = top
+    .map((c) => {
+      const href = `case-detail.html?case_id=${encodeURIComponent(c.case_id)}`;
+      const preview = String(c.subtitle || "").trim();
+      const short = preview.length > 72 ? `${preview.slice(0, 72)}…` : preview;
+      const label = customerCaseStatusLabel(c);
+      const badgeClass = customerCaseStatusBadgeClass(c);
+      return `<a class="lhai-case-card" href="${escHtml(href)}">
+        <div class="lhai-case-card__head">
+          <h3 class="lhai-case-card__title">${escHtml(c.title || "문의")}</h3>
+          <span class="lhai-case-badge ${badgeClass}">${escHtml(label)}</span>
+        </div>
+        <p class="u-text-muted" style="font-size:0.88rem;margin:0;">${escHtml(short || "자세한 내용은 케이스에서 확인하세요.")}</p>
+      </a>`;
+    })
+    .join("");
 }
 
 function renderStatusCards(cards = []) {
@@ -119,10 +195,11 @@ async function initDashboardPage() {
     sessionEmail && String(sessionEmail).trim()
       ? `profile::${String(sessionEmail).trim().toLowerCase()}`
       : "profile::demo@customer.com";
-  const [dashboardAggregate, timelineItems, checklistSummary] = await Promise.all([
+  const [dashboardAggregate, timelineItems, checklistSummary, caseItems] = await Promise.all([
     dashboardApi.getAggregate(customerProfileId),
     timelineApi.listByCustomer(customerProfileId),
     dashboardApi.getChecklistSummary(customerProfileId),
+    customerCasesApi.list(),
   ]);
 
   patchState({
@@ -144,6 +221,7 @@ async function initDashboardPage() {
   renderRecentMessages(dashboardAggregate.recent_messages);
   renderDocumentStatus(dashboardAggregate.document_status);
   renderRecentActivity(dashboardAggregate.recent_activity);
+  renderDashboardCasesPreview(caseItems);
 
   const state = getState();
   let dashboardSummary = state.dashboardSummary;

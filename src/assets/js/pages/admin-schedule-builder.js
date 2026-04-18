@@ -111,6 +111,64 @@ function addCivilDays(y, m, d, delta) {
   return { y: x.getUTCFullYear(), m: x.getUTCMonth() + 1, d: x.getUTCDate() };
 }
 
+function shiftCivilMonth(y, m, d, deltaMonths) {
+  const x = new Date(Date.UTC(y, m - 1 + deltaMonths, d));
+  return { y: x.getUTCFullYear(), m: x.getUTCMonth() + 1, d: x.getUTCDate() };
+}
+
+function nthWeekdayOfMonthCivil(year, month1, weekdaySun0, nth) {
+  const firstDow = new Date(Date.UTC(year, month1 - 1, 1)).getUTCDay();
+  const delta = (weekdaySun0 - firstDow + 7) % 7;
+  return 1 + delta + (nth - 1) * 7;
+}
+
+function lastWeekdayOfMonthCivil(year, month1, weekdaySun0) {
+  const last = new Date(Date.UTC(year, month1, 0));
+  const diff = (last.getUTCDay() - weekdaySun0 + 7) % 7;
+  return last.getUTCDate() - diff;
+}
+
+function usFederalHolidayNameCivil(y, m, d) {
+  const fixed = `${m}-${d}`;
+  if (fixed === "1-1") return "New Year";
+  if (fixed === "6-19") return "Juneteenth";
+  if (fixed === "7-4") return "Independence Day";
+  if (fixed === "11-11") return "Veterans Day";
+  if (fixed === "12-25") return "Christmas";
+  if (m === 1 && d === nthWeekdayOfMonthCivil(y, 1, 1, 3)) return "MLK Day";
+  if (m === 2 && d === nthWeekdayOfMonthCivil(y, 2, 1, 3)) return "Presidents Day";
+  if (m === 5 && d === lastWeekdayOfMonthCivil(y, 5, 1)) return "Memorial Day";
+  if (m === 9 && d === nthWeekdayOfMonthCivil(y, 9, 1, 1)) return "Labor Day";
+  if (m === 10 && d === nthWeekdayOfMonthCivil(y, 10, 1, 2)) return "Columbus Day";
+  if (m === 11 && d === nthWeekdayOfMonthCivil(y, 11, 4, 4)) return "Thanksgiving";
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  if (dow === 5) {
+    const n = addCivilDays(y, m, d, 1);
+    const nfixed = `${n.m}-${n.d}`;
+    if (nfixed === "1-1") return "New Year (Observed)";
+    if (nfixed === "6-19") return "Juneteenth (Observed)";
+    if (nfixed === "7-4") return "Independence Day (Observed)";
+    if (nfixed === "11-11") return "Veterans Day (Observed)";
+    if (nfixed === "12-25") return "Christmas (Observed)";
+  } else if (dow === 1) {
+    const p = addCivilDays(y, m, d, -1);
+    const pfixed = `${p.m}-${p.d}`;
+    if (pfixed === "1-1") return "New Year (Observed)";
+    if (pfixed === "6-19") return "Juneteenth (Observed)";
+    if (pfixed === "7-4") return "Independence Day (Observed)";
+    if (pfixed === "11-11") return "Veterans Day (Observed)";
+    if (pfixed === "12-25") return "Christmas (Observed)";
+  }
+  return "";
+}
+
+function calendarToneClassCivil(y, m, d) {
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  if (usFederalHolidayNameCivil(y, m, d) || dow === 0) return "is-holiday";
+  if (dow === 6) return "is-saturday";
+  return "";
+}
+
 /**
  * UTC millis for wall-clock y-m-d hh:mm:ss in `timeZone` (iterative; handles DST).
  */
@@ -205,6 +263,8 @@ const dirtyIds = new Set();
 let selectedId = "";
 /** @type {Date} */
 let weekStart = new Date();
+/** @type {"daily"|"weekly"|"monthly"} */
+let calendarView = "monthly";
 
 const MSG_UNSAVED_LEAVE_LIST =
   "저장하지 않은 변경 사항(일정 위치·노트 등)이 있습니다. 일정 관리 화면으로 나가면 이 수정 내용은 모두 사라집니다. 나갈까요?";
@@ -285,6 +345,75 @@ function applyDropAtSlot(item, civilY, civilM, civilD, clientY, slotsElement, ti
   const next = new Date(startMs);
   item.scheduled_start = isoUtcZ(next);
   item.scheduled_end = isoUtcZ(new Date(startMs + dm * 60000));
+}
+
+/**
+ * Monthly view drop: change date only, preserve local time-of-day if available.
+ * If the item has no scheduled time yet, defaults to 09:00 local.
+ */
+function applyDropAtDayPreserveTime(item, civilY, civilM, civilD, timeZone) {
+  const dm = Number(item.duration_minutes) > 0 ? Number(item.duration_minutes) : 120;
+  const currentStart = parseIsoUtc(item.scheduled_start);
+  let hh = 9;
+  let mm = 0;
+  if (currentStart) {
+    const p = partsInZone(currentStart.getTime(), timeZone);
+    if (Number.isFinite(p.hour) && Number.isFinite(p.minute)) {
+      hh = p.hour;
+      mm = p.minute;
+    }
+  }
+  let startMs = utcAtLocalWallClock(timeZone, civilY, civilM, civilD, hh, mm, 0);
+  const p2 = partsInZone(startMs, timeZone);
+  const startM = p2.hour * 60 + p2.minute;
+  const bandStart = HOUR_START * 60;
+  const bandEnd = HOUR_END * 60;
+  if (startM < bandStart || startM >= bandEnd) {
+    startMs = utcAtLocalWallClock(timeZone, civilY, civilM, civilD, 9, 0, 0);
+  }
+  item.scheduled_start = isoUtcZ(new Date(startMs));
+  item.scheduled_end = isoUtcZ(new Date(startMs + dm * 60000));
+}
+
+function monthDayItemsSorted(civilY, civilM, civilD, timeZone) {
+  const dayStartMs = utcAtLocalWallClock(timeZone, civilY, civilM, civilD, 0, 0, 0);
+  return workingItems
+    .filter((it) => {
+      const st = parseIsoUtc(it.scheduled_start);
+      return st && sameZonedCalendarDay(st.getTime(), dayStartMs, timeZone);
+    })
+    .sort((a, b) => {
+      const ta = parseIsoUtc(a.scheduled_start)?.getTime() || 0;
+      const tb = parseIsoUtc(b.scheduled_start)?.getTime() || 0;
+      if (ta !== tb) return ta - tb;
+      return (a.sort_order || 0) - (b.sort_order || 0);
+    });
+}
+
+/**
+ * Monthly priority reorder:
+ * - Build order within one day
+ * - Persist by rewriting scheduled_start/end in 15-minute increments
+ */
+function rebalanceMonthDayOrder(civilY, civilM, civilD, draggedId, beforeId, timeZone) {
+  const ordered = monthDayItemsSorted(civilY, civilM, civilD, timeZone).map((x) => x.id);
+  const filtered = ordered.filter((id) => id !== draggedId);
+  const insertAt = beforeId ? Math.max(0, filtered.indexOf(beforeId)) : filtered.length;
+  if (insertAt >= filtered.length) filtered.push(draggedId);
+  else filtered.splice(insertAt, 0, draggedId);
+
+  for (let i = 0; i < filtered.length; i += 1) {
+    const id = filtered[i];
+    const it = itemById(id);
+    if (!it) continue;
+    const dm = Number(it.duration_minutes) > 0 ? Number(it.duration_minutes) : 120;
+    const startMinute = 9 * 60 + i * 15;
+    const hh = Math.floor(startMinute / 60);
+    const mm = startMinute % 60;
+    const startMs = utcAtLocalWallClock(timeZone, civilY, civilM, civilD, hh, mm, 0);
+    it.scheduled_start = isoUtcZ(new Date(startMs));
+    it.scheduled_end = isoUtcZ(new Date(startMs + dm * 60000));
+  }
 }
 
 function clearScheduleDragState() {
@@ -514,7 +643,7 @@ function renderLeft() {
     el.addEventListener("click", () => {
       selectedId = el.getAttribute("data-item-id") || "";
       renderLeft();
-      renderWeek();
+      renderCalendar();
       renderRight();
     });
     el.addEventListener("dragstart", (ev) => {
@@ -532,23 +661,29 @@ function renderLeft() {
   });
 }
 
-function renderWeek() {
+function renderWeekGrid(dayCount) {
   const labelEl = document.querySelector("#builderWeekLabel");
   const grid = document.querySelector("#builderWeekGrid");
   if (!labelEl || !grid) return;
 
   const tz = getBuilderTimeZone();
   const monParts = partsInZone(weekStart.getTime(), tz);
-  const sunCivil = addCivilDays(monParts.y, monParts.m, monParts.d, 6);
-  const sunLabel = `${sunCivil.y}-${String(sunCivil.m).padStart(2, "0")}-${String(sunCivil.d).padStart(2, "0")}`;
   const monLabel = `${monParts.y}-${String(monParts.m).padStart(2, "0")}-${String(monParts.d).padStart(2, "0")}`;
-  labelEl.textContent = `${monLabel} → ${sunLabel} (${getBuilderTimeZoneLabel()})`;
+  if (dayCount === 1) {
+    labelEl.textContent = `${monLabel} (${getBuilderTimeZoneLabel()})`;
+  } else {
+    const sunCivil = addCivilDays(monParts.y, monParts.m, monParts.d, 6);
+    const sunLabel = `${sunCivil.y}-${String(sunCivil.m).padStart(2, "0")}-${String(sunCivil.d).padStart(2, "0")}`;
+    labelEl.textContent = `${monLabel} → ${sunLabel} (${getBuilderTimeZoneLabel()})`;
+  }
 
   const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   let head = `<div class="lhai-sb-week-head__corner"></div>`;
-  for (let i = 0; i < 7; i += 1) {
+  for (let i = 0; i < dayCount; i += 1) {
     const c = addCivilDays(monParts.y, monParts.m, monParts.d, i);
-    head += `<div class="lhai-sb-week-head__day"><strong>${dayNames[i]}</strong> ${String(c.m).padStart(2, "0")}-${String(c.d).padStart(2, "0")}</div>`;
+    const tone = calendarToneClassCivil(c.y, c.m, c.d);
+    const holiday = usFederalHolidayNameCivil(c.y, c.m, c.d);
+    head += `<div class="lhai-sb-week-head__day ${tone}"><strong>${dayNames[i]}</strong> ${String(c.m).padStart(2, "0")}-${String(c.d).padStart(2, "0")}${holiday ? ` <span class="lhai-sb-holiday-name">${safeText(holiday)}</span>` : ""}</div>`;
   }
 
   let rail = "";
@@ -557,7 +692,7 @@ function renderWeek() {
   }
 
   let daysHtml = "";
-  for (let i = 0; i < 7; i += 1) {
+  for (let i = 0; i < dayCount; i += 1) {
     const colCivil = addCivilDays(monParts.y, monParts.m, monParts.d, i);
     const dayIso = `${colCivil.y}-${String(colCivil.m).padStart(2, "0")}-${String(colCivil.d).padStart(2, "0")}`;
     const colStartMs = utcAtLocalWallClock(tz, colCivil.y, colCivil.m, colCivil.d, 0, 0, 0);
@@ -592,13 +727,17 @@ function renderWeek() {
       ${daysHtml}
     </div>
   `;
+  const headEl = grid.querySelector(".lhai-sb-week-head");
+  const bodyEl = grid.querySelector(".lhai-sb-week-body");
+  if (headEl instanceof HTMLElement) headEl.style.gridTemplateColumns = `48px repeat(${dayCount}, minmax(72px, 1fr))`;
+  if (bodyEl instanceof HTMLElement) bodyEl.style.gridTemplateColumns = `48px repeat(${dayCount}, minmax(72px, 1fr))`;
 
   grid.querySelectorAll(".lhai-sb-block").forEach((el) => {
     el.addEventListener("click", (ev) => {
       ev.stopPropagation();
       selectedId = el.getAttribute("data-item-id") || "";
       renderLeft();
-      renderWeek();
+      renderCalendar();
       renderRight();
     });
     el.addEventListener("dragstart", (ev) => {
@@ -659,13 +798,207 @@ function renderWeek() {
       selectedId = itemId;
       setStatus("일정을 옮겼습니다. 반영하려면 「변경 저장」을 누르세요.");
       renderLeft();
-      renderWeek();
+      renderCalendar();
       renderRight();
       updateWorkflowControls();
       /* innerHTML 교체로 dragend가 누락될 수 있어 드래그 상태를 여기서 반드시 해제 */
       clearScheduleDragState();
     });
   });
+}
+
+function renderMonthGrid() {
+  const labelEl = document.querySelector("#builderWeekLabel");
+  const grid = document.querySelector("#builderWeekGrid");
+  if (!labelEl || !grid) return;
+  const tz = getBuilderTimeZone();
+  const anchor = partsInZone(weekStart.getTime(), tz);
+  const monthStartMs = utcAtLocalWallClock(tz, anchor.y, anchor.m, 1, 0, 0, 0);
+  const monthStart = partsInZone(monthStartMs, tz);
+  labelEl.textContent = `${monthStart.y}-${String(monthStart.m).padStart(2, "0")} (${getBuilderTimeZoneLabel()})`;
+
+  const firstDow = WD_MON0[monthStart.weekday] ?? 0;
+  const nextMonth = monthStart.m === 12 ? { y: monthStart.y + 1, m: 1 } : { y: monthStart.y, m: monthStart.m + 1 };
+  const daysInMonth = Math.round(
+    (Date.UTC(nextMonth.y, nextMonth.m - 1, 1) - Date.UTC(monthStart.y, monthStart.m - 1, 1)) / 86400000,
+  );
+  const cells = [];
+  for (let i = 0; i < firstDow; i += 1) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d += 1) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  let head = "";
+  for (let i = 0; i < dayNames.length; i += 1) {
+    const tone = i === 5 ? "is-saturday" : i === 6 ? "is-holiday" : "";
+    head += `<div class="lhai-sb-month-head__day ${tone}">${dayNames[i]}</div>`;
+  }
+  const body = cells
+    .map((d) => {
+      if (!d) return `<div class="lhai-sb-month-cell is-empty"></div>`;
+      const tone = calendarToneClassCivil(monthStart.y, monthStart.m, d);
+      const holiday = usFederalHolidayNameCivil(monthStart.y, monthStart.m, d);
+      const dayStart = utcAtLocalWallClock(tz, monthStart.y, monthStart.m, d, 0, 0, 0);
+      const dayItems = workingItems.filter((it) => {
+        const st = parseIsoUtc(it.scheduled_start);
+        return st && sameZonedCalendarDay(st.getTime(), dayStart, tz);
+      });
+      const names = dayItems
+        .slice(0, 3)
+        .map(
+          (it) =>
+            `<div class="lhai-sb-month-cell__item ${it.id === selectedId ? "is-selected" : ""}" draggable="true" data-item-id="${safeText(it.id)}">${safeText(it.service_name_snapshot || "Service")}</div>`,
+        )
+        .join("");
+      const more = dayItems.length > 3 ? `<div class="lhai-sb-month-cell__more">+${dayItems.length - 3} more</div>` : "";
+      return `<div class="lhai-sb-month-cell" data-month-day="${d}" data-month-drop="1">
+        <div class="lhai-sb-month-cell__date ${tone}">${d}${holiday ? ` <span class="lhai-sb-holiday-name">${safeText(holiday)}</span>` : ""}</div>
+        ${names}${more}
+      </div>`;
+    })
+    .join("");
+  grid.innerHTML = `
+    <div class="lhai-sb-month-head">${head}</div>
+    <div class="lhai-sb-month-grid">${body}</div>
+  `;
+  grid.querySelectorAll("[data-month-day]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const d = Number(el.getAttribute("data-month-day"));
+      if (!Number.isFinite(d)) return;
+      weekStart = new Date(utcAtLocalWallClock(tz, monthStart.y, monthStart.m, d, 0, 0, 0));
+      calendarView = "daily";
+      syncViewButtons();
+      renderCalendar();
+      setStatus("월간에서 날짜를 선택해 일간 뷰로 전환했습니다.");
+    });
+  });
+
+  grid.querySelectorAll(".lhai-sb-month-cell__item[data-item-id]").forEach((el) => {
+    el.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const id = el.getAttribute("data-item-id") || "";
+      if (!id) return;
+      selectedId = id;
+      renderLeft();
+      renderCalendar();
+      renderRight();
+    });
+    el.addEventListener("dragstart", (ev) => {
+      el.classList.add("lhai-sb-card--drag-source");
+      beginScheduleDrag();
+      const id = el.getAttribute("data-item-id") || "";
+      const payload = JSON.stringify({ itemId: id, source: "month" });
+      ev.dataTransfer.setData("application/json", payload);
+      ev.dataTransfer.setData("text/plain", id);
+      ev.dataTransfer.effectAllowed = "move";
+      ev.stopPropagation();
+    });
+    el.addEventListener("dragend", () => {
+      el.classList.remove("lhai-sb-card--drag-source");
+      clearScheduleDragState();
+    });
+    el.addEventListener("dragover", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      el.classList.add("lhai-sb-month-cell__item--drop-before");
+      ev.dataTransfer.dropEffect = "move";
+    });
+    el.addEventListener("dragleave", (ev) => {
+      const rel = ev.relatedTarget;
+      if (rel instanceof Node && el.contains(rel)) return;
+      el.classList.remove("lhai-sb-month-cell__item--drop-before");
+    });
+    el.addEventListener("drop", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      el.classList.remove("lhai-sb-month-cell__item--drop-before");
+      let data = {};
+      const jsonRaw = ev.dataTransfer.getData("application/json");
+      if (jsonRaw) {
+        try {
+          data = JSON.parse(jsonRaw);
+        } catch {
+          data = {};
+        }
+      }
+      const draggedId = data.itemId || ev.dataTransfer.getData("text/plain");
+      const beforeId = el.getAttribute("data-item-id") || "";
+      const cell = el.closest(".lhai-sb-month-cell[data-month-drop='1']");
+      const day = Number(cell?.getAttribute("data-month-day"));
+      if (!draggedId || !beforeId || !Number.isFinite(day)) return;
+      const it = itemById(draggedId);
+      if (!it) return;
+      applyDropAtDayPreserveTime(it, monthStart.y, monthStart.m, day, tz);
+      rebalanceMonthDayOrder(monthStart.y, monthStart.m, day, draggedId, beforeId, tz);
+      const affected = monthDayItemsSorted(monthStart.y, monthStart.m, day, tz);
+      for (const row of affected) dirtyIds.add(row.id);
+      selectedId = draggedId;
+      setStatus("월간에서 같은 날짜 내 우선순위를 변경했습니다. 반영하려면 「변경 저장」을 누르세요.");
+      renderLeft();
+      renderCalendar();
+      renderRight();
+      updateWorkflowControls();
+      clearScheduleDragState();
+    });
+  });
+
+  grid.querySelectorAll(".lhai-sb-month-cell[data-month-drop='1']").forEach((cell) => {
+    cell.addEventListener("dragover", (ev) => {
+      ev.preventDefault();
+      cell.classList.add("lhai-sb-month-cell--drop-target");
+      ev.dataTransfer.dropEffect = "move";
+    });
+    cell.addEventListener("dragleave", (ev) => {
+      const rel = ev.relatedTarget;
+      if (rel instanceof Node && cell.contains(rel)) return;
+      cell.classList.remove("lhai-sb-month-cell--drop-target");
+    });
+    cell.addEventListener("drop", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      cell.classList.remove("lhai-sb-month-cell--drop-target");
+      let data = {};
+      const jsonRaw = ev.dataTransfer.getData("application/json");
+      if (jsonRaw) {
+        try {
+          data = JSON.parse(jsonRaw);
+        } catch {
+          data = {};
+        }
+      }
+      const itemId = data.itemId || ev.dataTransfer.getData("text/plain");
+      const day = Number(cell.getAttribute("data-month-day"));
+      if (!itemId || !Number.isFinite(day)) return;
+      const it = itemById(itemId);
+      if (!it) return;
+      applyDropAtDayPreserveTime(it, monthStart.y, monthStart.m, day, tz);
+      dirtyIds.add(itemId);
+      selectedId = itemId;
+      setStatus("월간 달력에서 날짜를 변경했습니다. 반영하려면 「변경 저장」을 누르세요.");
+      renderLeft();
+      renderCalendar();
+      renderRight();
+      updateWorkflowControls();
+      clearScheduleDragState();
+    });
+  });
+}
+
+function syncViewButtons() {
+  document.querySelectorAll(".lhai-sb-view-btn").forEach((el) => {
+    const view = el.getAttribute("data-view");
+    const active = view === calendarView;
+    el.classList.toggle("is-active", active);
+    el.setAttribute("aria-selected", active ? "true" : "false");
+  });
+}
+
+function renderCalendar() {
+  if (calendarView === "monthly") {
+    renderMonthGrid();
+    return;
+  }
+  renderWeekGrid(calendarView === "daily" ? 1 : 7);
 }
 
 function itemReasonsList(item) {
@@ -728,9 +1061,11 @@ function renderRight() {
     <p><strong>${safeText(item.service_name_snapshot || "Service")}</strong></p>
     <p class="u-text-muted" style="font-size:0.8rem">${safeText(formatSlotRange(item))} · ${safeText(formatDuration(item))}</p>
     <p class="u-text-muted" style="font-size:0.72rem;line-height:1.35">${
-      tz === "UTC"
-        ? `Drag vertically in the week column to change <strong>UTC</strong> start time (${HOUR_START}:00–${HOUR_END}:00, 15-minute steps).`
-        : `Drag vertically to change start time in <strong>destination local time</strong> (${HOUR_START}:00–${HOUR_END}:00, ${safeText(getBuilderTimeZoneLabel())}, 15-minute steps).`
+      calendarView === "monthly"
+        ? "Monthly view is for overview only. Pick a date to switch to Daily and adjust time by drag/drop."
+        : tz === "UTC"
+          ? `Drag vertically in the calendar column to change <strong>UTC</strong> start time (${HOUR_START}:00–${HOUR_END}:00, 15-minute steps).`
+          : `Drag vertically to change start time in <strong>destination local time</strong> (${HOUR_START}:00–${HOUR_END}:00, ${safeText(getBuilderTimeZoneLabel())}, 15-minute steps).`
     } Dragging from the list or moving a block uses the same rule.</p>
     <div class="lhai-sb-field lhai-field">
       <label class="lhai-label" for="builderInternalNote">내부 메모 (운영)</label>
@@ -799,7 +1134,8 @@ async function loadAll(scheduleId) {
 
   renderContext();
   renderLeft();
-  renderWeek();
+  syncViewButtons();
+  renderCalendar();
   renderRight();
   renderEditHistory();
   setStatus("불러왔습니다. 달력·노트를 수정한 뒤 「변경 저장」으로 서버에 반영하거나, 「리셋」으로 취소할 수 있습니다.");
@@ -836,7 +1172,7 @@ async function flushBuilderDraftToServer() {
     dirtyIds.clear();
     renderContext(true);
     renderLeft();
-    renderWeek();
+    renderCalendar();
     renderRight();
     renderEditHistory();
     return { ok: true };
@@ -922,16 +1258,27 @@ async function init() {
   document.querySelector("#builderWeekPrev")?.addEventListener("click", () => {
     const tz = getBuilderTimeZone();
     const mon = partsInZone(weekStart.getTime(), tz);
-    const prev = addCivilDays(mon.y, mon.m, mon.d, -7);
+    const prev = calendarView === "monthly" ? shiftCivilMonth(mon.y, mon.m, mon.d, -1) : addCivilDays(mon.y, mon.m, mon.d, calendarView === "daily" ? -1 : -7);
     weekStart = new Date(utcAtLocalWallClock(tz, prev.y, prev.m, prev.d, 0, 0, 0));
-    renderWeek();
+    renderCalendar();
   });
   document.querySelector("#builderWeekNext")?.addEventListener("click", () => {
     const tz = getBuilderTimeZone();
     const mon = partsInZone(weekStart.getTime(), tz);
-    const next = addCivilDays(mon.y, mon.m, mon.d, 7);
+    const next = calendarView === "monthly" ? shiftCivilMonth(mon.y, mon.m, mon.d, 1) : addCivilDays(mon.y, mon.m, mon.d, calendarView === "daily" ? 1 : 7);
     weekStart = new Date(utcAtLocalWallClock(tz, next.y, next.m, next.d, 0, 0, 0));
-    renderWeek();
+    renderCalendar();
+  });
+
+  document.querySelectorAll(".lhai-sb-view-btn").forEach((el) => {
+    el.addEventListener("click", () => {
+      const v = el.getAttribute("data-view");
+      if (v !== "daily" && v !== "weekly" && v !== "monthly") return;
+      if (calendarView === v) return;
+      calendarView = v;
+      syncViewButtons();
+      renderCalendar();
+    });
   });
 
   document.querySelector("#builderResetBtn")?.addEventListener("click", async () => {

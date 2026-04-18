@@ -14,6 +14,60 @@ function qs(selector) {
   return document.querySelector(selector);
 }
 
+let quoteApprovalBoostPollTimer = 0;
+let quoteApprovalBoostStopTimer = 0;
+
+function stopPostApprovalMessageBoostPolling() {
+  if (quoteApprovalBoostPollTimer) {
+    window.clearInterval(quoteApprovalBoostPollTimer);
+    quoteApprovalBoostPollTimer = 0;
+  }
+  if (quoteApprovalBoostStopTimer) {
+    window.clearTimeout(quoteApprovalBoostStopTimer);
+    quoteApprovalBoostStopTimer = 0;
+  }
+}
+
+/**
+ * 견적 승인 직후 짧은 시간만 메시지 알림 동기화를 촘촘하게 수행합니다.
+ * - 기본 헤더 폴링(10초)은 유지
+ * - 여기서는 2초 간격으로 최대 90초까지 임시 체크
+ */
+async function startPostApprovalMessageBoostPolling() {
+  stopPostApprovalMessageBoostPolling();
+  let baseline = 0;
+  try {
+    baseline = Number(await refreshHeaderMailUnreadBadge()) || 0;
+  } catch {
+    baseline = 0;
+  }
+  const startedAt = Date.now();
+  quoteApprovalBoostPollTimer = window.setInterval(async () => {
+    try {
+      const count = Number(await refreshHeaderMailUnreadBadge()) || 0;
+      if (count > baseline) {
+        setStatus(
+          t(
+            "customer.quote.transition.invoice_arrived_hint",
+            "새 메시지가 도착했습니다. 메시지함에서 청구서 안내를 바로 확인해 주세요."
+          ),
+          "default"
+        );
+        stopPostApprovalMessageBoostPolling();
+        return;
+      }
+      if (Date.now() - startedAt >= 90_000) {
+        stopPostApprovalMessageBoostPolling();
+      }
+    } catch {
+      // Ignore transient polling failures and keep retrying until timeout.
+    }
+  }, 2_000);
+  quoteApprovalBoostStopTimer = window.setTimeout(() => {
+    stopPostApprovalMessageBoostPolling();
+  }, 92_000);
+}
+
 function setStatus(message, tone = "default") {
   const status = qs("#quoteActionStatus");
   if (!status) return;
@@ -827,6 +881,9 @@ function applyQuotePageShell() {
 async function initQuoteDetailPage() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
+  window.addEventListener("beforeunload", () => {
+    stopPostApprovalMessageBoostPolling();
+  });
 
   const params = new URLSearchParams(window.location.search);
   const quoteIdFromUrl =
@@ -925,6 +982,7 @@ async function initQuoteDetailPage() {
           ),
           "default"
         );
+        await startPostApprovalMessageBoostPolling();
         renderQuote(quote);
         scrollDecisionFeedbackIntoView();
         return;
@@ -938,6 +996,7 @@ async function initQuoteDetailPage() {
           ),
         "default"
       );
+      await startPostApprovalMessageBoostPolling();
       try {
         const refreshed = await quoteApi.getDetail(quote.id);
         quote = refreshed;

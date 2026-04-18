@@ -7,7 +7,10 @@ import { clearAccessToken, clearSession, getAccessToken } from "./auth.js";
  * - ChecklistItem: { id, label, done, required }
  * - Quote: { id, serviceName, totalAmount, currency, status }
  * - Invoice: { id, quoteId, amountDue, currency, dueDate, status }
- * - MessageThread: { id, subject, participants, lastMessageAt }
+ * - MessageThreadSummary (GET /api/messages/threads): snake_case from API —
+ *   thread_id, title, preview, message_type, unread, unread_count, last_message_at,
+ *   customer_profile_id, thread_role (ADMIN | SERVICE), handler_type (AI_AGENT | HUMAN_AGENT | SYSTEM),
+ *   status, service_id, service_catalog_title
  * - DocumentItem: { id, name, category, uploadedAt, verificationStatus }
  */
 
@@ -37,6 +40,25 @@ function withAuthHeaders(extra = {}) {
   return h;
 }
 
+/** FastAPI `detail`: string, validation list, or `{ message, code }` (e.g. 409 conflict). */
+function formatFastApiDetail(detail) {
+  if (detail == null || detail === "") return "";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => (item && typeof item === "object" && item.msg ? item.msg : String(item)))
+      .join("; ");
+  }
+  if (typeof detail === "object" && detail !== null && typeof detail.message === "string") {
+    return detail.message;
+  }
+  try {
+    return JSON.stringify(detail);
+  } catch {
+    return String(detail);
+  }
+}
+
 async function apiFetch(path, options = {}) {
   // TODO: Replace with real backend request pipeline in next step.
   await mockDelay(80);
@@ -63,7 +85,8 @@ async function tryBackendPost(path, body, extraHeaders = {}) {
       handleUnauthorized();
       throw new Error("인증이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.");
     }
-    const detail = typeof payload === "object" ? payload.detail : payload;
+    const raw = typeof payload === "object" && payload !== null ? payload.detail : payload;
+    const detail = formatFastApiDetail(raw);
     throw new Error(detail || `Request failed (${response.status})`);
   }
   return payload;
@@ -80,7 +103,8 @@ async function tryBackendGet(path, extraHeaders = {}) {
       handleUnauthorized();
       throw new Error("인증이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.");
     }
-    const detail = typeof payload === "object" ? payload.detail : payload;
+    const raw = typeof payload === "object" && payload !== null ? payload.detail : payload;
+    const detail = formatFastApiDetail(raw);
     throw new Error(detail || `Request failed (${response.status})`);
   }
   return payload;
@@ -99,22 +123,11 @@ async function tryBackendPatch(path, body, extraHeaders = {}) {
       handleUnauthorized();
       throw new Error("인증이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.");
     }
-    const detail = typeof payload === "object" ? payload.detail : payload;
+    const raw = typeof payload === "object" && payload !== null ? payload.detail : payload;
+    const detail = formatFastApiDetail(raw);
     throw new Error(detail || `Request failed (${response.status})`);
   }
   return payload;
-}
-
-/** FastAPI `detail` may be string or list of `{ msg, loc, type }`. */
-function formatFastApiDetail(detail) {
-  if (detail == null || detail === "") return "";
-  if (typeof detail === "string") return detail;
-  if (Array.isArray(detail)) {
-    return detail
-      .map((item) => (item && typeof item === "object" && item.msg ? item.msg : String(item)))
-      .join("; ");
-  }
-  return String(detail);
 }
 
 async function tryBackendDelete(path, extraHeaders = {}) {
@@ -283,6 +296,18 @@ const dashboardApi = {
         required_remaining: 1,
         next_required_item: "Complete invoice payment",
       };
+    }
+  },
+};
+
+/** 고객 서비스 문의(케이스) 목록 — JWT 세션의 프로필에 맞는 행만 반환. */
+const customerCasesApi = {
+  async list() {
+    try {
+      return await tryBackendGet("/api/customer/cases");
+    } catch {
+      await mockDelay();
+      return [];
     }
   },
 };
@@ -754,6 +779,25 @@ const messagesApi = {
       }));
     }
   },
+  /**
+   * AI 메시지 썸 피드백 (고객 인증 필요).
+   * @param {string} messageId
+   * @param {{ customerProfileId: string, sentiment: 'up'|'down', reasonCode?: string|null, otherNote?: string }} opts
+   */
+  async submitAiMessageFeedback(
+    messageId,
+    { customerProfileId = "profile::demo@customer.com", sentiment, reasonCode = null, otherNote = "" } = {}
+  ) {
+    const mid = String(messageId || "").trim();
+    if (!mid) throw new Error("messageId required");
+    const body = {
+      customer_profile_id: customerProfileId,
+      sentiment,
+      reason_code: reasonCode,
+      other_note: otherNote,
+    };
+    return await tryBackendPost(`/api/messages/${encodeURIComponent(mid)}/ai-feedback`, body);
+  },
   async threadMessages(threadId, { customerProfileId = "profile::demo@customer.com" } = {}) {
     const params = new URLSearchParams({ customer_profile_id: customerProfileId });
     try {
@@ -768,6 +812,22 @@ const messagesApi = {
       if (!threadMsgs.length) return [];
       return [...threadMsgs].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     }
+  },
+  /**
+   * SERVICE 스레드 → 고객센터(ADMIN) 연결 요청. ADMIN 스레드에 SYSTEM 메시지·감사 로그만 남김(스레드 병합 없음).
+   * @param {string} threadId
+   * @param {{ customerProfileId?: string, note?: string }} opts
+   */
+  async escalateServiceThreadToAdmin(
+    threadId,
+    { customerProfileId = "profile::demo@customer.com", note = "" } = {}
+  ) {
+    const t = String(threadId || "").trim();
+    if (!t) throw new Error("threadId required");
+    return await tryBackendPost(
+      `/api/messages/threads/${encodeURIComponent(t)}/escalate-to-admin?customer_profile_id=${encodeURIComponent(customerProfileId)}`,
+      { note: String(note || "").slice(0, 2000) }
+    );
   },
   async sendThreadMessage(body, { threadId, customerProfileId = "profile::demo@customer.com", title = "" } = {}) {
     const t = String(threadId || "").trim();
@@ -816,6 +876,28 @@ const messagesApi = {
     return await tryBackendPost(
       `/api/messages/operator/threads/${encodeURIComponent(t)}/messages?customer_profile_id=${encodeURIComponent(cp)}`,
       { body, title }
+    );
+  },
+  /**
+   * 서비스 스레드 인테이크 폼 응답 (현재 질문에 대해 thread·session 일치 검증).
+   * @param {string} threadId
+   * @param {string} sessionId
+   * @param {{ customerProfileId: string, fieldId: string, valueJson: Record<string, unknown> }} opts
+   */
+  async submitIntakeThreadPromptAnswer(
+    threadId,
+    sessionId,
+    { customerProfileId = "profile::demo@customer.com", fieldId, valueJson = {} } = {}
+  ) {
+    const t = String(threadId || "").trim();
+    const s = String(sessionId || "").trim();
+    const cp = String(customerProfileId || "").trim();
+    const fid = String(fieldId || "").trim();
+    if (!t || !s || !cp || !fid) throw new Error("threadId, sessionId, customerProfileId, fieldId required");
+    const params = new URLSearchParams({ customer_profile_id: cp });
+    return await tryBackendPost(
+      `/api/service-intake/threads/${encodeURIComponent(t)}/sessions/${encodeURIComponent(s)}/prompt-answer?${params.toString()}`,
+      { field_id: fid, value_json: valueJson && typeof valueJson === "object" ? valueJson : {} }
     );
   },
   async markRead(messageId, read = true) {
@@ -1271,6 +1353,31 @@ const scheduleApi = {
 };
 
 /** 결제 완료 고객 목록(관리자 일정 화면 피커) — GET /api/admin/scheduling/paid-customers */
+/** 운영 워크스페이스 협업 — claim / 배정 / 내부 메모 / 감사 (관리자 JWT). */
+const adminOperationsApi = {
+  async listCases() {
+    return await tryBackendGet("/api/admin/operations/cases");
+  },
+  async getCase(caseId) {
+    return await tryBackendGet(`/api/admin/operations/cases/${encodeURIComponent(caseId)}`);
+  },
+  async claimCase(caseId, payload = {}) {
+    return await tryBackendPost(`/api/admin/operations/cases/${encodeURIComponent(caseId)}/claim`, payload);
+  },
+  async releaseCase(caseId, payload = {}) {
+    return await tryBackendPost(`/api/admin/operations/cases/${encodeURIComponent(caseId)}/release`, payload);
+  },
+  async assignCase(caseId, payload) {
+    return await tryBackendPost(`/api/admin/operations/cases/${encodeURIComponent(caseId)}/assign`, payload);
+  },
+  async addInternalNote(caseId, payload) {
+    return await tryBackendPost(`/api/admin/operations/cases/${encodeURIComponent(caseId)}/internal-notes`, payload);
+  },
+  async listCaseAudit(caseId) {
+    return await tryBackendGet(`/api/admin/operations/cases/${encodeURIComponent(caseId)}/audit`);
+  },
+};
+
 const schedulingAdminApi = {
   async listPaidCustomers() {
     try {
@@ -1424,7 +1531,7 @@ const serviceCatalogApi = {
   },
   /**
    * Service shape:
-   * { id, category_id, name, ai_supported, in_person_only, is_public, summary, help_description }
+   * { id, category_id, name, base_price, ai_guide_default_price, ai_supported, in_person_only, is_public, summary, help_description }
    */
   async listServices(categorySlug = "") {
     const query = categorySlug ? `?public_only=true&category=${encodeURIComponent(categorySlug)}` : "?public_only=true";
@@ -1437,6 +1544,8 @@ const serviceCatalogApi = {
           id: "svc-1",
           category_id: "cat-1",
           name: "Starter Landing Package",
+          base_price: 0,
+          ai_guide_default_price: APP_CONFIG.defaultAiGuideUnitPriceUsd,
           ai_supported: true,
           in_person_only: false,
           is_public: true,
@@ -1447,6 +1556,8 @@ const serviceCatalogApi = {
           id: "svc-2",
           category_id: "cat-2",
           name: "On-site Compliance Review",
+          base_price: 0,
+          ai_guide_default_price: APP_CONFIG.defaultAiGuideUnitPriceUsd,
           ai_supported: false,
           in_person_only: true,
           is_public: true,
@@ -1544,8 +1655,8 @@ const serviceCatalogAdminApi = {
           name: "Checklist Guidance",
           description: "Guided checklist and progress updates.",
           required: true,
-          ai_capable: true,
-          in_person_required: false,
+          ai_capable: false,
+          in_person_required: true,
           sort_order: 0,
           active: true,
         },
@@ -1556,8 +1667,8 @@ const serviceCatalogAdminApi = {
           name: "Document Review",
           description: "Review submitted documents with operator QA.",
           required: true,
-          ai_capable: true,
-          in_person_required: false,
+          ai_capable: false,
+          in_person_required: true,
           sort_order: 1,
           active: true,
         },
@@ -2064,8 +2175,8 @@ const serviceCatalogAdminApi = {
           name: payload.name,
           description: payload.description || "",
           required: false,
-          ai_capable: Boolean(payload.ai_capable),
-          in_person_required: Boolean(payload.in_person_required),
+          ai_capable: payload.ai_capable !== undefined ? Boolean(payload.ai_capable) : false,
+          in_person_required: payload.in_person_required !== undefined ? Boolean(payload.in_person_required) : true,
           sort_order: 0,
           active: Boolean(payload.active ?? true),
           visible: true,
@@ -2084,6 +2195,9 @@ const serviceCatalogAdminApi = {
           ai_capable: m.ai_capable,
           in_person_required: m.in_person_required,
           extra_price: 0,
+          ai_guide_default_price:
+            Number(payload.ai_guide_default_price ?? APP_CONFIG.defaultAiGuideUnitPriceUsd) ||
+            APP_CONFIG.defaultAiGuideUnitPriceUsd,
           currency: "USD",
           active: m.active,
           visible: true,
@@ -2118,6 +2232,7 @@ const serviceCatalogAdminApi = {
         ai_capable: false,
         in_person_required: false,
         extra_price: a.extra_price,
+        ai_guide_default_price: 0,
         currency: a.currency,
         active: a.active,
         visible: a.visible,
@@ -2148,6 +2263,7 @@ const serviceCatalogAdminApi = {
             ai_capable: Boolean(m.ai_capable),
             in_person_required: Boolean(m.in_person_required),
             extra_price: 0,
+            ai_guide_default_price: APP_CONFIG.defaultAiGuideUnitPriceUsd,
             currency: "USD",
             active: Boolean(m.active),
             visible: true,
@@ -2171,6 +2287,7 @@ const serviceCatalogAdminApi = {
             ai_capable: false,
             in_person_required: false,
             extra_price: Number(a.extra_price ?? 0),
+            ai_guide_default_price: 0,
             currency: a.currency || "USD",
             active: Boolean(a.active),
             visible: Boolean(a.visible),
@@ -3027,6 +3144,9 @@ const surveyBuilderAdminApi = {
 const serviceIntakeAdminApi = {
   async getEditorBundle(serviceItemId, params = {}) {
     const q = new URLSearchParams();
+    if (params.delivery_mode != null && params.delivery_mode !== "") {
+      q.set("delivery_mode", String(params.delivery_mode));
+    }
     if (params.include_archived_fields != null) q.set("include_archived_fields", String(params.include_archived_fields));
     if (params.include_inactive_fields != null) q.set("include_inactive_fields", String(params.include_inactive_fields));
     if (params.include_inactive_options != null) q.set("include_inactive_options", String(params.include_inactive_options));
@@ -3147,8 +3267,20 @@ const serviceCatalogBrowseApi = {
 
 /** Customer: service-linked intake. /api/service-intake/... */
 const serviceIntakeCustomerApi = {
-  async getActiveBundle(serviceItemId) {
-    return await tryBackendGet(`/api/service-intake/catalog/service-items/${encodeURIComponent(serviceItemId)}/active-bundle`);
+  async getActiveBundle(serviceItemId, params = {}) {
+    const q = new URLSearchParams();
+    if (params.delivery_mode != null && params.delivery_mode !== "") {
+      q.set("delivery_mode", String(params.delivery_mode));
+    }
+    if (params.thread_id != null && params.thread_id !== "") {
+      q.set("thread_id", String(params.thread_id));
+    }
+    if (params.service_instance_id != null && params.service_instance_id !== "") {
+      q.set("service_instance_id", String(params.service_instance_id));
+    }
+    const qs = q.toString();
+    const path = `/api/service-intake/catalog/service-items/${encodeURIComponent(serviceItemId)}/active-bundle${qs ? `?${qs}` : ""}`;
+    return await tryBackendGet(path);
   },
 
   async startSubmission(body) {
@@ -3165,6 +3297,59 @@ const serviceIntakeCustomerApi = {
 
   async listAnswers(submissionId) {
     return await tryBackendGet(`/api/service-intake/submissions/${encodeURIComponent(submissionId)}/answers`);
+  },
+
+  /** Runtime intake session (per SERVICE thread); requires DB backend. */
+  async createOrResumeSession(body) {
+    return await tryBackendPost("/api/service-intake/sessions", body);
+  },
+
+  async getRuntimeSession(sessionId, customerProfileId) {
+    const q = new URLSearchParams({ customer_profile_id: String(customerProfileId) });
+    return await tryBackendGet(`/api/service-intake/sessions/${encodeURIComponent(sessionId)}?${q}`);
+  },
+
+  async patchRuntimeSession(sessionId, body, customerProfileId) {
+    const q = new URLSearchParams({ customer_profile_id: String(customerProfileId) });
+    return await tryBackendPatch(`/api/service-intake/sessions/${encodeURIComponent(sessionId)}?${q}`, body);
+  },
+
+  async upsertRuntimeAnswer(sessionId, body, customerProfileId) {
+    const q = new URLSearchParams({ customer_profile_id: String(customerProfileId) });
+    return await tryBackendPost(`/api/service-intake/sessions/${encodeURIComponent(sessionId)}/answers?${q}`, body);
+  },
+
+  async completeRuntimeSession(sessionId, customerProfileId) {
+    const q = new URLSearchParams({ customer_profile_id: String(customerProfileId) });
+    return await tryBackendPost(`/api/service-intake/sessions/${encodeURIComponent(sessionId)}/complete?${q}`, {});
+  },
+
+  async listRuntimeAnswers(sessionId, customerProfileId) {
+    const q = new URLSearchParams({ customer_profile_id: String(customerProfileId) });
+    return await tryBackendGet(`/api/service-intake/sessions/${encodeURIComponent(sessionId)}/answers?${q}`);
+  },
+
+  /** Branching step-by-step flow (one prompt at a time). */
+  async flowStart(body) {
+    return await tryBackendPost("/api/service-intake/flow/start", body);
+  },
+
+  async flowGetPrompt(sessionId, customerProfileId) {
+    const q = new URLSearchParams({ customer_profile_id: String(customerProfileId) });
+    return await tryBackendGet(`/api/service-intake/flow/sessions/${encodeURIComponent(sessionId)}/prompt?${q}`);
+  },
+
+  async flowSubmitAnswer(sessionId, body, customerProfileId) {
+    const q = new URLSearchParams({ customer_profile_id: String(customerProfileId) });
+    return await tryBackendPost(
+      `/api/service-intake/flow/sessions/${encodeURIComponent(sessionId)}/answers?${q}`,
+      body
+    );
+  },
+
+  async flowComplete(sessionId, customerProfileId) {
+    const q = new URLSearchParams({ customer_profile_id: String(customerProfileId) });
+    return await tryBackendPost(`/api/service-intake/flow/sessions/${encodeURIComponent(sessionId)}/complete?${q}`, {});
   },
 };
 
@@ -3719,8 +3904,8 @@ const surveyCustomerApi = {
       // Base mappings (mirrors backend seed).
       if (needs.includes("arrival_setup")) {
         addPackage({ id: "pkg-arrival-1", code: "pkg-arrival-1", name: "Arrival Setup Package", explanation: "선택하신 입국 준비 필요에 맞춰 추천됩니다." });
-        addModule({ id: "mod-arrival-intake", code: "mod-arrival-intake", name: "Arrival intake + checklist", package_id: "pkg-arrival-1", required: true, ai_capable: true, in_person_required: false, explanation: "입국 준비를 시작하기 위한 체크리스트가 필요합니다." });
-        addModule({ id: "mod-arrival-actions", code: "mod-arrival-actions", name: "US setup actions guidance", package_id: "pkg-arrival-1", required: true, ai_capable: true, in_person_required: false, explanation: "연락/계좌 같은 초기 설정 흐름을 안내합니다." });
+        addModule({ id: "mod-arrival-intake", code: "mod-arrival-intake", name: "Arrival intake + checklist", package_id: "pkg-arrival-1", required: true, ai_capable: false, in_person_required: true, explanation: "입국 준비를 시작하기 위한 체크리스트가 필요합니다." });
+        addModule({ id: "mod-arrival-actions", code: "mod-arrival-actions", name: "US setup actions guidance", package_id: "pkg-arrival-1", required: true, ai_capable: false, in_person_required: true, explanation: "연락/계좌 같은 초기 설정 흐름을 안내합니다." });
 
         const airport = byQ["qitem-arrival-airport"]?.value;
         if (airport === "yes") addAddon({ id: "addon-airport-pickup", code: "addon-airport-pickup", name: "Airport pickup coordination", package_id: "pkg-arrival-1", extra_price: 300, currency: "USD", explanation: "공항 픽업이 필요하다고 답해주셨어요." });
@@ -3732,8 +3917,8 @@ const surveyCustomerApi = {
 
       if (needs.includes("housing")) {
         addPackage({ id: "pkg-housing-1", code: "pkg-housing-1", name: "Housing Package", explanation: "집 구하기 필요에 맞춰 추천됩니다." });
-        addModule({ id: "mod-housing-budget", code: "mod-housing-budget", name: "Rent budget planning", package_id: "pkg-housing-1", required: true, ai_capable: true, in_person_required: false, explanation: "예산 범위에 맞춰 우선순위를 잡아드립니다." });
-        addModule({ id: "mod-housing-search", code: "mod-housing-search", name: "Preferred area + search workflow", package_id: "pkg-housing-1", required: true, ai_capable: true, in_person_required: false, explanation: "선호 지역/우선순위를 바탕으로 탐색 흐름을 설계합니다." });
+        addModule({ id: "mod-housing-budget", code: "mod-housing-budget", name: "Rent budget planning", package_id: "pkg-housing-1", required: true, ai_capable: false, in_person_required: true, explanation: "예산 범위에 맞춰 우선순위를 잡아드립니다." });
+        addModule({ id: "mod-housing-search", code: "mod-housing-search", name: "Preferred area + search workflow", package_id: "pkg-housing-1", required: true, ai_capable: false, in_person_required: true, explanation: "선호 지역/우선순위를 바탕으로 탐색 흐름을 설계합니다." });
 
         const pets = byQ["qitem-housing-pets"]?.value;
         if (pets === "yes") addAddon({ id: "addon-pet-friendly-search", code: "addon-pet-friendly-search", name: "Pet-friendly housing support", package_id: "pkg-housing-1", extra_price: 220, currency: "USD", explanation: "반려동물 조건이 있으셔서, 펫 친화 옵션을 우선으로 안내합니다." });
@@ -3745,8 +3930,8 @@ const surveyCustomerApi = {
 
       if (needs.includes("mobility")) {
         addPackage({ id: "pkg-mobility-1", code: "pkg-mobility-1", name: "Mobility Package", explanation: "이동(차량) 필요에 맞춰 추천됩니다." });
-        addModule({ id: "mod-vehicle-plan", code: "mod-vehicle-plan", name: "Vehicle plan + next steps", package_id: "pkg-mobility-1", required: true, ai_capable: true, in_person_required: false, explanation: "렌트/구매에 맞춰 다음 단계 준비를 안내합니다." });
-        addModule({ id: "mod-mobility-budget", code: "mod-mobility-budget", name: "Mobility budget guidance", package_id: "pkg-mobility-1", required: true, ai_capable: true, in_person_required: false, explanation: "예산 범위에 맞춰 추천 방향을 조정합니다." });
+        addModule({ id: "mod-vehicle-plan", code: "mod-vehicle-plan", name: "Vehicle plan + next steps", package_id: "pkg-mobility-1", required: true, ai_capable: false, in_person_required: true, explanation: "렌트/구매에 맞춰 다음 단계 준비를 안내합니다." });
+        addModule({ id: "mod-mobility-budget", code: "mod-mobility-budget", name: "Mobility budget guidance", package_id: "pkg-mobility-1", required: true, ai_capable: false, in_person_required: true, explanation: "예산 범위에 맞춰 추천 방향을 조정합니다." });
 
         const dmv = byQ["qitem-mob-dmv-support"]?.value;
         if (dmv === "yes") addAddon({ id: "addon-dmv-support", code: "addon-dmv-support", name: "DMV procedure support", package_id: "pkg-mobility-1", extra_price: 260, currency: "USD", explanation: "DMV 절차 지원이 필요하다고 답해주셨어요." });
@@ -3756,7 +3941,7 @@ const surveyCustomerApi = {
 
       if (needs.includes("family_school")) {
         addPackage({ id: "pkg-family-1", code: "pkg-family-1", name: "Family/School Package", explanation: "학교/가족 준비 필요에 맞춰 추천됩니다." });
-        addModule({ id: "mod-school-registration", code: "mod-school-registration", name: "School registration workflow", package_id: "pkg-family-1", required: true, ai_capable: true, in_person_required: false, explanation: "자녀 수/학년/학교 유형에 맞춰 등록 흐름을 안내합니다." });
+        addModule({ id: "mod-school-registration", code: "mod-school-registration", name: "School registration workflow", package_id: "pkg-family-1", required: true, ai_capable: false, in_person_required: true, explanation: "자녀 수/학년/학교 유형에 맞춰 등록 흐름을 안내합니다." });
 
         const medical = byQ["qitem-family-medical"]?.value;
         if (medical === "yes") addAddon({ id: "addon-medical-document-support", code: "addon-medical-document-support", name: "Medical document support", package_id: "pkg-family-1", extra_price: 240, currency: "USD", explanation: "의료 문서 지원이 필요하다고 답해주셨어요." });
@@ -3764,7 +3949,7 @@ const surveyCustomerApi = {
 
       if (needs.includes("admin_business")) {
         addPackage({ id: "pkg-admin-1", code: "pkg-admin-1", name: "Admin/Business Package", explanation: "SSN/보험/LLC 같은 행정/비즈니스 준비에 맞춰 추천됩니다." });
-        addModule({ id: "mod-admin-core", code: "mod-admin-core", name: "Admin tasks checklist", package_id: "pkg-admin-1", required: true, ai_capable: true, in_person_required: false, explanation: "필수 행정 체크리스트를 기준으로 진행합니다." });
+        addModule({ id: "mod-admin-core", code: "mod-admin-core", name: "Admin tasks checklist", package_id: "pkg-admin-1", required: true, ai_capable: false, in_person_required: true, explanation: "필수 행정 체크리스트를 기준으로 진행합니다." });
 
         const ssn = byQ["qitem-admin-ssn"]?.value;
         if (ssn === "yes") addAddon({ id: "addon-ssn-appointment-support", code: "addon-ssn-appointment-support", name: "SSN appointment support", package_id: "pkg-admin-1", extra_price: 280, currency: "USD", explanation: "SSN 예약이 필요하다고 답해주셨어요." });
@@ -3889,6 +4074,7 @@ const surveyCustomerApi = {
 export {
   APP_CONFIG,
   adminApi,
+  adminOperationsApi,
   adminDevApi,
   apiFetch,
   checklistApi,
@@ -3902,6 +4088,7 @@ export {
   quoteApi,
   timelineApi,
   dashboardApi,
+  customerCasesApi,
   authApi,
   serviceCatalogApi,
   serviceCatalogAdminApi,

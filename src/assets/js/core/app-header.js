@@ -59,8 +59,9 @@ export function resolveAppHeaderShell() {
   };
 }
 
-const HEADER_MAIL_BADGE_POLL_MS = 45_000;
+const HEADER_MAIL_BADGE_POLL_MS = 10_000;
 const HEADER_MESSAGES_CHANGED = "lhai:messages-changed";
+let lastCustomerUnreadCount = null;
 
 /**
  * 고객: 읽지 않은 메시지 건수. 운영자 셸: 온보딩 스레드 중 고객 측 미읽음 스레드 수.
@@ -109,8 +110,63 @@ function applyHeaderMailUnreadBadge(count) {
 }
 
 export async function refreshHeaderMailUnreadBadge() {
+  return refreshHeaderMailUnreadBadgeWithPopup();
+}
+
+function showCustomerMessageToast(count) {
+  const shell = resolveAppHeaderShell();
+  if (shell.adminShell) return;
+  const currentPath = window.location.pathname.split("/").pop() || "";
+  if (currentPath === "messages.html") return;
+  let root = document.querySelector("#lhai-message-toast-root");
+  if (!(root instanceof HTMLElement)) {
+    root = document.createElement("div");
+    root.id = "lhai-message-toast-root";
+    root.className = "lhai-message-toast-root";
+    document.body.appendChild(root);
+  }
+  const shown = count > 99 ? "99+" : String(Math.max(1, count));
+  root.innerHTML = `
+    <div class="lhai-message-toast" role="status" aria-live="polite">
+      <div class="lhai-message-toast__title">새 메시지가 도착했습니다</div>
+      <div class="lhai-message-toast__body">읽지 않은 메시지 ${shown}건이 있습니다.</div>
+      <a class="lhai-message-toast__cta" href="messages.html">메시지함으로 이동</a>
+      <button type="button" class="lhai-message-toast__close" aria-label="알림 닫기">닫기</button>
+    </div>
+  `.trim();
+  root.classList.add("is-visible");
+  const close = root.querySelector(".lhai-message-toast__close");
+  close?.addEventListener("click", () => {
+    root?.classList.remove("is-visible");
+    window.setTimeout(() => {
+      if (root) root.innerHTML = "";
+    }, 180);
+  });
+  window.setTimeout(() => {
+    if (!root) return;
+    root.classList.remove("is-visible");
+    window.setTimeout(() => {
+      if (root) root.innerHTML = "";
+    }, 180);
+  }, 6000);
+}
+
+async function refreshHeaderMailUnreadBadgeWithPopup({ suppressPopup = false } = {}) {
   const count = await fetchHeaderUnreadMessageCount();
   applyHeaderMailUnreadBadge(count);
+  const { adminShell } = resolveAppHeaderShell();
+  const isVisible = document.visibilityState === "visible";
+  if (
+    !suppressPopup &&
+    !adminShell &&
+    typeof lastCustomerUnreadCount === "number" &&
+    count > lastCustomerUnreadCount &&
+    isVisible
+  ) {
+    showCustomerMessageToast(count);
+  }
+  if (!adminShell) lastCustomerUnreadCount = count;
+  return count;
 }
 
 let headerMailBadgePollId = 0;
@@ -119,7 +175,7 @@ let headerMailBadgeListenersWired = false;
 function startHeaderMailBadgePolling() {
   if (headerMailBadgePollId) return;
   headerMailBadgePollId = window.setInterval(() => {
-    void refreshHeaderMailUnreadBadge();
+    void refreshHeaderMailUnreadBadgeWithPopup();
   }, HEADER_MAIL_BADGE_POLL_MS);
 }
 
@@ -127,10 +183,10 @@ function wireHeaderMailBadgeListeners() {
   if (headerMailBadgeListenersWired) return;
   headerMailBadgeListenersWired = true;
   window.addEventListener(HEADER_MESSAGES_CHANGED, () => {
-    void refreshHeaderMailUnreadBadge();
+    void refreshHeaderMailUnreadBadgeWithPopup();
   });
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") void refreshHeaderMailUnreadBadge();
+    if (document.visibilityState === "visible") void refreshHeaderMailUnreadBadgeWithPopup();
   });
 }
 
@@ -186,7 +242,7 @@ async function mountAppHeaderAsync(rootSelector = "#lhai-app-header-root") {
   initAccountMenus(root);
   initLogoutButtons(root);
   wireHeaderMailBadgeListeners();
-  void refreshHeaderMailUnreadBadge();
+  void refreshHeaderMailUnreadBadgeWithPopup({ suppressPopup: true });
   startHeaderMailBadgePolling();
 }
 

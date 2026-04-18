@@ -44,10 +44,101 @@ function deliveryMeta(mode) {
   };
 }
 
+/** @param {{ delivery_capability?: string, delivery_mode?: string }} svc */
+function inferDeliveryCapability(svc) {
+  const c = String(svc?.delivery_capability || "").trim().toUpperCase();
+  if (c === "AI_AGENT" || c === "IN_PERSON" || c === "BOTH") return c;
+  const m = svc?.delivery_mode || "general";
+  if (m === "ai_guide") return "AI_AGENT";
+  if (m === "in_person") return "IN_PERSON";
+  if (m === "ai_plus_human") return "BOTH";
+  return "AI_AGENT";
+}
+
+function safeDeliveryInputName(serviceId) {
+  return String(serviceId || "").replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
+function syncAutoDeliveryModesForSelection() {
+  for (const sid of selectedServiceIds) {
+    const svc = serviceItems.find((x) => x.id === sid);
+    if (!svc) continue;
+    const cap = inferDeliveryCapability(svc);
+    if (cap === "AI_AGENT") selectedDeliveryModeByServiceId[sid] = "AI_AGENT";
+    else if (cap === "IN_PERSON") selectedDeliveryModeByServiceId[sid] = "IN_PERSON";
+  }
+}
+
+function readDeliveryModeRadiosFromDom() {
+  const root = qs("#sfServiceList");
+  if (!root) return;
+  root.querySelectorAll('input[type="radio"][data-sf-delivery]:checked').forEach((inp) => {
+    if (!(inp instanceof HTMLInputElement)) return;
+    const sid = inp.getAttribute("data-sf-service-id") || "";
+    const val = inp.value || "";
+    if (sid && (val === "AI_AGENT" || val === "IN_PERSON")) selectedDeliveryModeByServiceId[sid] = val;
+  });
+}
+
+function validateDeliverySelections() {
+  for (const sid of selectedServiceIds) {
+    const svc = serviceItems.find((x) => x.id === sid);
+    if (!svc) continue;
+    const cap = inferDeliveryCapability(svc);
+    if (cap !== "BOTH") continue;
+    const v = selectedDeliveryModeByServiceId[sid];
+    if (v !== "AI_AGENT" && v !== "IN_PERSON") {
+      const title = serviceTitle(svc) || svc.name || sid;
+      return t(
+        "common.service_flow.validation.delivery_mode_required",
+        "Choose AI Agent or in-person delivery for: {title}"
+      ).replace("{title}", title);
+    }
+  }
+  return "";
+}
+
+/** @param {string} mode AI_AGENT | IN_PERSON */
+function deliveryChoiceReviewLabel(mode) {
+  const m = String(mode || "").toUpperCase();
+  if (m === "IN_PERSON") return t("common.service_flow.delivery_choice.in_person", "In-person support");
+  return t("common.service_flow.delivery_choice.ai_agent", "AI Agent (digital guide)");
+}
+
+function renderDeliveryModePick(s, isChecked) {
+  const cap = inferDeliveryCapability(s);
+  if (cap !== "BOTH") return "";
+  const cur = selectedDeliveryModeByServiceId[s.id] || "";
+  if (!isChecked) return "";
+  const nm = `sfDeliv_${safeDeliveryInputName(s.id)}`;
+  return `
+    <div class="service-flow__delivery-pick" role="group" aria-labelledby="${esc(nm)}_legend">
+      <p class="lhai-help service-flow__delivery-pick-lead" id="${esc(nm)}_legend">${esc(
+    t("common.service_flow.pick_delivery_mode", "Choose how this service should be delivered:")
+  )}</p>
+      <div class="service-flow__delivery-options">
+        <label class="service-flow__radio">
+          <input type="radio" data-sf-delivery="1" data-sf-service-id="${esc(s.id)}" name="${esc(nm)}" value="AI_AGENT" ${
+    cur === "AI_AGENT" ? "checked" : ""
+  } />
+          ${esc(t("common.service_flow.delivery_choice.ai_agent", "AI Agent (digital guide)"))}
+        </label>
+        <label class="service-flow__radio">
+          <input type="radio" data-sf-delivery="1" data-sf-service-id="${esc(s.id)}" name="${esc(nm)}" value="IN_PERSON" ${
+    cur === "IN_PERSON" ? "checked" : ""
+  } />
+          ${esc(t("common.service_flow.delivery_choice.in_person", "In-person support"))}
+        </label>
+      </div>
+    </div>`;
+}
+
 /** @type {{ id: string, name: string, description?: string, sort_order?: number }[]} */
 let categories = [];
-/** @type {{ id: string, name: string, description?: string, delivery_mode: string, type?: string }[]} */
+/** @type {{ id: string, name: string, description?: string, delivery_mode: string, delivery_capability?: string, type?: string }[]} */
 let serviceItems = [];
+/** Per selected service item: AI_AGENT | IN_PERSON (required when catalog offers BOTH). */
+let selectedDeliveryModeByServiceId = {};
 let selectedCategoryIds = [];
 const categoryModeSummaryById = new Map();
 const categoryDeliveryMetaById = new Map();
@@ -68,6 +159,7 @@ let commonInfo = {
   minor_count: "",
   minor_ages: [],
   target_state: "",
+  target_city: "",
   preferred_language: "",
 };
 
@@ -633,6 +725,7 @@ function readCommonInfoFromForm() {
     .map((_, i) => qs(`#sfCommonMinorAge_${i}`)?.value || "")
     .map((x) => String(x || "").trim());
   const targetState = (qs("#sfCommonTargetState")?.value || "").trim();
+  const targetCity = (qs("#sfCommonTargetCity")?.value || "").trim();
   const preferredLanguage = qs("#sfCommonPreferredLanguage")?.value || "";
   return {
     profile_first_name: profileFirstName,
@@ -644,6 +737,7 @@ function readCommonInfoFromForm() {
     minor_count: minorCount,
     minor_ages: minorAges,
     target_state: targetState,
+    target_city: targetCity,
     preferred_language: preferredLanguage,
   };
 }
@@ -677,6 +771,9 @@ function validateCommonInfo(info) {
   }
   if (!info.target_state) {
     return "정착 희망 주(State)를 입력해 주세요.";
+  }
+  if (!String(info.target_city || "").trim()) {
+    return "정착 희망 도시명을 입력해 주세요.";
   }
   if (!info.preferred_language) {
     return "선호 언어를 선택해 주세요.";
@@ -731,6 +828,11 @@ function rebuildSelectedServiceIds() {
     for (const id of ids || []) merged.push(id);
   });
   selectedServiceIds = Array.from(new Set(merged));
+  const allowed = new Set(selectedServiceIds);
+  Object.keys(selectedDeliveryModeByServiceId).forEach((k) => {
+    if (!allowed.has(k)) delete selectedDeliveryModeByServiceId[k];
+  });
+  syncAutoDeliveryModesForSelection();
 }
 
 function syncCurrentCategorySelectionsFromDom() {
@@ -803,9 +905,11 @@ function renderServiceCards() {
     root.innerHTML = `<p class="lhai-help">${esc(t("common.service_flow.empty_services", "No services in this category yet."))}</p>`;
     return;
   }
+  const selected = new Set(selectedServiceIdsByCategoryId.get(categoryId) || []);
   root.innerHTML = list
     .map((s) => {
       const d = deliveryMeta(s.delivery_mode);
+      const isChecked = selected.has(s.id);
       return `
       <label class="service-flow__service-card">
         <input type="checkbox" class="service-flow__service-check" name="sfSvc" value="${esc(s.id)}" />
@@ -816,21 +920,28 @@ function renderServiceCards() {
           ${s.customer_short_description ? `<span class="lhai-help service-flow__service-desc">${esc(s.customer_short_description)}</span>` : ""}
           ${s.customer_long_description ? `<span class="lhai-help service-flow__service-desc">${esc(s.customer_long_description)}</span>` : ""}
           ${!s.customer_short_description && s.description ? `<span class="lhai-help service-flow__service-desc">${esc(s.description)}</span>` : ""}
+          ${renderDeliveryModePick(s, isChecked)}
           ${renderInlineConditionalQuestions(s.id)}
         </span>
       </label>`;
     })
     .join("");
 
-  const selected = new Set(selectedServiceIdsByCategoryId.get(categoryId) || []);
   root.querySelectorAll('input[name="sfSvc"]').forEach((inp) => {
     if (inp instanceof HTMLInputElement) inp.checked = selected.has(inp.value);
     inp.addEventListener("change", () => {
       const checkedInCurrent = Array.from(root.querySelectorAll('input[name="sfSvc"]:checked')).map((x) => x.value);
       selectedServiceIdsByCategoryId.set(categoryId, checkedInCurrent);
       rebuildSelectedServiceIds();
+      readDeliveryModeRadiosFromDom();
       clearConditionalAnswersForUnselectedServices();
       renderServiceCards();
+    });
+  });
+
+  root.querySelectorAll('input[type="radio"][data-sf-delivery]').forEach((inp) => {
+    inp.addEventListener("change", () => {
+      readDeliveryModeRadiosFromDom();
     });
   });
 
@@ -967,11 +1078,16 @@ function buildServiceFlowSubmitPayload() {
       const categoryId = selectedCategoryIds.find((cid) =>
         (serviceItemsByCategoryId.get(cid) || []).some((it) => it.id === sid)
       );
+      const cap = inferDeliveryCapability(s);
+      let sdm = selectedDeliveryModeByServiceId[sid];
+      if (cap === "AI_AGENT") sdm = "AI_AGENT";
+      else if (cap === "IN_PERSON") sdm = "IN_PERSON";
       return {
         id: sid,
         category_id: categoryId || "",
         title: serviceTitle(s) || s.name || sid,
         delivery_mode: s.delivery_mode || "general",
+        selected_delivery_mode: sdm || null,
       };
     })
     .filter(Boolean);
@@ -1082,6 +1198,7 @@ function renderReview() {
       <dt>입국(또는 시작) 예정일</dt><dd>${esc(commonInfo.entry_date || "—")}</dd>
       <dt>함께 이동하는 인원</dt><dd>${esc(togetherMoving)}</dd>
       <dt>정착 희망 지역(주)</dt><dd>${esc(commonInfo.target_state || "—")}</dd>
+      <dt>정착 희망 도시명</dt><dd>${esc(commonInfo.target_city || "—")}</dd>
       <dt>선호 언어</dt><dd>${esc(prefLangMap[commonInfo.preferred_language] || commonInfo.preferred_language || "—")}</dd>
     </dl></div>`
   );
@@ -1104,13 +1221,29 @@ function renderReview() {
     <ul class="service-flow__review-list">`);
   for (const sid of selectedServiceIds) {
     const svc = serviceItems.find((x) => x.id === sid);
-    const d = deliveryMeta(svc?.delivery_mode);
+    const cap = inferDeliveryCapability(svc || {});
+    let modeKey = svc?.delivery_mode || "general";
+    let choiceLabel = "";
+    if (cap === "BOTH") {
+      const picked = selectedDeliveryModeByServiceId[sid] || "";
+      choiceLabel = deliveryChoiceReviewLabel(picked);
+      modeKey = picked === "IN_PERSON" ? "in_person" : "ai_guide";
+    } else if (cap === "AI_AGENT") {
+      choiceLabel = deliveryChoiceReviewLabel("AI_AGENT");
+      modeKey = "ai_guide";
+    } else if (cap === "IN_PERSON") {
+      choiceLabel = deliveryChoiceReviewLabel("IN_PERSON");
+      modeKey = "in_person";
+    }
+    const d = deliveryMeta(modeKey);
     parts.push(`<li class="service-flow__review-service-item">
-      <span class="service-flow__badge service-flow__badge--${esc(d.mode)}">${esc(d.badge)}</span>
+      <span class="service-flow__badge service-flow__badge--${esc(d.mode)}">${esc(svc?.delivery_type_label || d.badge)}</span>
       <div class="service-flow__review-service-text">
         <strong>${esc(serviceTitle(svc) || sid)}</strong>
-        <p class="lhai-help service-flow__review-delivery-label">${esc("진행 방식")}</p>
-        <p class="lhai-help service-flow__review-service-explain">${esc(d.explain)}</p>
+        <p class="lhai-help service-flow__review-delivery-label">${esc(
+          t("common.service_flow.review_your_delivery_choice", "Your delivery choice")
+        )}</p>
+        <p class="lhai-help service-flow__review-service-explain">${esc(choiceLabel || d.explain)}</p>
       </div>
     </li>`);
   }
@@ -1173,6 +1306,12 @@ async function goNext() {
     }
     if (!selectedServiceIds.length) {
       setStatus(t("common.service_flow.pick_service", "서비스를 하나 이상 선택해 주세요."));
+      return;
+    }
+    readDeliveryModeRadiosFromDom();
+    const deliveryErr = validateDeliverySelections();
+    if (deliveryErr) {
+      setStatus(deliveryErr);
       return;
     }
     const missingConditional = validateInlineConditionalRequired();

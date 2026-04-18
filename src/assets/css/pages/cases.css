@@ -1,0 +1,312 @@
+/* 고객 케이스 목록·상세 — 다크 테마, 모바일 우선 */
+
+.lhai-cases__list {
+  display: grid;
+  gap: var(--lhai-space-4);
+}
+
+@media (min-width: 640px) {
+  .lhai-cases__list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .lhai-cases__list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.lhai-case-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-md);
+  padding: var(--lhai-space-4);
+  background: var(--lhai-color-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.lhai-case-card:hover {
+  border-color: var(--lhai-color-primary);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.12);
+}
+
+.lhai-case-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--lhai-space-3);
+  margin-bottom: var(--lhai-space-2);
+}
+
+.lhai-case-card__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.lhai-case-card__meta {
+  font-size: 0.85rem;
+  color: var(--lhai-color-muted, #8a9aa8);
+}
+
+.lhai-case-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.lhai-case-badge--open {
+  background: rgb(59 130 246 / 0.2);
+  color: #93c5fd;
+}
+
+.lhai-case-badge--pending_ops {
+  background: rgb(234 179 8 / 0.2);
+  color: #fde047;
+}
+
+.lhai-case-badge--pending_customer {
+  background: rgb(168 85 247 / 0.2);
+  color: #d8b4fe;
+}
+
+.lhai-case-badge--resolved {
+  background: rgb(34 197 94 / 0.2);
+  color: #86efac;
+}
+
+.lhai-case-detail__banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lhai-space-3);
+  padding: var(--lhai-space-3);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid var(--lhai-color-border);
+  background: var(--lhai-color-surface-alt);
+  margin-bottom: var(--lhai-space-4);
+}
+
+.lhai-case-detail__banner--ops {
+  border-color: rgb(234 179 8 / 0.45);
+  background: rgb(234 179 8 / 0.08);
+}
+
+.lhai-case-detail__hero {
+  margin-bottom: var(--lhai-space-4);
+}
+
+.lhai-case-detail__hero-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lhai-space-2);
+  margin-top: var(--lhai-space-2);
+}
+
+.lhai-case-detail__stage {
+  font-size: 0.9rem;
+  color: var(--lhai-color-muted, #8a9aa8);
+}
+
+.lhai-case-chat-wrap {
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 320px;
+  max-height: min(70vh, 560px);
+}
+
+.lhai-case-chat-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--lhai-space-3);
+  background: linear-gradient(180deg, #1e2939 0%, #16202c 100%);
+}
+
+.lhai-case-chat-stream {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-3);
+}
+
+.lhai-case-msg-row {
+  display: flex;
+  width: 100%;
+}
+
+.lhai-case-msg-row--customer {
+  justify-content: flex-end;
+}
+
+.lhai-case-bubble {
+  max-width: min(92%, 420px);
+  padding: var(--lhai-space-3);
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+}
+
+.lhai-case-bubble--customer {
+  background: #2563eb;
+  color: #f8fafc;
+}
+
+.lhai-case-bubble--ai {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.lhai-case-bubble--admin {
+  background: #ecfdf5;
+  color: #064e3b;
+  border: 1px solid #6ee7b7;
+}
+
+.lhai-case-bubble--system {
+  background: #334155;
+  color: #e2e8f0;
+  border: 1px solid #475569;
+}
+
+.lhai-case-msg-label {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--lhai-space-1);
+  opacity: 0.92;
+}
+
+.lhai-case-msg-time {
+  display: block;
+  font-size: 0.72rem;
+  margin-top: var(--lhai-space-2);
+  opacity: 0.75;
+}
+
+.lhai-case-ai-feedback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lhai-space-2);
+  margin-top: var(--lhai-space-2);
+  padding-top: var(--lhai-space-2);
+  border-top: 1px solid rgb(0 0 0 / 0.08);
+}
+
+.lhai-case-ai-feedback__btn {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  border-radius: 8px;
+  border: 1px solid rgb(0 0 0 / 0.12);
+  background: #fff;
+  cursor: pointer;
+}
+
+.lhai-case-ai-feedback__btn.is-selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.lhai-case-reasons {
+  display: none;
+  flex-direction: column;
+  gap: var(--lhai-space-2);
+  margin-top: var(--lhai-space-2);
+  width: 100%;
+}
+
+.lhai-case-reasons.is-open {
+  display: flex;
+}
+
+.lhai-case-reasons__chip {
+  text-align: left;
+  padding: var(--lhai-space-2) var(--lhai-space-3);
+  border-radius: var(--lhai-radius-sm);
+  border: 1px solid var(--lhai-color-border);
+  background: var(--lhai-color-surface);
+  color: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.lhai-case-reasons__chip:hover {
+  border-color: var(--lhai-color-primary);
+}
+
+.lhai-case-escalate-cta {
+  margin-top: var(--lhai-space-2);
+  padding: var(--lhai-space-3);
+  border-radius: var(--lhai-radius-md);
+  background: rgb(37 99 235 / 0.12);
+  border: 1px solid rgb(37 99 235 / 0.35);
+}
+
+.lhai-case-composer {
+  border-top: 1px solid var(--lhai-color-border);
+  padding: var(--lhai-space-3);
+  background: var(--lhai-color-surface);
+}
+
+.lhai-case-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+  margin-bottom: var(--lhai-space-3);
+}
+
+.lhai-case-quick-actions button {
+  font-size: 0.8rem;
+  padding: 0.35rem 0.65rem;
+}
+
+.lhai-case-composer__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-2);
+}
+
+.lhai-case-composer__input {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid var(--lhai-color-border);
+  padding: var(--lhai-space-3);
+  background: var(--lhai-color-surface-alt);
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.lhai-case-composer__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.lhai-case-detail__shell {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+@media (max-width: 639px) {
+  .lhai-case-composer {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    box-shadow: 0 -4px 20px rgb(0 0 0 / 0.15);
+  }
+}

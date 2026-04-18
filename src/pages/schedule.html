@@ -18,6 +18,20 @@
         <div id="customerScheduleSummary"></div>
       </section>
       <section class="lhai-card">
+        <h2 class="lhai-card__title">일정 달력 (읽기 전용)</h2>
+        <div class="lhai-cs-view-switch" role="tablist" aria-label="Calendar view switch">
+          <button type="button" class="lhai-cs-view-btn" data-view="daily">Daily</button>
+          <button type="button" class="lhai-cs-view-btn" data-view="weekly">Weekly</button>
+          <button type="button" class="lhai-cs-view-btn is-active" data-view="monthly">Monthly</button>
+        </div>
+        <div class="lhai-cs-week-toolbar">
+          <button type="button" class="lhai-button lhai-button--secondary lhai-cs-week-nav" id="customerCalPrev" aria-label="Previous week">←</button>
+          <span class="lhai-cs-week-label" id="customerCalWeekLabel"></span>
+          <button type="button" class="lhai-button lhai-button--secondary lhai-cs-week-nav" id="customerCalNext" aria-label="Next week">→</button>
+        </div>
+        <div class="lhai-cs-week-grid" id="customerScheduleCalendar"></div>
+      </section>
+      <section class="lhai-card">
         <h2 class="lhai-card__title">일정 타임라인</h2>
         <div id="customerScheduleTimeline"></div>
       </section>

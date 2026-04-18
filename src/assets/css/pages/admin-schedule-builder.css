@@ -97,6 +97,29 @@
   justify-content: center;
   gap: var(--lhai-space-3);
   margin-bottom: var(--lhai-space-3);
+  flex-wrap: wrap;
+}
+
+.lhai-sb-view-switch {
+  display: inline-flex;
+  border: 1px solid var(--lhai-color-border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.lhai-sb-view-btn {
+  border: 0;
+  background: transparent;
+  color: var(--lhai-color-text-muted);
+  font-size: 0.72rem;
+  padding: 0.35rem 0.65rem;
+  cursor: pointer;
+}
+
+.lhai-sb-view-btn.is-active {
+  background: rgba(99, 102, 241, 0.28);
+  color: var(--lhai-color-text);
 }
 
 .lhai-sb-week-label {
@@ -111,6 +134,106 @@
   flex-direction: column;
   gap: 0;
   overflow-x: auto;
+}
+
+.lhai-sb-month-head {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(72px, 1fr));
+  gap: 2px;
+  margin-bottom: 2px;
+}
+
+.lhai-sb-month-head__day {
+  text-align: center;
+  font-size: 0.7rem;
+  padding: var(--lhai-space-2) var(--lhai-space-1);
+  background: var(--lhai-color-surface-raised, rgba(255, 255, 255, 0.06));
+  border-radius: var(--lhai-radius-sm);
+  color: var(--lhai-color-text-muted);
+}
+
+.lhai-sb-month-head__day.is-holiday,
+.lhai-sb-week-head__day.is-holiday strong,
+.lhai-sb-month-cell__date.is-holiday {
+  color: #f87171;
+}
+
+.lhai-sb-month-head__day.is-saturday,
+.lhai-sb-week-head__day.is-saturday strong,
+.lhai-sb-month-cell__date.is-saturday {
+  color: #60a5fa;
+}
+
+.lhai-sb-holiday-name {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #f87171;
+  vertical-align: baseline;
+}
+
+.lhai-sb-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(72px, 1fr));
+  gap: 2px;
+}
+
+.lhai-sb-month-cell {
+  min-height: 94px;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-sm);
+  background: rgba(0, 0, 0, 0.15);
+  text-align: left;
+  color: var(--lhai-color-text);
+  cursor: pointer;
+}
+
+.lhai-sb-month-cell--drop-target {
+  border-color: var(--lhai-color-primary);
+  box-shadow: inset 0 0 0 2px rgba(99, 102, 241, 0.5);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.lhai-sb-month-cell.is-empty {
+  min-height: 94px;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: var(--lhai-radius-sm);
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.lhai-sb-month-cell__date {
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.lhai-sb-month-cell__item,
+.lhai-sb-month-cell__more {
+  font-size: 0.65rem;
+  color: var(--lhai-color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lhai-sb-month-cell__item {
+  cursor: grab;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 2px 4px;
+  margin-bottom: 3px;
+  background: rgba(99, 102, 241, 0.18);
+}
+
+.lhai-sb-month-cell__item.is-selected {
+  border-color: var(--lhai-color-primary);
+}
+
+.lhai-sb-month-cell__item--drop-before {
+  border-top: 2px solid var(--lhai-color-primary);
+  box-shadow: inset 0 1px 0 rgba(99, 102, 241, 0.45);
 }
 
 .lhai-sb-week-head {

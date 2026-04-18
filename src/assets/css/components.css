@@ -795,3 +795,63 @@ a.lhai-table__link:hover {
   color: var(--lhai-status-warning, #ffcc66);
 }
 
+.lhai-message-toast-root {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 1200;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.lhai-message-toast-root.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.lhai-message-toast {
+  min-width: min(360px, calc(100vw - 32px));
+  max-width: 420px;
+  background: linear-gradient(180deg, rgba(17, 26, 45, 0.98), rgba(15, 23, 42, 0.98));
+  border: 1px solid rgba(110, 168, 254, 0.4);
+  border-radius: var(--lhai-radius-md);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.45);
+  padding: 12px 12px 10px;
+  pointer-events: auto;
+}
+
+.lhai-message-toast__title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--lhai-color-text);
+}
+
+.lhai-message-toast__body {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  color: var(--lhai-color-text-muted);
+}
+
+.lhai-message-toast__cta {
+  display: inline-flex;
+  margin-top: 8px;
+  margin-right: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--lhai-color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.lhai-message-toast__close {
+  border: 1px solid var(--lhai-color-border);
+  background: rgba(6, 18, 36, 0.35);
+  color: var(--lhai-color-text);
+  border-radius: var(--lhai-radius-sm);
+  font-size: 0.74rem;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+

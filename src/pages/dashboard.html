@@ -6,6 +6,7 @@
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/dashboard.css" />
+  <link rel="stylesheet" href="../assets/css/pages/cases.css" />
 </head>
 <body>
     <div id="lhai-app-header-root"></div>
@@ -18,6 +19,15 @@
           <p class="lhai-subtitle" data-i18n="common.dashboard.header.subtitle">진행 상태와 다음에 할 일을 한눈에 확인하세요.</p>
         </div>
         <a class="lhai-button lhai-button--secondary" id="aiQuickLinkBtn" href="messages.html" data-i18n="common.dashboard.actions.open_ai_assistant">Landing Help AI Agent 열기</a>
+      </section>
+
+      <section class="lhai-card" id="dashboardCasesSection">
+        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:var(--lhai-space-3);">
+          <h2 class="lhai-card__title" style="margin:0;">서비스 문의</h2>
+          <a class="lhai-button lhai-button--secondary" href="cases.html">전체 보기</a>
+        </div>
+        <p class="lhai-help u-mt-2">주제별로 나뉜 문의입니다. 각 카드를 눌러 대화를 이어가세요.</p>
+        <div id="dashboardCasesPreview" class="lhai-cases__list u-mt-3"></div>
       </section>
 
       <section class="lhai-card lhai-next-action">
