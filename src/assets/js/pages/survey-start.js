@@ -30,18 +30,74 @@ const DELIVERY_FALLBACK = {
   },
 };
 
+function htmlLangStartsWithKo() {
+  if (typeof document === "undefined") return true;
+  const lang = String(document.documentElement.getAttribute("lang") || "ko").toLowerCase();
+  return lang.startsWith("ko");
+}
+
 /**
- * @param {string} mode backend `delivery_mode`
+ * @param {string} mode backend UI bucket: ai_guide | in_person | ai_plus_human | general
  * @returns {{ mode: string, badge: string, explain: string }}
  */
 function deliveryMeta(mode) {
   const m = mode && DELIVERY_FALLBACK[mode] ? mode : "general";
   const fb = DELIVERY_FALLBACK[m];
+  // 기본 ko: i18n 번들에 영어 값이 있어도 카드/검토 배지는 한글 기준 문구 유지
+  if (htmlLangStartsWithKo()) {
+    return { mode: m, badge: fb.badge, explain: fb.explain };
+  }
   return {
     mode: m,
     badge: t(`common.service_flow.delivery.${m}.badge`, fb.badge),
     explain: t(`common.service_flow.delivery.${m}.explain`, fb.explain),
   };
+}
+
+/** 관리자 저장 시 쓰이던 영어 자동 문구 — DB에 남아 있으면 i18n/한글 기본으로 대체 */
+const LEGACY_DELIVERY_LABELS_EN = new Set([
+  "In-person Support",
+  "AI Guide",
+  "AI + Optional Human Help",
+  "Guided Service",
+]);
+const LEGACY_DELIVERY_HELPS_EN = new Set([
+  "This service requires human or on-site support.",
+  "This service is delivered through AI guidance, checklists, and digital assistance.",
+  "This service starts with AI guidance and can include optional human support when needed.",
+  "We will guide you through the next steps in a clear, practical flow.",
+]);
+
+function isLegacyEnglishInPersonLabel(raw) {
+  const x = String(raw || "").trim().toLowerCase();
+  return x === "in-person support" || x === "in-person" || x === "in person support";
+}
+
+function isLegacyEnglishDeliveryHelp(raw) {
+  const x = String(raw || "").trim();
+  if (LEGACY_DELIVERY_HELPS_EN.has(x)) return true;
+  const lower = x.toLowerCase();
+  return lower === "this service requires human or on-site support.";
+}
+
+/**
+ * @param {{ delivery_type_label?: string }} svc
+ * @param {{ badge: string, explain: string }} d
+ */
+function effectiveDeliveryBadge(svc, d) {
+  const raw = (svc?.delivery_type_label || "").trim();
+  if (!raw || LEGACY_DELIVERY_LABELS_EN.has(raw) || isLegacyEnglishInPersonLabel(raw)) return d.badge;
+  return raw;
+}
+
+/**
+ * @param {{ delivery_type_help_text?: string }} svc
+ * @param {{ badge: string, explain: string }} d
+ */
+function effectiveDeliveryHelp(svc, d) {
+  const raw = (svc?.delivery_type_help_text || "").trim();
+  if (!raw || isLegacyEnglishDeliveryHelp(raw)) return d.explain;
+  return raw;
 }
 
 /** @param {{ delivery_capability?: string, delivery_mode?: string }} svc */
@@ -53,6 +109,19 @@ function inferDeliveryCapability(svc) {
   if (m === "in_person") return "IN_PERSON";
   if (m === "ai_plus_human") return "BOTH";
   return "AI_AGENT";
+}
+
+/**
+ * API `delivery_mode`와 `delivery_capability`가 어긋나도 배지 색·문구는 capability 기준으로 통일.
+ * @param {{ delivery_capability?: string, delivery_mode?: string }} svc
+ */
+function deliveryUiModeFromCapability(svc) {
+  const cap = inferDeliveryCapability(svc || {});
+  if (cap === "BOTH") return "ai_plus_human";
+  if (cap === "AI_AGENT") return "ai_guide";
+  if (cap === "IN_PERSON") return "in_person";
+  const m = svc?.delivery_mode || "general";
+  return m && DELIVERY_FALLBACK[m] ? m : "general";
 }
 
 function safeDeliveryInputName(serviceId) {
@@ -269,7 +338,7 @@ async function preloadCategoryDeliverySummary() {
     categories.map(async (category) => {
       try {
         const items = await serviceCatalogBrowseApi.listServiceItems(category.id);
-        const modes = new Set(items.map((x) => x.delivery_mode || "general"));
+        const modes = new Set(items.map((x) => deliveryUiModeFromCapability(x)));
         categoryModeSummaryById.set(category.id, summarizeDeliveryModes(modes));
         categoryDeliveryMetaById.set(category.id, categoryDeliveryMeta(modes));
       } catch {
@@ -529,7 +598,7 @@ async function loadConditionalQuestions(serviceIds = []) {
         .filter((f) => f.active !== false && !f.archived_at)
         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
       const svcName = serviceTitle(svc) || svc.name || "";
-      const svcMode = svc.delivery_mode || "general";
+      const svcMode = deliveryUiModeFromCapability(svc);
       for (const f of fields) {
         const qid = conditionalQuestionKey(svc.id, f.id);
         const options = (bundle.options_by_field_id?.[f.id] || [])
@@ -878,7 +947,7 @@ function renderServicesSubstepHeader() {
 function renderMixedDeliveryNote(list = []) {
   const el = qs("#sfMixedDeliveryNote");
   if (!el) return;
-  const modes = [...new Set(list.map((s) => s.delivery_mode || "general"))];
+  const modes = [...new Set(list.map((s) => deliveryUiModeFromCapability(s)))];
   if (list.length < 2 || modes.length <= 1) {
     el.hidden = true;
     el.innerHTML = "";
@@ -908,15 +977,15 @@ function renderServiceCards() {
   const selected = new Set(selectedServiceIdsByCategoryId.get(categoryId) || []);
   root.innerHTML = list
     .map((s) => {
-      const d = deliveryMeta(s.delivery_mode);
+      const d = deliveryMeta(deliveryUiModeFromCapability(s));
       const isChecked = selected.has(s.id);
       return `
       <label class="service-flow__service-card">
         <input type="checkbox" class="service-flow__service-check" name="sfSvc" value="${esc(s.id)}" />
         <span class="service-flow__service-card-body">
           <span class="service-flow__service-name">${esc(serviceTitle(s) || s.name || "")}</span>
-          <span class="service-flow__badge service-flow__badge--${esc(d.mode)}">${esc(s.delivery_type_label || d.badge)}</span>
-          <span class="lhai-help service-flow__badge-explainer">${esc(s.delivery_type_help_text || d.explain)}</span>
+          <span class="service-flow__badge service-flow__badge--${esc(d.mode)}">${esc(effectiveDeliveryBadge(s, d))}</span>
+          <span class="lhai-help service-flow__badge-explainer">${esc(effectiveDeliveryHelp(s, d))}</span>
           ${s.customer_short_description ? `<span class="lhai-help service-flow__service-desc">${esc(s.customer_short_description)}</span>` : ""}
           ${s.customer_long_description ? `<span class="lhai-help service-flow__service-desc">${esc(s.customer_long_description)}</span>` : ""}
           ${!s.customer_short_description && s.description ? `<span class="lhai-help service-flow__service-desc">${esc(s.description)}</span>` : ""}
@@ -1086,7 +1155,7 @@ function buildServiceFlowSubmitPayload() {
         id: sid,
         category_id: categoryId || "",
         title: serviceTitle(s) || s.name || sid,
-        delivery_mode: s.delivery_mode || "general",
+        delivery_mode: deliveryUiModeFromCapability(s),
         selected_delivery_mode: sdm || null,
       };
     })
@@ -1123,7 +1192,7 @@ function renderReview() {
     .map((sid) => serviceItems.find((x) => x.id === sid))
     .filter(Boolean);
   const selectedServiceNames = selectedServices.map((s) => serviceTitle(s) || s.name || "");
-  const deliveryModes = new Set(selectedServices.map((s) => s.delivery_mode || "general"));
+  const deliveryModes = new Set(selectedServices.map((s) => deliveryUiModeFromCapability(s)));
   const deliverySummary = summarizeDeliveryModes(deliveryModes) || t(
     "common.service_flow.review_delivery_summary_default",
     "선택한 서비스별로 전달 방식(AI/대면/혼합)이 다를 수 있어요."
@@ -1222,7 +1291,7 @@ function renderReview() {
   for (const sid of selectedServiceIds) {
     const svc = serviceItems.find((x) => x.id === sid);
     const cap = inferDeliveryCapability(svc || {});
-    let modeKey = svc?.delivery_mode || "general";
+    let modeKey = deliveryUiModeFromCapability(svc || {});
     let choiceLabel = "";
     if (cap === "BOTH") {
       const picked = selectedDeliveryModeByServiceId[sid] || "";
@@ -1237,7 +1306,7 @@ function renderReview() {
     }
     const d = deliveryMeta(modeKey);
     parts.push(`<li class="service-flow__review-service-item">
-      <span class="service-flow__badge service-flow__badge--${esc(d.mode)}">${esc(svc?.delivery_type_label || d.badge)}</span>
+      <span class="service-flow__badge service-flow__badge--${esc(d.mode)}">${esc(d.badge)}</span>
       <div class="service-flow__review-service-text">
         <strong>${esc(serviceTitle(svc) || sid)}</strong>
         <p class="lhai-help service-flow__review-delivery-label">${esc(

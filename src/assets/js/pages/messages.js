@@ -4,6 +4,12 @@ import { getCustomerMessagingProfileId } from "../core/auth.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { canAccessAdminShell } from "../core/role-tiers.js";
 import { syncHeaderRoleBadge } from "../core/role-header-badge.js";
+import { renderIntakeContentBlocksHtml } from "../intake/intake-block-render.js";
+import {
+  deliveryBadgeModifierFromLabel,
+  deliveryModeBadgeFromThreadMeta,
+  renderIntakeThreadContentBlockBubble,
+} from "../intake/intake-runtime-view.js";
 import { formatMessageTimestamp, resolveBackendMediaUrl, safeText } from "../core/utils.js";
 import { bindMessageAiFeedback, buildAiFeedbackHtml } from "./message-ai-feedback.js";
 
@@ -180,18 +186,22 @@ function serviceThreadDisplayName(row) {
   return threadServiceDisplayTitle(row);
 }
 
-/** 배지/부제용: 백엔드 헤더 또는 enum → 사용자 친화 라벨. */
-function deliveryModeBadgeLabel(row) {
-  const api = String(row?.header_badge || row?.selected_delivery_mode_label || "").trim();
-  if (api) return api;
-  const m = String(row?.selected_delivery_mode || "").toUpperCase();
-  if (m === "AI_AGENT") return "AI Agent";
-  if (m === "IN_PERSON") return "In-Person";
-  return "";
-}
+/** @param {Record<string, unknown> | null | undefined} row */
+const deliveryModeBadgeLabel = deliveryModeBadgeFromThreadMeta;
 
 function isInPersonServiceThread(row) {
   return String(row?.selected_delivery_mode || "").toUpperCase() === "IN_PERSON";
+}
+
+/** SERVICE thread detail: delivery pill next to title (same vocabulary as preview). */
+function applyServiceDeliveryBadge(el, label) {
+  if (!(el instanceof HTMLElement)) return;
+  const t = String(label || "").trim();
+  const show = Boolean(t) && t !== "Service";
+  el.textContent = show ? t : "";
+  el.hidden = !show;
+  const mod = deliveryBadgeModifierFromLabel(t);
+  el.className = `lhai-service-header__delivery-badge lhai-service-header__delivery-badge--${mod}`;
 }
 
 /** 목록 한 줄: `서비스명 · 배지` (예: Phone Setup · AI Agent). */
@@ -222,10 +232,11 @@ function handlerSubtitleKo(handlerType) {
 
 /**
  * @param {Record<string, unknown>} row
- * @param {{ forDetailHeader?: boolean }} [options]
+ * @param {{ forDetailHeader?: boolean; omitDeliveryBadge?: boolean }} [options]
  */
 function threadListBadgesHtml(row, options = {}) {
   const forDetailHeader = Boolean(options.forDetailHeader);
+  const omitDeliveryBadge = Boolean(options.omitDeliveryBadge);
   const role = normalizeThreadRole(row);
   const parts = [];
   if (role === "ADMIN") {
@@ -234,9 +245,10 @@ function threadListBadgesHtml(row, options = {}) {
     if (h) parts.push(`<span class="lhai-thread-badge lhai-thread-badge--muted">${safeText(h)}</span>`);
   } else {
     const dm = deliveryModeBadgeLabel(row);
-    if (forDetailHeader && dm === "AI Agent") {
+    const skipDmPills = omitDeliveryBadge && forDetailHeader;
+    if (!skipDmPills && forDetailHeader && dm === "AI Agent") {
       parts.push(`<span class="lhai-thread-badge lhai-thread-badge--ai">${safeText(dm)}</span>`);
-    } else if (forDetailHeader && dm === "In-Person") {
+    } else if (!skipDmPills && forDetailHeader && dm === "In-Person") {
       parts.push(`<span class="lhai-thread-badge lhai-thread-badge--inperson">${safeText(dm)}</span>`);
     } else if (!dm) {
       const h = handlerBadgeLabel(row.handler_type);
@@ -438,7 +450,9 @@ function renderFormPromptInteractive(m, up) {
     ? ` <abbr class="lhai-chat-form-prompt__req" title="필수">*</abbr>`
     : "";
 
-  return `<div class="lhai-chat-form-prompt" data-lhai-intake-form data-message-id="${escapeHtml(mid)}" data-session-id="${escapeHtml(sessionId)}" data-thread-id="${escapeHtml(threadId)}" data-field-id="${escapeHtml(fieldId)}" data-input-type="${escapeHtml(it)}">
+  const blocksHtml = renderIntakeContentBlocksHtml(up);
+
+  return `${blocksHtml}<div class="lhai-chat-form-prompt" data-lhai-intake-form data-message-id="${escapeHtml(mid)}" data-session-id="${escapeHtml(sessionId)}" data-thread-id="${escapeHtml(threadId)}" data-field-id="${escapeHtml(fieldId)}" data-input-type="${escapeHtml(it)}">
     <div class="lhai-chat-form-prompt__label">${escapeHtml(label)}${reqHtml}</div>
     ${helpText ? `<div class="lhai-chat-form-prompt__help">${escapeHtml(helpText)}</div>` : ""}
     <div class="lhai-chat-form-prompt__controls">${renderFormPromptControlsHtml(up, mid)}</div>
@@ -455,7 +469,8 @@ function renderFormPromptOperatorReadonly(up) {
   const label = String(up.label || "");
   const helpText = String(up.help_text || "").trim();
   const it = normalizeIntakeInputType(up.input_type);
-  return `<div class="lhai-chat-form-prompt lhai-chat-form-prompt--readonly">
+  const blocksHtml = renderIntakeContentBlocksHtml(up);
+  return `${blocksHtml}<div class="lhai-chat-form-prompt lhai-chat-form-prompt--readonly">
     <div class="lhai-chat-form-prompt__label">${escapeHtml(label)}</div>
     ${helpText ? `<div class="lhai-chat-form-prompt__help">${escapeHtml(helpText)}</div>` : ""}
     <p class="lhai-chat-form-prompt__readonly-note u-text-muted">${escapeHtml("운영 보기에서는 인테이크 응답을 제출할 수 없습니다.")}</p>
@@ -615,24 +630,29 @@ function renderChatBubbles() {
         m && typeof m === "object" && m.ui_payload && typeof m.ui_payload === "object"
           ? /** @type {Record<string, unknown>} */ (m.ui_payload)
           : null;
-      const isForm = Boolean(up && String(up.widget_type || "").trim() === "form_prompt");
+      const wt = up ? String(up.widget_type || "").trim() : "";
+      const isForm = wt === "form_prompt";
+      const isIntakeContent = wt === "intake_content_block";
       const bubbleClass = [
         mine ? "lhai-chat-bubble--me" : "lhai-chat-bubble--them",
         isForm ? "lhai-chat-bubble--form-prompt" : "",
+        isIntakeContent ? "lhai-chat-bubble--intake-content" : "",
       ]
         .filter(Boolean)
         .join(" ");
-      const showTitle = !mine && Boolean(m.title) && !isForm;
+      const showTitle = !mine && Boolean(m.title) && !isForm && !isIntakeContent;
       const titleLine = showTitle ? `<div class="lhai-chat-bubble__title">${escapeHtml(String(m.title))}</div>` : "";
 
       let formBlock = "";
       if (isForm && up) {
         formBlock =
           operatorInboxMode ? renderFormPromptOperatorReadonly(up) : renderFormPromptInteractive(m, up);
+      } else if (isIntakeContent && up) {
+        formBlock = renderIntakeThreadContentBlockBubble(up);
       }
 
       const bodyBlock =
-        isForm && up
+        (isForm || isIntakeContent) && up
           ? formBlock
           : `<p class="lhai-chat-bubble__body">${escapeHtml(String(scheduleReleasedMessageDisplayBody(m)))}</p>`;
 
@@ -700,9 +720,11 @@ function renderMessageDetailShell(threadMeta) {
     <div class="lhai-chat-header">
       <p id="messageChatEyebrow" class="lhai-chat-header__eyebrow" aria-hidden="true"></p>
       <div id="messageChatHeaderBadges" class="lhai-chat-header__badge-row" aria-label="스레드 유형"></div>
-      <h3 id="messageChatTitle" class="lhai-chat-header__title"></h3>
-      <p id="messageChatServiceType" class="lhai-chat-header__service-type u-text-muted" hidden></p>
-      <p id="messageChatSubtitle" class="lhai-chat-header__subtitle u-text-muted"></p>
+      <div class="lhai-service-header__primary" id="messageChatServicePrimary">
+        <h3 id="messageChatTitle" class="lhai-service-header__title"></h3>
+        <span id="messageChatDeliveryBadge" class="lhai-service-header__delivery-badge" hidden></span>
+      </div>
+      <p id="messageChatSubtitle" class="lhai-chat-header__subtitle lhai-service-header__meta u-text-muted"></p>
     </div>
     ${operatorContextBanner}
     ${customerExtras}
@@ -725,7 +747,7 @@ function syncChatHeader(threadMeta) {
   const badges = document.querySelector("#messageChatHeaderBadges");
   const subtitle = document.querySelector("#messageChatSubtitle");
   const titleEl = document.querySelector("#messageChatTitle");
-  const serviceTypeEl = document.querySelector("#messageChatServiceType");
+  const deliveryBadgeEl = document.querySelector("#messageChatDeliveryBadge");
   if (
     !(eyebrow instanceof HTMLElement) ||
     !(badges instanceof HTMLElement) ||
@@ -740,29 +762,22 @@ function syncChatHeader(threadMeta) {
     badges.innerHTML = "";
     subtitle.textContent = "";
     titleEl.textContent = "";
-    if (serviceTypeEl instanceof HTMLElement) {
-      serviceTypeEl.textContent = "";
-      serviceTypeEl.hidden = true;
-    }
+    applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, "");
     return;
   }
   const role = normalizeThreadRole(threadMeta);
-  badges.innerHTML = threadListBadgesHtml(threadMeta, { forDetailHeader: true });
+  const detailBadgeOpts = { forDetailHeader: true, omitDeliveryBadge: role !== "ADMIN" };
 
   if (operatorInboxMode) {
+    badges.innerHTML = threadListBadgesHtml(threadMeta, detailBadgeOpts);
     eyebrow.textContent = role === "ADMIN" ? "고객센터 (운영 보기)" : "서비스 (운영 보기)";
     eyebrow.hidden = false;
-    titleEl.textContent =
-      role === "ADMIN" ? String(threadMeta.title || "고객센터") : serviceThreadDisplayName(threadMeta);
-    if (serviceTypeEl instanceof HTMLElement) {
-      if (role === "ADMIN") {
-        serviceTypeEl.hidden = true;
-        serviceTypeEl.textContent = "";
-      } else {
-        const dm = deliveryModeBadgeLabel(threadMeta);
-        serviceTypeEl.textContent = dm ? `유형 · ${dm}` : "";
-        serviceTypeEl.hidden = !dm;
-      }
+    if (role === "ADMIN") {
+      titleEl.textContent = String(threadMeta.title || "고객센터");
+      applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, "");
+    } else {
+      titleEl.textContent = serviceThreadDisplayName(threadMeta);
+      applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, deliveryModeBadgeLabel(threadMeta));
     }
     if (role === "ADMIN") {
       subtitle.textContent = "고객의 계정 단위 문의·안내를 다루는 스레드입니다.";
@@ -778,14 +793,13 @@ function syncChatHeader(threadMeta) {
     return;
   }
 
+  badges.innerHTML = threadListBadgesHtml(threadMeta, detailBadgeOpts);
+
   if (role === "ADMIN") {
     eyebrow.textContent = "고객센터";
     eyebrow.hidden = false;
     titleEl.textContent = String(threadMeta.title || "고객센터");
-    if (serviceTypeEl instanceof HTMLElement) {
-      serviceTypeEl.hidden = true;
-      serviceTypeEl.textContent = "";
-    }
+    applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, "");
     subtitle.textContent = "운영·견적·청구·결제·일반 문의를 위한 채널입니다.";
     return;
   }
@@ -794,10 +808,7 @@ function syncChatHeader(threadMeta) {
   eyebrow.textContent = dm ? "" : "서비스";
   eyebrow.hidden = !String(eyebrow.textContent || "").trim();
   titleEl.textContent = serviceThreadDisplayName(threadMeta);
-  if (serviceTypeEl instanceof HTMLElement) {
-    serviceTypeEl.textContent = dm ? `서비스 유형 · ${dm}` : "";
-    serviceTypeEl.hidden = !dm;
-  }
+  applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, dm);
 
   if (isInPersonServiceThread(threadMeta)) {
     const summary = String(threadMeta.agent_assignment_summary || "").trim();

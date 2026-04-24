@@ -6,6 +6,8 @@
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/admin-services.css" />
+  <link rel="stylesheet" href="../assets/css/pages/messages.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" crossorigin="anonymous" />
 </head>
 <body>
     <div id="lhai-app-header-root"></div>
@@ -17,7 +19,7 @@
           <h1 class="lhai-title">Services</h1>
           <p class="lhai-subtitle">관리자용 서비스 카탈로그: Inventory(서비스 아이템 → 패키지 연결)</p>
           <p class="lhai-help admin-services__primary-intake-hint u-mt-2" data-i18n="common.admin_services.primary_intake_workflow">
-            Primary customer intake: open a service under Manage → use the “Required Customer Info” tab to define fields for that service (preferred over the standalone Survey Builder).
+            Primary customer intake: open a service under Manage → use the “Customer Intake Builder” tab to define fields, options, and visibility for that service (preferred over the standalone Survey Builder).
           </p>
         </div>
       </section>
@@ -32,8 +34,8 @@
         <div class="admin-services__tree-legend" aria-label="카드 색상 설명">
           <span class="admin-services__tree-legend-item"><i class="admin-services__tree-legend-dot admin-services__tree-legend-dot--category"></i>Category</span>
           <span class="admin-services__tree-legend-item"><i class="admin-services__tree-legend-dot admin-services__tree-legend-dot--package"></i>Package</span>
-          <span class="admin-services__tree-legend-item"><i class="admin-services__tree-legend-dot admin-services__tree-legend-dot--leaf-ai"></i><span data-i18n="common.admin_services.tree.legend.leaf_ai">AI (module)</span></span>
-          <span class="admin-services__tree-legend-item"><i class="admin-services__tree-legend-dot admin-services__tree-legend-dot--leaf-inperson"></i><span data-i18n="common.admin_services.tree.legend.leaf_in_person">In-person (add-on)</span></span>
+          <span class="admin-services__tree-legend-item"><i class="admin-services__tree-legend-dot admin-services__tree-legend-dot--leaf-ai"></i><span data-i18n="common.admin_services.tree.legend.leaf_ai">AI</span></span>
+          <span class="admin-services__tree-legend-item"><i class="admin-services__tree-legend-dot admin-services__tree-legend-dot--leaf-inperson"></i><span data-i18n="common.admin_services.tree.legend.leaf_in_person">In-person</span></span>
         </div>
 
         <div class="admin-services__tab-panels" id="adminServicesTopPanels">
@@ -103,11 +105,13 @@
                         <section class="admin-services__editor-section">
                           <h5 class="admin-services__editor-section-title">Actions</h5>
                           <p class="lhai-help admin-services__manage-action-status" id="manageCategoryActionStatus" role="status" aria-live="polite" hidden></p>
-                          <div class="admin-services__row-actions" id="manageCategoryActionsCreate">
-                            <button type="submit" class="lhai-button lhai-button--primary" id="manageCategoryCreateSubmitBtn">Create</button>
-                          </div>
-                          <div class="admin-services__row-actions" id="manageCategoryActionsEdit" hidden>
-                            <button type="submit" class="lhai-button lhai-button--primary" id="manageCategorySaveSubmitBtn">Save Changes</button>
+                          <div class="admin-services__primary-action-buttons">
+                            <div class="admin-services__row-actions" id="manageCategoryActionsCreate">
+                              <button type="submit" class="lhai-button lhai-button--primary" id="manageCategoryCreateSubmitBtn">Create</button>
+                            </div>
+                            <div class="admin-services__row-actions" id="manageCategoryActionsEdit" hidden>
+                              <button type="submit" class="lhai-button lhai-button--primary" id="manageCategorySaveSubmitBtn">Save Changes</button>
+                            </div>
                           </div>
                           <div class="admin-services__danger-zone" id="manageCategoryDangerZone" hidden>
                             <p class="admin-services__bool-help" id="manageCategoryDeleteHelp" data-i18n="common.admin_services.manage.delete_help.category">연결된 패키지가 없을 때만 영구 삭제할 수 있습니다.</p>
@@ -233,11 +237,13 @@
                         <section class="admin-services__editor-section">
                           <h5 class="admin-services__editor-section-title">Actions</h5>
                           <p class="lhai-help admin-services__manage-action-status" id="managePackageActionStatus" role="status" aria-live="polite" hidden></p>
-                          <div class="admin-services__row-actions" id="managePackageActionsCreate">
-                            <button type="submit" class="lhai-button lhai-button--primary" id="managePackageCreateSubmitBtn">Create</button>
-                          </div>
-                          <div class="admin-services__row-actions" id="managePackageActionsEdit" hidden>
-                            <button type="submit" class="lhai-button lhai-button--primary" id="managePackageSaveSubmitBtn">Save Changes</button>
+                          <div class="admin-services__primary-action-buttons">
+                            <div class="admin-services__row-actions" id="managePackageActionsCreate">
+                              <button type="submit" class="lhai-button lhai-button--primary" id="managePackageCreateSubmitBtn">Create</button>
+                            </div>
+                            <div class="admin-services__row-actions" id="managePackageActionsEdit" hidden>
+                              <button type="submit" class="lhai-button lhai-button--primary" id="managePackageSaveSubmitBtn">Save Changes</button>
+                            </div>
                           </div>
                           <div class="admin-services__danger-zone" id="managePackageDangerZone" hidden>
                             <p class="admin-services__bool-help" id="managePackageDeleteHelp" data-i18n="common.admin_services.manage.delete_help.package">패키지에 연결된 서비스·구성이 없고 서버 이력 제약이 없을 때만 삭제할 수 있습니다.</p>
@@ -258,10 +264,11 @@
                         <button type="button" class="lhai-button lhai-button--primary" id="manageServiceCreateBtn">+ New Service</button>
                       </div>
                       <div class="admin-services__service-filters">
-                        <select class="lhai-select" id="manageServiceFilterType">
-                          <option value="">All types</option>
-                          <option value="module" data-i18n="common.admin_services.manage.table.classification_ai">AI</option>
-                          <option value="addon" data-i18n="common.admin_services.manage.table.classification_in_person">In-person</option>
+                        <select class="lhai-select" id="manageServiceFilterType" aria-label="Filter by capability">
+                          <option value="" data-i18n="common.admin_services.filters.capability_all">All capabilities</option>
+                          <option value="AI_AGENT" data-i18n="common.admin_services.filters.capability_ai_agent">AI Agent only</option>
+                          <option value="IN_PERSON" data-i18n="common.admin_services.filters.capability_in_person">In-person only</option>
+                          <option value="BOTH" data-i18n="common.admin_services.filters.capability_both">AI + In-person</option>
                         </select>
                         <select class="lhai-select" id="manageServiceFilterCategory">
                           <option value="">All categories</option>
@@ -291,7 +298,7 @@
                         <button type="button" class="admin-services__tab-btn is-active" data-service-editor-tab="details" role="tab" aria-selected="true" id="manageServiceTabDetailsBtn"
                           data-i18n="common.admin_services.intake.tab_service_details">Service details</button>
                         <button type="button" class="admin-services__tab-btn" data-service-editor-tab="intake" role="tab" aria-selected="false" id="manageServiceTabIntakeBtn" disabled
-                          data-i18n="common.admin_services.intake.tab_required_info">Required Customer Info</button>
+                          data-i18n="common.admin_services.intake.tab_intake_builder">Customer Intake Builder</button>
                         <button type="button" class="admin-services__tab-btn" data-service-editor-tab="documents" role="tab" aria-selected="false" id="manageServiceTabDocumentsBtn" disabled
                           data-i18n="common.admin_services.documents.tab_label">Required Documents</button>
                       </div>
@@ -325,15 +332,6 @@
                         </section>
 
                         <section class="admin-services__editor-section">
-                          <h5 class="admin-services__editor-section-title">Classification</h5>
-                          <label class="lhai-label" for="manageServiceType">Type</label>
-                          <select class="lhai-select" id="manageServiceType">
-                            <option value="module">AI</option>
-                            <option value="addon">In-person</option>
-                          </select>
-                        </section>
-
-                        <section class="admin-services__editor-section">
                           <h5 class="admin-services__editor-section-title">Assignment</h5>
                           <label class="lhai-label" for="manageServiceCategoryId">Category</label>
                           <select class="lhai-select" id="manageServiceCategoryId"></select>
@@ -342,7 +340,7 @@
                         </section>
 
                         <section class="admin-services__editor-section">
-                          <h5 class="admin-services__editor-section-title">Delivery Settings</h5>
+                          <h5 class="admin-services__editor-section-title" data-i18n="common.admin_services.manage.section.type_support">Type support</h5>
                           <p class="lhai-help u-mb-2" id="manageServiceSupportedModesIntro" data-i18n="common.admin_services.manage.service.supported_modes_intro">
                             Choose which delivery modes this service may be offered with. At least one must stay on. Customer choice and runtime routing use other data — these toggles only define what is available in the catalog.
                           </p>
@@ -373,7 +371,7 @@
                           <label class="lhai-label" for="manageServiceDeliveryTypeHelpText">Delivery type help text (customer)</label>
                           <textarea class="lhai-textarea" id="manageServiceDeliveryTypeHelpText" rows="2"></textarea>
                           <p class="lhai-help u-mt-2" data-i18n="common.admin_services.manage.service.intake_bridge_hint">
-                            Define what customers must answer before delivery in the “Required Customer Info” tab (same service).
+                            Define what customers must answer before delivery in the “Customer Intake Builder” tab (same service).
                           </p>
                           <p class="lhai-help u-mt-2" data-i18n="common.admin_services.manage.service.documents_bridge_hint">
                             After payment, use the “Required Documents” tab to list files customers must prepare for this service.
@@ -413,11 +411,13 @@
                         <section class="admin-services__editor-section">
                           <h5 class="admin-services__editor-section-title">Actions</h5>
                           <p class="lhai-help admin-services__manage-action-status" id="manageServiceActionStatus" role="status" aria-live="polite" hidden></p>
-                          <div class="admin-services__row-actions" id="manageServiceActionsCreate">
-                            <button type="submit" class="lhai-button lhai-button--primary" id="manageServiceCreateSubmitBtn">Create</button>
-                          </div>
-                          <div class="admin-services__row-actions" id="manageServiceActionsEdit" hidden>
-                            <button type="submit" class="lhai-button lhai-button--primary" id="manageServiceSaveSubmitBtn">Save Changes</button>
+                          <div class="admin-services__primary-action-buttons">
+                            <div class="admin-services__row-actions" id="manageServiceActionsCreate">
+                              <button type="submit" class="lhai-button lhai-button--primary" id="manageServiceCreateSubmitBtn">Create</button>
+                            </div>
+                            <div class="admin-services__row-actions" id="manageServiceActionsEdit" hidden>
+                              <button type="submit" class="lhai-button lhai-button--primary" id="manageServiceSaveSubmitBtn">Save Changes</button>
+                            </div>
                           </div>
                           <div class="admin-services__danger-zone" id="manageServiceDangerZone" hidden>
                             <p class="admin-services__bool-help u-mb-2" id="manageServiceDeleteHelp" data-i18n="common.admin_services.manage.delete_help.service">패키지에 연결되지 않았고 견적/이력 제약이 없을 때만 삭제할 수 있습니다.</p>
@@ -430,20 +430,124 @@
                       <div class="admin-services__service-editor-panel" id="manageServiceIntakePanel" data-service-editor-panel="intake" hidden>
                         <div class="admin-services__intake-intro">
                           <p class="lhai-help admin-services__intake-lead" id="manageServiceIntakeLead"
-                            data-i18n="common.admin_services.intake.lead">Define the customer information required to deliver this service.</p>
+                            data-i18n="common.admin_services.intake.builder_lead">Stack blocks from top to bottom—customers see them in this order. Mix questions with notices, images, and rich text like a landinghelp.com service page.</p>
+                          <p class="lhai-help admin-services__intake-flow-guide u-mt-2" id="manageServiceIntakeFlowGuide"
+                            data-i18n="common.admin_services.intake.flow_guide">Typical landinghelp.com-style flow: intro notice → explanatory image → main question → optional conditional notice or follow-up question (set Visibility on a block) → closing summary. Reorder with ↑↓.</p>
                           <p class="lhai-help admin-services__intake-hint" id="manageServiceIntakeHint" hidden></p>
+                          <div class="admin-services__intake-preset-row u-flex u-gap-2 u-mt-2" style="flex-wrap:wrap;align-items:center;">
+                            <span class="lhai-help u-m-0" data-i18n="common.admin_services.intake.presets_label">Starter</span>
+                            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakePresetPhoneBtn"
+                              data-i18n="common.admin_services.intake.preset_phone_btn">+ Phone-style starter</button>
+                            <span class="lhai-help u-m-0" data-i18n="common.admin_services.intake.presets_note">Adds sample blocks you can edit (appends if the list is not empty).</span>
+                          </div>
                         </div>
                         <div class="admin-services__intake-toolbar u-flex-between u-gap-4 u-mb-3" style="flex-wrap:wrap;align-items:center;">
                           <p class="lhai-help u-m-0" id="manageServiceIntakeStatus" aria-live="polite"></p>
-                          <button type="button" class="lhai-button lhai-button--primary" id="manageServiceIntakeAddFieldBtn"
-                            data-i18n="common.admin_services.intake.add_field">+ Add Field</button>
+                          <div class="admin-services__intake-add-menu u-flex u-gap-2" style="flex-wrap:wrap;align-items:center;">
+                            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakePreviewBtn" data-i18n="common.admin_services.intake.preview_open" data-i18n-title="common.admin_services.intake.preview_tooltip" title="Open a read-only preview of this intake flow.">Preview</button>
+                            <span class="lhai-help u-m-0 u-align-self-center" data-i18n="common.admin_services.intake.add_blocks_label">Add blocks</span>
+                            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddQuestionBtn" data-i18n="common.admin_services.intake.add_question">+ Question</button>
+                            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddNoticeBtn" data-i18n="common.admin_services.intake.add_notice">+ Notice</button>
+                            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddImageBtn" data-i18n="common.admin_services.intake.add_image">+ Image</button>
+                            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddRichTextBtn" data-i18n="common.admin_services.intake.add_rich_text">+ Rich text</button>
+                            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddDividerBtn" data-i18n="common.admin_services.intake.add_divider">+ Divider</button>
+                          </div>
                         </div>
-                        <div id="manageServiceIntakeFields" class="admin-services__intake-fields" aria-live="polite"></div>
-                        <details class="admin-services__intake-technical lhai-state u-mt-3">
-                          <summary data-i18n="common.admin_services.intake.technical_summary">Technical reference (read-only)</summary>
-                          <p class="lhai-help" data-i18n="common.admin_services.intake.technical_help">Internal keys are generated by the system for stable data. You do not need to edit them.</p>
-                          <pre class="admin-services__intake-pre" id="manageServiceIntakeTechnicalPre" aria-label="Technical JSON"></pre>
-                        </details>
+                        <div class="admin-services__intake-builder-layout">
+                          <div class="admin-services__intake-builder-main">
+                            <div id="manageServiceIntakeFields" class="admin-services__intake-fields" aria-live="polite"></div>
+                            <details class="admin-services__intake-technical lhai-state u-mt-3">
+                              <summary data-i18n="common.admin_services.intake.technical_summary">Technical reference (read-only)</summary>
+                              <p class="lhai-help" data-i18n="common.admin_services.intake.technical_help">Internal keys are generated by the system for stable data. You do not need to edit them.</p>
+                              <pre class="admin-services__intake-pre" id="manageServiceIntakeTechnicalPre" aria-label="Technical JSON"></pre>
+                            </details>
+                          </div>
+                          <aside class="admin-services__intake-side" id="manageServiceIntakeSidePanel" hidden>
+                            <div class="admin-services__intake-side-head">
+                              <h4 class="admin-services__intake-side-title" id="manageServiceIntakeSideHeading">Block</h4>
+                              <button type="button" class="lhai-button lhai-button--ghost lhai-button--compact" id="manageServiceIntakeSideCloseBtn" aria-label="Close panel">×</button>
+                            </div>
+                            <p class="lhai-help admin-services__intake-side-type-help" id="manageServiceIntakeSideTypeHelp" hidden></p>
+                            <p class="lhai-help admin-services__intake-side-empty" id="manageServiceIntakeSideEmpty">Select a content block in the list, or add a new block.</p>
+                            <div class="admin-services__intake-side-form" id="manageServiceIntakeSideForm" hidden>
+                              <input type="hidden" id="manageServiceIntakeSideBlockId" value="" />
+                              <label class="lhai-label" for="manageServiceIntakeSideTitleInput" data-i18n="common.admin_services.intake.side_title">Title (optional)</label>
+                              <input class="lhai-input" id="manageServiceIntakeSideTitleInput" type="text" maxlength="300" autocomplete="off" />
+                              <div id="manageServiceIntakeSideBodySection">
+                                <p class="lhai-label u-mt-2" id="manageServiceIntakeSideBodyLabel" data-i18n="common.admin_services.intake.side_body">Body / message</p>
+                                <p class="lhai-help u-mb-2" data-i18n="common.admin_services.intake.side_body_rich_hint">Use the toolbar for bold, lists, colors, and links. Plain text still works.</p>
+                                <div id="manageServiceIntakeSideBodyQuillHost" class="admin-intake-body-editor-host" aria-labelledby="manageServiceIntakeSideBodyLabel"></div>
+                                <textarea class="lhai-textarea" id="manageServiceIntakeSideBody" rows="5" maxlength="8000" hidden aria-hidden="true"></textarea>
+                              </div>
+                              <div id="manageServiceIntakeSideMediaWrap">
+                                <p class="lhai-help u-mb-2" data-i18n="common.admin_services.intake.side_media_help">Paste an image URL, upload a file below, and/or use a stored asset ID. URLs must be http(s) or a site-relative path.</p>
+                                <label class="lhai-label u-mt-2" for="manageServiceIntakeSideMediaFile" data-i18n="common.admin_services.intake.side_media_file">Image file</label>
+                                <input class="lhai-input" id="manageServiceIntakeSideMediaFile" type="file" accept="image/jpeg,image/png,image/gif,image/webp" />
+                                <p class="lhai-help u-mt-1" id="manageServiceIntakeSideMediaUploadStatus" role="status" hidden></p>
+                                <label class="lhai-label u-mt-2" for="manageServiceIntakeSideMediaUrl" data-i18n="common.admin_services.intake.side_media">Media URL</label>
+                                <input class="lhai-input" id="manageServiceIntakeSideMediaUrl" type="text" inputmode="url" maxlength="2000" placeholder="https://… or /path/to/image" autocomplete="off" />
+                                <label class="lhai-label u-mt-2" for="manageServiceIntakeSideAssetId" data-i18n="common.admin_services.intake.side_asset_id">Media asset ID (optional)</label>
+                                <input class="lhai-input" id="manageServiceIntakeSideAssetId" type="text" maxlength="128" placeholder="e.g. cdn asset or upload id" autocomplete="off" />
+                                <label class="lhai-label u-mt-2" for="manageServiceIntakeSideAltText" data-i18n="common.admin_services.intake.side_alt">Alt text (accessibility)</label>
+                                <input class="lhai-input" id="manageServiceIntakeSideAltText" type="text" maxlength="500" autocomplete="off" />
+                                <label class="lhai-label u-mt-2" for="manageServiceIntakeSideMediaKind" data-i18n="common.admin_services.intake.side_media_kind">Media type</label>
+                                <select class="lhai-select" id="manageServiceIntakeSideMediaKind">
+                                  <option value="image">Image</option>
+                                  <option value="document">Document (future)</option>
+                                  <option value="video">Video (future)</option>
+                                  <option value="none">None / text only</option>
+                                </select>
+                                <label class="lhai-label u-mt-2" for="manageServiceIntakeSideMediaLayout" data-i18n="common.admin_services.intake.side_media_layout">Media layout</label>
+                                <select class="lhai-select" id="manageServiceIntakeSideMediaLayout">
+                                  <option value="default">Default</option>
+                                  <option value="natural">Natural size</option>
+                                  <option value="wide">Wide</option>
+                                  <option value="compact">Compact</option>
+                                  <option value="contain">Contain</option>
+                                  <option value="cover">Cover</option>
+                                </select>
+                              </div>
+                              <label class="lhai-label u-mt-2" for="manageServiceIntakeSideCaption" data-i18n="common.admin_services.intake.side_caption">Caption (optional)</label>
+                              <input class="lhai-input" id="manageServiceIntakeSideCaption" type="text" maxlength="500" autocomplete="off" />
+                              <label class="lhai-label u-mt-2" for="manageServiceIntakeSideStyle" data-i18n="common.admin_services.intake.side_style">Style variant</label>
+                              <select class="lhai-select" id="manageServiceIntakeSideStyle">
+                                <option value="default">Default</option>
+                                <option value="subtle">Subtle</option>
+                                <option value="emphasis">Emphasis</option>
+                                <option value="warning">Warning</option>
+                              </select>
+                              <section class="admin-services__intake-form-section u-mt-3" aria-labelledby="manageServiceIntakeSideVisSec">
+                                <h4 class="admin-services__intake-section-title" id="manageServiceIntakeSideVisSec" data-i18n="common.admin_services.intake.section.visibility">Visibility</h4>
+                                <fieldset class="admin-services__intake-vis-fieldset" id="manageServiceIntakeSideVisibilitySimpleFieldset">
+                                  <legend class="admin-services__intake-vis-legend" data-i18n="common.admin_services.intake.visibility_when">When should this block appear?</legend>
+                                  <label class="admin-services__intake-radio-label">
+                                    <input type="radio" name="msiSideVisibilityMode" value="always" id="manageServiceIntakeSideVisAlways" checked />
+                                    <span data-i18n="common.admin_services.intake.vis_always">Always show</span>
+                                  </label>
+                                  <label class="admin-services__intake-radio-label">
+                                    <input type="radio" name="msiSideVisibilityMode" value="conditional" id="manageServiceIntakeSideVisConditional" />
+                                    <span data-i18n="common.admin_services.intake.vis_conditional">Show only when another answer matches…</span>
+                                  </label>
+                                </fieldset>
+                                <div id="manageServiceIntakeSideVisibilityConditionalBlock" class="admin-services__intake-conditional-block" hidden>
+                                  <label class="lhai-label" for="manageServiceIntakeSideVisibilitySourceField" data-i18n="common.admin_services.intake.vis_source_field">Question field</label>
+                                  <select class="lhai-select" id="manageServiceIntakeSideVisibilitySourceField"></select>
+                                  <label class="lhai-label" for="manageServiceIntakeSideVisibilityMatchText" id="manageServiceIntakeSideVisibilityMatchLabel" data-i18n="common.admin_services.intake.vis_match_value">Their answer must be</label>
+                                  <select class="lhai-select" id="manageServiceIntakeSideVisibilityMatchSelect" hidden></select>
+                                  <input class="lhai-input" id="manageServiceIntakeSideVisibilityMatchText" type="text" maxlength="500" autocomplete="off" />
+                                </div>
+                                <details class="admin-services__intake-vis-advanced-details u-mt-2">
+                                  <summary data-i18n="common.admin_services.intake.visibility_advanced_summary">Advanced: raw rule (JSON)</summary>
+                                  <textarea class="lhai-textarea" id="manageServiceIntakeSideVisibilityJsonAdvanced" rows="3" placeholder="{}"></textarea>
+                                </details>
+                              </section>
+                              <div class="admin-services__intake-side-actions u-mt-3">
+                                <button type="button" class="lhai-button lhai-button--primary" id="manageServiceIntakeSideSaveBtn" data-i18n="common.actions.save">Save</button>
+                                <button type="button" class="lhai-button lhai-button--secondary" id="manageServiceIntakeSideDeleteBtn" data-i18n="common.actions.delete">Delete</button>
+                              </div>
+                            </div>
+                          </aside>
+                        </div>
                       </div>
 
                       <div class="admin-services__service-editor-panel" id="manageServiceDocumentsPanel" data-service-editor-panel="documents" hidden>
@@ -660,8 +764,42 @@
           </div>
         </div>
       </section>
+
+      <dialog class="lhai-dialog admin-intake-preview-dialog" id="adminIntakePreviewDialog" aria-labelledby="adminIntakePreviewDialogTitle">
+        <div class="admin-intake-preview-dialog__inner">
+          <div class="admin-intake-preview-dialog__head">
+            <h3 class="lhai-dialog__title" id="adminIntakePreviewDialogTitle" data-i18n="common.admin_services.intake.preview_title">Customer intake preview</h3>
+            <button type="button" class="lhai-button lhai-button--ghost lhai-button--compact" id="adminIntakePreviewCloseBtn" aria-label="Close">×</button>
+          </div>
+          <p class="lhai-help admin-intake-preview-dialog__lead" data-i18n="common.admin_services.intake.preview_lead">
+            Sample header and flow only — answers are not saved.
+          </p>
+          <header class="admin-intake-preview__customer-header lhai-service-header lhai-service-header--preview" aria-label="Customer view header">
+            <div class="lhai-service-header__primary">
+              <span class="lhai-service-header__title" id="adminIntakePreviewCustomerTitle">—</span>
+              <span class="lhai-service-header__delivery-badge" id="adminIntakePreviewDeliveryBadge" hidden>—</span>
+            </div>
+            <p class="lhai-service-header__meta lhai-help admin-intake-preview__header-meta" id="adminIntakePreviewSubtitle" hidden></p>
+          </header>
+          <div class="admin-intake-preview__tabs" role="tablist">
+            <button type="button" class="admin-intake-preview__tab is-active" id="adminIntakePreviewTabStatic" role="tab" aria-selected="true" data-i18n="common.admin_services.intake.preview_tab_static">Static</button>
+            <button type="button" class="admin-intake-preview__tab" id="adminIntakePreviewTabInteractive" role="tab" aria-selected="false" data-i18n="common.admin_services.intake.preview_tab_interactive">Interactive</button>
+          </div>
+          <div id="adminIntakePreviewStaticPanel" class="admin-intake-preview__panel">
+            <div id="adminIntakePreviewStaticBody" class="admin-intake-preview__scroll"></div>
+          </div>
+          <div id="adminIntakePreviewInteractivePanel" class="admin-intake-preview__panel" hidden>
+            <div class="admin-intake-preview__interactive-toolbar u-flex-between u-gap-2 u-mb-2">
+              <p class="lhai-help u-m-0" data-i18n="common.admin_services.intake.preview_interactive_hint">Answer sample questions to see branching and content blocks.</p>
+              <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="adminIntakePreviewResetBtn" data-i18n="common.admin_services.intake.preview_reset">Reset preview</button>
+            </div>
+            <div id="adminIntakePreviewInteractiveBody" class="admin-intake-preview__scroll"></div>
+          </div>
+        </div>
+      </dialog>
     </main>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js" crossorigin="anonymous"></script>
   <script type="module" src="../assets/js/core/app-header.js"></script>
   <script type="module" src="../assets/js/core/logout-button.js"></script>
   <script type="module" src="../assets/js/core/admin-user-menu.js"></script>

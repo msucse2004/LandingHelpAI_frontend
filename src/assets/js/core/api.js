@@ -92,6 +92,30 @@ async function tryBackendPost(path, body, extraHeaders = {}) {
   return payload;
 }
 
+/** multipart/form-data (e.g. file upload). Do not set Content-Type — browser sets boundary. */
+async function tryBackendPostFormData(path, formData) {
+  if (!APP_CONFIG.preferBackendAuth) {
+    throw new Error("Backend auth disabled by config");
+  }
+  const response = await fetch(`${APP_CONFIG.apiBaseUrl}${path}`, {
+    method: "POST",
+    headers: withAuthHeaders({}),
+    body: formData,
+  });
+  const contentType = response.headers.get("content-type") || "";
+  const payload = contentType.includes("application/json") ? await response.json() : await response.text();
+  if (!response.ok) {
+    if (response.status === 401) {
+      handleUnauthorized();
+      throw new Error("인증이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.");
+    }
+    const raw = typeof payload === "object" && payload !== null ? payload.detail : payload;
+    const detail = formatFastApiDetail(raw);
+    throw new Error(detail || `Request failed (${response.status})`);
+  }
+  return payload;
+}
+
 async function tryBackendGet(path, extraHeaders = {}) {
   const response = await fetch(`${APP_CONFIG.apiBaseUrl}${path}`, {
     headers: withAuthHeaders(extraHeaders),
@@ -2082,10 +2106,10 @@ const serviceCatalogAdminApi = {
   // Service-first (ServiceItem + PackageServiceLink) APIs
   // ============================================================
 
-  async listServiceItems(type = null, active = null, visible = null, includeInactive = true) {
+  async listServiceItems(deliveryCapability = null, active = null, visible = null, includeInactive = true) {
     try {
       const params = new URLSearchParams();
-      if (type) params.set("type", type);
+      if (deliveryCapability) params.set("delivery_capability", deliveryCapability);
       if (active !== null) params.set("active", active ? "true" : "false");
       if (visible !== null) params.set("visible", visible ? "true" : "false");
       params.set("include_inactive", includeInactive ? "true" : "false");
@@ -2100,23 +2124,20 @@ const serviceCatalogAdminApi = {
       const addonsByPkg = this._mock.addons_by_package_id || {};
       for (const pkgId of Object.keys(modsByPkg)) {
         for (const m of modsByPkg[pkgId] || []) {
-          if (type && m.type !== type && type !== "module") {
-            // legacy modules have no explicit "type"; treat them as module
-          }
-          const itemType = "module";
-          if (type && itemType !== type) continue;
+          const itemType = "AI_AGENT";
+          if (deliveryCapability && itemType !== deliveryCapability) continue;
           if (active !== null && Boolean(m.active) !== Boolean(active)) continue;
           const itemVisible = true;
           if (visible !== null && Boolean(itemVisible) !== Boolean(visible)) continue;
           items.push({
             id: m.id,
-            type: itemType,
             code: m.code,
             slug: m.slug || null,
             name: m.name,
             description: m.description,
             ai_capable: Boolean(m.ai_capable),
             in_person_required: Boolean(m.in_person_required),
+            delivery_capability: "AI_AGENT",
             extra_price: 0,
             currency: "USD",
             active: Boolean(m.active),
@@ -2129,19 +2150,19 @@ const serviceCatalogAdminApi = {
       }
       for (const pkgId of Object.keys(addonsByPkg)) {
         for (const a of addonsByPkg[pkgId] || []) {
-          const itemType = "addon";
-          if (type && itemType !== type) continue;
+          const itemType = "IN_PERSON";
+          if (deliveryCapability && itemType !== deliveryCapability) continue;
           if (active !== null && Boolean(a.active) !== Boolean(active)) continue;
           if (visible !== null && Boolean(a.visible) !== Boolean(visible)) continue;
           items.push({
             id: a.id,
-            type: itemType,
             code: a.code,
             slug: a.slug || null,
             name: a.name,
             description: a.description,
             ai_capable: false,
-            in_person_required: false,
+            in_person_required: true,
+            delivery_capability: "IN_PERSON",
             extra_price: Number(a.extra_price ?? 0),
             currency: a.currency || "USD",
             active: Boolean(a.active),
@@ -2167,79 +2188,97 @@ const serviceCatalogAdminApi = {
       const firstPkg = (this._mock.packages && this._mock.packages[0]) || null;
       if (!firstPkg) throw new Error("No packages available in mock");
       const package_id = firstPkg.id;
-      if (payload.type === "module") {
-        const m = {
-          id,
-          package_id,
-          code: `mod-${Date.now()}`,
-          name: payload.name,
-          description: payload.description || "",
-          required: false,
-          ai_capable: payload.ai_capable !== undefined ? Boolean(payload.ai_capable) : false,
-          in_person_required: payload.in_person_required !== undefined ? Boolean(payload.in_person_required) : true,
-          sort_order: 0,
-          active: Boolean(payload.active ?? true),
-          visible: true,
-          created_at: now,
-          updated_at: now,
-        };
-        this._mock.modules_by_package_id[package_id] = this._mock.modules_by_package_id[package_id] || [];
-        this._mock.modules_by_package_id[package_id].push(m);
-        return {
-          id,
-          type: "module",
-          code: m.code,
-          slug: null,
-          name: m.name,
-          description: m.description,
-          ai_capable: m.ai_capable,
-          in_person_required: m.in_person_required,
-          extra_price: 0,
-          ai_guide_default_price:
-            Number(payload.ai_guide_default_price ?? APP_CONFIG.defaultAiGuideUnitPriceUsd) ||
-            APP_CONFIG.defaultAiGuideUnitPriceUsd,
-          currency: "USD",
-          active: m.active,
-          visible: true,
-          archived_at: null,
-          created_at: now,
-          updated_at: now,
-        };
+      const aiCap = Boolean(payload.ai_capable);
+      const inPerson = Boolean(payload.in_person_required);
+      let delivery_capability = "BOTH";
+      if (aiCap && !inPerson) delivery_capability = "AI_AGENT";
+      else if (!aiCap && inPerson) delivery_capability = "IN_PERSON";
+      else if (!aiCap && !inPerson) {
+        throw new Error("Select at least one delivery mode (AI and/or in-person).");
       }
-      const a = {
+      const cur = String(payload.currency || "USD")
+        .trim()
+        .toUpperCase()
+        .slice(0, 3);
+      const currency = cur.length >= 3 ? cur : "USD";
+      const extraN = Number(payload.extra_price ?? 0);
+      const extraSafe = Number.isFinite(extraN) ? Math.max(0, extraN) : 0;
+      const aiGuideN = Number(payload.ai_guide_default_price ?? APP_CONFIG.defaultAiGuideUnitPriceUsd);
+      const aiGuideSafe = Number.isFinite(aiGuideN) ? Math.max(0, aiGuideN) : APP_CONFIG.defaultAiGuideUnitPriceUsd;
+      const readShape = {
         id,
-        package_id,
-        code: `addon-${Date.now()}`,
+        code: `svc-${Date.now()}`,
+        slug: null,
         name: payload.name,
-        description: payload.description || "",
-        extra_price: Number(payload.extra_price ?? 0),
-        currency: payload.currency || "USD",
+        description: payload.description ?? "",
+        customer_title: payload.customer_title ?? "",
+        customer_short_description: payload.customer_short_description ?? "",
+        customer_long_description: payload.customer_long_description ?? "",
+        delivery_type_label: payload.delivery_type_label ?? "",
+        delivery_type_help_text: payload.delivery_type_help_text ?? "",
+        ai_capable: aiCap,
+        in_person_required: inPerson,
+        delivery_capability,
+        extra_price: delivery_capability === "AI_AGENT" ? 0 : extraSafe,
+        ai_guide_default_price: delivery_capability === "IN_PERSON" ? 0 : aiGuideSafe,
+        currency,
         active: Boolean(payload.active ?? true),
         visible: Boolean(payload.visible ?? true),
-        sort_order: 0,
-        created_at: now,
-        updated_at: now,
-      };
-      this._mock.addons_by_package_id[package_id] = this._mock.addons_by_package_id[package_id] || [];
-      this._mock.addons_by_package_id[package_id].push(a);
-      return {
-        id,
-        type: "addon",
-        code: a.code,
-        slug: null,
-        name: a.name,
-        description: a.description,
-        ai_capable: false,
-        in_person_required: false,
-        extra_price: a.extra_price,
-        ai_guide_default_price: 0,
-        currency: a.currency,
-        active: a.active,
-        visible: a.visible,
         archived_at: null,
         created_at: now,
         updated_at: now,
       };
+      if (!aiCap && inPerson) {
+        readShape.code = `addon-${Date.now()}`;
+        const a = {
+          id,
+          package_id,
+          code: readShape.code,
+          name: payload.name,
+          description: payload.description || "",
+          customer_title: payload.customer_title ?? "",
+          customer_short_description: payload.customer_short_description ?? "",
+          customer_long_description: payload.customer_long_description ?? "",
+          delivery_type_label: payload.delivery_type_label ?? "",
+          delivery_type_help_text: payload.delivery_type_help_text ?? "",
+          extra_price: extraSafe,
+          currency,
+          active: readShape.active,
+          visible: readShape.visible,
+          sort_order: 0,
+          created_at: now,
+          updated_at: now,
+        };
+        this._mock.addons_by_package_id[package_id] = this._mock.addons_by_package_id[package_id] || [];
+        this._mock.addons_by_package_id[package_id].push(a);
+        return { ...readShape };
+      }
+      const m = {
+        id,
+        package_id,
+        code: readShape.code,
+        name: payload.name,
+        description: payload.description || "",
+        customer_title: payload.customer_title ?? "",
+        customer_short_description: payload.customer_short_description ?? "",
+        customer_long_description: payload.customer_long_description ?? "",
+        delivery_type_label: payload.delivery_type_label ?? "",
+        delivery_type_help_text: payload.delivery_type_help_text ?? "",
+        required: false,
+        ai_capable: aiCap,
+        in_person_required: inPerson,
+        sort_order: 0,
+        active: readShape.active,
+        visible: readShape.visible,
+        extra_price: extraSafe,
+        ai_guide_default_price: aiGuideSafe,
+        currency,
+        created_at: now,
+        updated_at: now,
+      };
+      this._mock.modules_by_package_id[package_id] = this._mock.modules_by_package_id[package_id] || [];
+      this._mock.modules_by_package_id[package_id].push(m);
+      return { ...readShape };
     }
   },
 
@@ -2253,15 +2292,20 @@ const serviceCatalogAdminApi = {
         const list = this._mock.modules_by_package_id[pid] || [];
         const m = list.find((x) => x.id === serviceItemId);
         if (m) {
+          const ac = Boolean(m.ai_capable);
+          const ip = Boolean(m.in_person_required);
+          let dc = "BOTH";
+          if (ac && !ip) dc = "AI_AGENT";
+          else if (!ac && ip) dc = "IN_PERSON";
           return {
             id: m.id,
-            type: "module",
             code: m.code,
             slug: null,
             name: m.name,
             description: m.description,
-            ai_capable: Boolean(m.ai_capable),
-            in_person_required: Boolean(m.in_person_required),
+            ai_capable: ac,
+            in_person_required: ip,
+            delivery_capability: dc,
             extra_price: 0,
             ai_guide_default_price: APP_CONFIG.defaultAiGuideUnitPriceUsd,
             currency: "USD",
@@ -2279,13 +2323,13 @@ const serviceCatalogAdminApi = {
         if (a) {
           return {
             id: a.id,
-            type: "addon",
             code: a.code,
             slug: null,
             name: a.name,
             description: a.description,
             ai_capable: false,
-            in_person_required: false,
+            in_person_required: true,
+            delivery_capability: "IN_PERSON",
             extra_price: Number(a.extra_price ?? 0),
             ai_guide_default_price: 0,
             currency: a.currency || "USD",
@@ -2308,35 +2352,39 @@ const serviceCatalogAdminApi = {
       await mockDelay();
       const now = new Date().toISOString();
       // Try module
+      const mergeMockServiceItem = (row) => {
+        const out = { ...row };
+        if (payload.name !== undefined) out.name = payload.name;
+        if (payload.description !== undefined) out.description = payload.description;
+        if (payload.customer_title !== undefined) out.customer_title = payload.customer_title;
+        if (payload.customer_short_description !== undefined) out.customer_short_description = payload.customer_short_description;
+        if (payload.customer_long_description !== undefined) out.customer_long_description = payload.customer_long_description;
+        if (payload.delivery_type_label !== undefined) out.delivery_type_label = payload.delivery_type_label;
+        if (payload.delivery_type_help_text !== undefined) out.delivery_type_help_text = payload.delivery_type_help_text;
+        if (payload.ai_capable !== undefined) out.ai_capable = Boolean(payload.ai_capable);
+        if (payload.in_person_required !== undefined) out.in_person_required = Boolean(payload.in_person_required);
+        if (payload.extra_price !== undefined) out.extra_price = Number(payload.extra_price);
+        if (payload.ai_guide_default_price !== undefined) out.ai_guide_default_price = Number(payload.ai_guide_default_price);
+        if (payload.currency !== undefined) out.currency = payload.currency;
+        if (payload.active !== undefined) out.active = Boolean(payload.active);
+        if (payload.visible !== undefined) out.visible = Boolean(payload.visible);
+        out.updated_at = now;
+        return out;
+      };
       for (const pid of Object.keys(this._mock.modules_by_package_id || {})) {
         const list = this._mock.modules_by_package_id[pid] || [];
-        const m = list.find((x) => x.id === serviceItemId);
-        if (!m) continue;
-        Object.assign(m, {
-          name: payload.name !== undefined ? payload.name : m.name,
-          description: payload.description !== undefined ? payload.description : m.description,
-          ai_capable: payload.ai_capable !== undefined ? Boolean(payload.ai_capable) : m.ai_capable,
-          in_person_required: payload.in_person_required !== undefined ? Boolean(payload.in_person_required) : m.in_person_required,
-        });
-        if (payload.active !== undefined) m.active = Boolean(payload.active);
-        m.updated_at = now;
-        return m;
+        const idx = list.findIndex((x) => x.id === serviceItemId);
+        if (idx < 0) continue;
+        list[idx] = mergeMockServiceItem(list[idx]);
+        return list[idx];
       }
       // Try addon
       for (const pid of Object.keys(this._mock.addons_by_package_id || {})) {
         const list = this._mock.addons_by_package_id[pid] || [];
-        const a = list.find((x) => x.id === serviceItemId);
-        if (!a) continue;
-        Object.assign(a, {
-          name: payload.name !== undefined ? payload.name : a.name,
-          description: payload.description !== undefined ? payload.description : a.description,
-          extra_price: payload.extra_price !== undefined ? Number(payload.extra_price) : a.extra_price,
-          currency: payload.currency !== undefined ? payload.currency : a.currency,
-          visible: payload.visible !== undefined ? Boolean(payload.visible) : a.visible,
-          active: payload.active !== undefined ? Boolean(payload.active) : a.active,
-        });
-        a.updated_at = now;
-        return a;
+        const idx = list.findIndex((x) => x.id === serviceItemId);
+        if (idx < 0) continue;
+        list[idx] = mergeMockServiceItem(list[idx]);
+        return list[idx];
       }
       throw new Error("Mock service item not found");
     }
@@ -2442,10 +2490,16 @@ const serviceCatalogAdminApi = {
     }
   },
 
-  async listServiceItemInventory({ type = null, category_id = null, package_id = null, active = null, visible = null } = {}) {
+  async listServiceItemInventory({
+    delivery_capability = null,
+    category_id = null,
+    package_id = null,
+    active = null,
+    visible = null,
+  } = {}) {
     try {
       const params = new URLSearchParams();
-      if (type) params.set("type", type);
+      if (delivery_capability) params.set("delivery_capability", delivery_capability);
       if (category_id) params.set("category_id", category_id);
       if (package_id) params.set("package_id", package_id);
       if (active !== null) params.set("active", active ? "true" : "false");
@@ -2466,8 +2520,8 @@ const serviceCatalogAdminApi = {
         if (!pkg) continue;
         const cat = catById[pkg.category_id];
         for (const m of this._mock.modules_by_package_id[pkgId] || []) {
-          const itemType = "module";
-          if (type && type !== itemType) continue;
+          const cap = "AI_AGENT";
+          if (delivery_capability && delivery_capability !== cap) continue;
           if (package_id && pkgId !== package_id) continue;
           if (category_id && pkg.category_id !== category_id) continue;
           if (active !== null && Boolean(m.active) !== Boolean(active)) continue;
@@ -2476,22 +2530,27 @@ const serviceCatalogAdminApi = {
           rows.push({
             package_service_link_id: `psl-${m.id}-${pkgId}`,
             service_item_id: m.id,
-            type: itemType,
             code: m.code,
             slug: null,
             name: m.name,
             description: m.description,
             ai_capable: Boolean(m.ai_capable),
             in_person_required: Boolean(m.in_person_required),
+            delivery_capability: cap,
             extra_price: 0,
+            ai_guide_default_price: APP_CONFIG.defaultAiGuideUnitPriceUsd,
             currency: "USD",
             active: Boolean(m.active),
             visible: true,
             archived_at: null,
             package_id: pkgId,
             package_name: pkg.name,
+            package_active: true,
+            package_visible: true,
             category_id: pkg.category_id,
             category_name: cat?.name || "Uncategorized",
+            category_active: true,
+            category_visible: true,
             sort_order: Number(m.sort_order ?? 0),
             required: Boolean(m.required),
           });
@@ -2503,8 +2562,8 @@ const serviceCatalogAdminApi = {
         if (!pkg) continue;
         const cat = catById[pkg.category_id];
         for (const a of this._mock.addons_by_package_id[pkgId] || []) {
-          const itemType = "addon";
-          if (type && type !== itemType) continue;
+          const cap = "IN_PERSON";
+          if (delivery_capability && delivery_capability !== cap) continue;
           if (package_id && pkgId !== package_id) continue;
           if (category_id && pkg.category_id !== category_id) continue;
           if (active !== null && Boolean(a.active) !== Boolean(active)) continue;
@@ -2513,22 +2572,27 @@ const serviceCatalogAdminApi = {
           rows.push({
             package_service_link_id: `psl-${a.id}-${pkgId}`,
             service_item_id: a.id,
-            type: itemType,
             code: a.code,
             slug: null,
             name: a.name,
             description: a.description,
             ai_capable: false,
-            in_person_required: false,
+            in_person_required: true,
+            delivery_capability: cap,
             extra_price: Number(a.extra_price ?? 0),
+            ai_guide_default_price: 0,
             currency: a.currency || "USD",
             active: Boolean(a.active),
             visible: Boolean(a.visible),
             archived_at: null,
             package_id: pkgId,
             package_name: pkg.name,
+            package_active: true,
+            package_visible: true,
             category_id: pkg.category_id,
             category_name: cat?.name || "Uncategorized",
+            category_active: true,
+            category_visible: true,
             sort_order: Number(a.sort_order ?? 0),
             required: Boolean(a.required ?? false),
           });
@@ -2740,7 +2804,7 @@ const surveyBuilderAdminApi = {
           id: "rule-2",
           questionnaire_version_id: "qnrver-1",
           condition_json: { type: "question_option_equals", question_code: "needs_on_site", option_value: "yes" },
-          result_type: "addon",
+          result_type: "IN_PERSON",
           result_code: "ad-2",
           priority: 1,
           active: true,
@@ -3176,6 +3240,27 @@ const serviceIntakeAdminApi = {
     });
   },
 
+  async createBlock(templateId, payload) {
+    return await tryBackendPost(
+      `/api/admin/service-intake/templates/${encodeURIComponent(templateId)}/blocks`,
+      payload
+    );
+  },
+
+  async updateBlock(blockId, payload) {
+    return await tryBackendPatch(`/api/admin/service-intake/blocks/${encodeURIComponent(blockId)}`, payload);
+  },
+
+  async deleteBlock(blockId) {
+    return await tryBackendDelete(`/api/admin/service-intake/blocks/${encodeURIComponent(blockId)}`);
+  },
+
+  async reorderBlocks(templateId, blockIds) {
+    return await tryBackendPost(`/api/admin/service-intake/templates/${encodeURIComponent(templateId)}/blocks/reorder`, {
+      block_ids: blockIds,
+    });
+  },
+
   async archiveField(fieldId, archived = true) {
     return await tryBackendPatch(`/api/admin/service-intake/fields/${encodeURIComponent(fieldId)}/archive`, { archived });
   },
@@ -3204,6 +3289,13 @@ const serviceIntakeAdminApi = {
 
   async deleteOption(optionId) {
     return await tryBackendDelete(`/api/admin/service-intake/options/${encodeURIComponent(optionId)}`);
+  },
+
+  /** @param {File} file */
+  async uploadIntakeContentImage(file) {
+    const fd = new FormData();
+    fd.append("file", file, file.name || "image");
+    return await tryBackendPostFormData("/api/admin/service-intake/media/upload-image", fd);
   },
 };
 

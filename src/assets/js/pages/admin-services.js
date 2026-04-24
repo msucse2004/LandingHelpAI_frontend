@@ -34,27 +34,28 @@ function esc(value) {
 }
 
 function suggestedDeliveryCopy(aiCapable, inPersonRequired) {
+  // 기본 로케일 KO — 고객 서비스 플로(`survey-start.js` DELIVERY_FALLBACK)와 동일한 의미.
   if (aiCapable && inPersonRequired) {
     return {
-      label: "AI + Optional Human Help",
-      help: "This service starts with AI guidance and can include optional human support when needed.",
+      label: "Landing Help AI Agent + 선택 대면",
+      help: "Landing Help AI Agent로 시작하며, 필요 시 선택적으로 대면 지원을 받을 수 있습니다.",
     };
   }
   if (aiCapable && !inPersonRequired) {
     return {
-      label: "AI Guide",
-      help: "This service is delivered through AI guidance, checklists, and digital assistance.",
+      label: "Landing Help AI Agent",
+      help: "이 서비스는 Landing Help AI Agent, 체크리스트, 디지털 도움으로 진행됩니다.",
     };
   }
   if (!aiCapable && inPersonRequired) {
     return {
-      label: "In-person Support",
-      help: "This service requires human or on-site support.",
+      label: "대면 지원",
+      help: "이 서비스는 담당자 또는 현장 지원이 필요합니다.",
     };
   }
   return {
-    label: "Guided Service",
-    help: "We will guide you through the next steps in a clear, practical flow.",
+    label: "안내형 서비스",
+    help: "다음 단계를 명확하고 단순하게 안내해 드립니다.",
   };
 }
 
@@ -890,8 +891,9 @@ function sf_applyAdminServicesI18n() {
 
   // Filter options
   sf_applyI18nOptionText("#inventoryFilterType", "", "common.admin_services.filters.all");
-  sf_applyI18nOptionText("#inventoryFilterType", "module", "common.admin_services.editor.catalog_kind.module");
-  sf_applyI18nOptionText("#inventoryFilterType", "addon", "common.admin_services.editor.catalog_kind.addon");
+  sf_applyI18nOptionText("#inventoryFilterType", "AI_AGENT", "common.admin_services.filters.capability_ai_agent");
+  sf_applyI18nOptionText("#inventoryFilterType", "IN_PERSON", "common.admin_services.filters.capability_in_person");
+  sf_applyI18nOptionText("#inventoryFilterType", "BOTH", "common.admin_services.filters.capability_both");
 
   sf_applyI18nOptionText("#inventoryFilterActive", "", "common.admin_services.filters.all");
   sf_applyI18nOptionText("#inventoryFilterActive", "true", "common.admin_services.filters.active.active");
@@ -924,8 +926,8 @@ function sf_applyAdminServicesI18n() {
   sf_applyI18nLabelFor("serviceEditorDescription", "common.admin_services.editor.label.description");
   sf_applyI18nLabelFor("serviceEditorTypeSelect", "common.admin_services.editor.section.type");
   sf_applyI18nText(qs("#serviceEditorTypeNote"), "common.admin_services.editor.type_note");
-  sf_applyI18nOptionText("#serviceEditorTypeSelect", "module", "common.admin_services.editor.catalog_kind.module");
-  sf_applyI18nOptionText("#serviceEditorTypeSelect", "addon", "common.admin_services.editor.catalog_kind.addon");
+  sf_applyI18nOptionText("#serviceEditorTypeSelect", "AI", "common.admin_services.editor.catalog_kind.module");
+  sf_applyI18nOptionText("#serviceEditorTypeSelect", "IN_PERSON", "common.admin_services.editor.catalog_kind.addon");
   sf_applyI18nLabelFor("serviceEditorAiCapable", "common.admin_services.editor.attributes.supported_ai_agent");
   sf_applyI18nLabelFor("serviceEditorInPersonRequired", "common.admin_services.editor.attributes.supported_in_person");
   sf_applyI18nLabelFor("serviceEditorExtraPrice", "common.admin_services.editor.attributes.extra_price");
@@ -1181,9 +1183,10 @@ function sf_applyAdminServicesI18n() {
   sf_applyI18nText(qs("#manage-service-panel > h3"), "common.admin_services.manage.entity.service");
   sf_applyI18nText(qs("#manage-service-panel .admin-services__service-list-head .admin-services__manage-step"), "common.admin_services.manage.service.list_hint");
   sf_applyI18nText(qs("#manageServiceCreateBtn"), "common.admin_services.manage.actions.new_service");
-  sf_applyI18nOptionText("#manageServiceFilterType", "", "common.admin_services.filters.all");
-  sf_applyI18nOptionText("#manageServiceFilterType", "module", "common.admin_services.editor.catalog_kind.module");
-  sf_applyI18nOptionText("#manageServiceFilterType", "addon", "common.admin_services.editor.catalog_kind.addon");
+  sf_applyI18nOptionText("#manageServiceFilterType", "", "common.admin_services.filters.capability_all");
+  sf_applyI18nOptionText("#manageServiceFilterType", "AI_AGENT", "common.admin_services.filters.capability_ai_agent");
+  sf_applyI18nOptionText("#manageServiceFilterType", "IN_PERSON", "common.admin_services.filters.capability_in_person");
+  sf_applyI18nOptionText("#manageServiceFilterType", "BOTH", "common.admin_services.filters.capability_both");
   sf_applyI18nOptionText("#manageServiceFilterCategory", "", "common.admin_services.filters.all");
   sf_applyI18nOptionText("#manageServiceFilterPackage", "", "common.admin_services.manage.filter.all_packages");
   sf_applyI18nOptionText("#manageServiceFilterActive", "", "common.admin_services.manage.filter.all_status");
@@ -1212,9 +1215,6 @@ function sf_applyAdminServicesI18n() {
   }
   sf_applyI18nLabelFor("manageServiceName", "common.admin_services.editor.label.service_name");
   sf_applyI18nLabelFor("manageServiceDescription", "common.admin_services.editor.label.description");
-  sf_applyI18nLabelFor("manageServiceType", "common.admin_services.editor.section.type");
-  sf_applyI18nOptionText("#manageServiceType", "module", "common.admin_services.editor.catalog_kind.module");
-  sf_applyI18nOptionText("#manageServiceType", "addon", "common.admin_services.editor.catalog_kind.addon");
   sf_applyI18nLabelFor("manageServiceCategoryId", "common.admin_services.filters.category");
   sf_applyI18nLabelFor("manageServicePackageId", "common.admin_services.editor.assignment.package");
   sf_applyI18nText(qs("#manageServiceSupportedModesIntro"), "common.admin_services.manage.service.supported_modes_intro");
@@ -1344,7 +1344,7 @@ function sf_resetEditor() {
   qs("#serviceEditorName").value = "";
   qs("#serviceEditorDescription").value = "";
 
-  qs("#serviceEditorTypeSelect").value = "module";
+  qs("#serviceEditorTypeSelect").value = "AI";
   qs("#serviceEditorTypeSelect").disabled = false;
   qs("#serviceEditorTypeNote") && (qs("#serviceEditorTypeNote").hidden = false);
 
@@ -1389,15 +1389,17 @@ function sf_fillEditorFromRow(row) {
   qs("#serviceEditorName").value = row.name || "";
   qs("#serviceEditorDescription").value = row.description || "";
 
-  qs("#serviceEditorTypeSelect").value = row.type || "module";
-  qs("#serviceEditorTypeSelect").disabled = true;
+  if (qs("#serviceEditorTypeSelect")) {
+    qs("#serviceEditorTypeSelect").value = row.delivery_capability || "AI_AGENT";
+    qs("#serviceEditorTypeSelect").disabled = true;
+  }
 
   qs("#serviceEditorTypeNote") && (qs("#serviceEditorTypeNote").hidden = true);
 
   qs("#serviceEditorAiCapable").checked = Boolean(row.ai_capable);
   qs("#serviceEditorInPersonRequired").checked = Boolean(row.in_person_required);
 
-  const isAddon = row.type === "addon";
+  const isAddon = String(row.delivery_capability || "").toUpperCase() === "IN_PERSON";
   qs("#serviceEditorAddonPricingBlock").hidden = !isAddon;
   if (isAddon) {
     qs("#serviceEditorExtraPrice").value = Number(row.extra_price ?? 0);
@@ -1439,7 +1441,7 @@ function sf_beginCreateMode() {
   qs("#serviceEditorDescription").value = "";
 
   qs("#serviceEditorTypeSelect").disabled = false;
-  qs("#serviceEditorTypeSelect").value = "module";
+  qs("#serviceEditorTypeSelect").value = "AI";
   qs("#serviceEditorTypeNote") && (qs("#serviceEditorTypeNote").hidden = false);
 
   qs("#serviceEditorAiCapable").checked = false;
@@ -1491,7 +1493,7 @@ async function sf_loadInventory() {
   const search = (qs("#inventorySearch")?.value || "").trim().toLowerCase();
 
   const rows = await serviceCatalogAdminApi.listServiceItemInventory({
-    type: typeVal || null,
+    delivery_capability: typeVal || null,
     category_id: catId || null,
     package_id: pkgId || null,
     active: activeVal,
@@ -1524,7 +1526,12 @@ async function sf_updateReorderButtonState() {
   const serviceItemId = qs("#serviceEditorServiceItemId").value;
   if (!pkgId || !serviceItemId) return;
 
-  const rows = await serviceCatalogAdminApi.listServiceItemInventory({ package_id: pkgId, type: null, active: null, visible: null });
+  const rows = await serviceCatalogAdminApi.listServiceItemInventory({
+    package_id: pkgId,
+    delivery_capability: null,
+    active: null,
+    visible: null,
+  });
   const list = (Array.isArray(rows) ? rows : [])
     .slice()
     .sort((a, b) => (Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0)) || String(a.service_item_id).localeCompare(String(b.service_item_id)));
@@ -1543,7 +1550,12 @@ async function sf_reorder(dir) {
   const serviceItemId = qs("#serviceEditorServiceItemId").value;
   if (!pkgId || !serviceItemId) return;
 
-  const rows = await serviceCatalogAdminApi.listServiceItemInventory({ package_id: pkgId, type: null, active: null, visible: null });
+  const rows = await serviceCatalogAdminApi.listServiceItemInventory({
+    package_id: pkgId,
+    delivery_capability: null,
+    active: null,
+    visible: null,
+  });
   const list = (Array.isArray(rows) ? rows : [])
     .slice()
     .sort((a, b) => (Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0)) || String(a.service_item_id).localeCompare(String(b.service_item_id)));
@@ -1569,7 +1581,7 @@ async function sf_saveEditor() {
   const mode = qs("#serviceEditorMode").getAttribute("value") || "none";
   const name = (qs("#serviceEditorName")?.value || "").trim();
   const desc = qs("#serviceEditorDescription")?.value || "";
-  const typeVal = qs("#serviceEditorTypeSelect")?.value || "module";
+  const typeVal = qs("#serviceEditorTypeSelect")?.value || "AI";
   const aiCapable = Boolean(qs("#serviceEditorAiCapable")?.checked);
   const inPersonRequired = Boolean(qs("#serviceEditorInPersonRequired")?.checked);
   const active = Boolean(qs("#serviceEditorActive")?.checked);
@@ -1607,7 +1619,7 @@ async function sf_saveEditor() {
         description: desc,
         ai_capable: aiCapable,
         in_person_required: inPersonRequired,
-        extra_price: typeVal === "addon" ? extraPrice : 0,
+        extra_price: typeVal === "IN_PERSON" ? extraPrice : 0,
         currency,
         active,
         visible,
@@ -1632,7 +1644,7 @@ async function sf_saveEditor() {
         in_person_required: inPersonRequired,
         active,
         visible,
-        extra_price: typeVal === "addon" ? extraPrice : 0,
+        extra_price: typeVal === "IN_PERSON" ? extraPrice : 0,
         currency,
       });
 
@@ -1805,10 +1817,10 @@ async function initAdminServicesServiceFirstPage() {
 
   qs("#serviceEditorTypeSelect")?.addEventListener("change", () => {
     const typeVal = qs("#serviceEditorTypeSelect").value;
-    qs("#serviceEditorAddonPricingBlock").hidden = typeVal !== "addon";
+    qs("#serviceEditorAddonPricingBlock").hidden = typeVal !== "IN_PERSON";
     const editorMode = qs("#serviceEditorMode")?.getAttribute("value") || "none";
     if (editorMode === "create") {
-      if (typeVal === "addon") {
+      if (typeVal === "IN_PERSON") {
         qs("#serviceEditorAiCapable").checked = true;
         qs("#serviceEditorInPersonRequired").checked = false;
       } else {
@@ -2140,12 +2152,23 @@ async function pk_refreshSelectedPackageDetail() {
   const pkg = (sf_packages || []).find((p) => p.id === pkgId);
 
   // Load current linked services for this package (both module/addon)
-  const rows = await serviceCatalogAdminApi.listServiceItemInventory({ package_id: pkgId, type: null, active: null, visible: null });
+  const rows = await serviceCatalogAdminApi.listServiceItemInventory({
+    package_id: pkgId,
+    delivery_capability: null,
+    active: null,
+    visible: null,
+  });
   const allRows = Array.isArray(rows) ? rows : [];
   pk_rowsForSelectedPackage = allRows.slice().sort((a, b) => (Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0)) || String(a.service_item_id).localeCompare(String(b.service_item_id)));
 
-  pk_modulesRows = pk_rowsForSelectedPackage.filter((r) => r.type === "module").slice().sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
-  pk_addonsRows = pk_rowsForSelectedPackage.filter((r) => r.type === "addon").slice().sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
+  pk_modulesRows = pk_rowsForSelectedPackage
+    .filter((r) => pkIsModuleInventoryRow(r))
+    .slice()
+    .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
+  pk_addonsRows = pk_rowsForSelectedPackage
+    .filter((r) => pkIsAddonInventoryRow(r))
+    .slice()
+    .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
 
   // Fill package editor
   qs("#packageComposeSelectedId").value = pkgId;
@@ -2192,14 +2215,14 @@ function pk_renderAddonsTableOrderAndSelects() {
   pk_renderAddAddonSelect();
 }
 
-async function pk_reorderSelectedTypeWithinPackage({ type, serviceItemId, direction }) {
+async function pk_reorderSelectedTypeWithinPackage({ group, serviceItemId, direction }) {
   // We reorder the global service-links order by swapping two adjacent items
   // inside the chosen type group, while keeping other items in between intact.
   const pkgId = pk_selectedPackageId;
   if (!pkgId) return;
 
   const globalIds = pk_rowsForSelectedPackage.map((r) => r.service_item_id);
-  const groupRows = type === "module" ? pk_modulesRows : pk_addonsRows;
+  const groupRows = group === "module" ? pk_modulesRows : pk_addonsRows;
   const groupIds = groupRows.map((r) => r.service_item_id);
   const idx = groupIds.indexOf(serviceItemId);
   if (idx < 0) return;
@@ -2231,14 +2254,14 @@ async function pk_removeServiceItemFromSelectedPackage(serviceItemId) {
   await pk_refreshSelectedPackageDetail();
 }
 
-async function pk_addServiceItemToSelectedPackage({ type, serviceItemId, required }) {
+async function pk_addServiceItemToSelectedPackage({ group, serviceItemId, required }) {
   const pkgId = pk_selectedPackageId;
   if (!pkgId) return;
   if (!serviceItemId) return;
 
   await serviceCatalogAdminApi.addServiceItemToPackage(pkgId, {
     service_item_id: serviceItemId,
-    required: type === "module" ? Boolean(required) : false,
+    required: group === "module" ? Boolean(required) : false,
     sort_order: null,
   });
 
@@ -2248,7 +2271,13 @@ async function pk_addServiceItemToSelectedPackage({ type, serviceItemId, require
 
 async function pk_refreshAllPackageCounts() {
   // Reload counts based on full inventory for all packages.
-  const rows = await serviceCatalogAdminApi.listServiceItemInventory({ type: null, category_id: null, package_id: null, active: null, visible: null });
+  const rows = await serviceCatalogAdminApi.listServiceItemInventory({
+    delivery_capability: null,
+    category_id: null,
+    package_id: null,
+    active: null,
+    visible: null,
+  });
   const list = Array.isArray(rows) ? rows : [];
   pk_allInventoryRows = list;
   pk_packageCountsById = new Map();
@@ -2267,8 +2296,15 @@ async function pk_initPackagesTab() {
   pk_setPackagesEditorEnabled(false);
 
   // Load available service items (used for “add existing” dropdowns)
-  pk_availableModules = await serviceCatalogAdminApi.listServiceItems("module", null, null, true);
-  pk_availableAddons = await serviceCatalogAdminApi.listServiceItems("addon", null, null, true);
+  {
+    const allItems = await serviceCatalogAdminApi.listServiceItems(null, null, null, true);
+    const list = Array.isArray(allItems) ? allItems : [];
+    pk_availableModules = list.filter((s) => {
+      const c = String(s.delivery_capability || "").toUpperCase();
+      return c === "AI_AGENT" || c === "BOTH";
+    });
+    pk_availableAddons = list.filter((s) => String(s.delivery_capability || "").toUpperCase() === "IN_PERSON");
+  }
 
   // Load counts for all packages from inventory
   await pk_refreshAllPackageCounts();
@@ -2374,14 +2410,14 @@ async function pk_initPackagesTab() {
     if (!pkgId) return;
     const serviceItemId = qs("#packageAddModuleSelect")?.value || "";
     const required = Boolean(qs("#packageAddModuleRequiredChk")?.checked);
-    await pk_addServiceItemToSelectedPackage({ type: "module", serviceItemId, required });
+    await pk_addServiceItemToSelectedPackage({ group: "module", serviceItemId, required });
   });
 
   qs("#packageAddAddonBtn")?.addEventListener("click", async () => {
     const pkgId = pk_selectedPackageId;
     if (!pkgId) return;
     const serviceItemId = qs("#packageAddAddonSelect")?.value || "";
-    await pk_addServiceItemToSelectedPackage({ type: "addon", serviceItemId, required: false });
+    await pk_addServiceItemToSelectedPackage({ group: "addon", serviceItemId, required: false });
   });
 
   // Module table: required toggle + reorder/remove
@@ -2404,8 +2440,8 @@ async function pk_initPackagesTab() {
     const serviceItemId = btn.getAttribute("data-service-item-id");
     if (!serviceItemId) return;
     if (action === "remove") return pk_removeServiceItemFromSelectedPackage(serviceItemId);
-    if (action === "move-up") return pk_reorderSelectedTypeWithinPackage({ type: "module", serviceItemId, direction: "up" });
-    if (action === "move-down") return pk_reorderSelectedTypeWithinPackage({ type: "module", serviceItemId, direction: "down" });
+    if (action === "move-up") return pk_reorderSelectedTypeWithinPackage({ group: "module", serviceItemId, direction: "up" });
+    if (action === "move-down") return pk_reorderSelectedTypeWithinPackage({ group: "module", serviceItemId, direction: "down" });
   });
 
   // Add-on table: reorder/remove only
@@ -2416,8 +2452,8 @@ async function pk_initPackagesTab() {
     const serviceItemId = btn.getAttribute("data-service-item-id");
     if (!serviceItemId) return;
     if (action === "remove") return pk_removeServiceItemFromSelectedPackage(serviceItemId);
-    if (action === "move-up") return pk_reorderSelectedTypeWithinPackage({ type: "addon", serviceItemId, direction: "up" });
-    if (action === "move-down") return pk_reorderSelectedTypeWithinPackage({ type: "addon", serviceItemId, direction: "down" });
+    if (action === "move-up") return pk_reorderSelectedTypeWithinPackage({ group: "addon", serviceItemId, direction: "up" });
+    if (action === "move-down") return pk_reorderSelectedTypeWithinPackage({ group: "addon", serviceItemId, direction: "down" });
   });
 
   // Select first package by default
@@ -2684,11 +2720,32 @@ function ht_activatePanel(panelId) {
   if (btn) btn.click();
 }
 
+/** @param {{ delivery_capability?: string, ai_capable?: boolean, in_person_required?: boolean }} row */
+function pkInventoryCapability(row) {
+  const c = String(row?.delivery_capability || "").toUpperCase();
+  if (c === "AI_AGENT" || c === "IN_PERSON" || c === "BOTH") return c;
+  const ai = Boolean(row?.ai_capable);
+  const ip = Boolean(row?.in_person_required);
+  if (ai && ip) return "BOTH";
+  if (ai) return "AI_AGENT";
+  if (ip) return "IN_PERSON";
+  return "BOTH";
+}
+
+function pkIsModuleInventoryRow(r) {
+  const c = pkInventoryCapability(r);
+  return c === "AI_AGENT" || c === "BOTH";
+}
+
+function pkIsAddonInventoryRow(r) {
+  return pkInventoryCapability(r) === "IN_PERSON";
+}
+
 function ht_moduleAddonBadge(row) {
-  const typ = String(row?.type || "").toLowerCase();
+  const c = String(row?.delivery_capability || "").toUpperCase();
   const label = esc(ucdDeliveryExperienceLabel(row));
-  if (typ === "module") return `<span class="lhai-badge admin-services__badge--module">${label}</span>`;
-  if (typ === "addon") return `<span class="lhai-badge admin-services__badge--addon">${label}</span>`;
+  if (c === "IN_PERSON") return `<span class="lhai-badge admin-services__badge--addon">${label}</span>`;
+  if (c === "AI_AGENT" || c === "BOTH") return `<span class="lhai-badge admin-services__badge--module">${label}</span>`;
   return `<span class="lhai-badge">${label}</span>`;
 }
 
@@ -2957,14 +3014,17 @@ function ucdInPersonServiceKindLabel() {
   return t("common.admin_services.delivery.in_person", "In-person service");
 }
 
-/** Manage → Service table: catalog type as AI vs In-person (matches type filter: module / addon). */
+/** Manage → Service list: normalized catalog capability (``delivery_capability``). */
 function ucdManageServiceCatalogTypeLabel(s) {
-  const typ = String(s?.type || "").toLowerCase();
-  if (typ === "addon") {
-    return t("common.admin_services.manage.table.classification_in_person", "In-person");
+  const c = String(s?.delivery_capability || "").toUpperCase();
+  if (c === "AI_AGENT") {
+    return t("common.admin_services.filters.capability_ai_agent", "AI Agent only");
   }
-  if (typ === "module") {
-    return t("common.admin_services.manage.table.classification_ai", "AI");
+  if (c === "IN_PERSON") {
+    return t("common.admin_services.filters.capability_in_person", "In-person only");
+  }
+  if (c === "BOTH") {
+    return t("common.admin_services.filters.capability_both", "AI + In-person");
   }
   return "—";
 }
@@ -2972,9 +3032,15 @@ function ucdManageServiceCatalogTypeLabel(s) {
 /** Customer-facing delivery / experience (matches catalog capability flags). */
 function ucdDeliveryExperienceLabel(row) {
   if (!row || typeof row !== "object") return "-";
-  const typ = String(row.type || "").toLowerCase();
-  if (typ === "addon") {
+  const c = String(row.delivery_capability || "").toUpperCase();
+  if (c === "IN_PERSON") {
     return t("common.admin_services.delivery.kind_addon", "Add-on");
+  }
+  if (c === "AI_AGENT") {
+    return t("common.admin_services.delivery.ai_guide", "AI Guide");
+  }
+  if (c === "BOTH") {
+    return t("common.admin_services.delivery.ai_plus_human", "AI + Optional Human Help");
   }
   const ai = Boolean(row.ai_capable);
   const ip = Boolean(row.in_person_required);
@@ -3149,7 +3215,7 @@ function ucdServiceLinksByPackage() {
       map.get(key).push({
         package_service_link_id: "",
         service_item_id: svc.id,
-        type: svc.type,
+        delivery_capability: svc.delivery_capability,
         code: svc.code,
         name: svc.name,
         description: svc.description,
@@ -3202,7 +3268,7 @@ async function ucdHandleDrop(targetType, targetId) {
 function ucdTypeDesc(type, item, leafCatalogKind = null) {
   if (type === "category") return item.description || "서비스 묶음의 최상위 분류입니다.";
   if (type === "package") return item.short_description || item.description || "카테고리 안에서 고객에게 제공되는 패키지입니다.";
-  if (leafCatalogKind === "module") {
+  if (leafCatalogKind === "AI") {
     return (
       item.description ||
       t(
@@ -3211,7 +3277,7 @@ function ucdTypeDesc(type, item, leafCatalogKind = null) {
       )
     );
   }
-  if (leafCatalogKind === "addon") {
+  if (leafCatalogKind === "IN_PERSON") {
     return (
       item.description ||
       t(
@@ -3237,9 +3303,9 @@ function ucdCard(type, item, title, depth, childrenHtml = "", connectorMeta = nu
   const kindLabel =
     type === "service" || type === "inperson"
       ? `<div class="admin-services__tree-card-kind">${
-          leafCatalogKind === "module"
+          leafCatalogKind === "AI"
             ? esc(t("common.admin_services.manage.table.classification_ai", "AI"))
-            : leafCatalogKind === "addon"
+            : leafCatalogKind === "IN_PERSON"
               ? esc(t("common.admin_services.manage.table.classification_in_person", "In-person"))
               : type === "service"
                 ? esc(ucdDeliveryExperienceLabel(item))
@@ -3247,9 +3313,9 @@ function ucdCard(type, item, title, depth, childrenHtml = "", connectorMeta = nu
         }</div>`
       : "";
   const cardBorderClass =
-    leafCatalogKind === "module"
+    leafCatalogKind === "AI"
       ? "admin-services__tree-card--leaf-ai"
-      : leafCatalogKind === "addon"
+      : leafCatalogKind === "IN_PERSON"
         ? "admin-services__tree-card--leaf-inperson"
         : `admin-services__tree-card--${type}`;
   const connectorAttrs = connectorMeta
@@ -3337,11 +3403,11 @@ function ucdRenderInventory() {
     const invCodes = new Set(rows.map((r) => String(r.code || "")));
     const leaves = [];
     for (const invRow of rows) {
-      const rowType = String(invRow.type || "").toLowerCase();
-      if (rowType === "addon") {
+      const cap = String(invRow.delivery_capability || "").toUpperCase();
+      if (cap === "IN_PERSON") {
         leaves.push({
           type: "inperson",
-          catalogKind: "addon",
+          catalogKind: "IN_PERSON",
           item: { ...invRow, id: invRow.service_item_id },
           title: invRow.name,
         });
@@ -3349,7 +3415,7 @@ function ucdRenderInventory() {
       }
       leaves.push({
         type: "service",
-        catalogKind: "module",
+        catalogKind: cap === "BOTH" ? "BOTH" : "AI",
         item: { ...invRow, id: invRow.service_item_id },
         title: invRow.name,
       });
@@ -3359,7 +3425,7 @@ function ucdRenderInventory() {
       if (code && invCodes.has(code)) continue;
       leaves.push({
         type: "inperson",
-        catalogKind: "addon",
+        catalogKind: "IN_PERSON",
         item: {
           id: ad.id,
           description: ad.description || "현장 서비스 또는 옵션입니다.",
@@ -3643,7 +3709,9 @@ function ucdRenderManage() {
     };
   });
   const filteredServices = svcRows.filter((s) => {
-    if (ucdServiceFilterType && String(s.type || "") !== String(ucdServiceFilterType)) return false;
+    if (ucdServiceFilterType && String(s.delivery_capability || "").toUpperCase() !== String(ucdServiceFilterType).toUpperCase()) {
+      return false;
+    }
     if (ucdServiceFilterCategoryId && String(s.category_id || "") !== String(ucdServiceFilterCategoryId)) return false;
     if (ucdServiceFilterPackageId && String(s.package_id || "") !== String(ucdServiceFilterPackageId)) return false;
     if (ucdServiceFilterActive === "active" && !Boolean(s.active)) return false;
@@ -3702,8 +3770,11 @@ function ucdRenderManage() {
     ucdSyncManageServicePricingFieldsVisibility();
   }
 
-  const modules = ucdServices.filter((s) => String(s.type || "").toLowerCase() === "module");
-  const addons = ucdServices.filter((s) => String(s.type || "").toLowerCase() === "addon");
+  const modules = ucdServices.filter((s) => {
+    const c = String(s.delivery_capability || "").toUpperCase();
+    return c === "AI_AGENT" || c === "BOTH";
+  });
+  const addons = ucdServices.filter((s) => String(s.delivery_capability || "").toUpperCase() === "IN_PERSON");
   if (addModuleSel) {
     addModuleSel.innerHTML = `<option value="">Select module</option>${modules.map((m) => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join("")}`;
   }
@@ -3880,10 +3951,9 @@ function ucdPopulateServicePackageOptions(categoryId = "", packageId = "") {
 }
 
 function ucdSyncManageServicePricingFieldsVisibility() {
-  const typeVal = String(qs("#manageServiceType")?.value || "module").toLowerCase();
+  const inPerson = Boolean(qs("#manageServiceInPersonRequired")?.checked);
   const addonWrap = qs("#manageServiceAddonPricingWrap");
-  // 애드온(In-person 행): extra price. 견적 초안용 AI 기본 단가는 Basic Info에 상시 표시.
-  if (addonWrap) addonWrap.hidden = typeVal !== "addon";
+  if (addonWrap) addonWrap.hidden = !inPerson;
 }
 
 function ucdApplyServiceSelectionToForm(serviceId) {
@@ -3901,7 +3971,6 @@ function ucdApplyServiceSelectionToForm(serviceId) {
   qs("#manageServiceCustomerLongDescription").value = svc.customer_long_description || "";
   qs("#manageServiceDeliveryTypeLabel").value = svc.delivery_type_label || "";
   qs("#manageServiceDeliveryTypeHelpText").value = svc.delivery_type_help_text || "";
-  qs("#manageServiceType").value = svc.type || "module";
   qs("#manageServiceAiCapable").checked = Boolean(svc.ai_capable);
   qs("#manageServiceInPersonRequired").checked = Boolean(svc.in_person_required);
   qs("#manageServiceExtraPrice").value = svc.extra_price ?? 0;
@@ -4094,10 +4163,21 @@ function ucdBindManageEvents() {
     const aiCapable = qs("#manageServiceAiCapable").checked;
     const inPersonRequired = qs("#manageServiceInPersonRequired").checked;
     const deliveryFallback = suggestedDeliveryCopy(aiCapable, inPersonRequired);
-    const typeVal = qs("#manageServiceType").value;
     const aiGuideRaw = Number(
       qs("#manageServiceAiGuideDefaultPrice")?.value ?? APP_CONFIG.defaultAiGuideUnitPriceUsd
     );
+    const extraRaw = Number(qs("#manageServiceExtraPrice")?.value || 0);
+    const extraPriceSafe = Number.isFinite(extraRaw) ? Math.max(0, extraRaw) : 0;
+    const existingSvc = id ? ucdServices.find((s) => String(s.id) === String(id)) : null;
+    const selectedPackageIdEarly = (qs("#manageServicePackageId")?.value || "").trim();
+    const pkgForNewItemCurrency =
+      !id && selectedPackageIdEarly
+        ? ucdPackages.find((p) => String(p.id) === String(selectedPackageIdEarly))
+        : null;
+    const currencyRaw = String(existingSvc?.currency || pkgForNewItemCurrency?.currency || "USD")
+      .trim()
+      .toUpperCase()
+      .slice(0, 3);
     const servicePayload = {
       name: qs("#manageServiceName").value.trim(),
       description: qs("#manageServiceDescription").value.trim(),
@@ -4106,14 +4186,14 @@ function ucdBindManageEvents() {
       customer_long_description: qs("#manageServiceCustomerLongDescription").value.trim(),
       delivery_type_label: qs("#manageServiceDeliveryTypeLabel").value.trim(),
       delivery_type_help_text: qs("#manageServiceDeliveryTypeHelpText").value.trim(),
-      type: typeVal,
       ai_capable: aiCapable,
       in_person_required: inPersonRequired,
-      extra_price: typeVal === "addon" ? Number(qs("#manageServiceExtraPrice").value || 0) : 0,
+      extra_price: inPersonRequired ? extraPriceSafe : 0,
       ai_guide_default_price:
         Math.round(
           Math.max(0, Number.isFinite(aiGuideRaw) ? aiGuideRaw : APP_CONFIG.defaultAiGuideUnitPriceUsd) * 100
         ) / 100,
+      currency: currencyRaw.length >= 3 ? currencyRaw : "USD",
       active: qs("#manageServiceActive").checked,
       visible: qs("#manageServiceVisible").checked,
     };
@@ -4152,7 +4232,7 @@ function ucdBindManageEvents() {
         errEl.hidden = true;
       }
     }
-    const targetPackageId = qs("#manageServicePackageId").value;
+    const targetPackageId = selectedPackageIdEarly;
     const isEdit = Boolean(id);
     await ucdRunManageAction(
       "Service",
@@ -4243,7 +4323,7 @@ function ucdBindManageEvents() {
   qs("#manageServiceCreateBtn")?.addEventListener("click", () => {
     ucdManageActionStatusClear("Service");
     ucdSelectedServiceId = "";
-    qs("#manageServiceId").value = ""; qs("#manageServiceName").value = ""; qs("#manageServiceDescription").value = ""; qs("#manageServiceType").value = "module";
+    qs("#manageServiceId").value = ""; qs("#manageServiceName").value = ""; qs("#manageServiceDescription").value = "";
     qs("#manageServiceCustomerTitle").value = ""; qs("#manageServiceCustomerShortDescription").value = ""; qs("#manageServiceCustomerLongDescription").value = "";
     qs("#manageServiceDeliveryTypeLabel").value = ""; qs("#manageServiceDeliveryTypeHelpText").value = "";
     qs("#manageServiceCategoryId").value = ""; qs("#manageServicePackageId").value = ""; qs("#manageServiceAiCapable").checked = false; qs("#manageServiceInPersonRequired").checked = true;
@@ -4282,21 +4362,6 @@ function ucdBindManageEvents() {
   };
   qs("#manageServiceAiCapable")?.addEventListener("change", syncDeliveryCopySuggestions);
   qs("#manageServiceInPersonRequired")?.addEventListener("change", syncDeliveryCopySuggestions);
-  qs("#manageServiceType")?.addEventListener("change", () => {
-    ucdSyncManageServicePricingFieldsVisibility();
-    const isCreate = !qs("#manageServiceId")?.value;
-    if (isCreate) {
-      const typeVal = qs("#manageServiceType")?.value || "module";
-      if (typeVal === "addon") {
-        qs("#manageServiceAiCapable").checked = true;
-        qs("#manageServiceInPersonRequired").checked = false;
-      } else {
-        qs("#manageServiceAiCapable").checked = false;
-        qs("#manageServiceInPersonRequired").checked = true;
-      }
-      syncDeliveryCopySuggestions();
-    }
-  });
 
   qs("#manageServiceCategoryId")?.addEventListener("change", () => {
     const catId = qs("#manageServiceCategoryId")?.value || "";

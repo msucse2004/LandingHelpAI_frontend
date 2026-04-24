@@ -161,12 +161,17 @@ function friendlyResultLabel(resultType, resultCode) {
   const typeLabel =
     rt === "package"
       ? t("common.survey_builder.result_types.package", "Package")
-      : rt === "module"
+      : rt === "AI" || rt === "module"
         ? t("common.survey_builder.result_types.module_ai", "AI service (module)")
-        : rt === "addon"
+        : rt === "IN_PERSON" || rt === "addon"
           ? t("common.survey_builder.result_types.addon_inperson", "In-person service (add-on)")
           : rt;
-  const list = rt === "package" ? serviceCodes.packages : rt === "module" ? serviceCodes.modules : serviceCodes.addons;
+  const list =
+    rt === "package"
+      ? serviceCodes.packages
+      : rt === "AI" || rt === "module"
+        ? serviceCodes.modules
+        : serviceCodes.addons;
   const found = list.find((x) => x.code === code);
   const name = found ? found.label : code;
   return `${typeLabel}: ${name}`;
@@ -858,7 +863,12 @@ function refreshRuleResultCodeOptions(resultType, selectedCode = "") {
   const select = qs("#ruleEditorResultCode");
   if (!select) return;
   select.innerHTML = "";
-  const list = resultType === "package" ? serviceCodes.packages : resultType === "module" ? serviceCodes.modules : serviceCodes.addons;
+  const list =
+    resultType === "package"
+      ? serviceCodes.packages
+      : resultType === "AI" || resultType === "module"
+        ? serviceCodes.modules
+        : serviceCodes.addons;
   if (!list.length) {
     select.innerHTML = "<option value=''>-</option>";
     return;

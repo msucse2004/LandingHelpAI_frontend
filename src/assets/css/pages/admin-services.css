@@ -246,6 +246,15 @@
   flex-wrap: wrap;
 }
 
+/* Create + Save live in sibling divs; keep them on one row when both are shown */
+.admin-services__primary-action-buttons {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+  align-items: center;
+}
+
 .admin-services__mini-btn {
   padding: 6px 10px;
   font-size: var(--lhai-font-size-xs);
@@ -739,7 +748,7 @@
   }
 }
 
-/* Required Customer Info — service-linked intake (manage Service) */
+/* Customer Intake Builder — service-linked intake templates/fields (manage Service editor tab) */
 .admin-services__service-editor-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -761,6 +770,70 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+}
+
+.admin-services__intake-builder-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--lhai-space-4);
+  align-items: start;
+}
+
+@media (min-width: 960px) {
+  .admin-services__intake-builder-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  }
+}
+
+.admin-services__intake-side {
+  padding: var(--lhai-space-3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--lhai-radius-lg, 12px);
+  background: rgba(0, 0, 0, 0.2);
+  max-height: min(70vh, 32rem);
+  overflow: auto;
+}
+
+@media (min-width: 960px) {
+  .admin-services__intake-side {
+    position: sticky;
+    top: var(--lhai-space-2);
+  }
+}
+
+.admin-services__intake-side-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--lhai-space-2);
+  margin-bottom: var(--lhai-space-2);
+}
+
+.admin-services__intake-side-title {
+  margin: 0;
+  font-size: var(--lhai-font-size-md);
+}
+
+.admin-services__intake-card-type {
+  font-size: var(--lhai-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--lhai-color-text-muted, #9aa3b2);
+  margin-bottom: var(--lhai-space-1);
+}
+
+.admin-services__intake-card-type-help {
+  margin: 0 0 var(--lhai-space-2);
+  font-size: var(--lhai-font-size-xs);
+  line-height: 1.35;
+  color: var(--lhai-color-text-muted, #9aa3b2);
+}
+
+.admin-services__intake-side-type-help {
+  margin: 0 0 var(--lhai-space-3);
+  font-size: var(--lhai-font-size-xs);
+  line-height: 1.4;
+  color: var(--lhai-color-text-muted, #9aa3b2);
 }
 
 .admin-services__intake-card {
@@ -1254,5 +1327,338 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   color: rgba(255, 255, 255, 0.72);
+}
+
+/* ----- Customer Intake Builder: preview dialog (uses shared .lhai-intake-* from messages.css) ----- */
+.admin-intake-preview-dialog {
+  max-width: min(52rem, 96vw);
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--lhai-color-bg-elevated, #1a1d24);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.admin-intake-preview-dialog__inner {
+  padding: var(--lhai-space-3);
+  max-height: min(85vh, 900px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-2);
+}
+
+.admin-intake-preview-dialog__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--lhai-space-2);
+}
+
+.admin-intake-preview-dialog__lead {
+  margin: 0;
+}
+
+.admin-intake-preview__customer-header {
+  padding: var(--lhai-space-2) var(--lhai-space-3);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Matches customer thread `.lhai-service-header` (messages.css); dark-theme token tweaks only. */
+.admin-intake-preview__customer-header.lhai-service-header--preview .lhai-service-header__title {
+  color: rgba(255, 255, 255, 0.96);
+  font-size: 1.15rem;
+}
+
+.admin-intake-preview__customer-header.lhai-service-header--preview .lhai-service-header__delivery-badge--ai {
+  border-color: rgb(52 211 153 / 0.55);
+  background: rgb(16 185 129 / 0.18);
+  color: rgb(167 243 208 / 0.98);
+}
+
+.admin-intake-preview__customer-header.lhai-service-header--preview .lhai-service-header__delivery-badge--inperson {
+  border-color: rgb(251 191 36 / 0.55);
+  background: rgb(245 158 11 / 0.15);
+  color: rgb(254 243 199 / 0.98);
+}
+
+.admin-intake-preview__customer-header.lhai-service-header--preview .lhai-service-header__delivery-badge--both {
+  border-color: rgb(96 165 250 / 0.55);
+  background: rgb(59 130 246 / 0.2);
+  color: rgb(191 219 254 / 0.98);
+}
+
+.admin-intake-preview__customer-header.lhai-service-header--preview .lhai-service-header__delivery-badge--neutral {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.admin-intake-preview__header-meta {
+  margin: var(--lhai-space-2) 0 0;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.62) !important;
+}
+
+.admin-intake-preview__tabs {
+  display: flex;
+  gap: var(--lhai-space-1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.admin-intake-preview__tab {
+  padding: var(--lhai-space-2) var(--lhai-space-3);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.admin-intake-preview__tab.is-active {
+  color: rgba(255, 255, 255, 0.95);
+  border-bottom-color: rgba(59, 130, 246, 0.85);
+}
+
+.admin-intake-preview__panel {
+  flex: 1;
+  min-height: 12rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-intake-preview__scroll {
+  flex: 1;
+  overflow: auto;
+  padding: var(--lhai-space-2) 0;
+  max-height: min(58vh, 720px);
+}
+
+.admin-intake-preview__static-note {
+  margin-top: var(--lhai-space-2);
+}
+
+.admin-intake-preview__card {
+  margin-bottom: var(--lhai-space-3);
+  padding: var(--lhai-space-3);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.admin-intake-preview__card--question .admin-intake-preview__q-title {
+  margin: var(--lhai-space-2) 0;
+  font-size: 1rem;
+}
+
+.admin-intake-preview__card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lhai-space-2);
+}
+
+.admin-intake-preview__type-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.admin-intake-preview__pill {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  border: 1px solid rgba(234, 179, 8, 0.45);
+  color: rgba(253, 224, 71, 0.95);
+}
+
+.admin-intake-preview__req-mark {
+  margin: 0 0 var(--lhai-space-1);
+  font-size: 0.75rem;
+  color: rgba(248, 113, 113, 0.9);
+}
+
+.admin-intake-preview__help {
+  margin: 0 0 var(--lhai-space-2);
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.45;
+}
+
+.admin-intake-preview__meta {
+  margin: 0;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.admin-intake-preview__option-list {
+  margin: var(--lhai-space-2) 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.admin-intake-preview__card--content .lhai-intake-content-blocks {
+  margin: 0;
+}
+
+.admin-intake-preview__history {
+  margin-bottom: var(--lhai-space-3);
+  padding: var(--lhai-space-2);
+  border-radius: var(--lhai-radius-md);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.admin-intake-preview__history-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+  justify-content: space-between;
+  font-size: 0.85rem;
+  margin-bottom: var(--lhai-space-1);
+}
+
+.admin-intake-preview__history-val {
+  color: rgba(255, 255, 255, 0.75);
+  word-break: break-word;
+  text-align: right;
+}
+
+.admin-intake-preview__form {
+  padding: var(--lhai-space-3);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.admin-intake-preview__form-label {
+  font-weight: 600;
+  margin-bottom: var(--lhai-space-1);
+}
+
+.admin-intake-preview__form-help {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.72);
+  margin-bottom: var(--lhai-space-2);
+}
+
+.admin-intake-preview__input,
+.admin-intake-preview__textarea,
+.admin-intake-preview__select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: var(--lhai-space-2);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(255, 255, 255, 0.92);
+  font: inherit;
+}
+
+.admin-intake-preview__radio-group,
+.admin-intake-preview__checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-2);
+}
+
+.admin-intake-preview__radio-label,
+.admin-intake-preview__check-label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--lhai-space-2);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.admin-intake-preview__form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+  margin-top: var(--lhai-space-3);
+}
+
+.admin-intake-preview__form-error:not([hidden]) {
+  color: rgba(248, 113, 113, 0.95);
+  font-size: 0.8rem;
+  margin: var(--lhai-space-2) 0 0;
+}
+
+.admin-intake-preview__complete {
+  padding: var(--lhai-space-3);
+  border-radius: var(--lhai-radius-md);
+}
+
+/* Intake blocks (from messages.css) are light-themed; adapt inside dark preview dialog */
+.admin-intake-preview__scroll .lhai-intake-block {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.admin-intake-preview__scroll .lhai-intake-block__title,
+.admin-intake-preview__scroll .lhai-intake-block__body,
+.admin-intake-preview__scroll .lhai-intake-block__caption {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.admin-intake-preview__scroll .lhai-intake-block__img {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.admin-intake-preview__scroll .lhai-intake-block__body--html a {
+  color: rgba(147, 197, 253, 0.95);
+}
+
+/* Customer Intake Builder — Quill (dark shell) */
+.admin-intake-body-editor-host .ql-toolbar.ql-snow {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+  border-radius: var(--lhai-radius-md, 8px) var(--lhai-radius-md, 8px) 0 0;
+}
+
+.admin-intake-body-editor-host .ql-container.ql-snow {
+  border-color: rgba(255, 255, 255, 0.14);
+  border-radius: 0 0 var(--lhai-radius-md, 8px) var(--lhai-radius-md, 8px);
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.875rem;
+  min-height: 148px;
+}
+
+.admin-intake-body-editor-host .ql-editor {
+  min-height: 120px;
+}
+
+.admin-intake-body-editor-host .ql-editor.ql-blank::before {
+  color: rgba(255, 255, 255, 0.42);
+  font-style: normal;
+}
+
+.admin-intake-body-editor-host .ql-snow .ql-stroke {
+  stroke: rgba(255, 255, 255, 0.75);
+}
+
+.admin-intake-body-editor-host .ql-snow .ql-fill {
+  fill: rgba(255, 255, 255, 0.75);
+}
+
+.admin-intake-body-editor-host .ql-snow .ql-picker {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.admin-intake-body-editor-host .ql-snow .ql-picker-options {
+  background: rgba(30, 30, 36, 0.98);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.admin-intake-body-editor-host .ql-snow a.ql-preview {
+  color: rgba(147, 197, 253, 0.95);
 }
 

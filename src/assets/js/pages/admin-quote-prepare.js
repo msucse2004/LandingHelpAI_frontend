@@ -13,6 +13,62 @@ const DELIVERY_KO = {
   general: "일반",
 };
 
+/**
+ * 설문 스냅샷 `selected_services[]` 행 — 고객이 고른 전달 방식 vs 카탈로그 버킷(`delivery_mode`).
+ * @param {Record<string, unknown>} s
+ * @returns {{ headline: string, detail: string, catalogLabel: string }}
+ */
+function describeCustomerDeliveryPick(s) {
+  if (!s || typeof s !== "object") {
+    return { headline: "—", detail: "", catalogLabel: "—" };
+  }
+  const picked = String(s.selected_delivery_mode || "").trim().toUpperCase();
+  const dm = String(s.delivery_mode || "").trim();
+  const catalogLabel = DELIVERY_KO[dm] || dm || "—";
+
+  if (picked === "AI_AGENT") {
+    return {
+      headline: "고객 선택: Landing Help AI Agent",
+      detail: "디지털 안내·체크리스트 중심으로 진행합니다.",
+      catalogLabel,
+    };
+  }
+  if (picked === "IN_PERSON") {
+    return {
+      headline: "고객 선택: 대면 지원",
+      detail: "담당자·현장 지원이 포함된 방식으로 진행합니다.",
+      catalogLabel,
+    };
+  }
+  if (dm === "ai_guide") {
+    return {
+      headline: "전달 방식: Landing Help AI Agent만 제공",
+      detail: "이 서비스는 카탈로그상 디지털 안내만 제공됩니다.",
+      catalogLabel,
+    };
+  }
+  if (dm === "in_person") {
+    return {
+      headline: "전달 방식: 대면 지원만 제공",
+      detail: "이 서비스는 카탈로그상 대면 지원만 제공됩니다.",
+      catalogLabel,
+    };
+  }
+  if (dm === "ai_plus_human") {
+    return {
+      headline: "고객 전달 선택: 확인 필요",
+      detail:
+        "카탈로그상 AI 또는 대면 중 하나를 고르게 되어 있으나, 제출 데이터에 선택값이 없습니다. 고객 화면에서 다시 확인하거나 메시지로 확인해 주세요.",
+      catalogLabel,
+    };
+  }
+  return {
+    headline: catalogLabel,
+    detail: "",
+    catalogLabel,
+  };
+}
+
 const PREF_LANG = {
   ko: "한국어",
   en: "영어",
@@ -81,7 +137,24 @@ function renderSelectedServicePriceSummary(selectedServices, priceByServiceId) {
   }
 
   if (emptyEl) emptyEl.hidden = true;
-  listEl.innerHTML = rows
+
+  const deliverySummaryHtml = rows
+    .map((s) => {
+      if (!s || typeof s !== "object") return "";
+      const title = safeText(s.title || s.id || "서비스");
+      const { headline, detail } = describeCustomerDeliveryPick(s);
+      return `
+        <div class="lhai-quote-prep__delivery-item">
+          <p class="lhai-quote-prep__delivery-item-title">${title}</p>
+          <p class="lhai-quote-prep__delivery-item-pick"><strong>${safeText(headline)}</strong></p>
+          ${detail ? `<p class="lhai-help lhai-quote-prep__delivery-item-detail">${safeText(detail)}</p>` : ""}
+        </div>
+      `;
+    })
+    .filter(Boolean)
+    .join("");
+
+  const priceInputsHtml = rows
     .map((s) => {
       if (!s || typeof s !== "object") return "";
       const sid = String(s.id || "").trim();
@@ -104,6 +177,14 @@ function renderSelectedServicePriceSummary(selectedServices, priceByServiceId) {
       `;
     })
     .join("");
+
+  listEl.innerHTML = `
+    <div class="lhai-quote-prep__delivery-box" role="region" aria-label="고객이 선택한 전달 방식">
+      <p class="lhai-quote-prep__delivery-box-title">고객이 선택한 전달 방식</p>
+      ${deliverySummaryHtml || `<p class="lhai-help">전달 방식 정보가 없습니다.</p>`}
+    </div>
+    ${priceInputsHtml}
+  `;
   listEl.querySelectorAll("[data-service-price-id]").forEach((el) => {
     el.addEventListener("input", () => syncSelectedServiceTotal());
   });
@@ -164,20 +245,27 @@ function renderRequest(quote, priceByServiceId = {}) {
   html += (cats.length ? cats : ["—"]).map((t) => `<li>${safeText(t)}</li>`).join("");
   html += `</ul>`;
 
-  html += `<h3 class="lhai-quote-prep__subhead">선택 서비스 · 전달 방식</h3><ul class="lhai-quote-prep__list">`;
+  html += `<h3 class="lhai-quote-prep__subhead">선택 서비스 · 전달 방식</h3><ul class="lhai-quote-prep__list lhai-quote-prep__list--services">`;
   if (!services.length) {
     html += `<li>—</li>`;
   } else {
     for (const s of services) {
       if (!s || typeof s !== "object") continue;
-      const dm = DELIVERY_KO[s.delivery_mode] || s.delivery_mode || "—";
+      const { headline, detail, catalogLabel } = describeCustomerDeliveryPick(s);
       const sid = String(s.id || "").trim();
       const unit = priceByServiceId[sid];
       const unitText =
         unit && unit.amount != null
-          ? ` · 단가: ${formatMoney(Number(unit.amount || 0), unit.currency || "USD")}`
-          : ` · 단가: —`;
-      html += `<li><strong>${safeText(s.title || s.id || "")}</strong> · ${safeText(dm)}${unitText}</li>`;
+          ? `${formatMoney(Number(unit.amount || 0), unit.currency || "USD")}`
+          : `—`;
+      html += `<li class="lhai-quote-prep__svc-li">`;
+      html += `<div class="lhai-quote-prep__svc-li-title">${safeText(s.title || s.id || "")}</div>`;
+      html += `<p class="lhai-quote-prep__svc-li-pick"><strong>${safeText(headline)}</strong></p>`;
+      if (detail) {
+        html += `<p class="lhai-help lhai-quote-prep__svc-li-detail">${safeText(detail)}</p>`;
+      }
+      html += `<p class="lhai-help lhai-quote-prep__svc-li-meta">카탈로그 범위: ${safeText(catalogLabel)} · 제안 단가: ${unitText}</p>`;
+      html += `</li>`;
     }
   }
   html += `</ul>`;
@@ -273,8 +361,9 @@ async function main() {
       try {
         const item = await serviceCatalogAdminApi.getServiceItem(sid);
         if (item) {
-          const isAddon = String(item.type || "").toLowerCase() === "addon";
-          const amount = isAddon
+          const cap = String(item.delivery_capability || "").toUpperCase();
+          const useExtra = cap === "IN_PERSON";
+          const amount = useExtra
             ? Number(item.extra_price || 0)
             : Number(item.ai_guide_default_price ?? APP_CONFIG.defaultAiGuideUnitPriceUsd);
           priceByServiceId[sid] = {

@@ -16,7 +16,7 @@
         <div>
           <h1 class="lhai-title" data-i18n="common.survey_builder.heading">Survey Builder (advanced)</h1>
           <p class="lhai-subtitle" data-i18n="common.survey_builder.subtitle">
-            Generic questionnaire flows: branching questions and recommendation rules. For per-service customer fields, use Services → Manage → Required Customer Info (primary).
+            Generic questionnaire flows: branching questions and recommendation rules. For per-service customer fields, use Services → Manage → Customer Intake Builder (primary).
           </p>
         </div>
       </section>
@@ -24,7 +24,7 @@
       <section class="admin-survey-builder__callout lhai-state" aria-label="Primary workflow hint">
         <p class="admin-survey-builder__callout-kicker" data-i18n="common.survey_builder.callout.kicker">Primary workflow</p>
         <p class="admin-survey-builder__callout-body" data-i18n="common.survey_builder.callout.body">
-          Configure required customer information inside each service (Services → open a service → Required Customer Info). This page is for advanced or legacy generic surveys linked to diagnosis and recommendations—not the main service intake path.
+          Configure customer intake inside each service (Services → open a service → Customer Intake Builder). This page is for advanced or legacy generic surveys linked to diagnosis and recommendations—not the main service intake path.
         </p>
         <p class="admin-survey-builder__callout-actions">
           <a class="lhai-button lhai-button--secondary lhai-button--compact" href="admin-services.html" data-i18n="common.survey_builder.callout.cta_services">Open Services</a>
@@ -36,7 +36,7 @@
         <div class="admin-survey-builder__list-header u-flex-between u-gap-4" style="align-items:flex-start; flex-wrap:wrap;">
           <div>
             <h2 class="lhai-card__title u-mb-2" data-i18n="common.survey_builder.sections.survey_list">Surveys</h2>
-            <p class="lhai-help" data-i18n="common.survey_builder.help.survey_list">Edit a generic questionnaire here. Service-specific intake fields belong under Services → Required Customer Info.</p>
+            <p class="lhai-help" data-i18n="common.survey_builder.help.survey_list">Edit a generic questionnaire here. Service-specific intake fields belong under Services → Customer Intake Builder.</p>
           </div>
           <button type="button" class="lhai-button lhai-button--primary" id="newSurveyBtn" aria-describedby="surveyEntryFlowHint" data-i18n="common.survey_builder.actions.new_survey">+ New Survey</button>
         </div>
@@ -342,8 +342,8 @@
                     <label class="lhai-label" for="ruleEditorResultType" data-i18n="common.survey_builder.fields.result_kind">Result type</label>
                     <select class="lhai-select" id="ruleEditorResultType">
                       <option value="package" data-i18n="common.survey_builder.result_types.package">Package</option>
-                      <option value="module" data-i18n="common.survey_builder.result_types.module_ai">AI service (module)</option>
-                      <option value="addon" data-i18n="common.survey_builder.result_types.addon_inperson">In-person service (add-on)</option>
+                      <option value="AI" data-i18n="common.survey_builder.result_types.module_ai">AI service</option>
+                      <option value="IN_PERSON" data-i18n="common.survey_builder.result_types.addon_inperson">In-person service</option>
                     </select>
                     <label class="lhai-label" for="ruleEditorResultCode" data-i18n="common.survey_builder.fields.pick_service">Catalog item</label>
                     <select class="lhai-select" id="ruleEditorResultCode"></select>
