@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>파트너 관리 - Landing Help AI Admin</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" />
+  <link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" />
+  <link rel="stylesheet" href="../assets/css/components.css" />
+  <link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/admin-services.css" />
+</head>
+<body>
+  <div id="lhai-app-header-root"></div>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" aria-label="Admin navigation"></aside>
+    <main class="lhai-main" id="main">
+      <section class="lhai-page-header u-flex-between u-gap-4 u-flex-wrap">
+        <div>
+          <h1 class="lhai-title">파트너 관리</h1>
+          <p class="lhai-subtitle">
+            서비스 카탈로그에 연결되는 파트너를 등록하고, 계정이 없으면 <strong>Invite account</strong>로 <a href="admin-invitations.html?role=partner">회원 초대 메일</a> 화면으로 이동해 파트너 역할/유형·이름을 지정하거나, <strong>계정 만들기</strong>(관리자가 즉시 계정 생성)로 연결할 수 있습니다. 업무 유형은 가입 후 파트너 프로필에 반영됩니다.
+          </p>
+        </div>
+        <button type="button" class="lhai-button lhai-button--primary" id="openCreatePartnerBtn">파트너 추가</button>
+      </section>
+
+      <p class="lhai-help" id="partnersPageAlert" role="status" aria-live="polite"></p>
+      <p class="lhai-help u-mb-2" id="partnersLoadStatus" aria-live="polite"></p>
+
+      <section class="lhai-card u-mb-4" aria-labelledby="partners-filters-heading">
+        <h2 class="lhai-card__title" id="partners-filters-heading">필터</h2>
+        <div class="u-flex u-gap-4 u-flex-wrap" style="align-items: flex-end;">
+          <div>
+            <label class="lhai-label" for="filterPartnerType">파트너 유형</label>
+            <select class="lhai-select" id="filterPartnerType" style="min-width: 14rem;">
+              <option value="">전체</option>
+            </select>
+          </div>
+          <label class="admin-services__switch" style="margin-bottom: 0.25rem;">
+            <input id="filterActiveOnly" type="checkbox" checked />
+            <span class="admin-services__switch-slider" aria-hidden="true"></span>
+            <span class="admin-services__switch-label">활성만 보기</span>
+          </label>
+          <button type="button" class="lhai-button lhai-button--secondary" id="partnersRefreshBtn">새로고침</button>
+        </div>
+      </section>
+
+      <section class="lhai-card">
+        <div class="lhai-table-wrap" style="overflow-x: auto;">
+          <table class="lhai-table" aria-label="파트너 목록">
+            <thead>
+              <tr>
+                <th scope="col">이름</th>
+                <th scope="col">유형</th>
+                <th scope="col">이메일</th>
+                <th scope="col">시·주</th>
+                <th scope="col">선호 채널</th>
+                <th scope="col">계정</th>
+                <th scope="col">로그인 ID</th>
+                <th scope="col">활성</th>
+                <th scope="col">작업</th>
+              </tr>
+            </thead>
+            <tbody id="partnersTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="createPartnerDialog" class="lhai-dialog" aria-labelledby="createPartnerDialogTitle">
+    <div class="lhai-dialog__inner" style="max-width: 32rem;">
+      <h2 class="lhai-dialog__title" id="createPartnerDialogTitle">파트너 추가</h2>
+      <form class="lhai-form" id="createPartnerForm">
+        <label class="lhai-label" for="createPartnerType">파트너 유형 <span class="lhai-field-error">*</span></label>
+        <select class="lhai-select" id="createPartnerType" required>
+          <option value="">선택…</option>
+        </select>
+
+        <label class="lhai-label" for="createPartnerName">이름 <span class="lhai-field-error">*</span></label>
+        <input class="lhai-input" id="createPartnerName" type="text" maxlength="255" required autocomplete="organization" />
+
+        <label class="lhai-label" for="createPartnerEmail">이메일</label>
+        <input class="lhai-input" id="createPartnerEmail" type="email" maxlength="320" autocomplete="email" />
+
+        <label class="lhai-label" for="createPartnerPhone">전화</label>
+        <input class="lhai-input" id="createPartnerPhone" type="text" maxlength="64" autocomplete="tel" />
+
+        <label class="lhai-label" for="createPartnerState">주/지역</label>
+        <select class="lhai-select" id="createPartnerState" autocomplete="address-level1">
+          <option value="">선택</option>
+          <option value="AL">Alabama (AL)</option>
+          <option value="AK">Alaska (AK)</option>
+          <option value="AZ">Arizona (AZ)</option>
+          <option value="AR">Arkansas (AR)</option>
+          <option value="CA">California (CA)</option>
+          <option value="CO">Colorado (CO)</option>
+          <option value="CT">Connecticut (CT)</option>
+          <option value="DE">Delaware (DE)</option>
+          <option value="FL">Florida (FL)</option>
+          <option value="GA">Georgia (GA)</option>
+          <option value="HI">Hawaii (HI)</option>
+          <option value="ID">Idaho (ID)</option>
+          <option value="IL">Illinois (IL)</option>
+          <option value="IN">Indiana (IN)</option>
+          <option value="IA">Iowa (IA)</option>
+          <option value="KS">Kansas (KS)</option>
+          <option value="KY">Kentucky (KY)</option>
+          <option value="LA">Louisiana (LA)</option>
+          <option value="ME">Maine (ME)</option>
+          <option value="MD">Maryland (MD)</option>
+          <option value="MA">Massachusetts (MA)</option>
+          <option value="MI">Michigan (MI)</option>
+          <option value="MN">Minnesota (MN)</option>
+          <option value="MS">Mississippi (MS)</option>
+          <option value="MO">Missouri (MO)</option>
+          <option value="MT">Montana (MT)</option>
+          <option value="NE">Nebraska (NE)</option>
+          <option value="NV">Nevada (NV)</option>
+          <option value="NH">New Hampshire (NH)</option>
+          <option value="NJ">New Jersey (NJ)</option>
+          <option value="NM">New Mexico (NM)</option>
+          <option value="NY">New York (NY)</option>
+          <option value="NC">North Carolina (NC)</option>
+          <option value="ND">North Dakota (ND)</option>
+          <option value="OH">Ohio (OH)</option>
+          <option value="OK">Oklahoma (OK)</option>
+          <option value="OR">Oregon (OR)</option>
+          <option value="PA">Pennsylvania (PA)</option>
+          <option value="RI">Rhode Island (RI)</option>
+          <option value="SC">South Carolina (SC)</option>
+          <option value="SD">South Dakota (SD)</option>
+          <option value="TN">Tennessee (TN)</option>
+          <option value="TX">Texas (TX)</option>
+          <option value="UT">Utah (UT)</option>
+          <option value="VT">Vermont (VT)</option>
+          <option value="VA">Virginia (VA)</option>
+          <option value="WA">Washington (WA)</option>
+          <option value="WV">West Virginia (WV)</option>
+          <option value="WI">Wisconsin (WI)</option>
+          <option value="WY">Wyoming (WY)</option>
+          <option value="DC">District of Columbia (DC)</option>
+        </select>
+
+        <label class="lhai-label" for="createPartnerCity">도시</label>
+        <input class="lhai-input" id="createPartnerCity" type="text" maxlength="128" autocomplete="address-level2" />
+
+        <label class="lhai-label" for="createPartnerPreferredChannel">선호 채널</label>
+        <select class="lhai-select" id="createPartnerPreferredChannel">
+          <option value="EMAIL">EMAIL</option>
+          <option value="IN_APP">IN_APP</option>
+          <option value="BOTH">BOTH</option>
+        </select>
+
+        <div class="admin-services__workflow-bool-row u-mt-2">
+          <label class="admin-services__switch" for="createPartnerCreateAccount">
+            <input id="createPartnerCreateAccount" type="checkbox" />
+            <span class="admin-services__switch-slider" aria-hidden="true"></span>
+            <span class="admin-services__switch-label">로그인 계정 함께 만들기</span>
+          </label>
+        </div>
+
+        <div id="createPartnerAccountFields" class="u-mt-2" style="display: none; border-top: 1px solid var(--lhai-color-border-subtle, #333); padding-top: var(--lhai-space-3, 1rem);">
+          <p class="lhai-help u-mb-2">이 로그인 ID로 파트너가 앱/포털에 접속할 수 있습니다.</p>
+          <label class="lhai-label" for="createAccountUsername">로그인 ID (username)</label>
+          <input class="lhai-input" id="createAccountUsername" type="text" maxlength="32" pattern="^[-a-zA-Z0-9_.]*$" title="비우면 시스템이 할당합니다. 입력 시 영문·숫자·-_만" autocomplete="username" />
+          <p class="lhai-help">비워 두면 유형·이름을 바탕으로 자동 생성됩니다.</p>
+
+          <label class="lhai-label" for="createAccountPassword">비밀번호 <span class="lhai-field-error">*</span></label>
+          <input class="lhai-input" id="createAccountPassword" type="password" minlength="4" autocomplete="new-password" />
+
+          <label class="lhai-label" for="createAccountDisplayName">표시 이름</label>
+          <input class="lhai-input" id="createAccountDisplayName" type="text" maxlength="255" autocomplete="name" />
+
+          <label class="lhai-label" for="createAccountEmail">계정 이메일</label>
+          <input class="lhai-input" id="createAccountEmail" type="email" maxlength="320" autocomplete="email" />
+          <p class="lhai-help">기본값은 위 파트너 이메일과 같습니다. 필요하면 계정용 주소만 바꿀 수 있습니다.</p>
+        </div>
+
+        <div class="lhai-dialog__actions u-mt-4">
+          <button type="button" class="lhai-button lhai-button--secondary" id="createPartnerCancelBtn">취소</button>
+          <button type="submit" class="lhai-button lhai-button--primary" id="createPartnerSubmitBtn">저장</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog id="attachAccountDialog" class="lhai-dialog" aria-labelledby="attachAccountDialogTitle">
+    <div class="lhai-dialog__inner" style="max-width: 28rem;">
+      <h2 class="lhai-dialog__title" id="attachAccountDialogTitle">파트너 계정 만들기</h2>
+      <p class="lhai-help u-mb-2" id="attachAccountPartnerLabel"></p>
+      <form class="lhai-form" id="attachAccountForm">
+        <input type="hidden" id="attachAccountPartnerId" />
+        <label class="lhai-label" for="attachUsername">로그인 ID (username) <span class="lhai-field-error">*</span></label>
+        <input class="lhai-input" id="attachUsername" type="text" required minlength="2" maxlength="32" pattern="^[-a-zA-Z0-9_.]+$" autocomplete="username" />
+
+        <label class="lhai-label" for="attachPassword">비밀번호 <span class="lhai-field-error">*</span></label>
+        <input class="lhai-input" id="attachPassword" type="password" required minlength="4" autocomplete="new-password" />
+
+        <label class="lhai-label" for="attachEmail">계정 이메일</label>
+        <input class="lhai-input" id="attachEmail" type="email" maxlength="320" autocomplete="email" />
+
+        <label class="lhai-label" for="attachDisplayName">표시 이름</label>
+        <input class="lhai-input" id="attachDisplayName" type="text" maxlength="255" autocomplete="name" />
+
+        <p class="lhai-help u-mt-2">이 ID로 파트너가 로그인할 수 있습니다.</p>
+
+        <div class="lhai-dialog__actions u-mt-4">
+          <button type="button" class="lhai-button lhai-button--secondary" id="attachAccountCancelBtn">취소</button>
+          <button type="submit" class="lhai-button lhai-button--primary" id="attachAccountSubmitBtn">계정 생성</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <script type="module" src="../assets/js/core/app-header.js"></script>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/admin-static-shell.js"></script>
+  <script type="module" src="../assets/js/pages/admin-partners.js"></script>
+</body>
+</html>

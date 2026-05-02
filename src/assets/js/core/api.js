@@ -242,22 +242,15 @@ const authApi = {
 
 const timelineApi = {
   async listByCustomer(customerId) {
-    try {
-      const timeline = await tryBackendGet(`/api/dashboard/timeline?customer_profile_id=${encodeURIComponent(customerId || "profile::demo@customer.com")}`);
-      return timeline.map((item) => ({
-        id: item.id,
-        title: item.title,
-        dueDate: item.due_date,
-        status: item.status,
-      }));
-    } catch {
-      await mockDelay();
-      return [
-        { id: "tl-1", title: "Request received", dueDate: "2026-04-01", status: "done" },
-        { id: "tl-2", title: "Quote and invoice", dueDate: "2026-04-08", status: "in_progress" },
-        { id: "tl-3", title: "Payment", dueDate: "2026-04-20", status: "upcoming" },
-      ];
-    }
+    const timeline = await tryBackendGet(
+      `/api/dashboard/timeline?customer_profile_id=${encodeURIComponent(customerId || "profile::demo@customer.com")}&_ts=${Date.now()}`
+    );
+    return timeline.map((item) => ({
+      id: item.id,
+      title: item.title,
+      dueDate: item.due_date,
+      status: item.status,
+    }));
   },
 };
 
@@ -273,54 +266,14 @@ const checklistApi = {
 
 const dashboardApi = {
   async getAggregate(customerProfileId = "profile::demo@customer.com") {
-    try {
-      return await tryBackendGet(`/api/dashboard?customer_profile_id=${encodeURIComponent(customerProfileId)}`);
-    } catch {
-      await mockDelay();
-      return {
-        customer_profile_id: customerProfileId,
-        current_service_status: "Awaiting payment",
-        next_action: "Open your invoice and complete payment to activate your service.",
-        payment_status: "Pending payment",
-        schedule_status: "After payment",
-        ai_assistant_quick_link: "messages.html",
-        checklist_summary: {
-          total: 5,
-          completed: 2,
-          required_remaining: 1,
-          next_required_item: "Complete invoice payment",
-        },
-        status_cards: [
-          { key: "service", label: "Service Status", value: "Pending activation", state: "info" },
-          { key: "payment", label: "Payment", value: "Pending", state: "warning" },
-          { key: "documents", label: "Documents", value: "After payment", state: "neutral" },
-          { key: "schedule", label: "Schedule", value: "Draft Proposed", state: "neutral" },
-        ],
-        recent_messages: [
-          {
-            id: "msg-1",
-            title: "Invoice ready",
-            preview: "Open the invoice from messages or email to review and pay.",
-            created_at: "2026-03-27T10:00:00Z",
-          },
-        ],
-        document_status: [],
-        recent_activity: ["Quote transitioned to PROPOSED", "Invoice draft created", "Awaiting payment to start delivery"],
-      };
-    }
+    return await tryBackendGet(
+      `/api/dashboard?customer_profile_id=${encodeURIComponent(customerProfileId)}&_ts=${Date.now()}`
+    );
   },
   async getChecklistSummary(customerProfileId = "profile::demo@customer.com") {
-    try {
-      return await tryBackendGet(`/api/dashboard/checklist-summary?customer_profile_id=${encodeURIComponent(customerProfileId)}`);
-    } catch {
-      await mockDelay();
-      return {
-        total: 5,
-        completed: 2,
-        required_remaining: 1,
-        next_required_item: "Complete invoice payment",
-      };
-    }
+    return await tryBackendGet(
+      `/api/dashboard/checklist-summary?customer_profile_id=${encodeURIComponent(customerProfileId)}&_ts=${Date.now()}`
+    );
   },
 };
 
@@ -328,7 +281,7 @@ const dashboardApi = {
 const customerCasesApi = {
   async list() {
     try {
-      return await tryBackendGet("/api/customer/cases");
+      return await tryBackendGet(`/api/customer/cases?_ts=${Date.now()}`);
     } catch {
       await mockDelay();
       return [];
@@ -838,6 +791,27 @@ const messagesApi = {
     }
   },
   /**
+   * 고객 스레드 상세: 스레드 요약 + 선택적 워크플로 요약 + 메시지(한 번에).
+   * @param {string} threadId
+   * @param {{ customerProfileId?: string }} opts
+   * @returns {Promise<{ thread: object, workflow: object|null, messages: object[] }>}
+   */
+  async threadDetail(threadId, { customerProfileId = "profile::demo@customer.com" } = {}) {
+    const t = String(threadId || "").trim();
+    const params = new URLSearchParams({ customer_profile_id: customerProfileId });
+    try {
+      return await tryBackendGet(
+        `/api/messages/threads/${encodeURIComponent(t)}/detail?${params.toString()}`
+      );
+    } catch {
+      await mockDelay();
+      const messages = await this.threadMessages(t, { customerProfileId });
+      const threads = await this.listThreads({ customerProfileId });
+      const thread = threads.find((x) => String(x.thread_id) === t) || null;
+      return { thread, workflow: null, messages };
+    }
+  },
+  /**
    * SERVICE 스레드 → 고객센터(ADMIN) 연결 요청. ADMIN 스레드에 SYSTEM 메시지·감사 로그만 남김(스레드 병합 없음).
    * @param {string} threadId
    * @param {{ customerProfileId?: string, note?: string }} opts
@@ -906,12 +880,12 @@ const messagesApi = {
    * 서비스 스레드 인테이크 폼 응답 (현재 질문에 대해 thread·session 일치 검증).
    * @param {string} threadId
    * @param {string} sessionId
-   * @param {{ customerProfileId: string, fieldId: string, valueJson: Record<string, unknown> }} opts
+   * @param {{ customerProfileId: string, fieldId: string, valueJson?: Record<string, unknown>, batchUpdates?: Array<{ field_id: string, value_json: Record<string, unknown> }> }} opts
    */
   async submitIntakeThreadPromptAnswer(
     threadId,
     sessionId,
-    { customerProfileId = "profile::demo@customer.com", fieldId, valueJson = {} } = {}
+    { customerProfileId = "profile::demo@customer.com", fieldId, valueJson = {}, batchUpdates } = {}
   ) {
     const t = String(threadId || "").trim();
     const s = String(sessionId || "").trim();
@@ -919,9 +893,21 @@ const messagesApi = {
     const fid = String(fieldId || "").trim();
     if (!t || !s || !cp || !fid) throw new Error("threadId, sessionId, customerProfileId, fieldId required");
     const params = new URLSearchParams({ customer_profile_id: cp });
+    const bu = Array.isArray(batchUpdates) ? batchUpdates : null;
+    const body =
+      bu && bu.length
+        ? {
+            field_id: fid,
+            value_json: {},
+            batch_updates: bu.map((row) => ({
+              field_id: String(row.field_id || "").trim(),
+              value_json: row.value_json && typeof row.value_json === "object" ? row.value_json : {},
+            })),
+          }
+        : { field_id: fid, value_json: valueJson && typeof valueJson === "object" ? valueJson : {} };
     return await tryBackendPost(
       `/api/service-intake/threads/${encodeURIComponent(t)}/sessions/${encodeURIComponent(s)}/prompt-answer?${params.toString()}`,
-      { field_id: fid, value_json: valueJson && typeof valueJson === "object" ? valueJson : {} }
+      body
     );
   },
   async markRead(messageId, read = true) {
@@ -1402,6 +1388,25 @@ const adminOperationsApi = {
   },
 };
 
+/** Partner email low-confidence review queue (NEEDS_REVIEW). */
+const partnerEmailReviewAdminApi = {
+  async list() {
+    return await tryBackendGet("/api/admin/partner-email-reviews");
+  },
+  async approve(reviewId) {
+    return await tryBackendPost(`/api/admin/partner-email-reviews/${encodeURIComponent(reviewId)}/approve`, {});
+  },
+  async approveWithEdits(reviewId, payload) {
+    return await tryBackendPost(
+      `/api/admin/partner-email-reviews/${encodeURIComponent(reviewId)}/approve-with-edits`,
+      payload
+    );
+  },
+  async ignore(reviewId) {
+    return await tryBackendPost(`/api/admin/partner-email-reviews/${encodeURIComponent(reviewId)}/ignore`, {});
+  },
+};
+
 const schedulingAdminApi = {
   async listPaidCustomers() {
     try {
@@ -1422,6 +1427,10 @@ const schedulingAdminApi = {
 };
 
 const adminApi = {
+  /** @returns {Promise<Array<{ id, record_type, email, username, full_name, role, email_verified, membership_status, invitation_used, expires_at }>>} */
+  async listRegistrationStatus() {
+    return await tryBackendGet("/api/admin/accounts/registration-status");
+  },
   /** @returns {Promise<Array<{ id, email, username, full_name, email_verified, membership_status, role }>>} */
   async listAuthAccounts() {
     return await tryBackendGet("/api/admin/accounts");
@@ -1443,6 +1452,12 @@ const adminApi = {
     }
     return await tryBackendDelete(`/api/admin/accounts/${encodeURIComponent(userId)}`);
   },
+  async deleteInvitationRecord(invitationId) {
+    if (!getAccessToken()?.trim()) {
+      throw new Error("삭제하려면 로그인 후 발급된 액세스 토큰이 필요합니다.");
+    }
+    return await tryBackendDelete(`/api/admin/accounts/invitations/${encodeURIComponent(invitationId)}`);
+  },
   /** 서버가 JWT에서 초대 권한·역할 티어를 판별합니다. */
   async listInvitableRoles() {
     try {
@@ -1452,13 +1467,47 @@ const adminApi = {
       return [];
     }
   },
+  /** @returns {Promise<{ partner_types: Array<{ value: string, label: string }> }>} */
+  async listPartnerTypes() {
+    return await tryBackendGet("/api/admin/partners/types");
+  },
+  /** @param {{ partner_type?: string, active_only?: boolean, limit?: number }} [params] */
+  async listPartners(params = {}) {
+    const q = new URLSearchParams();
+    if (params.partner_type != null && String(params.partner_type).trim() !== "") {
+      q.set("partner_type", String(params.partner_type).trim());
+    }
+    if (params.active_only !== undefined) {
+      q.set("active_only", params.active_only ? "true" : "false");
+    }
+    if (params.limit != null) q.set("limit", String(params.limit));
+    const qs = q.toString();
+    return await tryBackendGet(`/api/admin/partners${qs ? `?${qs}` : ""}`);
+  },
+  /** @param {Record<string, unknown>} payload AdminPartnerCreate */
+  async createPartner(payload) {
+    return await tryBackendPost("/api/admin/partners", payload);
+  },
+  /** @param {string} partnerId @param {Record<string, unknown>} payload AdminPartnerAccountCreate */
+  async attachPartnerAccount(partnerId, payload) {
+    return await tryBackendPost(`/api/admin/partners/${encodeURIComponent(partnerId)}/account`, payload);
+  },
   async sendMemberInvitation(payload) {
-    const { email, role_name, personal_message = "" } = payload || {};
-    return await tryBackendPost("/api/admin/invitations/send", {
+    const { email, role_name, personal_message = "", partner_type, preferred_channel } = payload || {};
+    const body = {
       email,
       role_name,
       personal_message,
-    });
+    };
+    const rn = String(role_name || "").trim().toLowerCase();
+    if (rn === "partner") {
+      if (partner_type != null && String(partner_type).trim() !== "") {
+        body.partner_type = String(partner_type).trim();
+      }
+      const pc = preferred_channel != null ? String(preferred_channel).trim() : "";
+      body.preferred_channel = pc || "BOTH";
+    }
+    return await tryBackendPost("/api/admin/invitations/send", body);
   },
   async listCustomers() {
     await mockDelay();
@@ -2145,6 +2194,8 @@ const serviceCatalogAdminApi = {
             archived_at: null,
             created_at: m.created_at || new Date().toISOString(),
             updated_at: m.updated_at || new Date().toISOString(),
+            workflow_type: m.workflow_type ?? null,
+            workflow_config_json: m.workflow_config_json && typeof m.workflow_config_json === "object" ? m.workflow_config_json : {},
           });
         }
       }
@@ -2170,6 +2221,8 @@ const serviceCatalogAdminApi = {
             archived_at: null,
             created_at: a.created_at || new Date().toISOString(),
             updated_at: a.updated_at || new Date().toISOString(),
+            workflow_type: a.workflow_type ?? null,
+            workflow_config_json: a.workflow_config_json && typeof a.workflow_config_json === "object" ? a.workflow_config_json : {},
           });
         }
       }
@@ -2227,6 +2280,11 @@ const serviceCatalogAdminApi = {
         archived_at: null,
         created_at: now,
         updated_at: now,
+        workflow_type: payload.workflow_type ?? null,
+        workflow_config_json:
+          payload.workflow_config_json && typeof payload.workflow_config_json === "object"
+            ? payload.workflow_config_json
+            : {},
       };
       if (!aiCap && inPerson) {
         readShape.code = `addon-${Date.now()}`;
@@ -2248,6 +2306,8 @@ const serviceCatalogAdminApi = {
           sort_order: 0,
           created_at: now,
           updated_at: now,
+          workflow_type: readShape.workflow_type ?? null,
+          workflow_config_json: readShape.workflow_config_json || {},
         };
         this._mock.addons_by_package_id[package_id] = this._mock.addons_by_package_id[package_id] || [];
         this._mock.addons_by_package_id[package_id].push(a);
@@ -2275,6 +2335,8 @@ const serviceCatalogAdminApi = {
         currency,
         created_at: now,
         updated_at: now,
+        workflow_type: readShape.workflow_type ?? null,
+        workflow_config_json: readShape.workflow_config_json || {},
       };
       this._mock.modules_by_package_id[package_id] = this._mock.modules_by_package_id[package_id] || [];
       this._mock.modules_by_package_id[package_id].push(m);
@@ -2314,6 +2376,8 @@ const serviceCatalogAdminApi = {
             archived_at: null,
             created_at: m.created_at || new Date().toISOString(),
             updated_at: m.updated_at || new Date().toISOString(),
+            workflow_type: m.workflow_type ?? null,
+            workflow_config_json: m.workflow_config_json && typeof m.workflow_config_json === "object" ? m.workflow_config_json : {},
           };
         }
       }
@@ -2338,6 +2402,8 @@ const serviceCatalogAdminApi = {
             archived_at: null,
             created_at: a.created_at || new Date().toISOString(),
             updated_at: a.updated_at || new Date().toISOString(),
+            workflow_type: a.workflow_type ?? null,
+            workflow_config_json: a.workflow_config_json && typeof a.workflow_config_json === "object" ? a.workflow_config_json : {},
           };
         }
       }
@@ -2368,6 +2434,13 @@ const serviceCatalogAdminApi = {
         if (payload.currency !== undefined) out.currency = payload.currency;
         if (payload.active !== undefined) out.active = Boolean(payload.active);
         if (payload.visible !== undefined) out.visible = Boolean(payload.visible);
+        if (payload.workflow_type !== undefined) out.workflow_type = payload.workflow_type ?? null;
+        if (payload.workflow_config_json !== undefined) {
+          out.workflow_config_json =
+            payload.workflow_config_json && typeof payload.workflow_config_json === "object"
+              ? payload.workflow_config_json
+              : {};
+        }
         out.updated_at = now;
         return out;
       };
@@ -3445,6 +3518,19 @@ const serviceIntakeCustomerApi = {
   },
 };
 
+/** Logged-in customer: post-payment workflow actions (JWT, own profile). */
+const customerWorkflowsApi = {
+  /**
+   * @param {string} workflowInstanceId
+   * @param {{ action_type: string, payload?: Record<string, unknown> }} body
+   */
+  async postAction(workflowInstanceId, body) {
+    const wid = String(workflowInstanceId || "").trim();
+    if (!wid) throw new Error("workflow_instance_id required");
+    return await tryBackendPost(`/api/customer/workflows/${encodeURIComponent(wid)}/actions`, body);
+  },
+};
+
 /** Customer profile (logged-in) — used for prefill on customer survey steps. */
 const userCustomerApi = {
   async getMeBasicInfo() {
@@ -4167,6 +4253,7 @@ export {
   APP_CONFIG,
   adminApi,
   adminOperationsApi,
+  partnerEmailReviewAdminApi,
   adminDevApi,
   apiFetch,
   checklistApi,
@@ -4189,6 +4276,7 @@ export {
   serviceDocumentsAdminApi,
   serviceCatalogBrowseApi,
   serviceIntakeCustomerApi,
+  customerWorkflowsApi,
   userCustomerApi,
   surveyCustomerApi,
   paymentApi,

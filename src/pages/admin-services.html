@@ -257,7 +257,7 @@
 
                 <section class="admin-services__manage-block admin-services__manage-panel" id="manage-service-panel" hidden>
                   <h3 class="lhai-section__title">Service</h3>
-                  <div class="admin-services__service-layout">
+                  <div class="admin-services__service-layout is-list-mode">
                     <div class="admin-services__service-list-panel">
                       <div class="admin-services__service-list-head">
                         <p class="lhai-help admin-services__manage-step">Service 목록에서 선택하거나 신규 서비스를 생성하세요.</p>
@@ -291,6 +291,10 @@
                     </div>
 
                     <div class="admin-services__service-detail-panel">
+                      <div class="admin-services__service-editor-nav">
+                        <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceBackToListBtn"
+                          data-i18n="common.admin_services.manage.service.back_to_list">← Back to Service list</button>
+                      </div>
                       <h4 class="lhai-section__title admin-services__service-editor-title" id="manageServiceEditorTitle">Create New Service</h4>
                       <div class="admin-services__manage-mode" id="manageServiceModeHint">신규 생성 모드입니다.</div>
 
@@ -301,6 +305,8 @@
                           data-i18n="common.admin_services.intake.tab_intake_builder">Customer Intake Builder</button>
                         <button type="button" class="admin-services__tab-btn" data-service-editor-tab="documents" role="tab" aria-selected="false" id="manageServiceTabDocumentsBtn" disabled
                           data-i18n="common.admin_services.documents.tab_label">Required Documents</button>
+                        <button type="button" class="admin-services__tab-btn" data-service-editor-tab="workflow" role="tab" aria-selected="false" id="manageServiceTabWorkflowBtn"
+                          data-i18n="common.admin_services.workflow.tab_label">Service Workflow</button>
                       </div>
 
                       <div class="admin-services__service-editor-panels">
@@ -447,6 +453,7 @@
                             <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakePreviewBtn" data-i18n="common.admin_services.intake.preview_open" data-i18n-title="common.admin_services.intake.preview_tooltip" title="Open a read-only preview of this intake flow.">Preview</button>
                             <span class="lhai-help u-m-0 u-align-self-center" data-i18n="common.admin_services.intake.add_blocks_label">Add blocks</span>
                             <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddQuestionBtn" data-i18n="common.admin_services.intake.add_question">+ Question</button>
+                            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddQuestionGroupBtn" data-i18n="common.admin_services.intake.add_question_group">+ Question group</button>
                             <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddNoticeBtn" data-i18n="common.admin_services.intake.add_notice">+ Notice</button>
                             <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddImageBtn" data-i18n="common.admin_services.intake.add_image">+ Image</button>
                             <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddRichTextBtn" data-i18n="common.admin_services.intake.add_rich_text">+ Rich text</button>
@@ -473,11 +480,12 @@
                               <input type="hidden" id="manageServiceIntakeSideBlockId" value="" />
                               <label class="lhai-label" for="manageServiceIntakeSideTitleInput" data-i18n="common.admin_services.intake.side_title">Title (optional)</label>
                               <input class="lhai-input" id="manageServiceIntakeSideTitleInput" type="text" maxlength="300" autocomplete="off" />
+                              <div id="manageServiceIntakeSideQuestionGroupMount" class="admin-services__intake-side-qgroup" hidden></div>
                               <div id="manageServiceIntakeSideBodySection">
                                 <p class="lhai-label u-mt-2" id="manageServiceIntakeSideBodyLabel" data-i18n="common.admin_services.intake.side_body">Body / message</p>
                                 <p class="lhai-help u-mb-2" data-i18n="common.admin_services.intake.side_body_rich_hint">Use the toolbar for bold, lists, colors, and links. Plain text still works.</p>
                                 <div id="manageServiceIntakeSideBodyQuillHost" class="admin-intake-body-editor-host" aria-labelledby="manageServiceIntakeSideBodyLabel"></div>
-                                <textarea class="lhai-textarea" id="manageServiceIntakeSideBody" rows="5" maxlength="8000" hidden aria-hidden="true"></textarea>
+                                <textarea class="lhai-textarea" id="manageServiceIntakeSideBody" rows="12" maxlength="8000" hidden aria-hidden="true"></textarea>
                               </div>
                               <div id="manageServiceIntakeSideMediaWrap">
                                 <p class="lhai-help u-mb-2" data-i18n="common.admin_services.intake.side_media_help">Paste an image URL, upload a file below, and/or use a stored asset ID. URLs must be http(s) or a site-relative path.</p>
@@ -543,10 +551,11 @@
                               </section>
                               <div class="admin-services__intake-side-actions u-mt-3">
                                 <button type="button" class="lhai-button lhai-button--primary" id="manageServiceIntakeSideSaveBtn" data-i18n="common.actions.save">Save</button>
-                                <button type="button" class="lhai-button lhai-button--secondary" id="manageServiceIntakeSideDeleteBtn" data-i18n="common.actions.delete">Delete</button>
+                                <button type="button" class="lhai-button lhai-button--secondary" id="manageServiceIntakeSideDeleteBtn" data-i18n="common.actions.cancel">Cancel</button>
                               </div>
                             </div>
                           </aside>
+                          <div class="admin-services__intake-side-backdrop" id="manageServiceIntakeSideBackdrop" hidden></div>
                         </div>
                       </div>
 
@@ -563,6 +572,254 @@
                             data-i18n="common.admin_services.documents.add_document">+ Add Document</button>
                         </div>
                         <div id="manageServiceDocumentsList" class="admin-services__doc-fields" aria-live="polite"></div>
+                      </div>
+
+                      <div class="admin-services__service-editor-panel" id="manageServiceWorkflowPanel" data-service-editor-panel="workflow" hidden>
+                        <p class="lhai-help admin-services__workflow-lead" data-i18n="common.admin_services.workflow.lead">
+                          결제 이후 고객·파트너·관리자가 어떤 순서로 움직이는지 단순 모드로 설정합니다. 아래 "워크플로 저장"으로 서비스 항목에 반영됩니다.
+                        </p>
+
+                        <section class="lhai-card admin-services__workflow-card" aria-labelledby="mswProgressHeading">
+                          <h5 class="admin-services__workflow-card-title" id="mswProgressHeading" data-i18n="common.admin_services.workflow.section.progress">1. 진행 방식 선택</h5>
+                          <p class="lhai-help admin-services__workflow-question" data-i18n="common.admin_services.workflow.question.progress">이 서비스는 결제 후 어떻게 진행되나요?</p>
+                          <fieldset class="admin-services__workflow-fieldset">
+                            <legend class="visually-hidden" data-i18n="common.admin_services.workflow.legend.type">Workflow type</legend>
+                            <div class="admin-services__workflow-radios">
+                              <label class="admin-services__workflow-radio-label">
+                                <input type="radio" name="mswWorkflowType" value="AI_ONLY_GUIDE" />
+                                <span data-i18n="common.admin_services.workflow.type.opt_ai_only">AI가 고객에게 안내만 합니다</span>
+                              </label>
+                              <label class="admin-services__workflow-radio-label">
+                                <input type="radio" name="mswWorkflowType" value="HUMAN_AGENT_MANAGED" checked />
+                                <span data-i18n="common.admin_services.workflow.type.opt_human">관리자가 직접 처리합니다</span>
+                              </label>
+                              <label class="admin-services__workflow-radio-label">
+                                <input type="radio" name="mswWorkflowType" value="SINGLE_PARTNER_APPLICATION" />
+                                <span data-i18n="common.admin_services.workflow.type.opt_single">한 명의 파트너에게 신청서를 보냅니다</span>
+                              </label>
+                              <label class="admin-services__workflow-radio-label">
+                                <input type="radio" name="mswWorkflowType" value="MULTI_PARTNER_QUOTE_AND_SELECT" />
+                                <span data-i18n="common.admin_services.workflow.type.opt_multi">여러 파트너에게 견적 요청 후 고객이 선택합니다</span>
+                              </label>
+                            </div>
+                          </fieldset>
+                          <p class="lhai-help admin-services__workflow-note" data-i18n="common.admin_services.workflow.note.multi_includes_select">
+                            여러 파트너 견적 요청과 고객의 파트너 선택·이후 메시지 진행은 하나의 흐름으로 다룹니다.
+                          </p>
+                        </section>
+
+                        <section class="lhai-card admin-services__workflow-card" id="mswSectionAi" aria-labelledby="mswAiHeading">
+                          <h5 class="admin-services__workflow-card-title" id="mswAiHeading" data-i18n="common.admin_services.workflow.section.ai_settings">AI 안내형 설정</h5>
+                          <div class="admin-services__workflow-banner-warn" role="status" aria-live="polite">
+                            <p data-i18n="common.admin_services.workflow.notice.ai_placeholder_line1">
+                              현재 AI 안내는 placeholder입니다.
+                            </p>
+                            <p data-i18n="common.admin_services.workflow.notice.ai_placeholder_line2">
+                              실제 AI 안내 생성은 아직 연결되지 않았습니다.
+                            </p>
+                          </div>
+                          <label class="lhai-label" for="mswAiRole" data-i18n="common.admin_services.workflow.label.ai_role">AI 역할</label>
+                          <input class="lhai-input" id="mswAiRole" type="text" maxlength="200" autocomplete="off" placeholder="예: 체크리스트 안내, 서류 준비 코치" />
+                          <label class="lhai-label" for="mswAiIntakeRef" data-i18n="common.admin_services.workflow.label.intake_ref">참고할 Intake 답변</label>
+                          <textarea class="lhai-textarea" id="mswAiIntakeRef" rows="2" maxlength="2000" placeholder="어떤 질문·블록 답을 우선 참고할지"></textarea>
+                          <div class="admin-services__workflow-bool-row">
+                            <label class="admin-services__switch" for="mswAiAutoSend">
+                              <input id="mswAiAutoSend" type="checkbox" />
+                              <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                              <span class="admin-services__switch-label" data-i18n="common.admin_services.workflow.label.auto_send">자동 전송</span>
+                            </label>
+                          </div>
+                          <div class="admin-services__workflow-bool-row">
+                            <label class="admin-services__switch" for="mswAiAdminReview">
+                              <input id="mswAiAdminReview" type="checkbox" />
+                              <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                              <span class="admin-services__switch-label" data-i18n="common.admin_services.workflow.label.admin_review">관리자 검토</span>
+                            </label>
+                          </div>
+                          <div class="admin-services__workflow-bool-row">
+                            <label class="admin-services__switch" for="mswAiCustomerQuestions">
+                              <input id="mswAiCustomerQuestions" type="checkbox" />
+                              <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                              <span class="admin-services__switch-label" data-i18n="common.admin_services.workflow.label.customer_questions">고객 추가 질문 허용</span>
+                            </label>
+                          </div>
+                          <label class="lhai-label" for="mswAiCompletionMode" data-i18n="common.admin_services.workflow.label.completion">완료 방식</label>
+                          <select class="lhai-select" id="mswAiCompletionMode">
+                            <option value="" data-i18n="common.admin_services.workflow.completion.placeholder">선택…</option>
+                            <option value="checklist_done" data-i18n="common.admin_services.workflow.completion.checklist">체크리스트 완료 시 자동 완료</option>
+                            <option value="admin_confirms" data-i18n="common.admin_services.workflow.completion.admin">관리자 확인 후 완료</option>
+                            <option value="open_ended" data-i18n="common.admin_services.workflow.completion.open">명시적 완료 없이 진행</option>
+                          </select>
+                        </section>
+
+                        <section class="lhai-card admin-services__workflow-card" id="mswSectionHuman" hidden aria-labelledby="mswHumanHeading">
+                          <h5 class="admin-services__workflow-card-title" id="mswHumanHeading" data-i18n="common.admin_services.workflow.section.human_settings">관리자 처리형 설정</h5>
+                          <label class="lhai-label" for="mswHumanAssignment" data-i18n="common.admin_services.workflow.label.assignment">담당자 배정 방식</label>
+                          <select class="lhai-select" id="mswHumanAssignment">
+                            <option value="" data-i18n="common.admin_services.workflow.assign.placeholder">선택…</option>
+                            <option value="manual" data-i18n="common.admin_services.workflow.assign.manual">수동 배정</option>
+                            <option value="round_robin" data-i18n="common.admin_services.workflow.assign.round_robin">라운드로빈</option>
+                            <option value="pull_queue" data-i18n="common.admin_services.workflow.assign.pull">대기열에서 인수</option>
+                          </select>
+                          <div class="admin-services__workflow-bool-row">
+                            <label class="admin-services__switch" for="mswHumanAdminNotify">
+                              <input id="mswHumanAdminNotify" type="checkbox" />
+                              <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                              <span class="admin-services__switch-label" data-i18n="common.admin_services.workflow.label.admin_notify">관리자 알림</span>
+                            </label>
+                          </div>
+                          <label class="lhai-label" for="mswHumanPartnerNotifyEmail" data-i18n="common.admin_services.workflow.label.human_partner_notify_email">인테이크 완료 시 통지할 파트너 이메일</label>
+                          <input class="lhai-input" type="email" id="mswHumanPartnerNotifyEmail" maxlength="320" placeholder="partner@example.com (계정 없이 수신만 가능)" autocomplete="email" />
+                          <p class="lhai-help-text u-mt-1" data-i18n="common.admin_services.workflow.help.human_partner_notify_email">고객이 인테이크를 제출하면 이 주소로 요약 메일이 발송됩니다. 등록 파트너 계정이 없어도 됩니다.</p>
+                          <label class="lhai-label" for="mswHumanCustomerMessage" data-i18n="common.admin_services.workflow.label.customer_receipt_msg">고객에게 보여줄 접수 메시지</label>
+                          <textarea class="lhai-textarea" id="mswHumanCustomerMessage" rows="3" maxlength="2000" placeholder="접수 완료 후 고객에게 보이는 한 줄 안내"></textarea>
+                        </section>
+
+                        <section class="lhai-card admin-services__workflow-card" id="mswSectionSingle" hidden aria-labelledby="mswSingleHeading">
+                          <h5 class="admin-services__workflow-card-title" id="mswSingleHeading" data-i18n="common.admin_services.workflow.section.single_partner">단일 파트너 신청 설정</h5>
+                          <label class="lhai-label" for="mswSinglePartnerType" data-i18n="common.admin_services.workflow.label.partner_type">파트너 유형</label>
+                          <select class="lhai-select" id="mswSinglePartnerType" autocomplete="off">
+                            <option value="" data-msw-placeholder="1" data-i18n="common.admin_services.workflow.partner_type.placeholder">선택…</option>
+                          </select>
+                          <p class="lhai-label u-mt-2" data-i18n="common.admin_services.workflow.label.partner_strategy">파트너 지정 방식</p>
+                          <div class="admin-services__workflow-radios admin-services__workflow-radios--inline">
+                            <label class="admin-services__workflow-radio-label">
+                              <input type="radio" name="mswSingleStrategy" value="fixed" checked />
+                              <span>고정 파트너에게 전달</span>
+                            </label>
+                            <label class="admin-services__workflow-radio-label">
+                              <input type="radio" name="mswSingleStrategy" value="matching_rule" />
+                              <span>매칭 규칙으로 자동 선택</span>
+                            </label>
+                          </div>
+                          <div id="mswSingleFixedPartnerWrap" class="u-mt-2">
+                            <p class="lhai-label u-mb-1">고정 파트너 전달 방식</p>
+                            <div class="admin-services__workflow-radios admin-services__workflow-radios--inline">
+                              <label class="admin-services__workflow-radio-label">
+                                <input type="radio" name="mswSingleFixedTargetMode" value="email" checked />
+                                <span>이메일 주소로 전달 (비회원 파트너)</span>
+                              </label>
+                              <label class="admin-services__workflow-radio-label">
+                                <input type="radio" name="mswSingleFixedTargetMode" value="registered_catalog" />
+                                <span>등록 파트너 계정 선택</span>
+                              </label>
+                            </div>
+                            <div id="mswSingleFixedPartnerEmailPanel" class="u-mt-2">
+                              <label class="lhai-label" for="mswSingleDefaultPartner">파트너 이메일</label>
+                              <input class="lhai-input" id="mswSingleDefaultPartner" type="email" maxlength="200" autocomplete="off" placeholder="예: partner@example.com" />
+                              <p class="lhai-help">고객 제출 직후 이 이메일로 신청이 전달됩니다.</p>
+                            </div>
+                            <div id="mswSingleFixedPartnerCatalogPanel" class="u-mt-2" hidden>
+                              <label class="lhai-label" for="mswSingleFixedPartnerCatalogSelect">파트너 (계정 연결됨)</label>
+                              <select class="lhai-select" id="mswSingleFixedPartnerCatalogSelect" autocomplete="off">
+                                <option value="">유형을 먼저 선택한 뒤 목록이 채워집니다…</option>
+                              </select>
+                              <p class="lhai-help">위에서 선택한 파트너 유형과 동일하며, 로그인 계정이 연결된 카탈로그 파트너만 표시됩니다.</p>
+                            </div>
+                          </div>
+                          <div id="mswSingleMatchingRuleWrap" class="u-mt-2" hidden>
+                            <label class="lhai-label" for="mswSingleMatchingRule">파트너 매칭 규칙</label>
+                            <select class="lhai-select" id="mswSingleMatchingRule">
+                              <option value="">선택…</option>
+                              <option value="same_state_first_then_expand">고객 주 우선 후 확장</option>
+                              <option value="score_priority">점수 우선</option>
+                              <option value="availability_first">가용 일정 우선</option>
+                            </select>
+                            <p class="lhai-help">선택한 규칙으로 후보 파트너를 자동 선택합니다.</p>
+                          </div>
+                          <label class="lhai-label u-mt-2" for="mswSingleRequestType">고객 Intake Builder</label>
+                          <select class="lhai-select" id="mswSingleRequestType">
+                            <option value="">Intake Builder 선택…</option>
+                          </select>
+                          <p class="lhai-help">고객이 먼저 작성할 intake 폼을 선택합니다. 이 값은 요청 전달 전 수집 단계에 사용됩니다.</p>
+                          <p class="lhai-label u-mt-3">제출 이후 운영 단계</p>
+                          <p class="lhai-help">고객이 intake form을 제출한 뒤, 파트너 전달과 응답 이후의 처리 흐름을 설정합니다.</p>
+                          <div class="admin-services__workflow-grid-2">
+                            <div>
+                              <label class="lhai-label" for="mswSinglePostStep1">1단계. 고객 제출 직후</label>
+                              <select class="lhai-select" id="mswSinglePostStep1">
+                                <option value="">단계 선택…</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label class="lhai-label" for="mswSinglePostStep2">2단계. 파트너 응답 후 처리</label>
+                              <select class="lhai-select" id="mswSinglePostStep2">
+                                <option value="">단계 선택…</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label class="lhai-label" for="mswSinglePostStep3">3단계. 고객 후속 안내</label>
+                              <select class="lhai-select" id="mswSinglePostStep3">
+                                <option value="">단계 선택…</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div id="mswSingleCompatibilityWarn" class="lhai-help u-mt-2" hidden></div>
+                          <p class="lhai-help u-mt-2" id="mswSingleResponseLegacyWarn" hidden></p>
+                        </section>
+
+                        <section class="lhai-card admin-services__workflow-card" id="mswSectionMulti" hidden aria-labelledby="mswMultiHeading">
+                          <h5 class="admin-services__workflow-card-title" id="mswMultiHeading" data-i18n="common.admin_services.workflow.section.multi_partner">다중 파트너 견적·선택 설정</h5>
+                          <label class="lhai-label" for="mswMultiPartnerType" data-i18n="common.admin_services.workflow.label.partner_type">Partner Type</label>
+                          <select class="lhai-select" id="mswMultiPartnerType" autocomplete="off">
+                            <option value="" data-msw-placeholder="1" data-i18n="common.admin_services.workflow.partner_type.placeholder">선택…</option>
+                          </select>
+                          <label class="lhai-label" for="mswMultiRequestType" data-i18n="common.admin_services.workflow.label.request_type">Request type</label>
+                          <input class="lhai-input" id="mswMultiRequestType" type="text" maxlength="120" autocomplete="off" placeholder="예: AUTO_PURCHASE_RFP" />
+                          <label class="lhai-label" for="mswMultiMatchingStrategy" data-i18n="common.admin_services.workflow.label.matching_strategy">Partner matching strategy</label>
+                          <input class="lhai-input" id="mswMultiMatchingStrategy" type="text" maxlength="200" autocomplete="off" placeholder="예: 지역·가용일·스코어" />
+                          <div class="admin-services__workflow-grid-2">
+                            <div>
+                              <label class="lhai-label" for="mswMultiMaxRequests" data-i18n="common.admin_services.workflow.label.max_requests">Max partner request count</label>
+                              <input class="lhai-input" id="mswMultiMaxRequests" type="number" min="1" max="99" value="5" />
+                            </div>
+                            <div>
+                              <label class="lhai-label" for="mswMultiMinResponses" data-i18n="common.admin_services.workflow.label.min_responses">Min response count</label>
+                              <input class="lhai-input" id="mswMultiMinResponses" type="number" min="0" max="99" value="1" />
+                            </div>
+                            <div>
+                              <label class="lhai-label" for="mswMultiTimeoutHours" data-i18n="common.admin_services.workflow.label.timeout_hours">Timeout hours</label>
+                              <input class="lhai-input" id="mswMultiTimeoutHours" type="number" min="1" max="720" value="48" />
+                            </div>
+                            <div>
+                              <label class="lhai-label" for="mswMultiRankingRule" data-i18n="common.admin_services.workflow.label.ranking_rule">Ranking rule</label>
+                              <select class="lhai-select" id="mswMultiRankingRule">
+                                <option value="low_price_first" data-i18n="common.admin_services.workflow.rank.low_price">낮은 가격 우선</option>
+                                <option value="high_rating_first" data-i18n="common.admin_services.workflow.rank.high_rating">높은 평점 우선</option>
+                                <option value="fast_response_first" data-i18n="common.admin_services.workflow.rank.fast">빠른 응답 우선</option>
+                                <option value="manual" data-i18n="common.admin_services.workflow.rank.manual">관리자 수동 정렬</option>
+                              </select>
+                            </div>
+                          </div>
+                          <p class="lhai-label u-mt-2" data-i18n="common.admin_services.workflow.label.after_selection">After customer selection</p>
+                          <label class="lhai-label" for="mswMultiAfterHasAccount" data-i18n="common.admin_services.workflow.label.after_has_account">파트너에게 계정이 있을 때</label>
+                          <select class="lhai-select" id="mswMultiAfterHasAccount">
+                            <option value="add_thread" data-i18n="common.admin_services.workflow.after.opt_thread">기존 서비스 스레드에 연결</option>
+                          </select>
+                          <label class="lhai-label u-mt-2" for="mswMultiAfterNoAccount" data-i18n="common.admin_services.workflow.label.after_no_account">파트너에게 계정이 없을 때</label>
+                          <select class="lhai-select" id="mswMultiAfterNoAccount">
+                            <option value="email_summary" data-i18n="common.admin_services.workflow.after.opt_email">이메일 후속 + 고객에게 요약 표시</option>
+                          </select>
+                          <p class="lhai-help u-mt-2" data-i18n="common.admin_services.workflow.email_threshold_help">
+                            이메일로 온 파트너 답변을 자동으로 고객에게 반영할 때, AI가 판단한 신뢰도가 이 숫자 이상일 때만 바로 반영합니다. 비워 두면 서버 기본값을 씁니다.
+                          </p>
+                          <label class="lhai-label" for="mswEmailAutoPublishThreshold" data-i18n="common.admin_services.workflow.label.email_auto_publish_threshold">이메일 자동 반영 기준(신뢰도 0~1)</label>
+                          <input class="lhai-input" id="mswEmailAutoPublishThreshold" type="number" min="0" max="1" step="0.01" inputmode="decimal" placeholder="예: 0.85" />
+                        </section>
+
+                        <div id="mswWorkflowValidation" class="admin-services__workflow-validation" hidden></div>
+
+                        <section class="lhai-card admin-services__workflow-card admin-services__workflow-card--preview" aria-labelledby="mswPreviewHeading">
+                          <h5 class="admin-services__workflow-card-title" id="mswPreviewHeading" data-i18n="common.admin_services.workflow.section.preview">Workflow Preview</h5>
+                          <p class="lhai-help" data-i18n="common.admin_services.workflow.preview.intro">아래 문장은 현재 화면의 선택만 반영한 요약입니다.</p>
+                          <div id="mswWorkflowPreview" class="admin-services__workflow-preview" role="status" aria-live="polite"></div>
+                        </section>
+
+                        <div class="admin-services__intake-toolbar u-flex-between u-gap-4 u-mt-3" style="flex-wrap:wrap;align-items:center;">
+                          <p class="lhai-help u-m-0 admin-services__manage-action-status" id="manageServiceWorkflowSaveStatus" role="status" aria-live="polite" hidden></p>
+                          <button type="button" class="lhai-button lhai-button--primary" id="manageServiceWorkflowSaveBtn"
+                            data-i18n="common.admin_services.workflow.save">워크플로 저장</button>
+                        </div>
                       </div>
                       </div>
 
@@ -674,7 +931,7 @@
                             <label class="lhai-label" for="manageServiceIntakeFieldLabel" data-i18n="common.admin_services.intake.label_field_label">Label shown to customer</label>
                             <input class="lhai-input" id="manageServiceIntakeFieldLabel" type="text" required maxlength="500" autocomplete="off" />
                             <label class="lhai-label" for="manageServiceIntakeFieldHelp" data-i18n="common.admin_services.intake.label_help">Helper text</label>
-                            <textarea class="lhai-textarea" id="manageServiceIntakeFieldHelp" rows="2" maxlength="2000"></textarea>
+                            <textarea class="lhai-textarea" id="manageServiceIntakeFieldHelp" rows="4" maxlength="2000"></textarea>
                           </section>
 
                           <section class="admin-services__intake-form-section" aria-labelledby="manageServiceIntakeSecBehavior">
@@ -706,6 +963,48 @@
                               </label>
                               <p class="lhai-help admin-services__intake-toggle-help" data-i18n="common.admin_services.intake.toggle_active_help">Turn off to hide this field from the customer form without deleting it.</p>
                             </div>
+                          </section>
+
+                          <section class="admin-services__intake-form-section" aria-labelledby="manageServiceIntakeSecPrefill">
+                            <h4 class="admin-services__intake-section-title" id="manageServiceIntakeSecPrefill" data-i18n="common.admin_services.intake.section.prefill">Prefill from saved customer data</h4>
+                            <p class="lhai-help" data-i18n="common.admin_services.intake.prefill_intro">Map this question to a value from the signed-in user or customer profile so customers do not re-type it. They can still review or edit the value when allowed.</p>
+                            <div class="admin-services__intake-toggle-row">
+                              <label class="admin-services__switch" for="manageServiceIntakePrefillEnabled">
+                                <input id="manageServiceIntakePrefillEnabled" type="checkbox" />
+                                <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                                <span class="admin-services__switch-label" data-i18n="common.admin_services.intake.prefill_enabled">Use saved customer data to prefill</span>
+                              </label>
+                            </div>
+                            <label class="lhai-label" for="manageServiceIntakePrefillSource" data-i18n="common.admin_services.intake.prefill_source_label">Value to load</label>
+                            <select class="lhai-select" id="manageServiceIntakePrefillSource"></select>
+                            <p class="lhai-help" data-i18n="common.admin_services.intake.prefill_source_help">Independent from Field key — this only selects which stored profile field seeds the answer.</p>
+                            <div class="admin-services__intake-toggle-row">
+                              <label class="admin-services__switch" for="manageServiceIntakePrefillEditable">
+                                <input id="manageServiceIntakePrefillEditable" type="checkbox" checked />
+                                <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                                <span class="admin-services__switch-label" data-i18n="common.admin_services.intake.prefill_editable">Let customers change this value</span>
+                              </label>
+                            </div>
+                            <div class="admin-services__intake-toggle-row">
+                              <label class="admin-services__switch" for="manageServiceIntakePrefillWriteBack">
+                                <input id="manageServiceIntakePrefillWriteBack" type="checkbox" />
+                                <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                                <span class="admin-services__switch-label" data-i18n="common.admin_services.intake.prefill_write_back">Update customer profile when they submit a new value</span>
+                              </label>
+                            </div>
+                            <label class="lhai-label" for="manageServiceIntakePrefillExistingBehavior" data-i18n="common.admin_services.intake.prefill_existing_label">When a saved value exists</label>
+                            <select class="lhai-select" id="manageServiceIntakePrefillExistingBehavior">
+                              <option value="prefill_and_show" data-i18n="common.admin_services.intake.prefill_existing_show">Prefill and show the question</option>
+                              <option value="prefill_and_skip" data-i18n="common.admin_services.intake.prefill_existing_skip">Prefill and skip the step</option>
+                              <option value="confirm_only" data-i18n="common.admin_services.intake.prefill_existing_confirm">Confirm only (still show step)</option>
+                              <option value="ask_always" data-i18n="common.admin_services.intake.prefill_existing_ask">Always ask (ignore saved value for display)</option>
+                            </select>
+                            <label class="lhai-label u-mt-2" for="manageServiceIntakePrefillMissingBehavior" data-i18n="common.admin_services.intake.prefill_missing_label">When no saved value exists</label>
+                            <select class="lhai-select" id="manageServiceIntakePrefillMissingBehavior">
+                              <option value="ask" data-i18n="common.admin_services.intake.prefill_missing_ask">Show the question to the customer</option>
+                              <option value="skip" data-i18n="common.admin_services.intake.prefill_missing_skip">Skip this step</option>
+                              <option value="block_until_available" data-i18n="common.admin_services.intake.prefill_missing_block">Block until profile has this value</option>
+                            </select>
                           </section>
 
                           <section id="manageServiceIntakeOptionsBlock" class="admin-services__intake-form-section admin-services__intake-options-block" aria-labelledby="manageServiceIntakeSecOptions" hidden>

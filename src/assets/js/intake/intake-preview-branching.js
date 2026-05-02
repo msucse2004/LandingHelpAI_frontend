@@ -5,6 +5,7 @@
  * stays aligned with the message thread.
  */
 import { escapeHtml } from "./intake-block-render.js";
+import { coerceToIsoDateInputValue, effectiveIntakeInputType } from "./intake-form-presentation.js";
 
 /** @typedef {Record<string, unknown>} JsonObj */
 
@@ -236,6 +237,182 @@ export function findNextUnansweredField(fields, answersByFieldId) {
 }
 
 /**
+ * Map a ``question_group`` payload child to a field-shaped object for preview controls + visibility context.
+ * @param {Record<string, unknown>} child
+ */
+export function previewFieldFromGroupChild(child) {
+  const c = child && typeof child === "object" ? child : {};
+  const optsRaw = Array.isArray(c.options) ? c.options : [];
+  const options = optsRaw.map((o, i) => {
+    const row = o && typeof o === "object" ? /** @type {Record<string, unknown>} */ (o) : {};
+    const value = String(row.value ?? row.label ?? `v${i}`);
+    const label = String(row.label ?? row.value ?? value);
+    return {
+      id: String(row.id || value || i),
+      field_id: String(c.id || ""),
+      value,
+      label,
+      sort_order: Number(row.sort_order ?? i) || i,
+      active: row.active !== false,
+    };
+  });
+  return {
+    id: String(c.id || ""),
+    field_key: String(c.field_key || c.id || ""),
+    label: String(c.label || ""),
+    help_text: String(c.help_text || ""),
+    input_type: String(c.input_type || "text"),
+    placeholder: String(c.placeholder || ""),
+    required: Boolean(c.required),
+    sort_order: 0,
+    visibility_rule_json: {},
+    default_value: c.default_value != null ? String(c.default_value) : null,
+    validation: typeof c.validation === "object" && c.validation ? /** @type {Record<string, unknown>} */ (c.validation) : {},
+    prefill: typeof c.prefill === "object" && c.prefill ? /** @type {Record<string, unknown>} */ (c.prefill) : {},
+    active: true,
+    archived_at: null,
+    created_at: "",
+    updated_at: "",
+    options,
+  };
+}
+
+/** @param {Array<Record<string, unknown>>} fields @param {Array<Record<string, unknown>>} orderedBlocks */
+export function augmentedPreviewFields(fields, orderedBlocks) {
+  const base = orderedActiveFields(fields);
+  const extras = [];
+  for (const b of orderedBlocks) {
+    if (String(b.block_type || "") !== "question_group") continue;
+    const pl = b.payload && typeof b.payload === "object" ? /** @type {Record<string, unknown>} */ (b.payload) : {};
+    const kids = Array.isArray(pl.children) ? pl.children : [];
+    for (const ch of kids) {
+      if (!ch || typeof ch !== "object") continue;
+      extras.push(previewFieldFromGroupChild(/** @type {Record<string, unknown>} */ (ch)));
+    }
+  }
+  return [...base, ...extras];
+}
+
+/**
+ * @param {Record<string, unknown>} field
+ * @param {Record<string, unknown>} block
+ */
+function mergeQuestionFieldAndBlock(field, block) {
+  return {
+    ...field,
+    visibility_rule_json: {
+      ...(field.visibility_rule_json && typeof field.visibility_rule_json === "object" ? field.visibility_rule_json : {}),
+      ...(block.visibility_rule_json && typeof block.visibility_rule_json === "object" ? block.visibility_rule_json : {}),
+    },
+  };
+}
+
+/**
+ * @param {Record<string, unknown>} f
+ * @param {Record<string, JsonObj>} answersByFieldId
+ */
+function previewGroupChildPending(f, answersByFieldId) {
+  const ans = answersByFieldId[String(f.id)];
+  if (!ans) return true;
+  if (ans.value === "__skipped__") return false;
+  return !answerJsonIsNonempty(f, ans);
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} childrenFields
+ * @param {Record<string, JsonObj>} answersByFieldId
+ */
+function previewGroupStepSatisfied(childrenFields, answersByFieldId) {
+  return childrenFields.every((f) => !previewGroupChildPending(f, answersByFieldId));
+}
+
+/**
+ * Next interactive preview step following global block order (questions + ``question_group``).
+ * @param {Array<Record<string, unknown>>} orderedBlocks from ``orderedActiveBlocks``
+ */
+export function findNextUnansweredPreviewStep(orderedBlocks, fieldsById, fields, answersByFieldId) {
+  const aug = augmentedPreviewFields(fields, orderedBlocks);
+  const fieldsByKey = buildFieldLookup(aug);
+  const ctx = buildAnswerContext(aug, answersByFieldId);
+  for (const b of orderedBlocks) {
+    const bt = String(b.block_type || "");
+    if (bt === "question") {
+      const raw = fieldsById[String(b.id)];
+      if (!raw || raw.archived_at) continue;
+      const f = mergeQuestionFieldAndBlock(/** @type {Record<string, unknown>} */ (raw), b);
+      if (!evaluateFieldVisibility(f, ctx, fieldsByKey, answersByFieldId, aug)) continue;
+      const ans = answersByFieldId[String(f.id)];
+      if (!ans || !answerJsonIsNonempty(f, ans)) return { kind: "question", block: b, field: /** @type {Record<string, unknown>} */ (raw) };
+    } else if (bt === "question_group") {
+      if (!evaluateBlockVisibility(b, ctx, fieldsByKey, answersByFieldId, aug)) continue;
+      const pl = b.payload && typeof b.payload === "object" ? /** @type {Record<string, unknown>} */ (b.payload) : {};
+      const kids = Array.isArray(pl.children) ? pl.children : [];
+      const childFields = kids.filter((x) => x && typeof x === "object").map((ch) => previewFieldFromGroupChild(/** @type {Record<string, unknown>} */ (ch)));
+      if (!previewGroupStepSatisfied(childFields, answersByFieldId)) return { kind: "question_group", block: b, children: childFields };
+    }
+  }
+  return null;
+}
+
+/**
+ * Content blocks shown immediately before the current preview step (matches single-question gap logic).
+ * @param {{ kind: "question"; block: Record<string, unknown>; field: Record<string, unknown> } | { kind: "question_group"; block: Record<string, unknown>; children: Array<Record<string, unknown>> }} step
+ */
+export function contentBlocksForPreviewStep(orderedBlocks, fieldsById, step, answersByFieldId, fields) {
+  const aug = augmentedPreviewFields(fields, orderedBlocks);
+  const fieldsByKey = buildFieldLookup(aug);
+  const ctx = buildAnswerContext(aug, answersByFieldId);
+  let nextIdx = -1;
+  if (step.kind === "question") {
+    const id = String(step.field.id);
+    for (let i = 0; i < orderedBlocks.length; i++) {
+      if (String(orderedBlocks[i].block_type) === "question" && String(orderedBlocks[i].id) === id) {
+        nextIdx = i;
+        break;
+      }
+    }
+  } else {
+    const bid = String(step.block.id);
+    for (let i = 0; i < orderedBlocks.length; i++) {
+      if (String(orderedBlocks[i].id) === bid) {
+        nextIdx = i;
+        break;
+      }
+    }
+  }
+  if (nextIdx < 0) return [];
+
+  let lastIdx = -1;
+  for (let i = 0; i < nextIdx; i++) {
+    const b = orderedBlocks[i];
+    const bt = String(b.block_type || "");
+    if (bt === "question") {
+      const raw = fieldsById[String(b.id)];
+      if (!raw) continue;
+      const f = mergeQuestionFieldAndBlock(/** @type {Record<string, unknown>} */ (raw), b);
+      const ans = answersByFieldId[String(f.id)];
+      if (ans && answerJsonIsNonempty(f, ans)) lastIdx = i;
+    } else if (bt === "question_group") {
+      const pl = b.payload && typeof b.payload === "object" ? /** @type {Record<string, unknown>} */ (b.payload) : {};
+      const kids = Array.isArray(pl.children) ? pl.children : [];
+      const cfs = kids.filter((x) => x && typeof x === "object").map((ch) => previewFieldFromGroupChild(/** @type {Record<string, unknown>} */ (ch)));
+      if (previewGroupStepSatisfied(cfs, answersByFieldId)) lastIdx = i;
+    }
+  }
+
+  /** @type {Array<Record<string, unknown>>} */
+  const out = [];
+  for (let j = lastIdx + 1; j < nextIdx; j++) {
+    const b = orderedBlocks[j];
+    const bt = String(b.block_type || "");
+    if (bt === "question" || bt === "question_group") continue;
+    if (!evaluateBlockVisibility(b, ctx, fieldsByKey, answersByFieldId, aug)) continue;
+    out.push(b);
+  }
+  return out;
+}
+
+/**
  * @param {Array<Record<string, unknown>>} orderedBlocks
  * @param {Record<string, Record<string, unknown>>} fieldsById
  * @param {Record<string, unknown>} nextField
@@ -284,10 +461,12 @@ export function contentBlocksForPrompt(orderedBlocks, fieldsById, nextField, ans
  */
 export function previewControlsHtml(field, prefix, defVal = "") {
   const mid = prefix.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const it = String(field.input_type || "text").toLowerCase();
+  const rawIt = String(field.input_type || "text").toLowerCase();
+  const it = effectiveIntakeInputType(field) === "date" ? "date" : rawIt;
   const label = String(field.label || "");
   const options = Array.isArray(field.options) ? field.options : [];
   const def = defVal || (field.default_value != null ? String(field.default_value) : "");
+  const defDate = it === "date" ? coerceToIsoDateInputValue(def) || "" : def;
 
   if (it === "textarea") {
     return `<textarea class="admin-intake-preview__input admin-intake-preview__textarea" rows="3" maxlength="8000" aria-label="${escapeHtmlAttr(label)}">${escapeHtml(def)}</textarea>`;
@@ -353,7 +532,7 @@ export function previewControlsHtml(field, prefix, defVal = "") {
     </div>`;
   }
   if (it === "date") {
-    return `<input type="date" class="admin-intake-preview__input admin-intake-preview__date" value="${escapeHtmlAttr(def)}" aria-label="${escapeHtmlAttr(label)}" />`;
+    return `<input type="date" class="admin-intake-preview__input admin-intake-preview__date" value="${escapeHtmlAttr(defDate)}" aria-label="${escapeHtmlAttr(label)}" />`;
   }
   if (it === "number") {
     return `<input type="number" class="admin-intake-preview__input admin-intake-preview__number" value="${escapeHtmlAttr(def)}" aria-label="${escapeHtmlAttr(label)}" />`;
@@ -369,7 +548,8 @@ export function previewControlsHtml(field, prefix, defVal = "") {
  * @param {Record<string, unknown>} field
  */
 export function collectPreviewValueJson(wrap, field) {
-  const it = String(field.input_type || "text").toLowerCase();
+  const rawIt = String(field.input_type || "text").toLowerCase();
+  const it = effectiveIntakeInputType(field) === "date" ? "date" : rawIt;
   if (it === "multi_select") {
     const vals = Array.from(wrap.querySelectorAll(".admin-intake-preview__cb:checked")).map((c) => String(/** @type {HTMLInputElement} */ (c).value));
     return { ok: true, valueJson: { values: vals } };

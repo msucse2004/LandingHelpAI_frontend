@@ -142,8 +142,50 @@
 .lhai-message-item__meta {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: var(--lhai-space-2);
   margin-bottom: var(--lhai-space-2);
+}
+
+.lhai-message-item__meta-end {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--lhai-space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.lhai-message-item__customer-id {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--lhai-color-text, #e8eef5);
+  margin: 0 0 var(--lhai-space-2);
+  word-break: break-word;
+}
+
+.lhai-message-item__customer-id-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lhai-color-muted, #8a9bab);
+  margin-right: 0.35rem;
+  vertical-align: middle;
+}
+
+.lhai-message-item__unread-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(200 90 70 / 0.22);
+  color: #f0b4a8;
+  border: 1px solid rgb(220 120 100 / 0.35);
+  white-space: nowrap;
 }
 
 .lhai-message-detail {
@@ -565,9 +607,45 @@
   margin-bottom: var(--lhai-space-2);
 }
 
+.lhai-chat-form-prompt__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-3);
+}
+
+.lhai-chat-form-prompt__group--inline-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--lhai-space-3);
+}
+
+@media (max-width: 520px) {
+  .lhai-chat-form-prompt__group--inline-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lhai-chat-form-prompt__child-label {
+  font-weight: 600;
+  font-size: 0.875rem;
+  margin-bottom: var(--lhai-space-1);
+  color: #000000;
+}
+
+.lhai-chat-form-prompt__child-help {
+  font-size: 0.78rem;
+  margin-bottom: var(--lhai-space-1);
+  line-height: 1.4;
+}
+
+.lhai-chat-form-prompt__child-controls {
+  margin-top: var(--lhai-space-1);
+}
+
 .lhai-chat-form-prompt__input,
 .lhai-chat-form-prompt__textarea,
-.lhai-chat-form-prompt__select {
+.lhai-chat-form-prompt__select,
+.lhai-chat-form-prompt__date {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -666,8 +744,27 @@
   margin-top: var(--lhai-space-2);
 }
 
-.lhai-quote-proposed-link {
+/* 밝은(흰) 버블 안 CTA: 견적·청구·일정·관련 청구서 — 진한 배경 + 흰 글자로 통일 */
+.lhai-chat-bubble--them .lhai-messages-cta-link.lhai-button--primary,
+.lhai-chat-bubble--them .lhai-quote-proposed-link.lhai-button--primary {
   font-size: 0.85rem;
+  font-weight: 600;
+  border-color: #1e3a8a;
+  background: linear-gradient(180deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.18);
+  text-decoration: none;
+  text-shadow: none;
+}
+
+.lhai-chat-bubble--them .lhai-messages-cta-link.lhai-button--primary:hover,
+.lhai-chat-bubble--them .lhai-messages-cta-link.lhai-button--primary:focus-visible,
+.lhai-chat-bubble--them .lhai-quote-proposed-link.lhai-button--primary:hover,
+.lhai-chat-bubble--them .lhai-quote-proposed-link.lhai-button--primary:focus-visible {
+  border-color: #172554;
+  background: linear-gradient(180deg, #1d4ed8, #1e40af);
+  color: #ffffff;
+  text-decoration: none;
 }
 
 .lhai-chat-row--them .lhai-chat-bubble__time {
@@ -703,6 +800,21 @@
 
 .lhai-chat-composer__send {
   flex-shrink: 0;
+}
+
+/* 메시지 입력 영역: 다크 테마 primary 대비 변수(#061224) 대신 흰 글자로 워크플로 CTA와 통일 */
+.lhai-chat-composer__send.lhai-button--primary {
+  border-color: #1e3a8a;
+  background: linear-gradient(180deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.18);
+}
+
+.lhai-chat-composer__send.lhai-button--primary:hover,
+.lhai-chat-composer__send.lhai-button--primary:focus-visible {
+  border-color: #172554;
+  background: linear-gradient(180deg, #1d4ed8, #1e40af);
+  color: #ffffff;
 }
 
 .lhai-messages-ai-escalation {
@@ -828,9 +940,225 @@
   color: #1a5a8a;
 }
 
+/* Customer thread detail: backend-driven workflow status (no client-side status guessing) */
+.lhai-thread-workflow-summary {
+  margin: 0 0 var(--lhai-space-3, 12px);
+}
+
+.lhai-thread-workflow-summary__inner {
+  border: 1px solid var(--lhai-color-border, rgb(255 255 255 / 0.12));
+  border-radius: 10px;
+  padding: var(--lhai-space-3, 12px);
+  background: var(--lhai-color-surface-alt, rgb(255 255 255 / 0.04));
+}
+
+.lhai-thread-workflow-summary__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-bottom: 4px;
+}
+
+.lhai-thread-workflow-summary__desc {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.lhai-thread-workflow-summary__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lhai-thread-workflow-summary__actions .lhai-messages-cta-link.lhai-button--primary {
+  border-color: #1e3a8a;
+  background: linear-gradient(180deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.lhai-thread-workflow-summary__actions .lhai-messages-cta-link.lhai-button--primary:hover,
+.lhai-thread-workflow-summary__actions .lhai-messages-cta-link.lhai-button--primary:focus-visible {
+  border-color: #172554;
+  background: linear-gradient(180deg, #1d4ed8, #1e40af);
+  color: #ffffff;
+}
+
 /* 넓은 화면: 목록 ~26%, 대화 패널 나머지 전부 (layout 의 50:50 은 961px 미만에서만 유지) */
 @media (min-width: 961px) {
   .lhai-main > .lhai-grid.lhai-grid--2 {
     grid-template-columns: minmax(220px, 26%) minmax(0, 1fr);
   }
+}
+
+/* Workflow progress cards (MessageType.WORKFLOW_CARD) */
+.lhai-chat-bubble--workflow-card {
+  border: 1px solid var(--lhai-color-border, rgb(255 255 255 / 0.12));
+  border-radius: 10px;
+  padding: var(--lhai-space-3, 12px);
+  max-width: 100%;
+}
+
+.lhai-workflow-card__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.lhai-workflow-card__badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(59 110 165 / 0.25);
+  color: var(--lhai-color-text, #e8eef5);
+}
+
+.lhai-workflow-card__step {
+  font-size: 0.72rem;
+}
+
+.lhai-workflow-card__title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.lhai-workflow-card__body {
+  font-size: 0.88rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+/* 흰 시스템 버블 위에서 워크플로 카드 뱃지·단계·CTA 가독성 */
+.lhai-chat-bubble--them.lhai-chat-bubble--workflow-card .lhai-workflow-card__badge {
+  background: #1e40af;
+  color: #ffffff;
+  border: 1px solid #1e3a8a;
+}
+
+.lhai-chat-bubble--them.lhai-chat-bubble--workflow-card .lhai-workflow-card__step {
+  color: #334155;
+  font-weight: 600;
+}
+
+.lhai-chat-bubble--them.lhai-chat-bubble--workflow-card .lhai-workflow-card__title {
+  color: #0f172a;
+}
+
+.lhai-chat-bubble--them.lhai-chat-bubble--workflow-card .lhai-workflow-card__body {
+  color: #1e293b;
+}
+
+.lhai-workflow-card__state-row {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #0f172a;
+  background: rgb(241 245 249);
+  border: 1px solid rgb(148 163 184 / 0.55);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.lhai-chat-bubble--them.lhai-chat-bubble--workflow-card .lhai-workflow-card__action.lhai-button--primary {
+  border-color: #1e3a8a;
+  background: linear-gradient(180deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.18);
+}
+
+.lhai-chat-bubble--them.lhai-chat-bubble--workflow-card .lhai-workflow-card__action.lhai-button--primary:hover,
+.lhai-chat-bubble--them.lhai-chat-bubble--workflow-card .lhai-workflow-card__action.lhai-button--primary:focus-visible {
+  border-color: #172554;
+  background: linear-gradient(180deg, #1d4ed8, #1e40af);
+  color: #ffffff;
+}
+
+.lhai-chat-bubble--them.lhai-chat-bubble--workflow-card .lhai-workflow-card__action.lhai-button--secondary {
+  border-color: rgb(30 58 138 / 0.45);
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.lhai-chat-bubble--them.lhai-chat-bubble--workflow-card .lhai-workflow-card__action.lhai-button--secondary:hover,
+.lhai-chat-bubble--them.lhai-chat-bubble--workflow-card .lhai-workflow-card__action.lhai-button--secondary:focus-visible {
+  border-color: #1e40af;
+  background: rgb(239 246 255);
+  color: #0f172a;
+}
+
+.lhai-workflow-card__extra {
+  margin-top: 10px;
+}
+
+.lhai-workflow-card__extra-label {
+  font-size: 0.72rem;
+  margin-bottom: 4px;
+}
+
+.lhai-workflow-card__json {
+  margin: 0;
+  max-height: 200px;
+  overflow: auto;
+  padding: 8px 10px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 0.22);
+  border: 1px solid var(--lhai-color-border, rgb(255 255 255 / 0.1));
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.lhai-workflow-card__actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lhai-workflow-card__offers {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lhai-workflow-card__offer {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--lhai-color-border, rgb(255 255 255 / 0.1));
+  background: rgb(0 0 0 / 0.12);
+}
+
+.lhai-workflow-card__offer-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.lhai-workflow-card__offer-price {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--lhai-color-text-muted, #b8c4d4);
+}
+
+.lhai-workflow-card__offer-summary {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.lhai-workflow-card__offer .lhai-workflow-card__action {
+  margin-top: 4px;
 }

@@ -1,7 +1,7 @@
-import { getCurrentRole } from "../core/auth.js";
+import { getCurrentRole, getCurrentUserId } from "../core/auth.js";
 import { adminApi, invoiceApi, messagesApi, quoteApi } from "../core/api.js";
 import { protectCurrentPage } from "../core/guards.js";
-import { canManageLowerTierRole } from "../core/role-tiers.js";
+import { canManageLowerTierRole, mayShowAccountDeleteButton } from "../core/role-tiers.js";
 import { formatDate, formatMoney } from "../core/utils.js";
 
 const detailAlert = document.getElementById("detailAlert");
@@ -238,7 +238,12 @@ function setupDeleteZone(accountId, d) {
   if (!dangerZone || !detailDeleteBtn) return;
   const actor = getCurrentRole();
   const targetRole = String(d.role || "").trim();
-  if (!canManageLowerTierRole(actor, targetRole)) {
+  if (!mayShowAccountDeleteButton(actor, targetRole)) {
+    dangerZone.hidden = true;
+    return;
+  }
+  const myId = getCurrentUserId();
+  if (myId && String(accountId || "").trim() === myId) {
     dangerZone.hidden = true;
     return;
   }
@@ -278,6 +283,12 @@ async function main() {
     const d = await adminApi.getAuthAccount(accountId);
     const profileRef = (d.customer_profile_ref || `profile::${d.email}` || "").trim();
     setAlert("");
+    const readOnlyHint = document.getElementById("detailReadOnlyHint");
+    if (readOnlyHint) {
+      const actor = getCurrentRole();
+      const targetRole = String(d.role || "").trim();
+      readOnlyHint.hidden = !targetRole || canManageLowerTierRole(actor, targetRole);
+    }
     renderDetail(d);
     setupRegistrationEdit(accountId, d);
     await renderMessageSessions(d);

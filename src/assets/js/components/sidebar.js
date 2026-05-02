@@ -81,13 +81,14 @@ function bindAdminDevResetQuotesInvoices(sidebarRoot) {
   if (!btn) return;
   btn.addEventListener("click", async () => {
     const ok = window.confirm(
-      "개발용: 저장소(DB 또는 메모리)의 모든 견적·청구서·일정(스케줄 초안·카드·릴리스 기록), 각 계정 메시지함의 인앱 메시지(및 DB 사용 시 메시지 스레드), 운영 큐(운영 케이스·내부 메모·라우팅/배정·케이스 요약·메시징 파이프라인 잡 큐)를 삭제합니다. 복구할 수 없습니다. 진행할까요?"
+      "개발용: 저장소(DB 또는 메모리)의 모든 견적·청구서·일정(스케줄 초안·카드·릴리스 기록)·문서, 각 계정 메시지함의 인앱 메시지(및 DB 사용 시 메시지 스레드), 운영 큐(운영 케이스·내부 메모·라우팅/배정·케이스 요약·메시징 파이프라인 잡 큐)를 삭제합니다. 복구할 수 없습니다. 진행할까요?"
     );
     if (!ok) return;
     btn.disabled = true;
     try {
       const result = await adminDevApi.resetQuotesAndInvoices();
       const sch = result.schedules_deleted != null ? result.schedules_deleted : "—";
+      const docs = result.documents_deleted != null ? result.documents_deleted : "—";
       const msg = result.messages_deleted != null ? result.messages_deleted : "—";
       const thr = result.message_threads_deleted != null ? result.message_threads_deleted : "—";
       const thrPart =
@@ -99,8 +100,13 @@ function bindAdminDevResetQuotesInvoices(sidebarRoot) {
         Number(opCases) + Number(opPipe) + Number(opJobs) > 0
           ? `, 운영케이스 ${opCases}건·파이프라인 보조행 ${opPipe}건·메시징잡 ${opJobs}건`
           : "";
+      try {
+        window.localStorage.setItem("lhai_dev_data_reset_at", String(Date.now()));
+      } catch {
+        /* ignore */
+      }
       window.alert(
-        `삭제 완료: 견적 ${result.quotes_deleted}건, 청구서 ${result.invoices_deleted}건, 일정 ${sch}건, 메시지 ${msg}건${thrPart}${opPart}. 관련 화면을 새로고침하세요.`
+        `삭제 완료: 견적 ${result.quotes_deleted}건, 청구서 ${result.invoices_deleted}건, 일정 ${sch}건, 문서 ${docs}건, 메시지 ${msg}건${thrPart}${opPart}. 고객 대시보드 등 열린 탭은 자동으로 새로고침됩니다. 그렇지 않으면 수동으로 새로고침하세요.`
       );
     } catch (err) {
       const msg = err && typeof err.message === "string" ? err.message : String(err);

@@ -1,6 +1,22 @@
 import { serviceCatalogAdminApi } from "../core/api.js";
 import { APP_CONFIG } from "../core/config.js";
-import { initManageServiceIntakeTab, msiOnServiceContextChanged } from "./admin-service-intake-tab.js";
+import {
+  initManageServiceIntakeTab,
+  intakeActiveQuestionFieldKeys,
+  intakeBuilderOptionsForCurrentService,
+  msiOnServiceContextChanged,
+} from "./admin-service-intake-tab.js";
+import {
+  initManageServiceWorkflowTab,
+  workflowExternalRefresh,
+  workflowSetIntakeBuilderOptionsProvider,
+  workflowSetMatchingRuleOptionsProvider,
+  workflowGetPayload,
+  workflowHydrateFromService,
+  workflowSetIntakeFieldKeysProvider,
+  workflowValidateForSave,
+} from "./admin-service-workflow-tab.js";
+import { getSinglePartnerMatchingRuleOptions } from "./workflow-matching-rule-registry.js";
 import { initManageServiceDocumentsTab } from "./admin-service-documents-tab.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { loadSidebar } from "../components/sidebar.js";
@@ -1183,6 +1199,7 @@ function sf_applyAdminServicesI18n() {
   sf_applyI18nText(qs("#manage-service-panel > h3"), "common.admin_services.manage.entity.service");
   sf_applyI18nText(qs("#manage-service-panel .admin-services__service-list-head .admin-services__manage-step"), "common.admin_services.manage.service.list_hint");
   sf_applyI18nText(qs("#manageServiceCreateBtn"), "common.admin_services.manage.actions.new_service");
+  sf_applyI18nText(qs("#manageServiceBackToListBtn"), "common.admin_services.manage.service.back_to_list");
   sf_applyI18nOptionText("#manageServiceFilterType", "", "common.admin_services.filters.capability_all");
   sf_applyI18nOptionText("#manageServiceFilterType", "AI_AGENT", "common.admin_services.filters.capability_ai_agent");
   sf_applyI18nOptionText("#manageServiceFilterType", "IN_PERSON", "common.admin_services.filters.capability_in_person");
@@ -3108,6 +3125,14 @@ function ucdInitTopTabs() {
   activate("panel-inventory");
 }
 
+/** Service manage tab: full-width service list vs full-width create/edit (UCD). */
+function ucdSetServiceEditorViewMode(mode) {
+  const layout = qs(".admin-services__service-layout");
+  if (!layout) return;
+  layout.classList.remove("is-list-mode", "is-editor-mode");
+  layout.classList.add(mode === "editor" ? "is-editor-mode" : "is-list-mode");
+}
+
 function ucdInitManageTabs() {
   const root = qs("#manageEntityTabs");
   if (!root) return;
@@ -3118,6 +3143,9 @@ function ucdInitManageTabs() {
     panels.forEach((p) => {
       p.hidden = p.id !== panelId;
     });
+    if (panelId !== "manage-service-panel") {
+      ucdSetServiceEditorViewMode("list");
+    }
   };
   btns.forEach((btn) => btn.addEventListener("click", () => activate(btn.getAttribute("data-manage-panel"))));
   activate("manage-category-panel");
@@ -3981,6 +4009,7 @@ function ucdApplyServiceSelectionToForm(serviceId) {
   qs("#manageServiceActive").checked = Boolean(svc.active);
   qs("#manageServiceVisible").checked = Boolean(svc.visible);
   ucdSyncManageServicePricingFieldsVisibility();
+  workflowHydrateFromService(svc);
   msiOnServiceContextChanged();
 }
 
@@ -4071,10 +4100,12 @@ function ucdBindManageEvents() {
     const svc = ucdServices.find((s) => String(s.id) === String(tr.getAttribute("data-id")));
     if (!svc) return;
     ucdManageActionStatusClear("Service");
+    ucdWorkflowSaveStatusClear();
     ucdSelectedServiceId = svc.id;
     ucdRenderManage();
     ucdApplyServiceSelectionToForm(svc.id);
     ucdSetManageMode("Service", "edit", svc.name || "");
+    ucdSetServiceEditorViewMode("editor");
   });
 
   qs("#manageCategoryForm")?.addEventListener("submit", async (e) => {
@@ -4178,8 +4209,31 @@ function ucdBindManageEvents() {
       .trim()
       .toUpperCase()
       .slice(0, 3);
+    const nameTrim = qs("#manageServiceName").value.trim();
+    if (!nameTrim) {
+      ucdManageActionStatusSet(
+        "Service",
+        t("common.admin_services.manage.feedback.validation_name", "Enter a name before saving."),
+        "error"
+      );
+      return;
+    }
+    const wfCheck = workflowValidateForSave(intakeActiveQuestionFieldKeys());
+    if (wfCheck.errors.length) {
+      ucdManageActionStatusSet("Service", wfCheck.errors.join("\n"), "error");
+      return;
+    }
+    if (wfCheck.warnings.length) {
+      ucdManageActionStatusSet(
+        "Service",
+        `저장은 가능합니다. 다음을 확인해 주세요: ${wfCheck.warnings.join(" ")}`,
+        "neutral"
+      );
+    } else {
+      ucdManageActionStatusClear("Service");
+    }
     const servicePayload = {
-      name: qs("#manageServiceName").value.trim(),
+      name: nameTrim,
       description: qs("#manageServiceDescription").value.trim(),
       customer_title: qs("#manageServiceCustomerTitle").value.trim(),
       customer_short_description: qs("#manageServiceCustomerShortDescription").value.trim(),
@@ -4196,6 +4250,7 @@ function ucdBindManageEvents() {
       currency: currencyRaw.length >= 3 ? currencyRaw : "USD",
       active: qs("#manageServiceActive").checked,
       visible: qs("#manageServiceVisible").checked,
+      ...workflowGetPayload(),
     };
     if (!servicePayload.customer_title) servicePayload.customer_title = servicePayload.name;
     if (!servicePayload.customer_short_description) {
@@ -4206,14 +4261,6 @@ function ucdBindManageEvents() {
     }
     if (!servicePayload.delivery_type_help_text) {
       servicePayload.delivery_type_help_text = deliveryFallback.help;
-    }
-    if (!servicePayload.name) {
-      ucdManageActionStatusSet(
-        "Service",
-        t("common.admin_services.manage.feedback.validation_name", "Enter a name before saving."),
-        "error"
-      );
-      return;
     }
     if (!validateSupportedDeliveryModes(aiCapable, inPersonRequired)) {
       const errEl = qs("#manageServiceSupportedModesError");
@@ -4264,6 +4311,80 @@ function ucdBindManageEvents() {
         errorPrefix: t("common.admin_services.manage.feedback.error", "Error"),
       }
     );
+  });
+
+  const wfSaveStatusEl = () => qs("#manageServiceWorkflowSaveStatus");
+  const wfSaveBtnEl = () => qs("#manageServiceWorkflowSaveBtn");
+  function ucdWorkflowSaveStatusClear() {
+    const el = wfSaveStatusEl();
+    if (!el) return;
+    el.textContent = "";
+    el.hidden = true;
+    el.classList.remove(
+      "admin-services__manage-action-status--success",
+      "admin-services__manage-action-status--error",
+      "admin-services__manage-action-status--working"
+    );
+  }
+  function ucdWorkflowSaveStatusSet(message, variant = "neutral") {
+    const el = wfSaveStatusEl();
+    if (!el) return;
+    el.textContent = message || "";
+    el.hidden = !message;
+    el.classList.remove(
+      "admin-services__manage-action-status--success",
+      "admin-services__manage-action-status--error",
+      "admin-services__manage-action-status--working"
+    );
+    if (variant === "success") el.classList.add("admin-services__manage-action-status--success");
+    else if (variant === "error") el.classList.add("admin-services__manage-action-status--error");
+    else if (variant === "working") el.classList.add("admin-services__manage-action-status--working");
+  }
+
+  wfSaveBtnEl()?.addEventListener("click", async () => {
+    const btn = wfSaveBtnEl();
+    const id = (qs("#manageServiceId")?.value || "").trim();
+    if (!id) {
+      ucdWorkflowSaveStatusSet(
+        t(
+          "common.admin_services.workflow.save_need_service",
+          "먼저 서비스를 저장하거나 목록에서 서비스를 선택한 뒤 워크플로를 저장하세요."
+        ),
+        "error"
+      );
+      return;
+    }
+    const wfCheck = workflowValidateForSave(intakeActiveQuestionFieldKeys());
+    if (wfCheck.errors.length) {
+      ucdWorkflowSaveStatusSet(wfCheck.errors.join("\n"), "error");
+      return;
+    }
+    if (wfCheck.warnings.length) {
+      ucdWorkflowSaveStatusSet(
+        `${t("common.admin_services.workflow.save_warnings_prefix", "저장은 가능합니다. 확인:")} ${wfCheck.warnings.join(" ")}`,
+        "neutral"
+      );
+    } else {
+      ucdWorkflowSaveStatusClear();
+    }
+    if (btn) btn.disabled = true;
+    ucdWorkflowSaveStatusSet(t("common.admin_services.manage.feedback.saving", "Saving…"), "working");
+    try {
+      await serviceCatalogAdminApi.updateServiceItem(id, { ...workflowGetPayload() });
+      ucdSelectedServiceId = id;
+      await ucdReload();
+      ucdRenderInventory();
+      ucdRenderManage();
+      msiOnServiceContextChanged();
+      ucdWorkflowSaveStatusSet(t("common.admin_services.manage.feedback.saved", "Saved."), "success");
+    } catch (err) {
+      const msg = err && typeof err.message === "string" ? err.message : String(err);
+      const prefix = t("common.admin_services.manage.feedback.error", "Error");
+      ucdWorkflowSaveStatusSet(`${prefix}: ${msg}`, "error");
+    } finally {
+      if (btn) btn.disabled = false;
+      ucdUpdateManageDeleteControls();
+    }
   });
 
   qs("#manageCategoryCreateBtn")?.addEventListener("click", () => {
@@ -4334,6 +4455,11 @@ function ucdBindManageEvents() {
     ucdSetManageMode("Service", "create");
     ucdSyncManageServicePricingFieldsVisibility();
     msiOnServiceContextChanged();
+    ucdSetServiceEditorViewMode("editor");
+  });
+
+  qs("#manageServiceBackToListBtn")?.addEventListener("click", () => {
+    ucdSetServiceEditorViewMode("list");
   });
 
   const syncDeliveryCopySuggestions = () => {
@@ -4472,6 +4598,7 @@ function ucdBindManageEvents() {
         ucdRenderManage();
         ucdSetManageMode("Service", "create");
         msiOnServiceContextChanged();
+        ucdSetServiceEditorViewMode("list");
       },
       {
         workingMsg: t("common.admin_services.manage.feedback.deleting", "Deleting…"),
@@ -4484,6 +4611,7 @@ function ucdBindManageEvents() {
   ucdSetManageMode("Category", "create");
   ucdSetManageMode("Package", "create");
   ucdSetManageMode("Service", "create");
+  ucdSetServiceEditorViewMode("list");
 }
 
 async function initAdminServicesUcdPage() {
@@ -4503,6 +4631,14 @@ async function initAdminServicesUcdPage() {
   ucdRenderManage();
   ucdBindManageEvents();
   initManageServiceIntakeTab();
+  initManageServiceWorkflowTab();
+  workflowSetIntakeFieldKeysProvider(() => intakeActiveQuestionFieldKeys());
+  workflowSetIntakeBuilderOptionsProvider(() => intakeBuilderOptionsForCurrentService());
+  // Current source is local registry; can be replaced with API-backed provider later.
+  workflowSetMatchingRuleOptionsProvider(() => getSinglePartnerMatchingRuleOptions());
+  document.addEventListener("lhai:admin-intake-fields-changed", () => {
+    workflowExternalRefresh();
+  });
   initManageServiceDocumentsTab();
   return true;
 }

@@ -25,6 +25,11 @@ const signupResultTitle = document.getElementById("signupResultTitle");
 const signupResultBody = document.getElementById("signupResultBody");
 const signupResultLoginLink = document.getElementById("signupResultLoginLink");
 const signupResultCloseBtn = document.getElementById("signupResultCloseBtn");
+const partnerProfileSection = document.getElementById("partnerProfileSection");
+const partnerProfileName = document.getElementById("partnerProfileName");
+const partnerProfilePhone = document.getElementById("partnerProfilePhone");
+const partnerProfileState = document.getElementById("partnerProfileState");
+const partnerProfileCity = document.getElementById("partnerProfileCity");
 
 const urlParams = new URLSearchParams(window.location.search);
 let activeInviteToken = (urlParams.get("invite") || urlParams.get("invitation_token") || "").trim();
@@ -32,6 +37,7 @@ let inviteFlowBlocked = false;
 
 const ROLE_LABEL_KO = {
   customer: "고객",
+  partner: "파트너",
   agent: "에이전트",
   supervisor: "슈퍼바이저",
   headquarters_staff: "본사 스태프",
@@ -46,6 +52,8 @@ let usernameCheckTimer = null;
 /** Normalized username (lowercase) that last received 서버 «사용 가능» 응답 */
 let usernameVerifiedNormalized = null;
 let usernameCheckInFlight = false;
+/** 파트너 유형 초대 시 가입 폼에서 이름·연락처·지역 입력 필요 */
+let partnerSignupRequired = false;
 
 function currentUsernameNormalized() {
   return usernameInput ? usernameInput.value.trim().toLowerCase() : "";
@@ -54,7 +62,12 @@ function currentUsernameNormalized() {
 function refreshSignupSubmitButton() {
   if (!signupSubmitBtn) return;
   const cur = currentUsernameNormalized();
+  let partnerOk = true;
+  if (partnerSignupRequired && partnerProfileName instanceof HTMLInputElement) {
+    partnerOk = String(partnerProfileName.value || "").trim().length > 0;
+  }
   const canSubmit =
+    partnerOk &&
     !usernameCheckInFlight &&
     usernameVerifiedNormalized !== null &&
     cur.length >= 2 &&
@@ -381,6 +394,14 @@ if (genderSelect) {
   genderSelect.addEventListener("change", updateGenderStatus);
 }
 
+[partnerProfileName, partnerProfilePhone, partnerProfileState, partnerProfileCity].forEach((el) => {
+  if (el instanceof HTMLElement) {
+    el.addEventListener("input", () => refreshSignupSubmitButton());
+    el.addEventListener("change", () => refreshSignupSubmitButton());
+    el.addEventListener("blur", () => refreshSignupSubmitButton());
+  }
+});
+
 async function runUsernameCheck() {
   if (!usernameInput) return;
   const raw = usernameInput.value.trim();
@@ -472,6 +493,11 @@ async function initInviteFlow() {
     const p = await authApi.invitationPreview(activeInviteToken);
     if (!p.valid) {
       inviteFlowBlocked = true;
+      partnerSignupRequired = false;
+      if (partnerProfileSection) {
+        partnerProfileSection.hidden = true;
+        partnerProfileSection.style.display = "none";
+      }
       signupSubmitBtn && (signupSubmitBtn.disabled = true);
       const reasons = { not_found: "잘못된 링크", used: "이미 사용된 초대", expired: "만료됨" };
       if (inviteBannerBody) {
@@ -499,16 +525,44 @@ async function initInviteFlow() {
       roleNameHint.textContent = "역할은 초대에 따라 자동으로 설정됩니다. 변경할 수 없습니다.";
     }
     roleFieldGroup?.removeAttribute("hidden");
+    partnerSignupRequired =
+      p.collect_partner_profile_at_signup === true ||
+      (String(p.role_name || "").toLowerCase() === "partner" &&
+        Boolean(String(p.partner_type_label || "").trim()));
+    if (partnerProfileSection) {
+      if (partnerSignupRequired) {
+        partnerProfileSection.hidden = false;
+        partnerProfileSection.style.display = "block";
+      } else {
+        partnerProfileSection.hidden = true;
+        partnerProfileSection.style.display = "none";
+      }
+    }
     if (inviteBannerBody) {
-      inviteBannerBody.innerHTML = `초대된 역할: <strong>${ROLE_LABEL_KO[p.role_name] || p.role_name}</strong> (${p.role_name}). 이메일은 초대와 동일해야 합니다. 가입 제출 후 <strong>등록 이메일로 인증 메일</strong>이 오니, 링크로 인증을 마친 뒤 로그인할 수 있습니다. (초대 메일과는 별도입니다.)`;
+      const roleLabel = ROLE_LABEL_KO[p.role_name] || p.role_name;
+      let partnerBlock = "";
+      if (partnerSignupRequired && p.partner_type_label) {
+        partnerBlock = `<br />🏷️ 초대된 파트너 업무 유형: <strong>${p.partner_type_label}</strong>
+<br />📝 아래 <strong>파트너 정보</strong>에서 이름·전화·지역·도시를 입력해 주세요.`;
+      }
+      inviteBannerBody.innerHTML = `✅ 초대 역할: <strong>${roleLabel}</strong> (${p.role_name})
+<br />📧 이메일은 초대 메일의 주소와 동일해야 합니다.${partnerBlock}
+<br />🔐 가입 완료 후, <strong>등록 이메일로 인증 메일</strong>이 발송됩니다.
+<br />➡️ 메일의 링크를 눌러 인증을 마치면 로그인할 수 있습니다.
+<br />ℹ️ 인증 메일은 초대 메일과 별도로 발송됩니다.`;
     }
     if (pageSubtitle) {
-      pageSubtitle.textContent =
-        "관리자 초대로 가입합니다. 아이디 중복 확인 후 가입을 마치면, 보안을 위해 본인 이메일 인증(별도 메일)을 완료한 다음 로그인하세요.";
+      pageSubtitle.innerHTML =
+        "✅ 관리자 초대로 가입 중입니다.<br />🔎 아이디 중복 확인 후 가입을 완료해 주세요.<br />📧 본인 이메일 인증(별도 메일)을 마치면 로그인할 수 있습니다.";
     }
   } catch (e) {
     activeInviteToken = "";
     inviteFlowBlocked = true;
+    partnerSignupRequired = false;
+    if (partnerProfileSection) {
+      partnerProfileSection.hidden = true;
+      partnerProfileSection.style.display = "none";
+    }
     signupSubmitBtn && (signupSubmitBtn.disabled = true);
     if (inviteBannerBody) {
       inviteBannerBody.textContent = `초대 정보를 불러오지 못했습니다. ${e.message || e}`;
@@ -553,6 +607,15 @@ if (form) {
       return;
     }
 
+    if (partnerSignupRequired && activeInviteToken) {
+      const pn = String(formData.get("partnerProfileName") || "").trim();
+      if (!pn) {
+        setStatus("파트너 이름 또는 회사명을 입력해 주세요.");
+        partnerProfileName?.focus();
+        return;
+      }
+    }
+
     const password = String(formData.get("password") || "");
     const passwordConfirm = String(formData.get("passwordConfirm") || "");
     if (password.length < 4) {
@@ -579,6 +642,15 @@ if (form) {
     };
     if (activeInviteToken) {
       payload.invitation_token = activeInviteToken;
+    }
+    if (partnerSignupRequired && activeInviteToken) {
+      payload.partner_name = String(formData.get("partnerProfileName") || "").trim();
+      const ph = String(formData.get("partnerProfilePhone") || "").trim();
+      const st = String(formData.get("partnerProfileState") || "").trim();
+      const ct = String(formData.get("partnerProfileCity") || "").trim();
+      if (ph) payload.partner_phone = ph;
+      if (st) payload.partner_state = st;
+      if (ct) payload.partner_city = ct;
     }
 
     const usernameNorm = payload.username.toLowerCase();

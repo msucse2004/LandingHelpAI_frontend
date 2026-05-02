@@ -9,7 +9,7 @@
 <body>
   <main class="lhai-container">
     <section class="lhai-card lhai-card--center">
-      <header class="lhai-page-header"><div><h1 class="lhai-title">회원가입</h1><p class="lhai-subtitle">아이디·이메일·비밀번호를 등록한 뒤, 이메일 인증을 완료해야 로그인할 수 있습니다. 아이디는 서버에서 사용 가능으로 확인된 뒤에만 가입할 수 있습니다.</p></div></header>
+      <header class="lhai-page-header"><div><h1 class="lhai-title">회원가입</h1><p class="lhai-subtitle">📝 아이디·이메일·비밀번호를 입력해 계정을 만드세요.<br />🔎 아이디는 서버 중복 확인이 끝나야 가입할 수 있습니다.<br />📧 가입 후 이메일 인증을 완료하면 로그인할 수 있습니다.</p></div></header>
       <section class="lhai-card u-mb-4" id="inviteBanner" hidden role="region" aria-labelledby="inviteBannerTitle">
         <h2 class="lhai-card__title" id="inviteBannerTitle">초대로 가입</h2>
         <p class="lhai-help" id="inviteBannerBody"></p>
@@ -102,6 +102,79 @@
             <svg class="lhai-field-status-svg lhai-field-status-svg--bad" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </span>
         </div>
+
+        <section id="partnerProfileSection" class="lhai-card u-mt-3" style="display: none;" aria-labelledby="partnerProfileHeading" hidden>
+          <h2 class="lhai-card__title" id="partnerProfileHeading">파트너 정보</h2>
+          <p class="lhai-help u-mb-3" id="partnerProfileIntro">
+            📝 초대된 업무 유형에 맞게 파트너 프로필을 입력해 주세요.<br />✅ 이름 또는 회사명은 필수입니다.<br />ℹ️ 전화번호·지역·도시는 선택 입력입니다.
+          </p>
+          <label class="lhai-label" for="partnerProfileName">파트너 이름 또는 회사명 <span class="lhai-field-error">*</span></label>
+          <input class="lhai-input" id="partnerProfileName" name="partnerProfileName" type="text" maxlength="255" autocomplete="organization" />
+          <label class="lhai-label u-mt-2" for="partnerProfilePhone">전화번호</label>
+          <input class="lhai-input" id="partnerProfilePhone" name="partnerProfilePhone" type="tel" maxlength="64" autocomplete="tel" />
+          <p class="lhai-help u-mt-1">📞 연락 가능한 번호를 입력해 주세요. (선택)</p>
+          <label class="lhai-label u-mt-2" for="partnerProfileState">지역 (주/State)</label>
+          <select class="lhai-select" id="partnerProfileState" name="partnerProfileState" autocomplete="address-level1">
+            <option value="">선택 (선택 입력)</option>
+            <option value="AL">Alabama (AL)</option>
+            <option value="AK">Alaska (AK)</option>
+            <option value="AZ">Arizona (AZ)</option>
+            <option value="AR">Arkansas (AR)</option>
+            <option value="CA">California (CA)</option>
+            <option value="CO">Colorado (CO)</option>
+            <option value="CT">Connecticut (CT)</option>
+            <option value="DE">Delaware (DE)</option>
+            <option value="FL">Florida (FL)</option>
+            <option value="GA">Georgia (GA)</option>
+            <option value="HI">Hawaii (HI)</option>
+            <option value="ID">Idaho (ID)</option>
+            <option value="IL">Illinois (IL)</option>
+            <option value="IN">Indiana (IN)</option>
+            <option value="IA">Iowa (IA)</option>
+            <option value="KS">Kansas (KS)</option>
+            <option value="KY">Kentucky (KY)</option>
+            <option value="LA">Louisiana (LA)</option>
+            <option value="ME">Maine (ME)</option>
+            <option value="MD">Maryland (MD)</option>
+            <option value="MA">Massachusetts (MA)</option>
+            <option value="MI">Michigan (MI)</option>
+            <option value="MN">Minnesota (MN)</option>
+            <option value="MS">Mississippi (MS)</option>
+            <option value="MO">Missouri (MO)</option>
+            <option value="MT">Montana (MT)</option>
+            <option value="NE">Nebraska (NE)</option>
+            <option value="NV">Nevada (NV)</option>
+            <option value="NH">New Hampshire (NH)</option>
+            <option value="NJ">New Jersey (NJ)</option>
+            <option value="NM">New Mexico (NM)</option>
+            <option value="NY">New York (NY)</option>
+            <option value="NC">North Carolina (NC)</option>
+            <option value="ND">North Dakota (ND)</option>
+            <option value="OH">Ohio (OH)</option>
+            <option value="OK">Oklahoma (OK)</option>
+            <option value="OR">Oregon (OR)</option>
+            <option value="PA">Pennsylvania (PA)</option>
+            <option value="RI">Rhode Island (RI)</option>
+            <option value="SC">South Carolina (SC)</option>
+            <option value="SD">South Dakota (SD)</option>
+            <option value="TN">Tennessee (TN)</option>
+            <option value="TX">Texas (TX)</option>
+            <option value="UT">Utah (UT)</option>
+            <option value="VT">Vermont (VT)</option>
+            <option value="VA">Virginia (VA)</option>
+            <option value="WA">Washington (WA)</option>
+            <option value="WV">West Virginia (WV)</option>
+            <option value="WI">Wisconsin (WI)</option>
+            <option value="WY">Wyoming (WY)</option>
+            <option value="DC">District of Columbia (DC)</option>
+          </select>
+          <p class="lhai-help u-mt-1">🗺️ 서비스 활동 지역의 주(State)를 목록에서 선택해 주세요. (선택)</p>
+          <label class="lhai-label u-mt-2" for="partnerProfileCity">도시</label>
+          <input class="lhai-input" id="partnerProfileCity" name="partnerProfileCity" type="text" maxlength="128" autocomplete="address-level2" />
+          <p class="lhai-help u-mt-1">🏙️ 주요 활동 도시를 입력해 주세요. (선택)</p>
+          <p class="lhai-help u-mt-2">💾 입력한 정보는 가입 완료 후 파트너 프로필에 저장됩니다.<br />🎯 저장된 정보는 워크플로우 매칭에 사용됩니다.</p>
+        </section>
+
         <label class="lhai-label" for="password">비밀번호</label>
         <div class="lhai-input-status-wrap" id="passwordStatusWrap">
           <input class="lhai-input" id="password" name="password" type="password" autocomplete="new-password" required />

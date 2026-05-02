@@ -53,6 +53,13 @@ function getCurrentRole() {
   return normalizeRole(raw);
 }
 
+/** 로그인 후 세션에 저장된 계정 ID(없으면 빈 문자열). */
+function getCurrentUserId() {
+  const id = getSession()?.userId;
+  if (id == null || String(id).trim() === "") return "";
+  return String(id).trim();
+}
+
 function isAuthenticated() {
   return Boolean(getAccessToken());
 }
@@ -86,6 +93,7 @@ export {
   clearSession,
   getAccessToken,
   getCurrentRole,
+  getCurrentUserId,
   getCustomerMessagingProfileId,
   getSession,
   isAuthenticated,

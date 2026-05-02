@@ -12,12 +12,14 @@ import {
 import {
   answerJsonIsNonempty,
   collectPreviewValueJson,
-  contentBlocksForPrompt,
-  findNextUnansweredField,
+  contentBlocksForPreviewStep,
+  findNextUnansweredPreviewStep,
   orderedActiveBlocks,
   orderedActiveFields,
   previewControlsHtml,
+  previewFieldFromGroupChild,
 } from "./intake-preview-branching.js";
+import { shouldHideIntakeBlockTitle } from "./intake-form-presentation.js";
 
 /** @typedef {{ fields: Array<Record<string, unknown>>; blocks: Array<Record<string, unknown>>; templateId?: string | null }} IntakePreviewSnapshot */
 
@@ -46,6 +48,21 @@ function formatAnswerLine(field, valueJson) {
     return String(valueJson.value);
   }
   return "—";
+}
+
+/**
+ * @param {IntakePreviewSnapshot} snap
+ * @param {string} blockId
+ * @param {string} childId
+ */
+function resolveGroupChildField(snap, blockId, childId) {
+  const blocks = snap.blocks || [];
+  const b = blocks.find((x) => String(x.id) === String(blockId));
+  if (!b) return null;
+  const pl = b.payload && typeof b.payload === "object" ? /** @type {Record<string, unknown>} */ (b.payload) : {};
+  const kids = Array.isArray(pl.children) ? pl.children : [];
+  const ch = kids.find((c) => c && typeof c === "object" && String(/** @type {Record<string, unknown>} */ (c).id) === String(childId));
+  return ch ? previewFieldFromGroupChild(/** @type {Record<string, unknown>} */ (ch)) : null;
 }
 
 /**
@@ -90,6 +107,49 @@ function renderStaticPreview(snap) {
         <p class="admin-intake-preview__meta">${escapeHtml(String(f.input_type || "text"))}</p>
         ${optLines}
       </article>`);
+    } else if (bt === "question_group") {
+      const payload = b.payload && typeof b.payload === "object" ? /** @type {Record<string, unknown>} */ (b.payload) : {};
+      const vis = b.visibility_rule_json && typeof b.visibility_rule_json === "object" ? b.visibility_rule_json : {};
+      const hasVis = Object.keys(vis).length > 0;
+      const badge = hasVis
+        ? `<span class="admin-intake-preview__pill">${escapeHtml(t("common.admin_services.intake.preview_badge_conditional", "Conditional"))}</span>`
+        : "";
+      const kids = Array.isArray(payload.children) ? payload.children : [];
+      const layout = String(payload.layout || "stack") === "inline_2" ? "admin-intake-preview__qgroup--inline2" : "admin-intake-preview__qgroup--stack";
+      const childCards = kids
+        .map((ch) => {
+          if (!ch || typeof ch !== "object") return "";
+          const cf = previewFieldFromGroupChild(/** @type {Record<string, unknown>} */ (ch));
+          const o = Array.isArray(cf.options) ? cf.options : [];
+          const optLines =
+            o.length > 0
+              ? `<ul class="admin-intake-preview__option-list">${o
+                  .map((x) => `<li>${escapeHtml(String(x.label ?? x.value ?? ""))}</li>`)
+                  .join("")}</ul>`
+              : "";
+          return `<div class="admin-intake-preview__qgroup-child">
+            <h5 class="admin-intake-preview__qgroup-child-title">${escapeHtml(String(cf.label || ""))}</h5>
+            ${cf.required ? `<p class="admin-intake-preview__req-mark">${escapeHtml(t("common.admin_services.intake.req_yes", "Required"))}</p>` : ""}
+            ${cf.help_text ? `<p class="admin-intake-preview__help">${escapeHtml(String(cf.help_text))}</p>` : ""}
+            <p class="admin-intake-preview__meta">${escapeHtml(String(cf.input_type || "text"))}</p>
+            ${optLines}
+          </div>`;
+        })
+        .filter(Boolean)
+        .join("");
+      const gTitle = String(payload.title || "").trim();
+      const gTitleHtml = shouldHideIntakeBlockTitle(gTitle)
+        ? ""
+        : `<h4 class="admin-intake-preview__q-title">${escapeHtml(gTitle)}</h4>`;
+      parts.push(`<article class="admin-intake-preview__card admin-intake-preview__card--question admin-intake-preview__qgroup">
+        <div class="admin-intake-preview__card-head">
+          <span class="admin-intake-preview__type-tag">${escapeHtml(t("common.admin_services.intake.block_type_question_group", "Question group"))}</span>
+          ${badge}
+        </div>
+        ${gTitleHtml}
+        ${payload.description ? `<p class="admin-intake-preview__help">${escapeHtml(String(payload.description))}</p>` : ""}
+        <div class="${layout}">${childCards}</div>
+      </article>`);
     } else {
       const payload = b.payload && typeof b.payload === "object" ? b.payload : {};
       const single = renderIntakeContentBlocksArray(
@@ -127,7 +187,7 @@ function renderInteractivePreview(snap, answersByFieldId, historyRows) {
   const orderedBlocks = orderedActiveBlocks(snap.blocks || []);
   const fieldsById = Object.fromEntries(fields.map((f) => [String(f.id), f]));
 
-  const next = findNextUnansweredField(fields, answersByFieldId);
+  const nextStep = findNextUnansweredPreviewStep(orderedBlocks, fieldsById, fields, answersByFieldId);
   const historyHtml =
     historyRows.length === 0
       ? ""
@@ -144,7 +204,7 @@ function renderInteractivePreview(snap, answersByFieldId, historyRows) {
           .join("")}
       </div>`;
 
-  if (!next) {
+  if (!nextStep) {
     root.innerHTML = `${historyHtml}
       <div class="admin-intake-preview__complete lhai-state lhai-state--success" role="status">
         ${escapeHtml(t("common.admin_services.intake.preview_flow_done", "End of flow (preview). No further questions."))}
@@ -155,34 +215,76 @@ function renderInteractivePreview(snap, answersByFieldId, historyRows) {
     return;
   }
 
-  const cblocks = contentBlocksForPrompt(orderedBlocks, fieldsById, next, answersByFieldId, fields);
+  const cblocks = contentBlocksForPreviewStep(orderedBlocks, fieldsById, nextStep, answersByFieldId, fields);
   const blocksHtml = renderIntakeContentBlocksArray(cblocks, {
     ariaLabel: t("common.admin_services.intake.preview_before_question", "Before this question"),
   });
 
-  const prefix = `pv-${String(next.id)}`;
-  const controls = previewControlsHtml(next, prefix);
-  const req = Boolean(next.required);
-  const skipBtn = !req
-    ? `<button type="button" class="lhai-button lhai-button--secondary" data-admin-intake-preview-skip>${escapeHtml(
-        t("common.admin_services.intake.preview_skip", "Skip")
-      )}</button>`
-    : "";
+  if (nextStep.kind === "question") {
+    const next = nextStep.field;
+    const prefix = `pv-${String(next.id)}`;
+    const controls = previewControlsHtml(next, prefix);
+    const req = Boolean(next.required);
+    const skipBtn = !req
+      ? `<button type="button" class="lhai-button lhai-button--secondary" data-admin-intake-preview-skip>${escapeHtml(
+          t("common.admin_services.intake.preview_skip", "Skip")
+        )}</button>`
+      : "";
+
+    root.innerHTML = `${historyHtml}
+      ${blocksHtml}
+      <div class="admin-intake-preview__form" data-admin-intake-preview-form data-step-kind="question" data-field-id="${escapeHtml(String(next.id))}">
+        <div class="admin-intake-preview__form-label">${escapeHtml(String(next.label || ""))}${req ? ` <abbr title="required">*</abbr>` : ""}</div>
+        ${next.help_text ? `<div class="admin-intake-preview__form-help">${escapeHtml(String(next.help_text))}</div>` : ""}
+        <div class="admin-intake-preview__form-controls">${controls}</div>
+        <p class="admin-intake-preview__form-error" data-admin-intake-preview-err hidden role="alert"></p>
+        <div class="admin-intake-preview__form-actions">
+          <button type="button" class="lhai-button lhai-button--primary" data-admin-intake-preview-submit>${escapeHtml(
+            t("common.admin_services.intake.preview_next", "Next")
+          )}</button>
+          ${skipBtn}
+        </div>
+      </div>
+      <p class="lhai-help u-mt-2">${escapeHtml(
+        t("common.admin_services.intake.preview_no_persist", "Nothing is saved — this is a local simulation only.")
+      )}</p>`;
+    return;
+  }
+
+  const pl = nextStep.block.payload && typeof nextStep.block.payload === "object" ? /** @type {Record<string, unknown>} */ (nextStep.block.payload) : {};
+  const layout = String(pl.layout || "stack") === "inline_2" ? "admin-intake-preview__qgroup--inline2" : "admin-intake-preview__qgroup--stack";
+  const gid = String(nextStep.block.id || "");
+  const inner = nextStep.children
+    .map((f) => {
+      const prefix = `pv-${String(f.id)}`;
+      const ctrls = previewControlsHtml(f, prefix);
+      const req = Boolean(f.required);
+      return `<div class="admin-intake-preview__subfield" data-child-field-id="${escapeHtml(String(f.id))}">
+        <div class="admin-intake-preview__form-label">${escapeHtml(String(f.label || ""))}${req ? ` <abbr title="required">*</abbr>` : ""}</div>
+        ${f.help_text ? `<div class="admin-intake-preview__form-help">${escapeHtml(String(f.help_text))}</div>` : ""}
+        <div class="admin-intake-preview__form-controls">${ctrls}</div>
+      </div>`;
+    })
+    .join("");
 
   root.innerHTML = `${historyHtml}
     ${blocksHtml}
-    <div class="admin-intake-preview__form" data-admin-intake-preview-form data-field-id="${escapeHtml(String(next.id))}">
-      <div class="admin-intake-preview__form-label">${escapeHtml(String(next.label || ""))}${req ? ` <abbr title="required">*</abbr>` : ""}</div>
-      ${next.help_text ? `<div class="admin-intake-preview__form-help">${escapeHtml(String(next.help_text))}</div>` : ""}
-      <div class="admin-intake-preview__form-controls">${controls}</div>
-      <p class="admin-intake-preview__form-error" data-admin-intake-preview-err hidden role="alert"></p>
-      <div class="admin-intake-preview__form-actions">
-        <button type="button" class="lhai-button lhai-button--primary" data-admin-intake-preview-submit>${escapeHtml(
-          t("common.admin_services.intake.preview_next", "Next")
-        )}</button>
-        ${skipBtn}
+    <article class="admin-intake-preview__card admin-intake-preview__card--question admin-intake-preview__qgroup u-mt-2">
+      <div class="admin-intake-preview__card-head">
+        <span class="admin-intake-preview__type-tag">${escapeHtml(t("common.admin_services.intake.block_type_question_group", "Question group"))}</span>
       </div>
-    </div>
+      ${shouldHideIntakeBlockTitle(String(pl.title || "").trim()) ? "" : `<h4 class="admin-intake-preview__q-title">${escapeHtml(String(pl.title || ""))}</h4>`}
+      ${pl.description ? `<div class="admin-intake-preview__form-help">${escapeHtml(String(pl.description))}</div>` : ""}
+      <div class="admin-intake-preview__form" data-admin-intake-preview-form data-step-kind="question_group" data-group-block-id="${escapeHtml(gid)}">
+        <div class="${layout}">${inner}</div>
+        <p class="admin-intake-preview__form-error" data-admin-intake-preview-err hidden role="alert"></p>
+        <div class="admin-intake-preview__form-actions">
+          <button type="button" class="lhai-button lhai-button--primary" data-admin-intake-preview-submit>${escapeHtml(
+            t("common.admin_services.intake.preview_next", "Next")
+          )}</button>
+        </div>
+      </div>
+    </article>
     <p class="lhai-help u-mt-2">${escapeHtml(
       t("common.admin_services.intake.preview_no_persist", "Nothing is saved — this is a local simulation only.")
     )}</p>`;
@@ -200,14 +302,58 @@ function setupInteractiveHandlers(snap) {
   const submit = (/** @type {boolean} */ skip) => {
     const form = root.querySelector("[data-admin-intake-preview-form]");
     if (!(form instanceof HTMLElement)) return;
-    const fid = form.getAttribute("data-field-id") || "";
-    const field = (snap.fields || []).find((x) => String(x.id) === fid);
-    if (!field) return;
     const errEl = form.querySelector("[data-admin-intake-preview-err]");
     if (errEl instanceof HTMLElement) {
       errEl.hidden = true;
       errEl.textContent = "";
     }
+    const stepKind = form.getAttribute("data-step-kind") || "question";
+
+    if (stepKind === "question_group") {
+      if (skip) return;
+      const blockId = form.getAttribute("data-group-block-id") || "";
+      const wraps = Array.from(form.querySelectorAll("[data-child-field-id]"));
+      /** @type {Record<string, Record<string, unknown>>} */
+      const nextAnswers = { ..._previewAnswersByFieldId };
+      /** @type {Array<{ label: string; line: string }>} */
+      const newHist = [];
+      for (const w of wraps) {
+        if (!(w instanceof HTMLElement)) continue;
+        const cid = w.getAttribute("data-child-field-id") || "";
+        const field = resolveGroupChildField(snap, blockId, cid);
+        if (!field) continue;
+        const collected = collectPreviewValueJson(w, field);
+        if (!collected.ok) {
+          if (errEl instanceof HTMLElement) {
+            errEl.hidden = false;
+            errEl.textContent = `${String(field.label || cid)}: ${collected.error || "—"}`;
+          }
+          return;
+        }
+        let vj = /** @type {Record<string, unknown>} */ (collected.valueJson);
+        if (!field.required && !answerJsonIsNonempty(field, vj)) {
+          vj = { value: "__skipped__" };
+        }
+        if (field.required && !answerJsonIsNonempty(field, vj)) {
+          if (errEl instanceof HTMLElement) {
+            errEl.hidden = false;
+            errEl.textContent = t("common.admin_services.intake.preview_required", "This field is required.");
+          }
+          return;
+        }
+        nextAnswers[cid] = vj;
+        newHist.push({ label: String(field.label || cid), line: formatAnswerLine(field, vj) });
+      }
+      _previewAnswersByFieldId = nextAnswers;
+      _previewHistoryRows = [..._previewHistoryRows, ...newHist];
+      redraw();
+      setupInteractiveHandlers(snap);
+      return;
+    }
+
+    const fid = form.getAttribute("data-field-id") || "";
+    const field = (snap.fields || []).find((x) => String(x.id) === fid);
+    if (!field) return;
     if (skip) {
       _previewAnswersByFieldId = { ..._previewAnswersByFieldId, [fid]: { value: "__skipped__" } };
       _previewHistoryRows = [
@@ -329,8 +475,16 @@ export function initAdminIntakePreview(getSnapshot) {
 
   const dlg = qs("#adminIntakePreviewDialog");
   if (dlg instanceof HTMLDialogElement) {
+    let downOnBackdrop = false;
+    dlg.addEventListener("mousedown", (e) => {
+      downOnBackdrop = e.target === dlg;
+    });
     dlg.addEventListener("click", (e) => {
-      if (e.target === dlg) dlg.close();
+      if (e.target === dlg && downOnBackdrop) dlg.close();
+      downOnBackdrop = false;
+    });
+    dlg.addEventListener("mouseup", () => {
+      downOnBackdrop = false;
     });
   }
 }

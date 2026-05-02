@@ -6,7 +6,7 @@
  * 같은 호스트에서 상대 경로(/api/...)로 호출해야 합니다.
  * Live Server 등 다른 포트에서는 백엔드(보통 localhost:8000) 전체 URL을 씁니다.
  */
-function resolveApiBaseUrl() {
+export function resolveApiBaseUrl() {
   const explicit = window.LHAI_API_BASE_URL;
   if (explicit != null && String(explicit).trim() !== "") {
     return String(explicit).replace(/\/$/, "");
@@ -15,6 +15,12 @@ function resolveApiBaseUrl() {
   const port = window.location.port;
   const local = host === "localhost" || host === "127.0.0.1";
   if (local && (port === "8000" || port === "")) {
+    return "";
+  }
+  // HTTPS(예: Cloudflare Tunnel): 기본값으로 http://localhost:8000 을 쓰면 혼합 콘텐츠로 fetch 가 막힙니다.
+  // 터널이 nginx 등으로 프론트와 /api 를 같은 호스트에 붙인 경우 상대 경로가 맞습니다.
+  // API가 다른 호스트만 있으면 HTML에서 window.LHAI_API_BASE_URL 을 HTTPS API 오리진으로 설정하세요.
+  if (window.location.protocol === "https:") {
     return "";
   }
   return "http://localhost:8000";
@@ -33,6 +39,7 @@ const APP_CONFIG = {
 const ROLES = {
   SUPER_ADMIN: "super_admin",
   CUSTOMER: "customer",
+  PARTNER: "partner",
   AGENT: "agent",
   SUPERVISOR: "supervisor",
   HEADQUARTERS_STAFF: "headquarters_staff",

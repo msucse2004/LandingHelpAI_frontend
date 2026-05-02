@@ -15,8 +15,9 @@
         <div>
           <h1 class="lhai-title">회원 가입·인증 상태</h1>
           <p class="lhai-subtitle">
-            등록된 계정을 한눈에 보고, 아이디를 눌러 상세로 들어가면 프로필을 확인하고 계정을 삭제할 수 있습니다.
-            (데모 시드가 없으므로 목록이 비어 있으면 회원가입으로 첫 계정을 만든 뒤 새로고침하세요.)
+            가입된 계정과 초대 발송 내역을 함께 확인할 수 있습니다.
+            회원 상세는 동일·상위 등급도 열람할 수 있으나, 가입·인증 수정과 계정 삭제는 본인·동일·상위를 제외한 하위 티어만 가능합니다.
+            초대 삭제도 같은 티어 규칙이 적용됩니다.
           </p>
         </div>
         <button type="button" class="lhai-button lhai-button--secondary" id="accountsRefreshBtn">목록 새로고침</button>
@@ -25,15 +26,49 @@
       <p class="lhai-help" id="pageAlert" role="status" aria-live="polite"></p>
       <p class="lhai-help u-mb-2" id="accountsLoadStatus" aria-live="polite"></p>
 
+      <section class="lhai-card u-mb-3" aria-labelledby="accountFiltersTitle">
+        <h2 class="lhai-card__title" id="accountFiltersTitle">검색 필터</h2>
+        <div class="u-flex u-gap-3 u-flex-wrap" style="align-items: end;">
+          <div>
+            <label class="lhai-label" for="filterRecordType">구분</label>
+            <select class="lhai-select" id="filterRecordType" name="filterRecordType">
+              <option value="">전체</option>
+              <option value="account">회원</option>
+              <option value="invitation">초대</option>
+            </select>
+          </div>
+          <div>
+            <label class="lhai-label" for="filterRole">역할</label>
+            <select class="lhai-select" id="filterRole" name="filterRole">
+              <option value="">전체</option>
+            </select>
+          </div>
+          <div>
+            <label class="lhai-label" for="filterEmailKeyword">이메일 검색</label>
+            <input
+              class="lhai-input"
+              id="filterEmailKeyword"
+              name="filterEmailKeyword"
+              type="text"
+              placeholder="예: gmail.com 또는 user@"
+              autocomplete="off"
+            />
+          </div>
+          <button type="button" class="lhai-button lhai-button--secondary" id="filterResetBtn">필터 초기화</button>
+        </div>
+      </section>
+
       <section class="lhai-card">
         <div class="lhai-table-wrap" style="overflow-x: auto;">
           <table class="lhai-table" aria-label="회원 계정 목록">
             <thead>
               <tr>
+                <th scope="col">구분</th>
                 <th scope="col">아이디</th>
                 <th scope="col">이름</th>
                 <th scope="col">이메일</th>
                 <th scope="col">역할</th>
+                <th scope="col">작업</th>
               </tr>
             </thead>
             <tbody id="accountsTableBody"></tbody>

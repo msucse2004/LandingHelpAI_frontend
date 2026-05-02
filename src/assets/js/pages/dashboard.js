@@ -1,7 +1,7 @@
 import { customerCasesApi, dashboardApi, timelineApi } from "../core/api.js";
-import { getSession } from "../core/auth.js";
+import { getCustomerMessagingProfileId } from "../core/auth.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
-import { getState, patchState } from "../core/state.js";
+import { patchState } from "../core/state.js";
 import { loadSidebar } from "../components/sidebar.js";
 import { renderTimeline } from "../components/timeline.js";
 import { t } from "../core/i18n-client.js";
@@ -183,33 +183,77 @@ function applyDashboardBadgeLabels(aggregate) {
   qs("#dashboardScheduleStatusBadge").textContent = `${schedulePrefix}: ${aggregate.schedule_status}`;
 }
 
+/** 서버 집계와 브라우저 저장소를 맞춥니다(결제 직후 요약 + 관리자 개발용 DB 리셋 후 이전 값 잔존 방지). */
+function syncDashboardBrowserStorageFromAggregate(aggregate) {
+  const pay = String(aggregate?.payment_status || "").trim();
+  try {
+    window.localStorage.setItem("lhai_dashboard_summary", JSON.stringify({ paymentStatus: pay, lastInvoiceId: "" }));
+    if (pay !== "Paid" && pay !== "Payment due") {
+      window.localStorage.removeItem("lhai_latest_invoice_id");
+    }
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+let dashboardDevResetStorageBound = false;
+function bindDashboardCrossTabRefreshAfterDevReset() {
+  if (dashboardDevResetStorageBound) return;
+  dashboardDevResetStorageBound = true;
+  window.addEventListener("storage", (e) => {
+    if (e.key !== "lhai_dev_data_reset_at") return;
+    window.location.reload();
+  });
+}
+
 async function initDashboardPage() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
+  bindDashboardCrossTabRefreshAfterDevReset();
   await initCommonI18nAndApplyDom(document);
 
   await loadSidebar("#sidebar", "customer");
 
-  const sessionEmail = getSession()?.email;
-  const customerProfileId =
-    sessionEmail && String(sessionEmail).trim()
-      ? `profile::${String(sessionEmail).trim().toLowerCase()}`
-      : "profile::demo@customer.com";
-  const [dashboardAggregate, timelineItems, checklistSummary, caseItems] = await Promise.all([
-    dashboardApi.getAggregate(customerProfileId),
-    timelineApi.listByCustomer(customerProfileId),
-    dashboardApi.getChecklistSummary(customerProfileId),
-    customerCasesApi.list(),
-  ]);
+  const customerProfileId = getCustomerMessagingProfileId();
+  let dashboardAggregate;
+  let timelineItems;
+  let checklistSummary;
+  let caseItems;
+  try {
+    [dashboardAggregate, timelineItems, checklistSummary, caseItems] = await Promise.all([
+      dashboardApi.getAggregate(customerProfileId),
+      timelineApi.listByCustomer(customerProfileId),
+      dashboardApi.getChecklistSummary(customerProfileId),
+      customerCasesApi.list(),
+    ]);
+  } catch {
+    qs("#dashboardNextAction").textContent = t(
+      "common.dashboard.load_error",
+      "대시보드 최신 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
+    );
+    renderStatusCards([]);
+    renderTimeline([], "#dashboardTimelineContainer");
+    renderChecklistSummary({ total: 0, completed: 0, required_remaining: 0, next_required_item: "" });
+    renderRecentMessages([]);
+    renderDocumentStatus([]);
+    renderRecentActivity([]);
+    renderDashboardCasesPreview([]);
+    return;
+  }
 
   patchState({
     customer: { id: customerProfileId },
     timeline: timelineItems,
     checklist: [],
+    dashboardSummary: {
+      paymentStatus: String(dashboardAggregate.payment_status || ""),
+      lastInvoiceId: "",
+    },
   });
 
   qs("#dashboardNextAction").textContent = dashboardAggregate.next_action;
   applyDashboardBadgeLabels(dashboardAggregate);
+  syncDashboardBrowserStorageFromAggregate(dashboardAggregate);
   const aiButton = qs("#aiQuickLinkBtn");
   if (aiButton) {
     aiButton.setAttribute("href", dashboardAggregate.ai_assistant_quick_link || "messages.html");
@@ -222,20 +266,6 @@ async function initDashboardPage() {
   renderDocumentStatus(dashboardAggregate.document_status);
   renderRecentActivity(dashboardAggregate.recent_activity);
   renderDashboardCasesPreview(caseItems);
-
-  const state = getState();
-  let dashboardSummary = state.dashboardSummary;
-  if (!dashboardSummary.paymentStatus) {
-    try {
-      const stored = JSON.parse(window.localStorage.getItem("lhai_dashboard_summary") || "{}");
-      dashboardSummary = { ...dashboardSummary, ...stored };
-      if (stored.paymentStatus) {
-        qs("#dashboardPaymentStatusBadge").textContent = `${t("common.dashboard.badge.payment", "결제")}: ${stored.paymentStatus}`;
-      }
-    } catch {
-      // ignore malformed storage
-    }
-  }
 }
 
 initDashboardPage();

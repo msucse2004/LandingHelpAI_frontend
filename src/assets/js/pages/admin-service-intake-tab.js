@@ -5,12 +5,22 @@
 import { initAdminIntakePreview } from "../intake/admin-intake-preview.js";
 import { serviceIntakeAdminApi } from "../core/api.js";
 import { msdOnServiceContextChanged, msdRefresh } from "./admin-service-documents-tab.js";
+import { workflowHydrateForCreate, workflowTabActivated } from "./admin-service-workflow-tab.js";
 import { t } from "../core/i18n-client.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
 import { qs, qsa, safeText } from "../core/utils.js";
 
 function esc(v) {
   return safeText(v);
+}
+
+function msiPlainTextPreview(v) {
+  const raw = String(v || "");
+  if (!raw) return "";
+  if (!/[<>]/.test(raw)) return raw.replace(/\s+/g, " ").trim();
+  const el = document.createElement("div");
+  el.innerHTML = raw;
+  return String(el.textContent || "").replace(/\s+/g, " ").trim();
 }
 
 /** Friendly input types (stored `input_type` values). */
@@ -25,10 +35,127 @@ const MSI_INPUT_TYPES = [
   { value: "multi_select", i18nKey: "common.admin_services.intake.type_multi_select", fallback: "Multi-select" },
 ];
 
+const MSI_PREFILL_SOURCE_VALUES = [
+  "user.email",
+  "user.phone",
+  "user.display_name",
+  "user.date_of_birth",
+  "customer_profile.full_name",
+  "customer_profile.full_name_local",
+  "customer_profile.first_name",
+  "customer_profile.last_name",
+  "customer_profile.email",
+  "customer_profile.phone_number",
+  "customer_profile.address_line1",
+  "customer_profile.address_line2",
+  "customer_profile.city",
+  "customer_profile.state",
+  "customer_profile.zip_code",
+  "customer_profile.preferred_language",
+];
+
+function msiPrefillSourceOptionsHtml(selectedValue = "", selectLabel = false) {
+  const selected = String(selectedValue || "").trim();
+  const mk = (value, label) =>
+    `<option value="${esc(value)}"${selected === value ? " selected" : ""}>${esc(label)}</option>`;
+  return [
+    selectLabel ? mk("", t("common.admin_services.intake.prefill_placeholder", "— Choose a field —")) : "",
+    `<optgroup label="${esc(t("common.admin_services.intake.prefill_group_user", "User account"))}">`,
+    mk("user.email", "user.email"),
+    mk("user.phone", "user.phone"),
+    mk("user.display_name", "user.display_name"),
+    mk("user.date_of_birth", "user.date_of_birth"),
+    `</optgroup>`,
+    `<optgroup label="${esc(t("common.admin_services.intake.prefill_group_profile", "Customer profile"))}">`,
+    mk("customer_profile.full_name", "customer_profile.full_name"),
+    mk("customer_profile.full_name_local", "customer_profile.full_name_local"),
+    mk("customer_profile.first_name", "customer_profile.first_name"),
+    mk("customer_profile.last_name", "customer_profile.last_name"),
+    mk("customer_profile.email", "customer_profile.email"),
+    mk("customer_profile.phone_number", "customer_profile.phone_number"),
+    mk("customer_profile.address_line1", "customer_profile.address_line1"),
+    mk("customer_profile.address_line2", "customer_profile.address_line2"),
+    mk("customer_profile.city", "customer_profile.city"),
+    mk("customer_profile.state", "customer_profile.state"),
+    mk("customer_profile.zip_code", "customer_profile.zip_code"),
+    mk("customer_profile.preferred_language", "customer_profile.preferred_language"),
+    `</optgroup>`,
+  ].join("");
+}
+
+function msiInitPrefillSourceSelectOptions() {
+  const sel = qs("#manageServiceIntakePrefillSource");
+  if (!sel || !(sel instanceof HTMLSelectElement) || sel.dataset.msiPrefillBuilt === "1") return;
+  sel.dataset.msiPrefillBuilt = "1";
+  sel.innerHTML = msiPrefillSourceOptionsHtml("", true);
+}
+
+function msiSyncPrefillSubcontrolsDisabled() {
+  const want = qs("#manageServiceIntakePrefillEnabled") instanceof HTMLInputElement && qs("#manageServiceIntakePrefillEnabled").checked;
+  for (const id of [
+    "manageServiceIntakePrefillSource",
+    "manageServiceIntakePrefillEditable",
+    "manageServiceIntakePrefillWriteBack",
+    "manageServiceIntakePrefillExistingBehavior",
+    "manageServiceIntakePrefillMissingBehavior",
+  ]) {
+    const el = qs(`#${id}`);
+    if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.disabled = !want;
+  }
+}
+
+function msiApplyPrefillToDialog(prefill) {
+  const p = prefill && typeof prefill === "object" ? prefill : {};
+  const src = String(p.source || "").trim();
+  const eb = qs("#manageServiceIntakePrefillEnabled");
+  if (eb instanceof HTMLInputElement) eb.checked = Boolean(p.enabled);
+  const sel = qs("#manageServiceIntakePrefillSource");
+  if (sel instanceof HTMLSelectElement) sel.value = MSI_PREFILL_SOURCE_VALUES.includes(src) ? src : "";
+  const ed = qs("#manageServiceIntakePrefillEditable");
+  if (ed instanceof HTMLInputElement) ed.checked = p.editable !== false;
+  const wb = qs("#manageServiceIntakePrefillWriteBack");
+  if (wb instanceof HTMLInputElement) wb.checked = Boolean(p.write_back);
+  const ex = qs("#manageServiceIntakePrefillExistingBehavior");
+  if (ex instanceof HTMLSelectElement) {
+    const v = String(p.existing_value_behavior || "prefill_and_show");
+    ex.value = ["prefill_and_show", "prefill_and_skip", "confirm_only", "ask_always"].includes(v) ? v : "prefill_and_show";
+  }
+  const miss = qs("#manageServiceIntakePrefillMissingBehavior");
+  if (miss instanceof HTMLSelectElement) {
+    const v = String(p.missing_value_behavior || "ask");
+    miss.value = ["ask", "skip", "block_until_available"].includes(v) ? v : "ask";
+  }
+  msiSyncPrefillSubcontrolsDisabled();
+}
+
+function msiReadPrefillFromDialog() {
+  const want = qs("#manageServiceIntakePrefillEnabled") instanceof HTMLInputElement && qs("#manageServiceIntakePrefillEnabled").checked;
+  const sel = qs("#manageServiceIntakePrefillSource");
+  const source = sel instanceof HTMLSelectElement ? String(sel.value || "").trim() : "";
+  const enabled = Boolean(want && source);
+  const edEl = qs("#manageServiceIntakePrefillEditable");
+  const editable = !(edEl instanceof HTMLInputElement) || edEl.checked;
+  return {
+    enabled,
+    source: enabled ? source : "",
+    editable,
+    write_back: qs("#manageServiceIntakePrefillWriteBack") instanceof HTMLInputElement && qs("#manageServiceIntakePrefillWriteBack").checked,
+    existing_value_behavior:
+      qs("#manageServiceIntakePrefillExistingBehavior") instanceof HTMLSelectElement
+        ? qs("#manageServiceIntakePrefillExistingBehavior").value || "prefill_and_show"
+        : "prefill_and_show",
+    missing_value_behavior:
+      qs("#manageServiceIntakePrefillMissingBehavior") instanceof HTMLSelectElement
+        ? qs("#manageServiceIntakePrefillMissingBehavior").value || "ask"
+        : "ask",
+  };
+}
+
 let msiTemplate = null;
 let msiFields = [];
 /** @type {Array<Record<string, unknown>>} Full template block list (question + content); aligns with API `blocks`. */
 let msiBlocks = [];
+let msiLastOpenedContentBlockId = "";
 /** @type {Set<string>} */
 let msiDeletedOptionIds = new Set();
 /** @type {{ id: string, label: string, active: boolean }[]} */
@@ -97,6 +224,8 @@ function msiSetSideBodyEditorHtml(html) {
     q.setContents([], "silent");
     return;
   }
+  // Important: reset editor first so previous block body never bleeds into current block.
+  q.setContents([], "silent");
   q.clipboard.dangerouslyPasteHTML(0, h, "silent");
 }
 
@@ -144,12 +273,13 @@ function msiFieldForQuestionBlock(blockId) {
   return msiFields.find((f) => f.id === blockId) || null;
 }
 
-const MSI_CONTENT_BLOCK_TYPES = ["notice", "image", "rich_text", "divider"];
+const MSI_CONTENT_BLOCK_TYPES = ["notice", "image", "rich_text", "divider", "question_group"];
 
 function msiBlockTypeLabel(bt) {
   const k = `common.admin_services.intake.block_type_${String(bt || "").replace(/-/g, "_")}`;
   const fallbacks = {
     question: "Question",
+    question_group: "Question group",
     notice: "Notice",
     image: "Image",
     rich_text: "Rich text",
@@ -164,6 +294,8 @@ function msiBlockTypeHelp(bt) {
   const fallbacks = {
     question:
       "Interactive step: collects an answer (text, choices, date, etc.). Use visibility on later blocks to branch on this answer.",
+    question_group:
+      "Groups multiple related inputs into one step (for example: first name + last name + Korean name). Child questions are edited inside this block.",
     notice:
       "Short message or callout—good for intros, tips, warnings, or text that should show only when a previous answer matches (Visibility).",
     image:
@@ -378,6 +510,7 @@ function msiWireIntakeBuilderHints() {
     ["#manageServiceIntakeAddImageBtn", "image"],
     ["#manageServiceIntakeAddRichTextBtn", "rich_text"],
     ["#manageServiceIntakeAddDividerBtn", "divider"],
+    ["#manageServiceIntakeAddQuestionGroupBtn", "question_group"],
   ];
   for (const [sel, bt] of map) {
     const el = qs(sel);
@@ -402,26 +535,428 @@ function msiBlockCardTitle(block) {
     return f?.label || f?.field_key || "—";
   }
   const p = /** @type {Record<string, string>} */ (block.payload || {});
-  const body = p.body || "";
+  if (bt === "question_group") {
+    return String(p.title || "").trim() || msiBlockTypeLabel("question_group");
+  }
+  const body = msiPlainTextPreview(p.body || "");
   return p.title || (body ? String(body).slice(0, 80) : msiBlockTypeLabel(bt));
+}
+
+function msiNewLocalId() {
+  const c = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "";
+  if (c) return c.replace(/[^a-zA-Z0-9._:@/-]/g, "").slice(0, 64);
+  return `qg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** @param {Record<string, unknown>} child */
+function msiSyntheticFieldFromGroupChild(child) {
+  const optsRaw = Array.isArray(child.options) ? child.options : [];
+  const options = optsRaw.map((o, i) => {
+    const row = o && typeof o === "object" ? /** @type {Record<string, unknown>} */ (o) : {};
+    return {
+      id: String(row.id || ""),
+      field_id: String(child.id || ""),
+      value: String(row.value ?? row.label ?? `v${i}`),
+      label: String(row.label ?? row.value ?? ""),
+      sort_order: Number(row.sort_order ?? i) || i,
+      active: row.active !== false,
+    };
+  });
+  return {
+    id: String(child.id || ""),
+    field_key: String(child.id || ""),
+    label: String(child.label || ""),
+    help_text: String(child.help_text || ""),
+    input_type: String(child.input_type || "text"),
+    placeholder: String(child.placeholder || ""),
+    required: Boolean(child.required),
+    sort_order: 0,
+    visibility_rule_json: {},
+    default_value: child.default_value != null ? String(child.default_value) : null,
+    validation: child.validation && typeof child.validation === "object" ? child.validation : {},
+    prefill: {},
+    active: true,
+    archived_at: null,
+    created_at: "",
+    updated_at: "",
+    options,
+  };
+}
+
+function msiBlockIndexInSortedBlocks(blockId) {
+  const sorted = msiSortedBlocks();
+  const idx = sorted.findIndex((b) => String(b.id) === String(blockId));
+  return idx < 0 ? sorted.length : idx;
+}
+
+/** Fields + question_group child ids that appear earlier than ``blockId`` in the global block list. */
+function msiVisibilitySourcesForContentBlock(blockId) {
+  const idx = msiBlockIndexInSortedBlocks(blockId);
+  const before = msiSortedBlocks().slice(0, idx);
+  /** @type {Array<Record<string, unknown>>} */
+  const out = [];
+  for (const b of before) {
+    const bt = String(b.block_type || "");
+    if (bt === "question") {
+      const f = msiFieldForQuestionBlock(b.id);
+      if (f && !f.archived_at) out.push(f);
+      continue;
+    }
+    if (bt !== "question_group") continue;
+    const pl = b.payload && typeof b.payload === "object" ? /** @type {Record<string, unknown>} */ (b.payload) : {};
+    const kids = Array.isArray(pl.children) ? pl.children : [];
+    for (const ch of kids) {
+      if (!ch || typeof ch !== "object") continue;
+      out.push(msiSyntheticFieldFromGroupChild(/** @type {Record<string, unknown>} */ (ch)));
+    }
+  }
+  return out;
+}
+
+/** Resolve visibility “source field” to either a real question field or a ``question_group`` child (synthetic field). */
+function msiResolveVisibilitySourceField(sourceId) {
+  const sid = String(sourceId || "").trim();
+  if (!sid) return null;
+  const f = msiFields.find((x) => String(x.id) === sid);
+  if (f) return f;
+  for (const b of msiSortedBlocks()) {
+    if (String(b.block_type || "") !== "question_group") continue;
+    const pl = b.payload && typeof b.payload === "object" ? /** @type {Record<string, unknown>} */ (b.payload) : {};
+    const kids = Array.isArray(pl.children) ? pl.children : [];
+    for (const ch of kids) {
+      if (ch && typeof ch === "object" && String(/** @type {Record<string, unknown>} */ (ch).id) === sid) {
+        return msiSyntheticFieldFromGroupChild(/** @type {Record<string, unknown>} */ (ch));
+      }
+    }
+  }
+  return null;
+}
+
+function msiRenderQuestionGroupSideEditor(payload) {
+  const mount = qs("#manageServiceIntakeSideQuestionGroupMount");
+  if (!(mount instanceof HTMLElement)) return;
+  mount.hidden = false;
+  const p = payload && typeof payload === "object" ? payload : {};
+  const title = String(p.title || "").trim();
+  const desc = String(p.description || "");
+  const layout = String(p.layout || "stack") === "inline_2" ? "inline_2" : "stack";
+  const children = Array.isArray(p.children) ? p.children : [];
+  const typeOpts = MSI_INPUT_TYPES.map(
+    (o) => `<option value="${esc(o.value)}">${esc(t(o.i18nKey, o.fallback))}</option>`
+  ).join("");
+  mount.innerHTML = `
+    <div class="u-mt-2">
+      <label class="lhai-label" for="msiQgDescription">${esc(t("common.admin_services.intake.qgroup_description", "Group description (optional)"))}</label>
+      <textarea class="lhai-textarea" id="msiQgDescription" rows="3" maxlength="4000">${esc(desc)}</textarea>
+    </div>
+    <div class="u-mt-2">
+      <label class="lhai-label" for="msiQgLayout">${esc(t("common.admin_services.intake.qgroup_layout", "Layout"))}</label>
+      <select class="lhai-select" id="msiQgLayout">
+        <option value="stack"${layout === "stack" ? " selected" : ""}>${esc(t("common.admin_services.intake.qgroup_layout_stack", "Stack (one column)"))}</option>
+        <option value="inline_2"${layout === "inline_2" ? " selected" : ""}>${esc(t("common.admin_services.intake.qgroup_layout_inline2", "Inline (2 columns)"))}</option>
+      </select>
+    </div>
+    <div class="u-mt-3">
+      <div class="u-flex-between u-gap-2" style="flex-wrap:wrap;align-items:center;">
+        <p class="lhai-label u-m-0">${esc(t("common.admin_services.intake.qgroup_children", "Questions in this group"))}</p>
+        <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="msiQgAddChild">${esc(
+          t("common.admin_services.intake.qgroup_add_child", "+ Add question")
+        )}</button>
+      </div>
+      <p class="lhai-help u-mt-1">${esc(
+        t(
+          "common.admin_services.intake.qgroup_children_help",
+          "Each row is a customer-facing input. For choice fields, add one option per line as value|label."
+        )
+      )}</p>
+      <div id="msiQgChildren" class="u-mt-2">${children
+        .map((ch, idx) => {
+          const c = ch && typeof ch === "object" ? /** @type {Record<string, unknown>} */ (ch) : {};
+          const id = String(c.id || "");
+          const lab = String(c.label || "");
+          const ht = String(c.help_text || "");
+          const it = String(c.input_type || "text");
+          const req = Boolean(c.required);
+          const prefill = c.prefill && typeof c.prefill === "object" ? /** @type {Record<string, unknown>} */ (c.prefill) : {};
+          const prefillSource = String(prefill.source || "").trim();
+          const opts = Array.isArray(c.options) ? c.options : [];
+          const optLines = opts
+            .map((o) => {
+              const row = o && typeof o === "object" ? /** @type {Record<string, unknown>} */ (o) : {};
+              const v = String(row.value ?? "");
+              const l = String(row.label ?? v);
+              return `${esc(v)}|${esc(l)}`;
+            })
+            .join("\n");
+          return `
+            <div class="lhai-card u-p-2 u-mb-2" data-qg-child-row="${idx}">
+              <input type="hidden" class="msi-qg-child-id" value="${esc(id)}" />
+              <div class="admin-services__row-actions u-mb-2" style="justify-content:flex-end;">
+                <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-qg-child-up ${idx === 0 ? "disabled" : ""}>↑</button>
+                <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-qg-child-down ${idx >= children.length - 1 ? "disabled" : ""}>↓</button>
+                <button type="button" class="lhai-button lhai-button--ghost lhai-button--compact" data-qg-child-remove>${esc(t("common.admin_services.intake.choice_remove", "Remove"))}</button>
+              </div>
+              <label class="lhai-label">${esc(t("common.admin_services.intake.qgroup_child_label", "Label"))}</label>
+              <input class="lhai-input msi-qg-child-label" type="text" maxlength="500" value="${esc(lab)}" />
+              <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_type", "Field type"))}</label>
+              <select class="lhai-select msi-qg-child-type">${typeOpts}</select>
+              <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_required", "Required"))}</label>
+              <label class="admin-services__switch">
+                <input type="checkbox" class="msi-qg-child-req" ${req ? "checked" : ""} />
+                <span class="admin-services__switch-slider" aria-hidden="true"></span>
+              </label>
+              <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_help", "Help text (optional)"))}</label>
+              <textarea class="lhai-textarea msi-qg-child-help" rows="2" maxlength="2000">${esc(ht)}</textarea>
+              <label class="lhai-label u-mt-2">${esc(
+                t("common.admin_services.intake.qgroup_child_prefill_source", "Prefill from saved custom data (optional)")
+              )}</label>
+              <select class="lhai-select msi-qg-child-prefill-source">
+                ${msiPrefillSourceOptionsHtml(prefillSource, true)}
+              </select>
+              <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_options", "Options (choice fields only)"))}</label>
+              <textarea class="lhai-textarea msi-qg-child-options" rows="3" maxlength="8000" placeholder="value|label">${esc(optLines)}</textarea>
+            </div>`;
+        })
+        .join("")}</div>
+    </div>`;
+  mount.querySelectorAll(".msi-qg-child-type").forEach((sel) => {
+    if (!(sel instanceof HTMLSelectElement)) return;
+    const row = sel.closest("[data-qg-child-row]");
+    const idx = row ? Number(row.getAttribute("data-qg-child-row")) : NaN;
+    const ch = children[Number.isFinite(idx) ? idx : -1];
+    const want = ch && typeof ch === "object" ? String(/** @type {Record<string, unknown>} */ (ch).input_type || "text") : "text";
+    sel.value = MSI_INPUT_TYPES.some((x) => x.value === want) ? want : "text";
+  });
+  mount.querySelector("#msiQgAddChild")?.addEventListener("click", () => {
+    msiAppendQuestionGroupChildRow();
+  });
+  mount.querySelector("#msiQgChildren")?.addEventListener("click", (ev) => {
+    const up = ev.target.closest("[data-qg-child-up]");
+    const down = ev.target.closest("[data-qg-child-down]");
+    const rm = ev.target.closest("[data-qg-child-remove]");
+    if (!up && !down && !rm) return;
+    const wrap = qs("#msiQgChildren");
+    if (!wrap) return;
+    const row = (up || down || rm).closest("[data-qg-child-row]");
+    if (!row || !row.parentElement) return;
+    const idx = Number(row.getAttribute("data-qg-child-row"));
+    const rows = Array.from(wrap.querySelectorAll("[data-qg-child-row]"));
+    if (rm) {
+      row.remove();
+      Array.from(wrap.querySelectorAll("[data-qg-child-row]")).forEach((r, i) => r.setAttribute("data-qg-child-row", String(i)));
+      msiRerenderQuestionGroupChildRowControls();
+      return;
+    }
+    if (up && idx > 0) {
+      const prev = rows[idx - 1];
+      wrap.insertBefore(row, prev);
+    }
+    if (down && idx < rows.length - 1) {
+      const nxt = rows[idx + 1];
+      wrap.insertBefore(nxt, row);
+    }
+    msiRerenderQuestionGroupChildRowControls();
+  });
+}
+
+function msiRerenderQuestionGroupChildRowControls() {
+  const wrap = qs("#msiQgChildren");
+  if (!wrap) return;
+  const rows = Array.from(wrap.querySelectorAll("[data-qg-child-row]"));
+  rows.forEach((r, i) => {
+    r.setAttribute("data-qg-child-row", String(i));
+    const up = r.querySelector("[data-qg-child-up]");
+    const down = r.querySelector("[data-qg-child-down]");
+    if (up instanceof HTMLButtonElement) up.disabled = i === 0;
+    if (down instanceof HTMLButtonElement) down.disabled = i >= rows.length - 1;
+  });
+}
+
+function msiAppendQuestionGroupChildRow() {
+  const wrap = qs("#msiQgChildren");
+  if (!wrap) return;
+  const idx = wrap.querySelectorAll("[data-qg-child-row]").length;
+  const typeOpts = MSI_INPUT_TYPES.map(
+    (o) => `<option value="${esc(o.value)}">${esc(t(o.i18nKey, o.fallback))}</option>`
+  ).join("");
+  wrap.insertAdjacentHTML(
+    "beforeend",
+    `
+    <div class="lhai-card u-p-2 u-mb-2" data-qg-child-row="${idx}">
+      <input type="hidden" class="msi-qg-child-id" value="${esc(msiNewLocalId())}" />
+      <div class="admin-services__row-actions u-mb-2" style="justify-content:flex-end;">
+        <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-qg-child-up disabled>↑</button>
+        <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-qg-child-down disabled>↓</button>
+        <button type="button" class="lhai-button lhai-button--ghost lhai-button--compact" data-qg-child-remove">${esc(t("common.admin_services.intake.choice_remove", "Remove"))}</button>
+      </div>
+      <label class="lhai-label">${esc(t("common.admin_services.intake.qgroup_child_label", "Label"))}</label>
+      <input class="lhai-input msi-qg-child-label" type="text" maxlength="500" value="" />
+      <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_type", "Field type"))}</label>
+      <select class="lhai-select msi-qg-child-type">${typeOpts}</select>
+      <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_required", "Required"))}</label>
+      <label class="admin-services__switch">
+        <input type="checkbox" class="msi-qg-child-req" />
+        <span class="admin-services__switch-slider" aria-hidden="true"></span>
+      </label>
+      <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_help", "Help text (optional)"))}</label>
+      <textarea class="lhai-textarea msi-qg-child-help" rows="2" maxlength="2000"></textarea>
+      <label class="lhai-label u-mt-2">${esc(
+        t("common.admin_services.intake.qgroup_child_prefill_source", "Prefill from saved custom data (optional)")
+      )}</label>
+      <select class="lhai-select msi-qg-child-prefill-source">
+        ${msiPrefillSourceOptionsHtml("", true)}
+      </select>
+      <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_options", "Options (choice fields only)"))}</label>
+      <textarea class="lhai-textarea msi-qg-child-options" rows="3" maxlength="8000" placeholder="value|label"></textarea>
+    </div>`
+  );
+  msiRerenderQuestionGroupChildRowControls();
+}
+
+function msiHideQuestionGroupSideEditor() {
+  const mount = qs("#manageServiceIntakeSideQuestionGroupMount");
+  if (mount instanceof HTMLElement) {
+    mount.hidden = true;
+    mount.innerHTML = "";
+  }
+}
+
+function msiReadQuestionGroupPayloadFromSideDom() {
+  const title = qs("#manageServiceIntakeSideTitleInput") instanceof HTMLInputElement ? qs("#manageServiceIntakeSideTitleInput").value.trim() : "";
+  const descEl = qs("#msiQgDescription");
+  const layoutEl = qs("#msiQgLayout");
+  const description = descEl instanceof HTMLTextAreaElement ? descEl.value.trim() : "";
+  const layout = layoutEl instanceof HTMLSelectElement && layoutEl.value === "inline_2" ? "inline_2" : "stack";
+  const wrap = qs("#msiQgChildren");
+  /** @type {Array<Record<string, unknown>>} */
+  const children = [];
+  if (wrap) {
+    const rows = Array.from(wrap.querySelectorAll("[data-qg-child-row]"));
+    for (const row of rows) {
+      const idEl = row.querySelector(".msi-qg-child-id");
+      const labEl = row.querySelector(".msi-qg-child-label");
+      const typeEl = row.querySelector(".msi-qg-child-type");
+      const reqEl = row.querySelector(".msi-qg-child-req");
+      const helpEl = row.querySelector(".msi-qg-child-help");
+      const prefillSourceEl = row.querySelector(".msi-qg-child-prefill-source");
+      const optEl = row.querySelector(".msi-qg-child-options");
+      let id = idEl instanceof HTMLInputElement ? idEl.value.trim() : "";
+      if (!id) id = msiNewLocalId();
+      const label = labEl instanceof HTMLInputElement ? labEl.value.trim() : "";
+      const input_type = typeEl instanceof HTMLSelectElement ? typeEl.value : "text";
+      const required = reqEl instanceof HTMLInputElement ? reqEl.checked : false;
+      const help_text = helpEl instanceof HTMLTextAreaElement ? helpEl.value.trim() : "";
+      const prefillSource = prefillSourceEl instanceof HTMLSelectElement ? String(prefillSourceEl.value || "").trim() : "";
+      const optRaw = optEl instanceof HTMLTextAreaElement ? optEl.value : "";
+      /** @type {Array<Record<string, unknown>>} */
+      const options = [];
+      for (const line of optRaw.split("\n")) {
+        const t0 = line.trim();
+        if (!t0) continue;
+        const parts = t0.split("|");
+        const value = (parts[0] || "").trim();
+        const lab = (parts[1] != null ? parts[1] : parts[0]).trim() || value;
+        if (!value) continue;
+        options.push({ value, label: lab || value, active: true });
+      }
+      children.push({
+        id,
+        label: label || t("common.admin_services.intake.qgroup_untitled_child", "Untitled question"),
+        help_text,
+        input_type,
+        placeholder: "",
+        required,
+        prefill: prefillSource
+          ? {
+              enabled: true,
+              source: prefillSource,
+              editable: true,
+              write_back: false,
+              existing_value_behavior: "prefill_and_show",
+              missing_value_behavior: "ask",
+            }
+          : {},
+        default_value: null,
+        validation: {},
+        options,
+      });
+    }
+  }
+  return { title, description, layout, children };
+}
+
+function msiRegenerateQuestionGroupChildIds(payload) {
+  let p = {};
+  try {
+    p = payload && typeof payload === "object" ? JSON.parse(JSON.stringify(payload)) : {};
+  } catch {
+    p = {};
+  }
+  const kids = Array.isArray(p.children) ? p.children : [];
+  p.children = kids.map((ch) => {
+    let c = {};
+    try {
+      c = ch && typeof ch === "object" ? JSON.parse(JSON.stringify(ch)) : {};
+    } catch {
+      c = {};
+    }
+    c.id = msiNewLocalId();
+    return c;
+  });
+  return p;
+}
+
+async function msiDuplicateContentBlock(blockId) {
+  const block = msiBlocks.find((b) => b.id === blockId);
+  const serviceItemId = qs("#manageServiceId")?.value?.trim();
+  if (!block || String(block.block_type) === "question" || !serviceItemId) return;
+  const statusEl = qs("#manageServiceIntakeStatus");
+  try {
+    const tmpl = await msiEnsureTemplate(serviceItemId);
+    if (!tmpl?.id) throw new Error("template");
+    const bt = String(block.block_type || "");
+    const pl0 = block.payload && typeof block.payload === "object" ? /** @type {Record<string, unknown>} */ (block.payload) : {};
+    const payload = bt === "question_group" ? msiRegenerateQuestionGroupChildIds(pl0) : { ...pl0 };
+    const created = await serviceIntakeAdminApi.createBlock(tmpl.id, {
+      block_type: bt,
+      sort_order: msiIntakeMaxSortOrder() + 1,
+      payload,
+      visibility_rule_json: block.visibility_rule_json && typeof block.visibility_rule_json === "object" ? block.visibility_rule_json : {},
+    });
+    await msiRefresh();
+    const b = msiBlocks.find((x) => x.id === created.id);
+    if (b) msiOpenSideEditor(b);
+  } catch (err) {
+    const msg = err && typeof err.message === "string" ? err.message : String(err);
+    if (statusEl) statusEl.textContent = msg;
+    window.alert(msg);
+  }
 }
 
 function setServiceEditorTab(which) {
   const detailsBtn = qs("#manageServiceTabDetailsBtn");
   const intakeBtn = qs("#manageServiceTabIntakeBtn");
   const docsBtn = qs("#manageServiceTabDocumentsBtn");
+  const workflowBtn = qs("#manageServiceTabWorkflowBtn");
   const detailsPanel = qs("#manageServiceDetailsPanel");
   const intakePanel = qs("#manageServiceIntakePanel");
   const docsPanel = qs("#manageServiceDocumentsPanel");
+  const workflowPanel = qs("#manageServiceWorkflowPanel");
   if (!detailsPanel || !intakePanel) return;
 
   let showDetails = which === "details";
   let showIntake = which === "intake";
   let showDocs = which === "documents" && docsPanel;
+  let showWorkflow = which === "workflow" && workflowPanel;
   if (which === "documents" && !docsPanel) {
     showDetails = true;
     showIntake = false;
     showDocs = false;
+  }
+  if (which === "workflow" && !workflowPanel) {
+    showDetails = true;
+    showIntake = false;
+    showWorkflow = false;
   }
 
   if (detailsBtn) {
@@ -436,13 +971,19 @@ function setServiceEditorTab(which) {
     docsBtn.classList.toggle("is-active", showDocs);
     docsBtn.setAttribute("aria-selected", showDocs ? "true" : "false");
   }
+  if (workflowBtn) {
+    workflowBtn.classList.toggle("is-active", showWorkflow);
+    workflowBtn.setAttribute("aria-selected", showWorkflow ? "true" : "false");
+  }
 
   detailsPanel.hidden = !showDetails;
   intakePanel.hidden = !showIntake;
   if (docsPanel) docsPanel.hidden = !showDocs;
+  if (workflowPanel) workflowPanel.hidden = !showWorkflow;
 
   if (showIntake) void msiRefresh();
   if (showDocs) void msdRefresh();
+  if (showWorkflow) workflowTabActivated();
 }
 
 /** @deprecated internal — use setServiceEditorTab */
@@ -671,6 +1212,7 @@ function msiResolveVisibilityRuleForSave() {
 }
 
 function msiCloseSidePanel() {
+  msiHideQuestionGroupSideEditor();
   const form = qs("#manageServiceIntakeSideForm");
   const empty = qs("#manageServiceIntakeSideEmpty");
   const p = qs("#manageServiceIntakeSidePanel");
@@ -679,6 +1221,7 @@ function msiCloseSidePanel() {
   if (empty) empty.hidden = false;
   if (th) th.hidden = true;
   if (p) p.hidden = true;
+  msiSyncIntakeEditorFocusLayout(false);
 }
 
 /** Show empty side hint after load (template exists); form opens when a content block is selected. */
@@ -688,16 +1231,18 @@ function msiResetSidePanelEmpty() {
   const empty = qs("#manageServiceIntakeSideEmpty");
   const th = qs("#manageServiceIntakeSideTypeHelp");
   if (!p || !msiTemplate?.id) return;
-  p.hidden = false;
+  p.hidden = true;
   if (form) form.hidden = true;
   if (empty) empty.hidden = false;
   if (th) th.hidden = true;
+  msiSyncIntakeEditorFocusLayout(false);
 }
 
 function msiPopulateSideVisibilitySourceSelect(selectedId) {
   const sel = qs("#manageServiceIntakeSideVisibilitySourceField");
   if (!sel || !(sel instanceof HTMLSelectElement)) return;
-  const candidates = msiSortedFields().filter((f) => !f.archived_at);
+  const blockId = qs("#manageServiceIntakeSideBlockId")?.value?.trim() || "";
+  const candidates = blockId ? msiVisibilitySourcesForContentBlock(blockId) : msiSortedFields().filter((f) => !f.archived_at);
   const ph = t("common.admin_services.intake.vis_pick_field", "Choose a field…");
   let opts = `<option value="">${esc(ph)}</option>`;
   opts += candidates.map((f) => `<option value="${esc(f.id)}">${esc(f.label || f.id)}</option>`).join("");
@@ -711,7 +1256,7 @@ function msiSideRefreshVisibilityMatchControl() {
   const selectEl = qs("#manageServiceIntakeSideVisibilityMatchSelect");
   const labelEl = qs("#manageServiceIntakeSideVisibilityMatchLabel");
   if (!textEl || !selectEl) return;
-  const src = msiFields.find((f) => f.id === sourceId);
+  const src = msiResolveVisibilitySourceField(sourceId);
   const useOptions = src && msiIsChoiceType(src.input_type) && Array.isArray(src.options) && src.options.length > 0;
   const activeOpts = (src?.options || []).filter((o) => o.active !== false);
   if (useOptions && activeOpts.length) {
@@ -834,10 +1379,13 @@ function msiOpenSideEditor(block) {
   const h = qs("#manageServiceIntakeSideHeading");
   const typeHelp = qs("#manageServiceIntakeSideTypeHelp");
   if (!p || !form || !block) return;
+  msiHideQuestionGroupSideEditor();
+  msiLastOpenedContentBlockId = String(block.id || "").trim();
   p.hidden = false;
   form.hidden = false;
   if (empty) empty.hidden = true;
   const bt = String(block.block_type || "");
+  const isQuestionGroup = bt === "question_group";
   if (h) h.textContent = msiBlockTypeLabel(bt);
   if (typeHelp) {
     typeHelp.textContent = msiBlockTypeHelp(bt);
@@ -857,8 +1405,8 @@ function msiOpenSideEditor(block) {
   const style = qs("#manageServiceIntakeSideStyle");
   const mediaWrap = qs("#manageServiceIntakeSideMediaWrap");
   if (titleIn instanceof HTMLInputElement) titleIn.value = pl.title || "";
-  if (bodySection instanceof HTMLElement) bodySection.hidden = bt === "divider";
-  msiSetSideBodyEditorHtml(bt === "divider" ? "" : pl.body || "");
+  if (bodySection instanceof HTMLElement) bodySection.hidden = bt === "divider" || isQuestionGroup;
+  msiSetSideBodyEditorHtml(bt === "divider" || isQuestionGroup ? "" : pl.body || "");
   if (media instanceof HTMLInputElement) media.value = pl.media_url || "";
   const mediaFileIn = qs("#manageServiceIntakeSideMediaFile");
   if (mediaFileIn instanceof HTMLInputElement) mediaFileIn.value = "";
@@ -873,14 +1421,56 @@ function msiOpenSideEditor(block) {
   if (mediaLayout instanceof HTMLSelectElement) mediaLayout.value = pl.media_layout || "default";
   if (cap instanceof HTMLInputElement) cap.value = pl.caption || "";
   if (style instanceof HTMLSelectElement) style.value = pl.style_variant || "default";
-  if (mediaWrap) mediaWrap.hidden = bt === "divider";
+  if (mediaWrap) mediaWrap.hidden = bt === "divider" || isQuestionGroup;
   const titleLbl = titleIn?.closest(".admin-services__intake-side-form")?.querySelector('label[for="manageServiceIntakeSideTitleInput"]');
-  if (titleLbl instanceof HTMLElement) titleLbl.hidden = bt === "divider";
+  if (titleLbl instanceof HTMLElement) {
+    titleLbl.hidden = bt === "divider";
+    if (isQuestionGroup) {
+      titleLbl.hidden = false;
+      titleLbl.textContent = t("common.admin_services.intake.qgroup_side_title_label", "Group title");
+    } else {
+      titleLbl.textContent = t("common.admin_services.intake.side_title", "Title (optional)");
+    }
+  }
   if (titleIn instanceof HTMLElement) titleIn.hidden = bt === "divider";
-  if (cap instanceof HTMLElement) cap.hidden = bt === "divider";
+  if (cap instanceof HTMLElement) cap.hidden = bt === "divider" || isQuestionGroup;
   const capLbl = cap?.previousElementSibling;
-  if (capLbl instanceof HTMLElement && capLbl.classList.contains("lhai-label")) capLbl.hidden = bt === "divider";
+  if (capLbl instanceof HTMLElement && capLbl.classList.contains("lhai-label")) capLbl.hidden = bt === "divider" || isQuestionGroup;
+  const styleLbl = style?.previousElementSibling;
+  if (style instanceof HTMLElement) {
+    style.hidden = isQuestionGroup;
+  }
+  if (styleLbl instanceof HTMLElement && styleLbl.classList.contains("lhai-label")) {
+    styleLbl.hidden = isQuestionGroup;
+  }
+  if (!isQuestionGroup) {
+    if (style instanceof HTMLElement) style.hidden = false;
+    if (styleLbl instanceof HTMLElement && styleLbl.classList.contains("lhai-label")) styleLbl.hidden = false;
+  }
+  if (isQuestionGroup) {
+    msiRenderQuestionGroupSideEditor(pl);
+  }
   msiSideApplyVisibilityToUi(block.visibility_rule_json);
+  msiSyncIntakeEditorFocusLayout(true);
+}
+
+function msiSyncIntakeEditorFocusLayout(forceOpen) {
+  const layout = qs(".admin-services__intake-builder-layout");
+  const side = qs("#manageServiceIntakeSidePanel");
+  const backdrop = qs("#manageServiceIntakeSideBackdrop");
+  const open = Boolean(
+    forceOpen ||
+      (side instanceof HTMLElement && !side.hidden && qs("#manageServiceIntakeSideForm") instanceof HTMLElement && !qs("#manageServiceIntakeSideForm").hidden)
+  );
+  if (layout instanceof HTMLElement) {
+    layout.classList.toggle("is-side-open", open);
+  }
+  if (backdrop instanceof HTMLElement) {
+    backdrop.hidden = !open;
+  }
+  if (document.body instanceof HTMLBodyElement) {
+    document.body.style.overflow = open ? "hidden" : "";
+  }
 }
 
 const MSI_MEDIA_ASSET_ID_RE = /^[A-Za-z0-9._:@/-]{1,128}$/;
@@ -898,6 +1488,21 @@ async function msiSaveSideEditor() {
     window.alert(e && typeof e.message === "string" ? e.message : String(e));
     return;
   }
+  const bt = String(block.block_type);
+  if (bt === "question_group") {
+    const pl = msiReadQuestionGroupPayloadFromSideDom();
+    const statusEl = qs("#manageServiceIntakeStatus");
+    try {
+      await serviceIntakeAdminApi.updateBlock(blockId, { payload: pl, visibility_rule_json });
+      await msiRefresh();
+      msiCloseSidePanel();
+    } catch (err) {
+      const msg = err && typeof err.message === "string" ? err.message : String(err);
+      if (statusEl) statusEl.textContent = msg;
+      window.alert(msg);
+    }
+    return;
+  }
   const assetRaw = qs("#manageServiceIntakeSideAssetId")?.value?.trim() || "";
   if (assetRaw && !MSI_MEDIA_ASSET_ID_RE.test(assetRaw)) {
     window.alert(
@@ -908,7 +1513,6 @@ async function msiSaveSideEditor() {
     );
     return;
   }
-  const bt = String(block.block_type);
   const bodyStr = msiGetSideBodyEditorHtml();
   if (bodyStr.length > MSI_BODY_MAX_LEN) {
     window.alert(
@@ -944,8 +1548,7 @@ async function msiSaveSideEditor() {
   try {
     await serviceIntakeAdminApi.updateBlock(blockId, { payload: pl, visibility_rule_json });
     await msiRefresh();
-    const updated = msiBlocks.find((b) => b.id === blockId);
-    if (updated) msiOpenSideEditor(updated);
+    msiCloseSidePanel();
   } catch (err) {
     const msg = err && typeof err.message === "string" ? err.message : String(err);
     if (statusEl) statusEl.textContent = msg;
@@ -1005,9 +1608,40 @@ async function msiAddContentBlock(blockType) {
         style_variant: "default",
       },
       divider: { style_variant: "default" },
+      question_group: {
+        title: t("common.admin_services.intake.qgroup_default_title", "New question group"),
+        description: "",
+        layout: "stack",
+        children: [
+          {
+            id: msiNewLocalId(),
+            label: t("common.admin_services.intake.qgroup_default_child1", "First name"),
+            help_text: "",
+            input_type: "text",
+            placeholder: "",
+            required: true,
+            default_value: null,
+            validation: {},
+            options: [],
+          },
+          {
+            id: msiNewLocalId(),
+            label: t("common.admin_services.intake.qgroup_default_child2", "Last name"),
+            help_text: "",
+            input_type: "text",
+            placeholder: "",
+            required: true,
+            default_value: null,
+            validation: {},
+            options: [],
+          },
+        ],
+      },
     };
     const created = await serviceIntakeAdminApi.createBlock(tmpl.id, {
       block_type: blockType,
+      // Keep global block order deterministic across all block types.
+      sort_order: msiIntakeMaxSortOrder() + 1,
       payload: defaults[blockType] || {},
       visibility_rule_json: {},
     });
@@ -1055,6 +1689,7 @@ function msiRenderFieldCards() {
         "No blocks yet. Add a question or content block to build the intake flow."
       )
     )}</div>`;
+    document.dispatchEvent(new CustomEvent("lhai:admin-intake-fields-changed", { bubbles: true }));
     return;
   }
   const upLabel = t("common.admin_services.editor.reorder.move_up", "Move up");
@@ -1101,8 +1736,53 @@ function msiRenderFieldCards() {
           </div>
         </article>`;
       }
+      if (bt === "question_group") {
+        const pl = block.payload && typeof block.payload === "object" ? /** @type {Record<string, unknown>} */ (block.payload) : {};
+        const kids = Array.isArray(pl.children) ? pl.children : [];
+        const labels = kids
+          .map((ch) => (ch && typeof ch === "object" ? String(/** @type {Record<string, unknown>} */ (ch).label || "").trim() : ""))
+          .filter(Boolean);
+        const sum =
+          labels.length === 0
+            ? "—"
+            : labels.length <= 3
+              ? labels.join(", ")
+              : `${labels.slice(0, 3).join(", ")} +${labels.length - 3}`;
+        const layout = String(pl.layout || "stack") === "inline_2" ? "inline_2" : "stack";
+        const inactive = block.active === false;
+        const badges = [];
+        if (inactive) badges.push(`<span class="lhai-badge">${esc(t("common.admin_services.intake.badge_inactive", "Inactive"))}</span>`);
+        return `
+        <article class="admin-services__intake-card lhai-card admin-services__intake-card--block" data-block-id="${esc(block.id)}" data-block-type="question_group">
+          <div class="admin-services__intake-card-head">
+            <div class="admin-services__intake-card-head-text">
+              <div class="admin-services__intake-card-type">${esc(typeBadge)}</div>
+              <p class="lhai-help admin-services__intake-card-type-help">${esc(msiBlockTypeHelp("question_group"))}</p>
+              <div class="admin-services__intake-card-title">${esc(msiBlockCardTitle(block))}</div>
+              <div class="lhai-help admin-services__intake-card-meta">${esc(layout)} · ${esc(
+                t("common.admin_services.intake.qgroup_child_count", "{n} questions").replace("{n}", String(kids.length))
+              )}</div>
+            </div>
+            <div class="admin-services__intake-card-badges">${badges.join("")}</div>
+          </div>
+          <p class="lhai-help admin-services__intake-card-help">${esc(sum)}</p>
+          <div class="admin-services__row-actions admin-services__intake-card-actions">
+            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-msi-action="edit">${esc(t("common.admin_services.actions.edit", "Edit"))}</button>
+            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-msi-action="add_child">${esc(
+              t("common.admin_services.intake.qgroup_add_child_card", "+ Add question")
+            )}</button>
+            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-msi-action="duplicate">${esc(
+              t("common.admin_services.intake.duplicate", "Duplicate")
+            )}</button>
+            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-msi-action="up" aria-label="${esc(upLabel)}" ${idx === 0 ? "disabled" : ""}>↑</button>
+            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-msi-action="down" aria-label="${esc(downLabel)}" ${idx === sorted.length - 1 ? "disabled" : ""}>↓</button>
+            <button type="button" class="lhai-button lhai-button--danger lhai-button--compact" data-msi-action="remove">${esc(t("common.admin_services.intake.remove", "Remove"))}</button>
+          </div>
+        </article>`;
+      }
       const p = /** @type {Record<string, string>} */ (block.payload || {});
-      const sub = p.body ? (p.body.length > 120 ? `${p.body.slice(0, 120)}…` : p.body) : "—";
+      const bodyText = msiPlainTextPreview(p.body || "");
+      const sub = bodyText ? (bodyText.length > 120 ? `${bodyText.slice(0, 120)}…` : bodyText) : "—";
       const inactive = block.active === false;
       const badges = [];
       if (inactive) badges.push(`<span class="lhai-badge">${esc(t("common.admin_services.intake.badge_inactive", "Inactive"))}</span>`);
@@ -1128,6 +1808,36 @@ function msiRenderFieldCards() {
     })
     .filter(Boolean)
     .join("");
+  document.dispatchEvent(new CustomEvent("lhai:admin-intake-fields-changed", { bubbles: true }));
+}
+
+/** Customer Intake Builder에 있는 활성 질문 ``field_key`` (workflow 검증용). */
+export function intakeActiveQuestionFieldKeys() {
+  const keys = new Set();
+  for (const f of msiSortedFields()) {
+    if (f.archived_at) continue;
+    const fk = String(f.field_key || "").trim();
+    if (fk) keys.add(fk);
+  }
+  return keys;
+}
+
+/**
+ * Current service intake-builder options for workflow mapping.
+ * For now, each service has at most one active template in this editor context.
+ * Returned shape is intentionally API-friendly for future backend-backed dropdowns.
+ */
+export function intakeBuilderOptionsForCurrentService() {
+  if (!msiTemplate || !msiTemplate.id) return [];
+  return [
+    {
+      id: String(msiTemplate.id),
+      value: String(msiTemplate.id),
+      display_name: String(msiTemplate.name || "Customer Intake Builder").trim() || "Customer Intake Builder",
+      label: String(msiTemplate.name || "Customer Intake Builder").trim() || "Customer Intake Builder",
+      meta: msiTemplate.active === false ? "Inactive template" : "Service template",
+    },
+  ];
 }
 
 function msiUpdateIntakeHint() {
@@ -1203,6 +1913,7 @@ export function msiOnServiceContextChanged() {
   msdOnServiceContextChanged();
   msiUpdateIntakeHint();
   if (!id) {
+    workflowHydrateForCreate();
     setServiceEditorTab("details");
     msiTemplate = null;
     msiFields = [];
@@ -1344,6 +2055,7 @@ function msiOpenDialog(mode, field) {
   msiToggleOptionsBlockVisibility();
   msiUpdateBehaviorSubfieldsVisibility();
   msiRenderChoiceEditors();
+  msiApplyPrefillToDialog(field?.prefill);
 
   const titleEl = qs("#manageServiceIntakeDialogTitle");
   const subEl = qs("#manageServiceIntakeDialogSubtitle");
@@ -1419,6 +2131,7 @@ async function msiSaveDialogField() {
     visibility_rule_json,
     default_value: qs("#manageServiceIntakeFieldDefault")?.value?.trim() || null,
     active: Boolean(qs("#manageServiceIntakeFieldActive")?.checked),
+    prefill: msiReadPrefillFromDialog(),
   };
   const editId = qs("#manageServiceIntakeFieldEditId")?.value?.trim() || "";
   const statusEl = qs("#manageServiceIntakeStatus");
@@ -1434,7 +2147,9 @@ async function msiSaveDialogField() {
     if (editId) {
       await serviceIntakeAdminApi.updateField(editId, body);
     } else {
-      const maxOrder = msiSortedFields().reduce((m, f) => Math.max(m, f.sort_order ?? 0), -1);
+      // Question blocks share one ordered timeline with content blocks.
+      // Use global max sort_order so new items appear at the end as admins add them.
+      const maxOrder = msiIntakeMaxSortOrder();
       const created = await serviceIntakeAdminApi.createField(tmpl.id, { ...body, sort_order: maxOrder + 1 });
       fieldId = created.id;
     }
@@ -1494,8 +2209,7 @@ async function msiDuplicateField(fieldId) {
   if (!f || !msiTemplate?.id) return;
   const statusEl = qs("#manageServiceIntakeStatus");
   try {
-    const sorted = msiSortedFields();
-    const maxOrder = sorted.reduce((m, x) => Math.max(m, x.sort_order ?? 0), -1);
+    const maxOrder = msiIntakeMaxSortOrder();
     const copySuffix = t("common.admin_services.intake.copy_suffix", "copy");
     const copyLabel = `${f.label || ""} (${copySuffix})`.trim();
     const created = await serviceIntakeAdminApi.createField(msiTemplate.id, {
@@ -1508,6 +2222,7 @@ async function msiDuplicateField(fieldId) {
       visibility_rule_json: f.visibility_rule_json && typeof f.visibility_rule_json === "object" ? { ...f.visibility_rule_json } : {},
       default_value: f.default_value ?? null,
       active: true,
+      prefill: f.prefill && typeof f.prefill === "object" ? { ...f.prefill } : {},
     });
     if (msiIsChoiceType(f.input_type) && Array.isArray(f.options)) {
       for (const o of f.options) {
@@ -1528,12 +2243,14 @@ export function initManageServiceIntakeTab() {
   msiWireIntakeBuilderHints();
 
   msiPopulateInputTypeSelect();
+  msiInitPrefillSourceSelectOptions();
+  qs("#manageServiceIntakePrefillEnabled")?.addEventListener("change", () => msiSyncPrefillSubcontrolsDisabled());
 
   qsa("#manageServiceEditorTabs [data-service-editor-tab]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const tab = btn.getAttribute("data-service-editor-tab");
       if ((tab === "intake" || tab === "documents") && btn.disabled) return;
-      if (tab === "details" || tab === "intake" || tab === "documents") {
+      if (tab === "details" || tab === "intake" || tab === "documents" || tab === "workflow") {
         setServiceEditorTab(tab);
       } else {
         setServiceEditorTab("details");
@@ -1566,25 +2283,13 @@ export function initManageServiceIntakeTab() {
   qs("#manageServiceIntakeAddImageBtn")?.addEventListener("click", () => void msiAddContentBlock("image"));
   qs("#manageServiceIntakeAddRichTextBtn")?.addEventListener("click", () => void msiAddContentBlock("rich_text"));
   qs("#manageServiceIntakeAddDividerBtn")?.addEventListener("click", () => void msiAddContentBlock("divider"));
+  qs("#manageServiceIntakeAddQuestionGroupBtn")?.addEventListener("click", () => void msiAddContentBlock("question_group"));
   qs("#manageServiceIntakePresetPhoneBtn")?.addEventListener("click", () => void msiApplyPhoneStylePreset());
 
   qs("#manageServiceIntakeSideCloseBtn")?.addEventListener("click", () => msiCloseSidePanel());
+  qs("#manageServiceIntakeSideBackdrop")?.addEventListener("click", () => msiCloseSidePanel());
   qs("#manageServiceIntakeSideSaveBtn")?.addEventListener("click", () => void msiSaveSideEditor());
-  qs("#manageServiceIntakeSideDeleteBtn")?.addEventListener("click", async () => {
-    const blockId = qs("#manageServiceIntakeSideBlockId")?.value?.trim();
-    if (!blockId) return;
-    const block = msiBlocks.find((b) => b.id === blockId);
-    if (!block || String(block.block_type) === "question") {
-      return;
-    }
-    try {
-      await serviceIntakeAdminApi.deleteBlock(blockId);
-      msiCloseSidePanel();
-      await msiRefresh();
-    } catch (err) {
-      window.alert(err?.message || "");
-    }
-  });
+  qs("#manageServiceIntakeSideDeleteBtn")?.addEventListener("click", () => msiCloseSidePanel());
 
   qsa('input[name="msiSideVisibilityMode"]').forEach((el) => {
     el.addEventListener("change", () => msiSideSyncVisibilityConditionalBlock());
@@ -1651,6 +2356,17 @@ export function initManageServiceIntakeTab() {
           );
           window.alert(msg.toLowerCase().includes("answer") || msg.includes("답") ? hint : msg || hint);
         }
+      }
+      return;
+    }
+    if (action === "duplicate") {
+      await msiDuplicateContentBlock(blockId);
+      return;
+    }
+    if (action === "add_child") {
+      if (bt === "question_group") {
+        msiOpenSideEditor(block);
+        msiAppendQuestionGroupChildRow();
       }
       return;
     }
@@ -1799,4 +2515,5 @@ export function initManageServiceIntakeTab() {
   });
 
   msiOnServiceContextChanged();
+  msiSyncIntakeEditorFocusLayout(false);
 }

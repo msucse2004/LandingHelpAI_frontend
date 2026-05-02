@@ -14,11 +14,14 @@
       <section class="lhai-page-header u-flex-between u-gap-4">
         <div>
           <h1 class="lhai-title">회원 상세</h1>
-          <p class="lhai-subtitle">계정 ID로 조회한 등록 정보입니다. 티어 1~3 관리자는 자신보다 낮은 티어 계정에 한해 가입·이메일 인증 상태를 수정할 수 있으며, 계정 삭제도 같은 규칙이 적용됩니다.</p>
+          <p class="lhai-subtitle">계정 ID로 조회한 등록 정보입니다. 동일·상위 등급 회원도 열람할 수 있으며, 가입·인증 수정과 계정 삭제는 자신보다 낮은 티어(본인·동일·상위 제외)에만 적용됩니다.</p>
         </div>
         <a class="lhai-button lhai-button--secondary" href="admin-users.html">목록으로</a>
       </section>
       <p class="lhai-help" id="detailAlert" role="status" aria-live="polite"></p>
+      <p class="lhai-help u-mt-2" id="detailReadOnlyHint" hidden role="status">
+        이 계정은 본인과 동일하거나 더 높은 등급입니다. 아래는 열람만 가능하며 가입·인증 수정과 계정 삭제는 사용할 수 없습니다.
+      </p>
       <section class="lhai-card" id="detailCard" hidden>
         <h2 class="lhai-card__title">프로필</h2>
         <dl class="lhai-detail-dl" id="detailDl"></dl>

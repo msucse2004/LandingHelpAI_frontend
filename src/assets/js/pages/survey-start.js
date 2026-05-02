@@ -6,6 +6,14 @@ import { serviceCatalogBrowseApi, serviceIntakeCustomerApi, surveyCustomerApi, u
 import { getSession, getAccessToken, getCustomerMessagingProfileId } from "../core/auth.js";
 import { t } from "../core/i18n-client.js";
 import { initCommonI18nAndApplyDom } from "../core/i18n-dom.js";
+import {
+  augmentedPreviewFields,
+  buildAnswerContext,
+  buildFieldLookup,
+  evaluateFieldVisibility,
+  orderedActiveBlocks,
+  previewFieldFromGroupChild,
+} from "../intake/intake-preview-branching.js";
 import { qs, safeText, scrollPageToTop } from "../core/utils.js";
 
 const esc = safeText;
@@ -244,6 +252,46 @@ let submittingReview = false;
 
 function conditionalQuestionKey(serviceId, fieldId) {
   return `${serviceId}::${fieldId}`;
+}
+
+/**
+ * Merge Customer Intake Builder visibility on the block row into the field-shaped row (questions + group children).
+ * @param {Record<string, unknown>} fieldish
+ * @param {Record<string, unknown>} block
+ */
+function mergeIntakeFieldAndBlockVisibility(fieldish, block) {
+  const fVis = fieldish.visibility_rule_json && typeof fieldish.visibility_rule_json === "object" ? fieldish.visibility_rule_json : {};
+  const bVis = block.visibility_rule_json && typeof block.visibility_rule_json === "object" ? block.visibility_rule_json : {};
+  const fk = Object.keys(fVis).length;
+  const bk = Object.keys(bVis).length;
+  if (!fk) return { ...fieldish, visibility_rule_json: { ...bVis } };
+  if (!bk) return { ...fieldish, visibility_rule_json: { ...fVis } };
+  return {
+    ...fieldish,
+    visibility_rule_json: {
+      op: "all",
+      rules: [{ ...fVis }, { ...bVis }],
+    },
+  };
+}
+
+/**
+ * @param {string} serviceId
+ * @param {Array<Record<string, unknown>>} augFields from ``augmentedPreviewFields``
+ */
+function buildInlineAnswersByFieldIdForService(serviceId, augFields) {
+  /** @type {Record<string, Record<string, unknown>>} */
+  const out = {};
+  for (const f of augFields) {
+    const fid = String(f.id || "").trim();
+    if (!fid) continue;
+    const qid = conditionalQuestionKey(serviceId, fid);
+    const aj = conditionalAnswersByItemId[qid];
+    if (aj && typeof aj === "object" && Object.keys(aj).length) {
+      out[fid] = /** @type {Record<string, unknown>} */ (aj);
+    }
+  }
+  return out;
 }
 
 function setStatus(msg) {
@@ -597,29 +645,94 @@ async function loadConditionalQuestions(serviceIds = []) {
       const fields = (bundle.fields || [])
         .filter((f) => f.active !== false && !f.archived_at)
         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      /** @type {Record<string, Record<string, unknown>>} */
+      const fieldsById = Object.fromEntries(fields.map((f) => [String(f.id), f]));
+      const blocks = orderedActiveBlocks(bundle.blocks || []);
+      const augFields = augmentedPreviewFields(fields, blocks);
       const svcName = serviceTitle(svc) || svc.name || "";
       const svcMode = deliveryUiModeFromCapability(svc);
-      for (const f of fields) {
-        const qid = conditionalQuestionKey(svc.id, f.id);
-        const options = (bundle.options_by_field_id?.[f.id] || [])
-          .filter((o) => o.active !== false)
-          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-        conditionalQuestions.push({
-          id: qid,
-          service_id: svc.id,
-          service_name: svcName,
-          delivery_mode: svcMode,
-          field_id: f.id,
-          label: f.label || "",
-          help_text: f.help_text || "",
-          input_type: f.input_type || "text",
-          placeholder: f.placeholder || "",
-          required: Boolean(f.required),
-          sort_order: f.sort_order ?? 0,
-          visibility_rule_json: f.visibility_rule_json || {},
-        });
-        conditionalOptionsByItemId[qid] = options;
-        if (prevAnswers[qid]) conditionalAnswersByItemId[qid] = prevAnswers[qid];
+
+      for (const b of blocks) {
+        const bt = String(b.block_type || "");
+        const bSort = Number(b.sort_order ?? 0) || 0;
+        if (bt === "question") {
+          const raw = fieldsById[String(b.id)];
+          if (!raw || raw.archived_at) continue;
+          const merged = mergeIntakeFieldAndBlockVisibility(/** @type {Record<string, unknown>} */ (raw), b);
+          const qid = conditionalQuestionKey(svc.id, merged.id);
+          const options = (bundle.options_by_field_id?.[merged.id] || [])
+            .filter((o) => o.active !== false)
+            .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+          conditionalQuestions.push({
+            id: qid,
+            service_id: svc.id,
+            service_name: svcName,
+            delivery_mode: svcMode,
+            field_id: merged.id,
+            intake_field_key: String(merged.field_key || merged.id || "").trim() || String(merged.id || ""),
+            label: merged.label || "",
+            help_text: merged.help_text || "",
+            input_type: merged.input_type || "text",
+            placeholder: merged.placeholder || "",
+            required: Boolean(merged.required),
+            sort_order: merged.sort_order ?? bSort,
+            visibility_rule_json: merged.visibility_rule_json || {},
+            intake_question_shape: "field",
+          });
+          conditionalOptionsByItemId[qid] = options;
+          if (prevAnswers[qid]) conditionalAnswersByItemId[qid] = prevAnswers[qid];
+        } else if (bt === "question_group") {
+          const pl = b.payload && typeof b.payload === "object" ? /** @type {Record<string, unknown>} */ (b.payload) : {};
+          const gTitle = String(pl.title || "").trim();
+          const kids = Array.isArray(pl.children) ? pl.children : [];
+          let i = 0;
+          for (const ch of kids) {
+            if (!ch || typeof ch !== "object") continue;
+            const baseChild = previewFieldFromGroupChild(/** @type {Record<string, unknown>} */ (ch));
+            const mergedChild = mergeIntakeFieldAndBlockVisibility(baseChild, b);
+            const cid = String(mergedChild.id || "").trim();
+            if (!cid) continue;
+            const qid = conditionalQuestionKey(svc.id, cid);
+            const optRaw = Array.isArray(mergedChild.options) ? mergedChild.options : [];
+            const options = optRaw
+              .filter((o) => o && typeof o === "object")
+              .map((o, idx) => {
+                const row = /** @type {Record<string, unknown>} */ (o);
+                return {
+                  id: String(row.id || row.value || idx),
+                  field_id: cid,
+                  value: String(row.value ?? row.label ?? `v${idx}`),
+                  label: String(row.label ?? row.value ?? ""),
+                  sort_order: Number(row.sort_order ?? idx) || idx,
+                  active: row.active !== false,
+                };
+              })
+              .filter((o) => String(o.value || "").trim());
+            const labelBase = String(mergedChild.label || "").trim();
+            const label = gTitle ? `${gTitle} — ${labelBase || "질문"}` : labelBase || "질문";
+            conditionalQuestions.push({
+              id: qid,
+              service_id: svc.id,
+              service_name: svcName,
+              delivery_mode: svcMode,
+              field_id: cid,
+              intake_field_key: String(mergedChild.field_key || cid).trim() || cid,
+              label,
+              help_text: String(mergedChild.help_text || ""),
+              input_type: mergedChild.input_type || "text",
+              placeholder: String(mergedChild.placeholder || ""),
+              required: Boolean(mergedChild.required),
+              sort_order: bSort + i * 0.001,
+              visibility_rule_json: mergedChild.visibility_rule_json || {},
+              intake_question_shape: "question_group_child",
+              question_group_block_id: String(b.id || ""),
+              question_group_title: gTitle,
+            });
+            conditionalOptionsByItemId[qid] = options;
+            if (prevAnswers[qid]) conditionalAnswersByItemId[qid] = prevAnswers[qid];
+            i += 1;
+          }
+        }
       }
     }
   } catch {
@@ -630,15 +743,97 @@ async function loadConditionalQuestions(serviceIds = []) {
 function isConditionalQuestionVisible(question) {
   const rule = question?.visibility_rule_json;
   if (!rule || typeof rule !== "object" || Array.isArray(rule) || Object.keys(rule).length === 0) return true;
-  if (rule.mode !== "when_answer_equals") return true;
-  const sourceFieldId = String(rule.source_field_id || "").trim();
-  if (!sourceFieldId) return true;
-  const sourceKey = conditionalQuestionKey(question.service_id, sourceFieldId);
-  const sourceAnswer = conditionalAnswersByItemId[sourceKey];
-  if (!sourceAnswer) return false;
-  const expected = String(rule.match_value ?? "");
-  if (Array.isArray(sourceAnswer.values)) return sourceAnswer.values.map(String).includes(expected);
-  return String(sourceAnswer.value ?? "") === expected;
+
+  // Legacy service-flow conditional shape (pre–Customer Intake Builder branching).
+  if (rule.mode === "when_answer_equals") {
+    const sourceFieldId = String(rule.source_field_id || "").trim();
+    if (!sourceFieldId) return true;
+    const sourceKey = conditionalQuestionKey(question.service_id, sourceFieldId);
+    const sourceAnswer = conditionalAnswersByItemId[sourceKey];
+    if (!sourceAnswer) return false;
+    const expected = String(rule.match_value ?? "");
+    if (Array.isArray(sourceAnswer.values)) return sourceAnswer.values.map(String).includes(expected);
+    return String(sourceAnswer.value ?? "") === expected;
+  }
+
+  // Customer Intake Builder branching (`op` / nested `when`, …) — mirror admin preview + backend intake_branching.
+  const sid = String(question.service_id || "").trim();
+  if (!sid) return true;
+
+  const allForService = conditionalQuestions.filter((q) => String(q.service_id) === sid);
+  const templateFields = allForService
+    .filter((q) => String(q.intake_question_shape || "field") === "field")
+    .map((q) => ({
+      id: q.field_id,
+      field_key: String(q.intake_field_key || q.field_id || "").trim() || String(q.field_id || ""),
+      label: q.label,
+      help_text: q.help_text,
+      input_type: q.input_type,
+      placeholder: q.placeholder,
+      required: q.required,
+      sort_order: q.sort_order,
+      visibility_rule_json: q.visibility_rule_json || {},
+      active: true,
+      archived_at: null,
+    }));
+
+  const blocksForAug = [];
+  for (const q of allForService) {
+    if (String(q.intake_question_shape || "field") !== "question_group_child") continue;
+    const bid = String(q.question_group_block_id || "").trim();
+    if (!bid) continue;
+    const title = String(q.question_group_title || "").trim();
+    const baseLabel = q.label.includes(" — ") ? q.label.split(" — ").slice(1).join(" — ") : q.label;
+    const childId = String(q.field_id || "").trim();
+    blocksForAug.push({
+      id: bid,
+      block_key: bid,
+      block_type: "question_group",
+      sort_order: q.sort_order ?? 0,
+      active: true,
+      archived_at: null,
+      visibility_rule_json: {},
+      payload: {
+        title,
+        description: "",
+        layout: "stack",
+        children: [
+          {
+            id: childId,
+            label: baseLabel,
+            help_text: q.help_text,
+            input_type: q.input_type,
+            placeholder: q.placeholder,
+            required: q.required,
+            options: (conditionalOptionsByItemId[q.id] || []).map((o) => ({
+              value: o.value,
+              label: o.label,
+              sort_order: o.sort_order,
+            })),
+          },
+        ],
+      },
+    });
+  }
+
+  const aug = augmentedPreviewFields(templateFields, blocksForAug);
+  const fieldsByKey = buildFieldLookup(aug);
+  const answersByFieldId = buildInlineAnswersByFieldIdForService(sid, aug);
+  const ctx = buildAnswerContext(aug, answersByFieldId);
+  const fShape = {
+    id: question.field_id,
+    field_key: String(question.intake_field_key || question.field_id || "").trim() || String(question.field_id || ""),
+    label: question.label,
+    help_text: question.help_text,
+    input_type: question.input_type,
+    placeholder: question.placeholder,
+    required: question.required,
+    sort_order: question.sort_order,
+    visibility_rule_json: question.visibility_rule_json || {},
+    active: true,
+    archived_at: null,
+  };
+  return evaluateFieldVisibility(fShape, ctx, fieldsByKey, answersByFieldId, aug);
 }
 
 function readInlineConditionalAnswer(question) {
@@ -839,7 +1034,7 @@ function validateCommonInfo(info) {
     return "입국(또는 시작) 예정일을 선택해 주세요.";
   }
   if (!info.target_state) {
-    return "정착 희망 주(State)를 입력해 주세요.";
+    return "정착 희망 주(State)를 선택해 주세요.";
   }
   if (!String(info.target_city || "").trim()) {
     return "정착 희망 도시명을 입력해 주세요.";

@@ -39,6 +39,12 @@
           <li>받는 사람 이메일 주소를 다시 한 번 확인합니다 (오타 시 다른 사람에게 권한이 갈 수 있습니다).</li>
           <li>역할은 실제 업무에 맞는 <strong>최소 권한</strong>부터 선택합니다.</li>
           <li>선택 메시지에는 회사명·담당자·다음 할 일 등 짧게 적으면 수신자가 맥락을 이해하기 쉽습니다.</li>
+          <li>
+            외부 사람에게 보낼 때는 전송 결과의 가입 링크가 <strong>https://…</strong> 인지 확인합니다.
+            계속 <code>127.0.0.1</code>이면 관리자 로그인 상태에서 API
+            <code>GET /api/admin/runtime/public-app-base</code> 로 어떤 후보가 선택됐는지 확인하고,
+            <code>LandingHelpAI_backend/.env</code> 의 예전 localhost 줄을 지우거나 Docker Compose <code>environment</code>로 공개 URL을 넣은 뒤 백엔드를 재시작하세요.
+          </li>
         </ul>
       </section>
 
@@ -48,13 +54,35 @@
       <section class="lhai-card u-mb-4">
         <h2 class="lhai-card__title">초대 보내기</h2>
         <form class="lhai-form" id="inviteForm" aria-describedby="rolesLoadStatus">
-          <label class="lhai-label" for="inviteEmail">받는 사람 이메일</label>
-          <input class="lhai-input" id="inviteEmail" name="inviteEmail" type="email" autocomplete="email" required placeholder="name@company.com" />
           <label class="lhai-label" for="inviteRole">부여할 역할</label>
           <select class="lhai-select" id="inviteRole" name="inviteRole" required aria-busy="true" disabled>
             <option value="">역할 목록을 불러오는 중…</option>
           </select>
-          <p class="lhai-help" id="inviteRoleHelp">역할 코드 옆 한글 이름을 참고해 선택하세요. 전송 후에는 이 초대에 맞춰 가입할 때만 해당 역할이 적용됩니다.</p>
+          <p class="lhai-help" id="inviteRoleHelp">
+            역할 코드 옆 한글 이름을 참고해 선택하세요. <strong>파트너</strong>는 로그인 권한(RBAC)이며, 아래 «파트너 역할/유형»은 업무 매칭용 카탈로그 값입니다.
+          </p>
+
+          <div id="invitePartnerFields" class="u-mt-2" style="display: none;">
+            <label class="lhai-label" for="invitePartnerType">파트너 역할/유형 <span class="lhai-field-error">*</span></label>
+            <select class="lhai-select" id="invitePartnerType" name="invitePartnerType" aria-describedby="invitePartnerTypeHelp">
+              <option value="">유형을 선택하세요</option>
+            </select>
+            <p class="lhai-help" id="invitePartnerTypeHelp">
+              파트너 역할/유형은 초대에만 저장되며, 가입 완료 후 파트너 프로필에 반영되어 워크플로우 매칭에 사용됩니다. 이름·전화·지역은 초대받은 분이 회원가입 화면에서 입력합니다.
+            </p>
+
+            <label class="lhai-label u-mt-2" for="invitePreferredChannel">선호 연락 채널</label>
+            <select class="lhai-select" id="invitePreferredChannel" name="invitePreferredChannel" aria-describedby="invitePreferredChannelHelp">
+              <option value="BOTH" selected>이메일 + 인앱 (BOTH)</option>
+              <option value="EMAIL">이메일 (EMAIL)</option>
+              <option value="IN_APP">인앱 (IN_APP)</option>
+            </select>
+            <p class="lhai-help" id="invitePreferredChannelHelp">기본값은 BOTH입니다.</p>
+          </div>
+
+          <label class="lhai-label u-mt-2" for="inviteEmail">받는 사람 이메일</label>
+          <input class="lhai-input" id="inviteEmail" name="inviteEmail" type="email" autocomplete="email" required placeholder="name@company.com" />
+
           <label class="lhai-label" for="personalMessage">메일에 덧붙일 메시지 (선택, 최대 약 2000자)</label>
           <textarea class="lhai-textarea" id="personalMessage" name="personalMessage" rows="4" maxlength="2000" placeholder="예: 안녕하세요, OO팀입니다. 아래 링크로 가입 후 인증 메일을 완료해 주세요."></textarea>
           <button type="submit" class="lhai-button lhai-button--primary" id="inviteSubmitBtn">초대 메일 보내기</button>
@@ -65,6 +93,14 @@
         <h2 class="lhai-card__title">전송 결과</h2>
         <p class="lhai-help" id="inviteResultBody"></p>
         <p class="lhai-help u-mt-2" id="inviteResultMeta"></p>
+        <p class="lhai-help u-mt-2" id="inviteSignupUrlWrap" hidden>
+          <strong>가입 링크 (메일 본문과 동일 · 확인용)</strong><br />
+          <a id="inviteSignupUrlLink" class="lhai-messages-cta-link" href="#" target="_blank" rel="noopener noreferrer"></a>
+        </p>
+        <p class="lhai-help u-mt-2 lhai-field-error" id="inviteSignupUrlWarnLoopback" hidden>
+          이 링크가 localhost / 127.0.0.1 이면 외부 수신자는 열 수 없습니다.
+          서버 환경 변수 <code>PUBLIC_APP_BASE_URL</code>을 실제 웹 주소(https://…)로 설정하고 백엔드를 재시작한 뒤 초대를 다시 보내세요.
+        </p>
       </section>
     </main>
   </div>

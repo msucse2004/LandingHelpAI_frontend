@@ -2,7 +2,7 @@
  * 역할 티어 (숫자가 작을수록 권한이 높음)
  *
  * 티어1: super_admin · 티어2: admin · 티어3: supervisor
- * 티어4: headquarters_staff · 티어5: customer, agent, operator · 티어6: guest
+ * 티어4: headquarters_staff · 티어5: customer, partner, agent, operator · 티어6: guest
  *
  * admin HTML: 티어 1~3만 (isRoleTierAtMost(ROLE_TIER.THREE))
  * 초대/삭제: 대상 티어가 행위자보다 낮을 때만 — canManageLowerTierRole(actor, target)
@@ -28,6 +28,7 @@ const TIER_BY_ROLE = Object.freeze({
   [ROLES.SUPERVISOR]: ROLE_TIER.THREE,
   [ROLES.HEADQUARTERS_STAFF]: ROLE_TIER.FOUR,
   [ROLES.CUSTOMER]: ROLE_TIER.FIVE,
+  [ROLES.PARTNER]: ROLE_TIER.FIVE,
   [ROLES.AGENT]: ROLE_TIER.FIVE,
   [ROLES.OPERATOR]: ROLE_TIER.FIVE,
   [ROLES.GUEST]: ROLE_TIER.SIX,
@@ -66,7 +67,7 @@ function canAccessAdminShell() {
 }
 
 /**
- * 초대·계정 삭제: 양쪽 역할이 정의되어 있고, 대상 티어가 행위자보다 낮을 때만.
+ * 초대·가입 수정 등: 양쪽 역할이 정의되어 있고, 대상 티어가 행위자보다 **엄격히 낮을 때만**(동일·상위는 false).
  * @param {string} actorRole
  * @param {string} targetRole
  */
@@ -76,7 +77,16 @@ function canManageLowerTierRole(actorRole, targetRole) {
   const at = TIER_BY_ROLE[ar];
   const tt = TIER_BY_ROLE[tr];
   if (at === undefined || tt === undefined) return false;
-  return tt > at;
+  if (tt <= at) return false;
+  return true;
+}
+
+/**
+ * 계정 삭제 버튼 표시: 대상이 행위자보다 권한이 **낮을 때만** true.
+ * 동일 등급(admin끼리 등)·상위·맵에 없는 역할명이면 false (버튼 비표시).
+ */
+function mayShowAccountDeleteButton(actorRole, targetRole) {
+  return canManageLowerTierRole(actorRole, targetRole);
 }
 
 const TIER_LABEL_KO = Object.freeze({
@@ -84,7 +94,7 @@ const TIER_LABEL_KO = Object.freeze({
   [ROLE_TIER.TWO]: "티어 2 — 관리자 (admin)",
   [ROLE_TIER.THREE]: "티어 3 — 슈퍼바이저 (supervisor)",
   [ROLE_TIER.FOUR]: "티어 4 — 본사 직원 (headquarters_staff)",
-  [ROLE_TIER.FIVE]: "티어 5 — 고객·에이전트·오퍼레이터",
+  [ROLE_TIER.FIVE]: "티어 5 — 고객·파트너·에이전트·오퍼레이터",
   [ROLE_TIER.SIX]: "티어 6 — 게스트",
 });
 
@@ -113,4 +123,5 @@ export {
   getRoleTierLabelKo,
   getTierLabelKo,
   isRoleTierAtMost,
+  mayShowAccountDeleteButton,
 };
