@@ -95,7 +95,7 @@
   padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
   border-radius: var(--radius-md, 8px);
   border: 1px solid var(--lhai-border-subtle, rgba(255, 255, 255, 0.08));
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--lhai-panel-08);
   color: inherit;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
@@ -135,7 +135,7 @@
   gap: 0.35rem 0.5rem;
   align-items: center;
   font-size: 0.72rem;
-  color: var(--lhai-text-muted, #8b93a5);
+  color: var(--lhai-color-text-muted);
 }
 
 .lhai-ops-priority {
@@ -166,8 +166,8 @@
   font-size: 0.65rem;
   padding: 0.12rem 0.35rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--lhai-panel-12);
+  border: 1px solid var(--lhai-color-border);
 }
 
 .lhai-ops-badge--warn {
@@ -213,7 +213,7 @@
 
 .lhai-ops-meta-grid dt {
   margin: 0;
-  color: var(--lhai-text-muted, #8b93a5);
+  color: var(--lhai-color-text-muted);
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -229,7 +229,7 @@
   border-radius: var(--radius-md, 8px);
   padding: var(--space-3, 0.75rem);
   margin-bottom: var(--space-3, 0.75rem);
-  background: rgba(0, 0, 0, 0.12);
+  background: var(--lhai-panel-06);
 }
 
 .lhai-ops-card--triage {
@@ -265,7 +265,7 @@
   border-radius: var(--radius-sm, 6px);
   font-size: 0.82rem;
   line-height: 1.4;
-  border-left: 3px solid rgba(255, 255, 255, 0.2);
+  border-left: 3px solid var(--lhai-color-border);
 }
 
 .lhai-ops-msg--customer {
@@ -288,7 +288,7 @@
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--lhai-text-muted, #8b93a5);
+  color: var(--lhai-color-text-muted);
   margin-bottom: 0.25rem;
 }
 
@@ -308,7 +308,7 @@
 .lhai-ops-form-row label {
   display: block;
   font-size: 0.75rem;
-  color: var(--lhai-text-muted, #8b93a5);
+  color: var(--lhai-color-text-muted);
   margin-bottom: 0.35rem;
 }
 
@@ -318,7 +318,7 @@
   padding: var(--space-2, 0.5rem);
   border-radius: var(--radius-sm, 6px);
   border: 1px solid var(--lhai-border-subtle, rgba(255, 255, 255, 0.12));
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--lhai-panel-18);
   color: var(--lhai-text, #e8ecf4);
   font-family: inherit;
   font-size: 0.85rem;
@@ -344,12 +344,12 @@
   font-size: 0.8rem;
   padding: 0.5rem;
   border-radius: var(--radius-sm, 6px);
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--lhai-panel-12);
 }
 
 .lhai-ops-note__meta {
   font-size: 0.7rem;
-  color: var(--lhai-text-muted, #8b93a5);
+  color: var(--lhai-color-text-muted);
   margin-bottom: 0.25rem;
 }
 
@@ -387,14 +387,14 @@
 .lhai-ops-tl-item {
   padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
   border-radius: var(--radius-sm, 6px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--lhai-color-border);
   font-size: 0.8rem;
   line-height: 1.4;
 }
 
 .lhai-ops-tl-item__when {
   font-size: 0.68rem;
-  color: var(--lhai-text-muted, #8b93a5);
+  color: var(--lhai-color-text-muted);
   margin-bottom: 0.25rem;
 }
 
@@ -402,7 +402,7 @@
 .lhai-ops-state {
   padding: var(--space-4, 1rem);
   text-align: center;
-  color: var(--lhai-text-muted, #8b93a5);
+  color: var(--lhai-color-text-muted);
   font-size: 0.88rem;
 }
 
@@ -415,9 +415,9 @@
   border-radius: var(--radius-md, 8px);
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.04) 0%,
-    rgba(255, 255, 255, 0.08) 50%,
-    rgba(255, 255, 255, 0.04) 100%
+    rgba(59, 130, 246, 0.04) 0%,
+    rgba(59, 130, 246, 0.1) 50%,
+    rgba(59, 130, 246, 0.04) 100%
   );
   background-size: 200% 100%;
   animation: lhai-ops-shimmer 1.2s ease-in-out infinite;
@@ -440,11 +440,11 @@
   max-width: min(360px, 90vw);
   padding: 0.65rem 1rem;
   border-radius: var(--radius-md, 8px);
-  background: rgba(30, 35, 48, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--lhai-color-surface);
+  border: 1px solid var(--lhai-color-border);
   font-size: 0.85rem;
   z-index: 2000;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--lhai-shadow-lg);
   opacity: 0;
   transform: translateY(8px);
   pointer-events: none;

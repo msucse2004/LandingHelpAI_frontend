@@ -13,7 +13,7 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   background: rgba(96, 165, 250, 0.15);
-  color: var(--lhai-color-text, #e2e8f0);
+  color: var(--lhai-color-text);
   border: 1px solid rgba(96, 165, 250, 0.35);
 }
 
@@ -40,7 +40,7 @@
 }
 
 .lhai-schedule-meta strong {
-  color: var(--lhai-color-text, #e2e8f0);
+  color: var(--lhai-color-text);
   font-weight: 600;
 }
 
@@ -48,7 +48,7 @@
   margin: 0;
   padding: var(--lhai-space-2);
   border-radius: var(--lhai-radius-sm);
-  background: rgba(15, 23, 42, 0.55);
+  background: var(--lhai-color-surface-alt);
   border: 1px solid var(--lhai-color-border);
   font-size: 0.92rem;
   line-height: 1.55;
@@ -75,7 +75,7 @@
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-sm);
   padding: 4px;
-  background: rgba(15, 23, 42, 0.45);
+  background: var(--lhai-color-surface);
 }
 
 .lhai-cs-view-btn {
@@ -178,7 +178,7 @@
 
 .lhai-cs-day {
   position: relative;
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--lhai-panel-08);
   border-radius: var(--lhai-radius-sm);
   min-height: 392px;
 }
@@ -198,7 +198,7 @@
   font-size: 0.7rem;
   line-height: 1.25;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--lhai-color-border);
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(34, 211, 238, 0.2));
 }
 
@@ -233,7 +233,7 @@
   min-height: 94px;
   padding: 6px;
   border-radius: var(--lhai-radius-sm);
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--lhai-panel-08);
   border: 1px solid var(--lhai-color-border);
 }
 
@@ -301,7 +301,7 @@
   height: 10px;
   border-radius: 50%;
   background: var(--lhai-color-accent, #60a5fa);
-  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.9);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
 }
 
 .lhai-schedule-day__title {
@@ -326,7 +326,7 @@
   padding: var(--lhai-space-3);
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-sm);
-  background: rgba(15, 23, 42, 0.35);
+  background: var(--lhai-panel-12);
 }
 
 @media (max-width: 560px) {
@@ -338,7 +338,7 @@
 .lhai-schedule-card__time {
   font-size: 0.88rem;
   font-weight: 600;
-  color: var(--lhai-color-text, #e2e8f0);
+  color: var(--lhai-color-text);
   line-height: 1.4;
 }
 
@@ -389,7 +389,7 @@
 .lhai-button--ghost {
   background: transparent;
   border: 1px solid var(--lhai-color-border);
-  color: var(--lhai-color-text, #e2e8f0);
+  color: var(--lhai-color-text);
 }
 
 .lhai-button--ghost:hover {

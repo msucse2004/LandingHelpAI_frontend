@@ -12,7 +12,7 @@
 
 .survey-branching__progress-bar {
   height: 10px;
-  background: rgba(6, 18, 36, 0.08);
+  background: var(--lhai-panel-08);
   border-radius: var(--lhai-radius-sm);
   overflow: hidden;
   margin-bottom: var(--lhai-space-2);
@@ -47,7 +47,7 @@
   text-align: left;
   border-radius: var(--lhai-radius-sm);
   border: 1px solid var(--lhai-color-border);
-  background: rgba(6, 18, 36, 0.03);
+  background: var(--lhai-panel-03);
   padding: var(--lhai-space-4);
   cursor: pointer;
   transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
@@ -96,7 +96,7 @@
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-sm);
   padding: var(--lhai-space-4);
-  background: rgba(6, 18, 36, 0.03);
+  background: var(--lhai-panel-03);
 }
 
 .survey-branching__done-block .lhai-help {

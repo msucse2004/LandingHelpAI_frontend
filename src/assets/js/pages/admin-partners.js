@@ -3,14 +3,7 @@
  */
 import { adminApi } from "../core/api.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
-
-const PARTNER_TYPE_FALLBACK = [
-  { value: "AUTO_DEALER", label: "자동차 딜러" },
-  { value: "PHONE_VENDOR", label: "휴대폰 vendor" },
-  { value: "INSURANCE_AGENT", label: "보험 agent" },
-  { value: "REALTOR", label: "부동산 agent" },
-  { value: "GENERAL_PARTNER", label: "일반 파트너" },
-];
+import { normalizePartnerTypesFromApi, partnerTypeOptionDisplayText } from "./admin-partner-type-options.js";
 
 const tbody = document.getElementById("partnersTableBody");
 const loadStatus = document.getElementById("partnersLoadStatus");
@@ -72,7 +65,7 @@ function setPageAlert(text, { error = false } = {}) {
 }
 
 function partnerTypeOptions() {
-  return resolvedPartnerTypes.length ? resolvedPartnerTypes : PARTNER_TYPE_FALLBACK;
+  return resolvedPartnerTypes;
 }
 
 function fillPartnerTypeSelect(selectEl, { includeAllEmpty } = {}) {
@@ -95,7 +88,7 @@ function fillPartnerTypeSelect(selectEl, { includeAllEmpty } = {}) {
     if (!v) continue;
     const op = document.createElement("option");
     op.value = v;
-    op.textContent = `${String(o.label || v)} (${v})`;
+    op.textContent = partnerTypeOptionDisplayText(o);
     selectEl.appendChild(op);
   }
   if (prev && [...selectEl.options].some((opt) => opt.value === prev)) {
@@ -106,13 +99,7 @@ function fillPartnerTypeSelect(selectEl, { includeAllEmpty } = {}) {
 async function loadPartnerTypes() {
   try {
     const data = await adminApi.listPartnerTypes();
-    const list = data && Array.isArray(data.partner_types) ? data.partner_types : [];
-    resolvedPartnerTypes = list
-      .map((x) => ({
-        value: String(x.value || "").trim().toUpperCase(),
-        label: String(x.label || x.value || "").trim(),
-      }))
-      .filter((x) => x.value);
+    resolvedPartnerTypes = normalizePartnerTypesFromApi(data);
   } catch {
     resolvedPartnerTypes = [];
   }

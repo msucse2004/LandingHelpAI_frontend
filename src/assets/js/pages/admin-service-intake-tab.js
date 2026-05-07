@@ -933,7 +933,7 @@ async function msiDuplicateContentBlock(blockId) {
   }
 }
 
-function setServiceEditorTab(which) {
+export function setServiceEditorTab(which) {
   const detailsBtn = qs("#manageServiceTabDetailsBtn");
   const intakeBtn = qs("#manageServiceTabIntakeBtn");
   const docsBtn = qs("#manageServiceTabDocumentsBtn");

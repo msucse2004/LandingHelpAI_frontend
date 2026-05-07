@@ -2,9 +2,11 @@
  * Service Workflow tab — form controls + payload for service create/update APIs.
  * Wired from admin-services; tab switching lives in admin-service-intake-tab.js.
  */
-import { adminApi } from "../core/api.js";
+import { adminApi, serviceCatalogAdminApi } from "../core/api.js";
 import { t } from "../core/i18n-client.js";
+import { isCatalogRecServiceItemUuidString, isUuid } from "../lib/catalog-rec-service-item-id.js";
 import { qs, qsa, safeText as esc } from "../core/utils.js";
+import { normalizePartnerTypesFromApi, partnerTypeOptionDisplayText } from "./admin-partner-type-options.js";
 import { getSinglePartnerMatchingRuleOptions } from "./workflow-matching-rule-registry.js";
 import { getSinglePartnerIntakeBuilderFallbackOptions } from "./workflow-intake-builder-registry.js";
 
@@ -25,17 +27,8 @@ const MSW_FIXED_TARGET_REGISTERED = "registered_catalog";
 /** Last selected type (for radio change → stash previous slice). */
 let mswTrackedType = MSW_DEFAULT_WORKFLOW_TYPE;
 
-/** Canonical partner types (fallback when GET /api/admin/partners/types fails). */
-const MSW_PARTNER_TYPE_OPTIONS_FALLBACK = [
-  { value: "AUTO_DEALER", label: "자동차 딜러" },
-  { value: "PHONE_VENDOR", label: "휴대폰 vendor" },
-  { value: "INSURANCE_AGENT", label: "보험 agent" },
-  { value: "REALTOR", label: "부동산 agent" },
-  { value: "GENERAL_PARTNER", label: "일반 파트너" },
-];
-
-/** Resolved options from API or fallback; null until first populate. */
-let mswPartnerTypeOptionsResolved = null;
+/** Resolved options from GET /api/admin/partners/types (DB-backed only; no client-side catalog fallback). */
+let mswPartnerTypeOptionsResolved = [];
 let mswSingleLegacyResponseNotesText = "";
 let mswSingleLegacyDefaultPartnerRaw = "";
 let mswSingleLegacyRequestTypeRaw = "";
@@ -43,7 +36,7 @@ let mswSingleLegacyResponseWasUnstructured = false;
 
 const MSW_SINGLE_POST_WORKFLOW_DEFAULT = {
   step1_after_customer_submission: "SEND_IMMEDIATELY",
-  step2_after_partner_response: "ADMIN_REVIEW",
+  step2_after_partner_response: "NONE",
   step3_customer_follow_up: "NONE",
 };
 
@@ -335,9 +328,7 @@ function mswAssignSelectValueWithLegacy(selectId, storedRaw) {
 }
 
 function mswPartnerTypeOptionsSync() {
-  return mswPartnerTypeOptionsResolved && mswPartnerTypeOptionsResolved.length
-    ? mswPartnerTypeOptionsResolved
-    : MSW_PARTNER_TYPE_OPTIONS_FALLBACK;
+  return Array.isArray(mswPartnerTypeOptionsResolved) ? mswPartnerTypeOptionsResolved : [];
 }
 
 function mswPartnerTypeAllowedSet() {
@@ -350,11 +341,11 @@ function mswPartnerTypeLabel(value) {
   return hit ? String(hit.label || v) : v;
 }
 
-/** (Re)build standard options on both partner-type selects; keeps placeholder row. */
+/** (Re)build standard options on partner-type selects; keeps placeholder row. */
 function mswPopulatePartnerTypeSelectOptions() {
   const opts = mswPartnerTypeOptionsSync();
   const phLabel = t("common.admin_services.workflow.partner_type.placeholder", "선택…");
-  for (const sid of ["mswSinglePartnerType", "mswMultiPartnerType"]) {
+  for (const sid of ["mswHumanPartnerType", "mswSinglePartnerType", "mswMultiPartnerType"]) {
     const el = qs(`#${sid}`);
     if (!(el instanceof HTMLSelectElement)) continue;
     const prev = String(el.value || "").trim().toUpperCase();
@@ -368,12 +359,11 @@ function mswPopulatePartnerTypeSelectOptions() {
     el.appendChild(ph);
     for (const o of opts) {
       const v = String(o.value || "").trim().toUpperCase();
-      const lb = String(o.label || v);
       if (!v) continue;
       const op = document.createElement("option");
       op.value = v;
       op.dataset.mswStandard = "1";
-      op.textContent = `${lb} (${v})`;
+      op.textContent = partnerTypeOptionDisplayText(o);
       el.appendChild(op);
     }
     if (legacyVal && !mswPartnerTypeAllowedSet().has(legacyVal)) {
@@ -419,27 +409,16 @@ function mswAssignPartnerTypeSelectValue(selectId, storedRaw) {
 async function mswRefreshPartnerTypesFromApi() {
   try {
     const data = await adminApi.listPartnerTypes();
-    const arr = data && Array.isArray(data.partner_types) ? data.partner_types : [];
-    const cleaned = arr
-      .filter((x) => x && typeof x === "object")
-      .map((x) => ({
-        value: String(x.value != null ? x.value : "").trim().toUpperCase(),
-        label: String(x.label != null ? x.label : "").trim(),
-      }))
-      .filter((x) => x.value && x.label);
-    if (cleaned.length) {
-      mswPartnerTypeOptionsResolved = cleaned;
-    } else if (!mswPartnerTypeOptionsResolved) {
-      mswPartnerTypeOptionsResolved = [...MSW_PARTNER_TYPE_OPTIONS_FALLBACK];
-    }
+    const cleaned = normalizePartnerTypesFromApi(data);
+    mswPartnerTypeOptionsResolved = cleaned.length ? cleaned : [];
   } catch {
-    if (!mswPartnerTypeOptionsResolved) {
-      mswPartnerTypeOptionsResolved = [...MSW_PARTNER_TYPE_OPTIONS_FALLBACK];
-    }
+    mswPartnerTypeOptionsResolved = [];
   }
   mswPopulatePartnerTypeSelectOptions();
+  const hp = mswPerTypeConfig.HUMAN_AGENT_MANAGED || {};
   const sp = mswPerTypeConfig.SINGLE_PARTNER_APPLICATION || {};
   const mp = mswPerTypeConfig.MULTI_PARTNER_QUOTE_AND_SELECT || {};
+  mswAssignPartnerTypeSelectValue("mswHumanPartnerType", hp.partner_type);
   mswAssignPartnerTypeSelectValue("mswSinglePartnerType", sp.partner_type);
   mswAssignPartnerTypeSelectValue("mswMultiPartnerType", mp.partner_type);
 }
@@ -532,6 +511,12 @@ function mswPopulateSingleIntakeBuilderOptions() {
   const el = qs("#mswSingleRequestType");
   if (!(el instanceof HTMLSelectElement)) return;
   const prev = String(el.value || "").trim();
+  const sp = mswPerTypeConfig.SINGLE_PARTNER_APPLICATION || {};
+  const stashIdRaw =
+    mswSelectedWorkflowType() === "SINGLE_PARTNER_APPLICATION"
+      ? String(sp.intake_builder_id || "").trim() || String(sp.request_type || "").trim()
+      : "";
+  const restoreCandidate = prev || stashIdRaw;
   const opts = mswSingleIntakeBuilderOptionsSync();
   el.innerHTML = "";
   const ph = document.createElement("option");
@@ -548,8 +533,10 @@ function mswPopulateSingleIntakeBuilderOptions() {
     op.textContent = o.meta ? `${o.label} (${o.meta})` : o.label;
     el.appendChild(op);
   }
-  if (prev && [...el.options].some((x) => x.value === prev)) {
-    el.value = prev;
+  if (restoreCandidate && [...el.options].some((x) => x.value === restoreCandidate)) {
+    el.value = restoreCandidate;
+  } else if (restoreCandidate) {
+    mswAssignSelectValueWithLegacy("mswSingleRequestType", restoreCandidate);
   } else {
     el.value = "";
   }
@@ -615,13 +602,14 @@ function mswDefaultSlice(type) {
         assignment_mode: "",
         notify_admin_on_new: false,
         customer_receipt_message: "",
+        partner_type: "",
         partner_email: "",
       };
     case "SINGLE_PARTNER_APPLICATION":
       return {
         partner_type: "",
         strategy: "fixed",
-        fixed_target_mode: MSW_FIXED_TARGET_EMAIL,
+        fixed_target_mode: MSW_FIXED_TARGET_REGISTERED,
         default_partner: "",
         matching_rule: "",
         partner_email: "",
@@ -692,12 +680,18 @@ function mswSingleStrategyRaw() {
   return String(qs('input[name="mswSingleStrategy"]:checked')?.value || "").trim();
 }
 
+function mswLooksLikeEmail(v) {
+  const s = String(v || "").trim();
+  if (!s) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
 /**
  * 저장된 ``single_partner`` 슬라이스에서 고정 대상 모드를 추론한다.
  * @param {Record<string, unknown> | null | undefined} slice
  */
 function mswInferFixedTargetModeFromSlice(slice) {
-  if (!slice || typeof slice !== "object") return MSW_FIXED_TARGET_EMAIL;
+  if (!slice || typeof slice !== "object") return MSW_FIXED_TARGET_REGISTERED;
   const explicit = String(slice.fixed_target_mode || "").trim();
   if (explicit === MSW_FIXED_TARGET_REGISTERED || explicit === "registered_partner") {
     return MSW_FIXED_TARGET_REGISTERED;
@@ -705,7 +699,11 @@ function mswInferFixedTargetModeFromSlice(slice) {
   if (explicit === MSW_FIXED_TARGET_EMAIL) return MSW_FIXED_TARGET_EMAIL;
   const fps = slice.fixed_partner_ids;
   if (Array.isArray(fps) && fps.some((x) => String(x || "").trim())) return MSW_FIXED_TARGET_REGISTERED;
-  return MSW_FIXED_TARGET_EMAIL;
+  const dp = String(slice.default_partner || "").trim();
+  const pe = String(slice.partner_email || "").trim();
+  const cand = pe || dp;
+  if (cand && mswLooksLikeEmail(cand)) return MSW_FIXED_TARGET_EMAIL;
+  return MSW_FIXED_TARGET_REGISTERED;
 }
 
 function mswSingleFixedTargetModeSelected() {
@@ -770,6 +768,11 @@ async function mswRefreshFixedPartnerCatalogSelect(partnerType, selectedCatalogP
     sel.appendChild(e0);
   }
   mswSyncFixedTargetSubPanels();
+  // 목록 채우기·value 복원은 프로그램적으로만 이뤄져 change 이벤트가 없다.
+  // workflowHydrateFromService 직후에는 스태시가 빈 파트너로 고정될 수 있으므로 DOM과 검증을 다시 맞춘다.
+  if (mswSelectedWorkflowType() === "SINGLE_PARTNER_APPLICATION") {
+    mswRefreshPreview();
+  }
 }
 
 function mswSyncFixedTargetSubPanels() {
@@ -783,8 +786,10 @@ function mswSyncFixedTargetSubPanels() {
     return;
   }
   const mode = mswSingleFixedTargetModeSelected();
+  const partnerTypeChosen = String(mswVal("mswSinglePartnerType", "") || "").trim() !== "";
   emailPanel.hidden = mode !== MSW_FIXED_TARGET_EMAIL;
-  catPanel.hidden = mode !== MSW_FIXED_TARGET_REGISTERED;
+  // 등록 파트너(계정 연결) 선택 UI는 파트너 유형을 고른 뒤에만 표시
+  catPanel.hidden = mode !== MSW_FIXED_TARGET_REGISTERED || !partnerTypeChosen;
 }
 
 function mswSingleTargetUiState(strategyRaw) {
@@ -798,12 +803,6 @@ function mswSingleTargetUiState(strategyRaw) {
   };
 }
 
-function mswLooksLikeEmail(v) {
-  const s = String(v || "").trim();
-  if (!s) return false;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-}
-
 function mswVal(id, fallback = "") {
   const el = qs(`#${id}`);
   if (!el) return fallback;
@@ -813,7 +812,12 @@ function mswVal(id, fallback = "") {
 
 function mswPartnerTypeSelectsNeedStructure() {
   const el = qs("#mswSinglePartnerType");
-  return !(el instanceof HTMLSelectElement) || el.querySelectorAll("option[data-msw-standard='1']").length === 0;
+  const humanEl = qs("#mswHumanPartnerType");
+  return (
+    !(el instanceof HTMLSelectElement) ||
+    el.querySelectorAll("option[data-msw-standard='1']").length === 0 ||
+    (humanEl instanceof HTMLSelectElement && humanEl.querySelectorAll("option[data-msw-standard='1']").length === 0)
+  );
 }
 
 function mswSyncSinglePartnerTargetUi() {
@@ -823,13 +827,17 @@ function mswSyncSinglePartnerTargetUi() {
   const emailInput = qs("#mswSingleDefaultPartner");
   const ruleSelect = qs("#mswSingleMatchingRule");
   const catSel = qs("#mswSingleFixedPartnerCatalogSelect");
+  const partnerTypeChosen = String(mswVal("mswSinglePartnerType", "") || "").trim() !== "";
   if (fixedWrap) fixedWrap.hidden = !ui.showPartnerEmail;
   if (ruleWrap) ruleWrap.hidden = !ui.showMatchingRule;
   if (emailInput instanceof HTMLInputElement) {
     emailInput.disabled = !ui.showPartnerEmail || mswSingleFixedTargetModeSelected() !== MSW_FIXED_TARGET_EMAIL;
   }
   if (catSel instanceof HTMLSelectElement) {
-    catSel.disabled = !ui.showPartnerEmail || mswSingleFixedTargetModeSelected() !== MSW_FIXED_TARGET_REGISTERED;
+    catSel.disabled =
+      !ui.showPartnerEmail ||
+      mswSingleFixedTargetModeSelected() !== MSW_FIXED_TARGET_REGISTERED ||
+      !partnerTypeChosen;
   }
   qsa('input[name="mswSingleFixedTargetMode"]').forEach((n) => {
     if (n instanceof HTMLInputElement) n.disabled = !ui.showPartnerEmail;
@@ -858,6 +866,7 @@ function mswExtractSliceFromDom(type) {
         assignment_mode: mswVal("mswHumanAssignment", ""),
         notify_admin_on_new: Boolean(mswVal("mswHumanAdminNotify", false)),
         customer_receipt_message: String(qs("#mswHumanCustomerMessage")?.value ?? "").trim(),
+        partner_type: mswVal("mswHumanPartnerType", ""),
         partner_email: String(mswVal("mswHumanPartnerNotifyEmail", "") || "").trim(),
       };
     case "SINGLE_PARTNER_APPLICATION":
@@ -955,6 +964,8 @@ function mswApplySliceToDom(type, sliceIn) {
     }
     const n = qs("#mswHumanAdminNotify");
     if (n instanceof HTMLInputElement) n.checked = Boolean(slice.notify_admin_on_new);
+    if (mswPartnerTypeSelectsNeedStructure()) mswPopulatePartnerTypeSelectOptions();
+    mswAssignPartnerTypeSelectValue("mswHumanPartnerType", slice.partner_type || "");
     const pe = qs("#mswHumanPartnerNotifyEmail");
     if (pe instanceof HTMLInputElement) pe.value = String(slice.partner_email || "").trim();
     const msg = qs("#mswHumanCustomerMessage");
@@ -1112,7 +1123,7 @@ function workflowComputeValidation(intakeFieldKeys) {
       );
     } else if (!allowed.has(pt)) {
       errors.push(
-        `파트너 유형「${pt}」은 허용된 값이 아닙니다. AUTO_DEALER, PHONE_VENDOR, INSURANCE_AGENT, REALTOR, GENERAL_PARTNER 중 하나를 선택한 뒤 저장해 주세요.`
+        `파트너 유형「${pt}」은 현재 서버에서 불러온 파트너 유형 목록에 없습니다. 파트너(또는 워크플로 규칙)에 등록된 유형이 반영된 뒤 다시 선택해 주세요.`
       );
     }
     const maxR = Number(mp.max_requests);
@@ -1227,7 +1238,7 @@ function mswValidateSinglePartnerSlice(sp, deps = {}) {
     errors.push("단일 파트너 신청을 저장하려면 파트너 유형을 선택해 주세요.");
   } else if (!partnerTypeAllowedSet.has(pt)) {
     errors.push(
-      `파트너 유형「${pt}」은 허용된 값이 아닙니다. AUTO_DEALER, PHONE_VENDOR, INSURANCE_AGENT, REALTOR, GENERAL_PARTNER 중 하나를 선택한 뒤 저장해 주세요.`
+      `파트너 유형「${pt}」은 현재 서버에서 불러온 파트너 유형 목록에 없습니다. 파트너(또는 워크플로 규칙)에 등록된 유형이 반영된 뒤 다시 선택해 주세요.`
     );
   }
   const strategyRaw = String(sp?.strategy || "").trim();
@@ -1240,8 +1251,7 @@ function mswValidateSinglePartnerSlice(sp, deps = {}) {
   const fps = Array.isArray(sp?.fixed_partner_ids)
     ? sp.fixed_partner_ids.map((x) => String(x || "").trim()).filter(Boolean)
     : [];
-  const uuidOk = (s) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(s || "").trim());
+  const uuidOk = (s) => isUuid(String(s || "").trim());
   if (strat === "fixed") {
     if (fixedMode === MSW_FIXED_TARGET_REGISTERED) {
       const idCandidate = fps[0] || target;
@@ -1767,7 +1777,7 @@ function mswRefreshPreview() {
 function mswResetFormToDefaults() {
   mswSetRadio("mswWorkflowType", MSW_DEFAULT_WORKFLOW_TYPE);
   mswSetRadio("mswSingleStrategy", "fixed");
-  mswSetRadio("mswSingleFixedTargetMode", MSW_FIXED_TARGET_EMAIL);
+  mswSetRadio("mswSingleFixedTargetMode", MSW_FIXED_TARGET_REGISTERED);
   mswSingleLegacyResponseNotesText = "";
   mswSingleLegacyResponseWasUnstructured = false;
   mswSingleLegacyDefaultPartnerRaw = "";
@@ -1791,7 +1801,7 @@ function mswResetFormToDefaults() {
     ["mswSingleMatchingRule", ""],
     ["mswSingleRequestType", ""],
     ["mswSinglePostStep1", "SEND_IMMEDIATELY"],
-    ["mswSinglePostStep2", "ADMIN_REVIEW"],
+    ["mswSinglePostStep2", "NONE"],
     ["mswSinglePostStep3", "NONE"],
     ["mswMultiPartnerType", ""],
     ["mswMultiRequestType", ""],
@@ -1880,15 +1890,22 @@ function mswBindPanel() {
       onAny();
       return;
     }
-    if (
-      t instanceof HTMLSelectElement &&
-      (t.id === "mswSinglePartnerType" || t.id === "mswMultiPartnerType") &&
-      mswPartnerTypeAllowedSet().has(String(t.value || "").trim().toUpperCase())
-    ) {
-      qsa(`#${t.id} option[data-msw-legacy='1']`).forEach((n) => n.remove());
-      if (t.id === "mswSinglePartnerType" && mswSingleStrategySelected() === "fixed") {
-        if (mswSingleFixedTargetModeSelected() === MSW_FIXED_TARGET_REGISTERED) {
+    if (t instanceof HTMLSelectElement) {
+      const id = t.id;
+      if (id === "mswHumanPartnerType" || id === "mswMultiPartnerType") {
+        const ptVal = String(t.value || "").trim().toUpperCase();
+        if (mswPartnerTypeAllowedSet().has(ptVal)) {
+          qsa(`#${id} option[data-msw-legacy='1']`).forEach((n) => n.remove());
+        }
+      } else if (id === "mswSinglePartnerType") {
+        const ptVal = String(t.value || "").trim().toUpperCase();
+        if (mswPartnerTypeAllowedSet().has(ptVal)) {
+          qsa("#mswSinglePartnerType option[data-msw-legacy='1']").forEach((n) => n.remove());
+        }
+        if (mswSingleStrategySelected() === "fixed" && mswSingleFixedTargetModeSelected() === MSW_FIXED_TARGET_REGISTERED) {
           void mswRefreshFixedPartnerCatalogSelect(String(t.value || "").trim(), "");
+        } else {
+          mswSyncFixedTargetSubPanels();
         }
       }
     }
@@ -1898,7 +1915,8 @@ function mswBindPanel() {
 }
 
 /**
- * Load workflow fields from a service row (edit mode). Call before msiOnServiceContextChanged.
+ * Load workflow fields from a service row (edit mode).
+ * Prefer calling after ``msiRefresh()`` so the intake builder dropdown can list the active service template id/label (not only the fallback registry row).
  * @param {Record<string, unknown>} svc
  */
 export function workflowHydrateFromService(svc) {
@@ -2003,6 +2021,115 @@ export function workflowGetPayload() {
 export function workflowTabActivated() {
   mswToggleSections();
   mswRefreshPreview();
+  void workflowRefreshDbStatusPanel();
+}
+
+function mswDiagCopyTemplate() {
+  const origin = typeof window !== "undefined" && window.location && window.location.origin ? window.location.origin : "";
+  return `${origin}/api/admin/intake-dispatch-diagnostics?thread_id=&session_id=`;
+}
+
+/**
+ * 하단 DB 상태 패널: 활성 ``service_workflow_config`` 및 파트너 규칙을 서버에서 다시 읽어 표시한다.
+ */
+export async function workflowRefreshDbStatusPanel() {
+  const panel = qs("#mswWorkflowDbPanel");
+  const body = qs("#mswWorkflowDbPanelBody");
+  const warn = qs("#mswWorkflowDbPanelWarn");
+  const loading = qs("#mswWorkflowDbPanelLoading");
+  const codeEl = qs("#mswWorkflowDbDiagUrl");
+  const sid = (qs("#manageServiceId")?.value || "").trim();
+  if (!panel || !body) return;
+  if (codeEl) codeEl.textContent = "/api/admin/intake-dispatch-diagnostics?thread_id=&session_id=";
+  if (!sid) {
+    panel.hidden = true;
+    return;
+  }
+  if (!isCatalogRecServiceItemUuidString(sid)) {
+    panel.hidden = false;
+    if (loading) loading.hidden = true;
+    body.innerHTML = `<p class="lhai-help">${esc(
+      t(
+        "common.admin_services.workflow.db.need_rec_uuid",
+        "워크플로 DB 상태는 rec_service_items.id(UUID)인 서비스에서만 조회됩니다. 목록에서 서비스를 다시 선택하세요."
+      )
+    )}</p>`;
+    return;
+  }
+  panel.hidden = false;
+  if (warn) {
+    warn.hidden = true;
+    warn.textContent = "";
+  }
+  if (loading) loading.hidden = false;
+  body.innerHTML = "";
+  try {
+    const data = await serviceCatalogAdminApi.getServiceItemWorkflowDbState(sid);
+    if (!data || data.database_available === false) {
+      body.innerHTML = `<p class="lhai-help">${esc(
+        t(
+          "common.admin_services.workflow.db.no_sql",
+          "DB 워크플로 상태는 SQL 백엔드가 켜진 환경에서만 조회됩니다."
+        )
+      )}</p>`;
+      return;
+    }
+    const cfg = data.active_workflow_config;
+    if (!cfg) {
+      body.innerHTML = `<p class="lhai-help">${esc(
+        t(
+          "common.admin_services.workflow.db.no_active_config",
+          "활성 service_workflow_config 가 없습니다. 아래에서 워크플로를 저장하면 생성됩니다."
+        )
+      )}</p>`;
+      return;
+    }
+    const rows = [
+      ["workflow_config_id", cfg.workflow_config_id],
+      ["workflow_type", cfg.workflow_type],
+      ["version", String(cfg.version)],
+      ["is_active", String(cfg.is_active)],
+      ["partner_rule_count", String(data.partner_rule_count ?? 0)],
+    ];
+    let html = '<dl class="admin-services__workflow-db-dl">';
+    for (const [k, v] of rows) {
+      html += `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`;
+    }
+    html += "</dl>";
+    const rules = Array.isArray(data.partner_rules) ? data.partner_rules : [];
+    if (rules.length) {
+      html +=
+        '<p class="lhai-label u-mt-2">' +
+        esc(t("common.admin_services.workflow.db.rules_heading", "Partner rules (active)")) +
+        "</p>";
+      html += '<div style="overflow-x:auto"><table class="lhai-table admin-services__workflow-db-table"><thead><tr>';
+      const cols = ["route_type", "partner_email", "partner_account_id", "service_partner_id", "delivery_channel", "priority"];
+      html += `<th>#</th>`;
+      for (const c of cols) html += `<th>${esc(c)}</th>`;
+      html += "</tr></thead><tbody>";
+      rules.forEach((r, i) => {
+        html += "<tr>";
+        html += `<td>${i + 1}</td>`;
+        for (const c of cols) html += `<td>${esc(r[c])}</td>`;
+        html += "</tr>";
+      });
+      html += "</tbody></table></div>";
+    }
+    body.innerHTML = html;
+    const prc = Number(data.partner_rule_count);
+    if (warn && (!Number.isFinite(prc) || prc === 0)) {
+      warn.hidden = false;
+      warn.textContent = t(
+        "common.admin_services.workflow.db.no_partner_rules",
+        "현재 active workflow에 partner rule이 없습니다. 고객이 intake를 제출해도 파트너를 찾을 수 없습니다."
+      );
+    }
+  } catch (e) {
+    const msg = e && typeof e.message === "string" ? e.message : String(e);
+    body.innerHTML = `<p class="lhai-help">${esc(msg)}</p>`;
+  } finally {
+    if (loading) loading.hidden = true;
+  }
 }
 
 /** Intake 탭에서 필드 목록이 바뀐 뒤 workflow 미리보기·검증만 다시 그립니다. */
@@ -2047,6 +2174,14 @@ export function initManageServiceWorkflowTab() {
   mswBindPanel();
   mswToggleSections();
   mswRefreshPreview();
+  qs("#mswWorkflowDbCopyDiagApiBtn")?.addEventListener("click", async () => {
+    const text = mswDiagCopyTemplate();
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      /* ignore */
+    }
+  });
 }
 
 export const __testOnlySinglePartner = {

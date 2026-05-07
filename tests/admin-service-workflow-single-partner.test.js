@@ -39,6 +39,11 @@ test("infer fixed target: fixed_partner_ids implies registered mode", () => {
   assert.equal(mswInferFixedTargetModeFromSlice({ strategy: "fixed", partner_email: "a@b.co" }), MSW_FIXED_TARGET_EMAIL);
 });
 
+test("infer fixed target: ambiguous empty slice defaults to registered", () => {
+  assert.equal(mswInferFixedTargetModeFromSlice({}), MSW_FIXED_TARGET_REGISTERED);
+  assert.equal(mswInferFixedTargetModeFromSlice(null), MSW_FIXED_TARGET_REGISTERED);
+});
+
 test("validation: fixed requires valid email", () => {
   const bad = mswValidateSinglePartnerSlice(
     {

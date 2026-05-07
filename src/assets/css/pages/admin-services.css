@@ -119,7 +119,7 @@
   align-items: center;
   gap: var(--lhai-space-2);
   border: 1px solid var(--lhai-color-border);
-  background: rgba(6, 18, 36, 0.28);
+  background: var(--lhai-panel-28);
   padding: 6px 10px;
   border-radius: var(--lhai-radius-sm);
   cursor: pointer;
@@ -157,7 +157,7 @@
 .admin-services__badge--addon {
   background: rgba(239, 68, 68, 0.08);
   border-color: rgba(239, 68, 68, 0.22);
-  color: #ffb4b4;
+  color: #b91c1c;
 }
 
 .admin-services__left {
@@ -223,7 +223,7 @@
   padding: 8px 12px;
   border-radius: var(--lhai-radius-sm);
   border: 1px solid var(--lhai-color-border);
-  background: rgba(6, 18, 36, 0.25);
+  background: var(--lhai-panel-25);
   color: var(--lhai-color-text-muted);
   cursor: pointer;
   font-weight: 700;
@@ -494,33 +494,47 @@
   gap: var(--lhai-space-4);
 }
 
-/* Service tab: full-width list vs full-width editor (Category/Package layouts unchanged). */
+/* Category/Package/Service tab: full-width list vs full-width editor. */
+.admin-services__category-layout.is-list-mode,
+.admin-services__package-layout.is-list-mode,
 .admin-services__service-layout.is-list-mode {
   grid-template-columns: 1fr;
 }
 
+.admin-services__category-layout.is-list-mode .admin-services__category-list-panel,
+.admin-services__package-layout.is-list-mode .admin-services__package-list-panel,
 .admin-services__service-layout.is-list-mode .admin-services__service-list-panel {
   display: block;
 }
 
+.admin-services__category-layout.is-list-mode .admin-services__category-detail-panel,
+.admin-services__package-layout.is-list-mode .admin-services__package-detail-panel,
 .admin-services__service-layout.is-list-mode .admin-services__service-detail-panel {
   display: none;
 }
 
+.admin-services__category-layout.is-editor-mode,
+.admin-services__package-layout.is-editor-mode,
 .admin-services__service-layout.is-editor-mode {
   grid-template-columns: 1fr;
 }
 
+.admin-services__category-layout.is-editor-mode .admin-services__category-list-panel,
+.admin-services__package-layout.is-editor-mode .admin-services__package-list-panel,
 .admin-services__service-layout.is-editor-mode .admin-services__service-list-panel {
   display: none;
 }
 
+.admin-services__category-layout.is-editor-mode .admin-services__category-detail-panel,
+.admin-services__package-layout.is-editor-mode .admin-services__package-detail-panel,
 .admin-services__service-layout.is-editor-mode .admin-services__service-detail-panel {
   display: block;
   width: 100%;
   min-width: 0;
 }
 
+.admin-services__category-editor-nav,
+.admin-services__package-editor-nav,
 .admin-services__service-editor-nav {
   margin: 0 0 var(--lhai-space-3) 0;
 }
@@ -534,7 +548,7 @@
   border: 1px solid rgba(148, 163, 184, 0.32);
   border-radius: var(--lhai-radius-md);
   padding: var(--lhai-space-3);
-  background: rgba(15, 23, 42, 0.25);
+  background: var(--lhai-panel-12);
 }
 
 .admin-services__category-list-head {
@@ -617,6 +631,8 @@
   margin: 0 0 var(--lhai-space-2) 0;
   min-height: 1.25em;
   font-size: var(--lhai-font-size-sm);
+  white-space: pre-line;
+  max-width: min(40rem, 100%);
 }
 
 .admin-services__manage-action-status--working {
@@ -664,7 +680,7 @@
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: var(--lhai-radius-md);
   padding: var(--lhai-space-2);
-  background: rgba(15, 23, 42, 0.2);
+  background: var(--lhai-panel-12);
 }
 
 .admin-services__manage-step {
@@ -803,13 +819,85 @@
 
 .admin-services__workflow-card--preview {
   border-color: rgba(110, 168, 254, 0.35);
-  background: rgba(15, 23, 42, 0.45);
+  background: var(--lhai-panel-25);
 }
 
 .admin-services__workflow-card-title {
   margin: 0 0 var(--lhai-space-3) 0;
   font-size: var(--lhai-font-size-md);
   color: var(--lhai-color-text);
+}
+
+.admin-services__workflow-db-panel {
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: var(--lhai-space-4);
+}
+
+.admin-services__workflow-db-body {
+  font-size: var(--lhai-font-size-sm);
+}
+
+.admin-services__workflow-db-dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--lhai-space-1) var(--lhai-space-4);
+  margin: 0;
+}
+
+.admin-services__workflow-db-dl dt {
+  margin: 0;
+  color: var(--lhai-color-text-muted);
+  font-weight: 500;
+}
+
+.admin-services__workflow-db-dl dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.admin-services__workflow-db-table {
+  width: 100%;
+  margin-top: var(--lhai-space-2);
+  font-size: var(--lhai-font-size-xs);
+}
+
+.admin-services__workflow-db-warn {
+  margin: var(--lhai-space-3) 0 0 0;
+  padding: var(--lhai-space-3);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  background: rgba(127, 29, 29, 0.25);
+  color: var(--lhai-danger);
+}
+
+.admin-services__workflow-db-code {
+  display: inline-block;
+  margin-left: 0.35em;
+  padding: 0.1em 0.35em;
+  border-radius: var(--lhai-radius-sm);
+  background: var(--lhai-color-surface-alt);
+  font-size: 0.85em;
+}
+
+.admin-services__workflow-db-repair-out {
+  margin: 0;
+  padding: var(--lhai-space-3);
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: var(--lhai-font-size-xs);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: var(--lhai-color-surface-alt);
+  color: var(--lhai-color-text);
+}
+
+.admin-services__workflow-db-repair-hr {
+  border: 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+  margin: 0;
 }
 
 .admin-services__workflow-question {
@@ -840,7 +928,7 @@
   padding: var(--lhai-space-2) var(--lhai-space-3);
   border-radius: var(--lhai-radius-md);
   border: 1px solid rgba(148, 163, 184, 0.28);
-  background: rgba(15, 23, 42, 0.35);
+  background: var(--lhai-panel-18);
   cursor: pointer;
 }
 
@@ -898,8 +986,8 @@
   margin-top: var(--lhai-space-2);
   padding: var(--lhai-space-3);
   border-radius: var(--lhai-radius-md);
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(6, 18, 36, 0.4);
+  border: 1px solid var(--lhai-color-border);
+  background: var(--lhai-color-surface);
   min-height: 4rem;
 }
 
@@ -914,7 +1002,7 @@
 .admin-services__workflow-preview-sub {
   margin: 0 0 var(--lhai-space-3) 0;
   font-size: var(--lhai-font-size-sm);
-  color: rgba(226, 232, 240, 0.85);
+  color: var(--lhai-color-text-muted);
   line-height: 1.45;
 }
 
@@ -939,7 +1027,7 @@
   padding-top: var(--lhai-space-2);
   border-top: 1px solid rgba(148, 163, 184, 0.2);
   font-size: var(--lhai-font-size-sm);
-  color: rgba(203, 213, 225, 0.92);
+  color: var(--lhai-color-text-muted);
   line-height: 1.45;
 }
 
@@ -975,7 +1063,7 @@
   border-radius: var(--lhai-radius-md);
   border: 1px solid rgba(148, 163, 184, 0.28);
   padding: var(--lhai-space-3);
-  background: rgba(6, 18, 36, 0.55);
+  background: var(--lhai-color-surface-alt);
 }
 
 .admin-services__workflow-validation__item {
@@ -1029,12 +1117,12 @@
 
 .admin-services__intake-side {
   padding: var(--lhai-space-3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-lg, 12px);
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--lhai-panel-12);
   max-height: min(88vh, 62rem);
   overflow: auto;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--lhai-shadow-lg);
   position: relative;
   z-index: 1100;
 }
@@ -1064,10 +1152,34 @@
   height: 92vh;
   max-height: 92vh;
   border-radius: var(--lhai-radius-lg, 12px);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(3, 10, 22, 0.98);
   z-index: 1100;
   padding: var(--lhai-space-4);
+  /* 라이트 토큰(#132238)을 그대로 쓰면 어두운 패널에서 글자가 사라짐 — 패널 내문맥용 대비 */
+  color-scheme: dark;
+  color: #e8edf5;
+  --lhai-color-text: #e8edf5;
+  --lhai-color-text-muted: rgba(226, 232, 245, 0.76);
+  --lhai-color-border: rgba(148, 163, 184, 0.42);
+  --lhai-color-surface: rgba(15, 23, 42, 0.88);
+  --lhai-color-surface-alt: rgba(30, 41, 59, 0.82);
+  --lhai-color-surface-raised: rgba(51, 65, 85, 0.55);
+  --lhai-panel-06: rgba(148, 163, 184, 0.12);
+  --lhai-panel-08: rgba(148, 163, 184, 0.14);
+  --lhai-panel-12: rgba(148, 163, 184, 0.16);
+  --lhai-panel-20: rgba(30, 41, 59, 0.72);
+  --lhai-panel-38: rgba(71, 85, 105, 0.65);
+}
+
+.admin-services__intake-builder-layout.is-side-open .admin-services__intake-side .lhai-card {
+  background: linear-gradient(180deg, rgba(51, 65, 85, 0.58), rgba(30, 41, 59, 0.82));
+  color: var(--lhai-color-text);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.admin-services__intake-builder-layout.is-side-open .admin-services__intake-side .lhai-select {
+  color-scheme: dark;
 }
 
 .admin-services__intake-side-head {
@@ -1105,7 +1217,7 @@
 .admin-services__intake-card {
   padding: var(--lhai-space-4);
   margin-bottom: var(--lhai-space-3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-lg, 12px);
 }
 
@@ -1153,7 +1265,7 @@
   overflow: auto;
   max-height: 14rem;
   padding: var(--lhai-space-2);
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--lhai-panel-18);
   border-radius: var(--lhai-radius-md);
   margin-top: var(--lhai-space-2);
   white-space: pre-wrap;
@@ -1184,14 +1296,14 @@
 .admin-services__doc-card {
   padding: var(--lhai-space-4);
   margin-bottom: var(--lhai-space-3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-lg, 12px);
   border-left: 3px solid rgba(100, 180, 255, 0.45);
 }
 
 .admin-services__doc-card--archived {
   opacity: 0.72;
-  border-left-color: rgba(255, 255, 255, 0.15);
+  border-left-color: var(--lhai-color-border);
 }
 
 .admin-services__doc-card-head {
@@ -1243,7 +1355,7 @@
 .admin-services__doc-dialog-header {
   margin-bottom: var(--lhai-space-4);
   padding-bottom: var(--lhai-space-3);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--lhai-color-border);
 }
 
 .admin-services__doc-dialog-head-row {
@@ -1284,7 +1396,7 @@
 .admin-services__doc-section {
   padding-bottom: var(--lhai-space-3);
   margin-bottom: var(--lhai-space-3);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--lhai-color-border);
 }
 
 .admin-services__doc-section:last-of-type {
@@ -1295,8 +1407,8 @@
   display: inline-flex;
   padding: 3px;
   border-radius: var(--lhai-radius-md, 10px);
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--lhai-panel-22);
+  border: 1px solid var(--lhai-color-border);
   gap: 2px;
 }
 
@@ -1340,8 +1452,8 @@
   align-items: start;
   padding: var(--lhai-space-3);
   border-radius: var(--lhai-radius-md, 10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--lhai-color-border);
+  background: var(--lhai-panel-12);
   cursor: pointer;
 }
 
@@ -1370,8 +1482,8 @@
   margin-top: var(--lhai-space-3);
   padding: var(--lhai-space-3);
   border-radius: var(--lhai-radius-md, 10px);
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--lhai-panel-18);
+  border: 1px solid var(--lhai-color-border);
 }
 
 .admin-services__msd-picker-toolbar {
@@ -1388,7 +1500,7 @@
   overflow-y: auto;
   padding: var(--lhai-space-2);
   border-radius: var(--lhai-radius-sm);
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--lhai-panel-12);
 }
 
 .admin-services__msd-state-chip {
@@ -1397,7 +1509,7 @@
   gap: 0.35rem;
   padding: 0.35rem 0.5rem;
   border-radius: var(--lhai-radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--lhai-color-border);
   font-size: var(--lhai-font-size-xs);
   cursor: pointer;
   user-select: none;
@@ -1423,7 +1535,7 @@
 }
 
 .admin-services__intake-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--lhai-panel-35);
 }
 
 .admin-services__intake-dialog-header {
@@ -1442,7 +1554,7 @@
 .admin-services__intake-form-section {
   margin-bottom: var(--lhai-space-5);
   padding-bottom: var(--lhai-space-4);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--lhai-color-border);
 }
 
 .admin-services__intake-form-section:last-of-type {
@@ -1457,7 +1569,7 @@
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.65));
+  color: var(--lhai-color-text-muted);
 }
 
 .admin-services__intake-toggle-row {
@@ -1504,7 +1616,7 @@
   margin-top: var(--lhai-space-3);
   padding: var(--lhai-space-3);
   border-radius: var(--lhai-radius-md);
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--lhai-panel-12);
 }
 
 .admin-services__intake-custom-vis {
@@ -1553,9 +1665,9 @@
   gap: var(--lhai-space-2);
   margin-bottom: var(--lhai-space-3);
   padding: var(--lhai-space-3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-md);
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--lhai-panel-08);
 }
 
 .admin-services__intake-option-reorder {
@@ -1596,16 +1708,16 @@
   font-size: 0.9375rem;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--lhai-color-text-muted);
 }
 
 /* ----- Customer Intake Builder: preview dialog (uses shared .lhai-intake-* from messages.css) ----- */
 .admin-intake-preview-dialog {
   max-width: min(52rem, 96vw);
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--lhai-color-border);
   background: var(--lhai-color-bg-elevated, #1a1d24);
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--lhai-color-text);
 }
 
 .admin-intake-preview-dialog__inner {
@@ -1623,6 +1735,7 @@
   gap: var(--lhai-space-2);
 }
 
+
 .admin-intake-preview-dialog__lead {
   margin: 0;
 }
@@ -1630,13 +1743,13 @@
 .admin-intake-preview__customer-header {
   padding: var(--lhai-space-2) var(--lhai-space-3);
   border-radius: var(--lhai-radius-md);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--lhai-color-border);
+  background: var(--lhai-panel-18);
 }
 
 /* Matches customer thread `.lhai-service-header` (messages.css); dark-theme token tweaks only. */
 .admin-intake-preview__customer-header.lhai-service-header--preview .lhai-service-header__title {
-  color: rgba(255, 255, 255, 0.96);
+  color: var(--lhai-color-text);
   font-size: 1.15rem;
 }
 
@@ -1659,21 +1772,21 @@
 }
 
 .admin-intake-preview__customer-header.lhai-service-header--preview .lhai-service-header__delivery-badge--neutral {
-  border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.85);
+  border-color: var(--lhai-color-border);
+  background: var(--lhai-panel-08);
+  color: var(--lhai-color-text);
 }
 
 .admin-intake-preview__header-meta {
   margin: var(--lhai-space-2) 0 0;
   font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.62) !important;
+  color: var(--lhai-color-text-muted) !important;
 }
 
 .admin-intake-preview__tabs {
   display: flex;
   gap: var(--lhai-space-1);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--lhai-color-border);
 }
 
 .admin-intake-preview__tab {
@@ -1681,7 +1794,7 @@
   border: none;
   border-bottom: 2px solid transparent;
   background: transparent;
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--lhai-color-text-muted);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -1689,7 +1802,7 @@
 }
 
 .admin-intake-preview__tab.is-active {
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--lhai-color-text);
   border-bottom-color: rgba(59, 130, 246, 0.85);
 }
 
@@ -1715,8 +1828,8 @@
   margin-bottom: var(--lhai-space-3);
   padding: var(--lhai-space-3);
   border-radius: var(--lhai-radius-md);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--lhai-color-border);
+  background: var(--lhai-panel-12);
 }
 
 .admin-intake-preview__card--question .admin-intake-preview__q-title {
@@ -1736,7 +1849,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--lhai-color-text-muted);
 }
 
 .admin-intake-preview__pill {
@@ -1756,21 +1869,21 @@
 .admin-intake-preview__help {
   margin: 0 0 var(--lhai-space-2);
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--lhai-color-text-muted);
   line-height: 1.45;
 }
 
 .admin-intake-preview__meta {
   margin: 0;
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--lhai-color-text-muted);
 }
 
 .admin-intake-preview__option-list {
   margin: var(--lhai-space-2) 0 0;
   padding-left: 1.25rem;
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--lhai-color-text);
 }
 
 .admin-intake-preview__card--content .lhai-intake-content-blocks {
@@ -1781,8 +1894,8 @@
   margin-bottom: var(--lhai-space-3);
   padding: var(--lhai-space-2);
   border-radius: var(--lhai-radius-md);
-  border: 1px dashed rgba(255, 255, 255, 0.15);
-  background: rgba(0, 0, 0, 0.15);
+  border: 1px dashed var(--lhai-color-border);
+  background: var(--lhai-panel-08);
 }
 
 .admin-intake-preview__history-row {
@@ -1795,7 +1908,7 @@
 }
 
 .admin-intake-preview__history-val {
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--lhai-color-text-muted);
   word-break: break-word;
   text-align: right;
 }
@@ -1804,7 +1917,7 @@
   padding: var(--lhai-space-3);
   border-radius: var(--lhai-radius-md);
   border: 1px solid rgba(59, 130, 246, 0.35);
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--lhai-panel-18);
 }
 
 .admin-intake-preview__form-label {
@@ -1814,7 +1927,7 @@
 
 .admin-intake-preview__form-help {
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--lhai-color-text-muted);
   margin-bottom: var(--lhai-space-2);
 }
 
@@ -1826,9 +1939,9 @@
   box-sizing: border-box;
   padding: var(--lhai-space-2);
   border-radius: var(--lhai-radius-md);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(0, 0, 0, 0.35);
-  color: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--lhai-color-border);
+  background: var(--lhai-panel-22);
+  color: var(--lhai-color-text);
   font: inherit;
 }
 
@@ -1881,7 +1994,7 @@
 
 .admin-intake-preview__subfield {
   padding: var(--lhai-space-2) 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--lhai-color-border);
 }
 
 .admin-intake-preview__subfield:last-child {
@@ -1901,18 +2014,18 @@
 
 /* Intake blocks (from messages.css) are light-themed; adapt inside dark preview dialog */
 .admin-intake-preview__scroll .lhai-intake-block {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: var(--lhai-panel-08);
+  border-color: var(--lhai-color-border);
 }
 
 .admin-intake-preview__scroll .lhai-intake-block__title,
 .admin-intake-preview__scroll .lhai-intake-block__body,
 .admin-intake-preview__scroll .lhai-intake-block__caption {
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--lhai-color-text);
 }
 
 .admin-intake-preview__scroll .lhai-intake-block__img {
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--lhai-panel-22);
 }
 
 .admin-intake-preview__scroll .lhai-intake-block__body--html a {
@@ -1921,24 +2034,24 @@
 
 /* Customer Intake Builder — Quill (dark shell) */
 .admin-intake-body-editor-host .ql-toolbar.ql-snow {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.14);
+  background: var(--lhai-panel-08);
+  border-color: var(--lhai-color-border);
   border-radius: var(--lhai-radius-md, 8px) var(--lhai-radius-md, 8px) 0 0;
 }
 
 .admin-intake-body-editor-host .ql-container.ql-snow {
-  border-color: rgba(255, 255, 255, 0.14);
+  border-color: var(--lhai-color-border);
   border-radius: 0 0 var(--lhai-radius-md, 8px) var(--lhai-radius-md, 8px);
-  background: rgba(0, 0, 0, 0.28);
-  color: rgba(255, 255, 255, 0.92);
+  background: var(--lhai-panel-20);
+  color: var(--lhai-color-text);
   font-size: 0.875rem;
   min-height: 360px;
 }
 
 .admin-intake-body-editor-host .ql-editor {
   min-height: 320px;
-  color: rgba(255, 255, 255, 0.92);
-  caret-color: rgba(255, 255, 255, 0.96);
+  color: var(--lhai-color-text);
+  caret-color: var(--lhai-color-text);
   cursor: text;
 }
 
@@ -1959,25 +2072,25 @@
 }
 
 .admin-intake-body-editor-host .ql-editor.ql-blank::before {
-  color: rgba(255, 255, 255, 0.42);
+  color: var(--lhai-color-text-muted);
   font-style: normal;
 }
 
 .admin-intake-body-editor-host .ql-snow .ql-stroke {
-  stroke: rgba(255, 255, 255, 0.75);
+  stroke: var(--lhai-color-text-muted);
 }
 
 .admin-intake-body-editor-host .ql-snow .ql-fill {
-  fill: rgba(255, 255, 255, 0.75);
+  fill: var(--lhai-color-text-muted);
 }
 
 .admin-intake-body-editor-host .ql-snow .ql-picker {
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--lhai-color-text);
 }
 
 .admin-intake-body-editor-host .ql-snow .ql-picker-options {
   background: rgba(30, 30, 36, 0.98);
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: var(--lhai-color-border);
 }
 
 .admin-intake-body-editor-host .ql-snow a.ql-preview {

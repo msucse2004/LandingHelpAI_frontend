@@ -1,5 +1,13 @@
 import { APP_CONFIG } from "./config.js";
 import { clearAccessToken, clearSession, getAccessToken } from "./auth.js";
+import {
+  abortIfInvalidServiceItemId,
+  assertServiceItemUuid,
+  filterBrowseCatalogServiceItems,
+  isCatalogRecServiceItemUuidString,
+  isLegacyServiceId,
+  sanitizeServiceFlowSubmitPayloadForNetwork,
+} from "../lib/catalog-rec-service-item-id.js";
 
 /**
  * Expected data shapes (mocked):
@@ -19,6 +27,23 @@ const mockDelay = (ms = 120) => new Promise((resolve) => setTimeout(resolve, ms)
 function shouldUseMockFallback(err) {
   const msg = err && typeof err.message === "string" ? err.message : "";
   return /Failed to fetch|NetworkError|Load failed|fetch/i.test(msg) || !msg;
+}
+
+function isHttp404Error(err) {
+  if (err != null && typeof err === "object" && /** @type {{ status?: number }} */ (err).status === 404) {
+    return true;
+  }
+  const msg = err && typeof err.message === "string" ? err.message : "";
+  return /\b404\b/.test(msg);
+}
+
+/** @param {Response} response @param {string} detail */
+function throwBackendRequestFailed(response, detail) {
+  const trimmed = detail != null ? String(detail).trim() : "";
+  const message = trimmed !== "" ? trimmed : `Request failed (${response.status})`;
+  const err = new Error(message);
+  /** @type {{ status?: number }} */ (err).status = response.status;
+  throw err;
 }
 
 function handleUnauthorized() {
@@ -87,7 +112,7 @@ async function tryBackendPost(path, body, extraHeaders = {}) {
     }
     const raw = typeof payload === "object" && payload !== null ? payload.detail : payload;
     const detail = formatFastApiDetail(raw);
-    throw new Error(detail || `Request failed (${response.status})`);
+    throwBackendRequestFailed(response, detail);
   }
   return payload;
 }
@@ -111,7 +136,7 @@ async function tryBackendPostFormData(path, formData) {
     }
     const raw = typeof payload === "object" && payload !== null ? payload.detail : payload;
     const detail = formatFastApiDetail(raw);
-    throw new Error(detail || `Request failed (${response.status})`);
+    throwBackendRequestFailed(response, detail);
   }
   return payload;
 }
@@ -129,7 +154,30 @@ async function tryBackendGet(path, extraHeaders = {}) {
     }
     const raw = typeof payload === "object" && payload !== null ? payload.detail : payload;
     const detail = formatFastApiDetail(raw);
-    throw new Error(detail || `Request failed (${response.status})`);
+    throwBackendRequestFailed(response, detail);
+  }
+  return payload;
+}
+
+/** Package/category admin off (HTTP 503) → empty list so admin UI can load without legacy hierarchy. */
+async function tryBackendGetOr503EmptyList(path, extraHeaders = {}, opts = {}) {
+  const emptyOn404 = Boolean(opts && opts.emptyOn404);
+  const response = await fetch(`${APP_CONFIG.apiBaseUrl}${path}`, {
+    headers: withAuthHeaders(extraHeaders),
+  });
+  if (response.status === 503 || (emptyOn404 && response.status === 404)) {
+    return [];
+  }
+  const contentType = response.headers.get("content-type") || "";
+  const payload = contentType.includes("application/json") ? await response.json() : await response.text();
+  if (!response.ok) {
+    if (response.status === 401) {
+      handleUnauthorized();
+      throw new Error("인증이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.");
+    }
+    const raw = typeof payload === "object" && payload !== null ? payload.detail : payload;
+    const detail = formatFastApiDetail(raw);
+    throwBackendRequestFailed(response, detail);
   }
   return payload;
 }
@@ -149,7 +197,7 @@ async function tryBackendPatch(path, body, extraHeaders = {}) {
     }
     const raw = typeof payload === "object" && payload !== null ? payload.detail : payload;
     const detail = formatFastApiDetail(raw);
-    throw new Error(detail || `Request failed (${response.status})`);
+    throwBackendRequestFailed(response, detail);
   }
   return payload;
 }
@@ -171,7 +219,7 @@ async function tryBackendDelete(path, extraHeaders = {}) {
     }
     const raw = typeof payload === "object" ? payload.detail : payload;
     const detail = formatFastApiDetail(raw) || (typeof raw === "string" ? raw : "");
-    throw new Error(detail || `Request failed (${response.status})`);
+    throwBackendRequestFailed(response, detail);
   }
   return payload;
 }
@@ -366,23 +414,33 @@ const quoteApi = {
   /**
    * Quote request payload shape:
    * {
-   *   service_id,
+   *   service_item_id: rec_service_items.id (UUID only; legacy ``service_id`` is not sent),
    *   profile: { full_name, email, company_name, phone },
    *   schedule: { target_start_date, target_end_date, entry_date },
    *   context: { country, preferred_language, customer_notes }
    * }
    */
   async submitRequest(payload) {
+    const raw = payload && typeof payload === "object" && !Array.isArray(payload) ? { ...payload } : {};
+    delete raw.service_id;
+    delete raw["service_name_" + "hint"];
+    delete raw.serviceNameHint;
+    const sid = String(raw.service_item_id ?? "").trim();
+    if (!sid || isLegacyServiceId(sid)) {
+      throw new Error("서비스 연결 정보가 올바르지 않습니다. 관리자에게 서비스 매핑 복구를 요청하세요.");
+    }
+    assertServiceItemUuid(sid);
+    raw.service_item_id = sid;
     try {
-      return await tryBackendPost("/api/quotes/requests", payload);
+      return await tryBackendPost("/api/quotes/requests", raw);
     } catch {
       await mockDelay();
       return {
         quote_id: `q-${Date.now()}`,
         status: "DRAFT",
-        service_id: payload.service_id,
-        summary: `Quote request created for service ${payload.service_id} in DRAFT state.`,
-        request_details: payload,
+        service_item_id: sid,
+        summary: `Quote request created for catalog item ${sid} in DRAFT state.`,
+        request_details: raw,
         mocked: true,
       };
     }
@@ -567,88 +625,48 @@ const invoiceApi = {
 
 const paymentApi = {
   async startWebPayment(payload) {
+    const raw = payload && typeof payload === "object" && !Array.isArray(payload) ? { ...payload } : {};
+    delete raw.service_id;
+    delete raw.serviceNameHint;
+    const optSid = String(raw.service_item_id ?? "").trim();
+    if (optSid) {
+      if (isLegacyServiceId(optSid)) {
+        throw new Error("서비스 연결 정보가 올바르지 않습니다. 관리자에게 서비스 매핑 복구를 요청하세요.");
+      }
+      assertServiceItemUuid(optSid);
+      raw.service_item_id = optSid;
+    } else {
+      delete raw.service_item_id;
+    }
     try {
-      return await tryBackendPost("/api/payments/start", payload);
-    } catch {
-      await mockDelay();
-      return {
-        payment_id: `pay-${Date.now()}`,
-        status: "PENDING",
-        checkout_url: payload.success_url,
-        mocked: true,
-      };
+      return await tryBackendPost("/api/payments/start", raw);
+    } catch (err) {
+      const msg = err && typeof err.message === "string" ? err.message.trim() : "";
+      throw new Error(msg || "결제 시작 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     }
   },
   async markSuccess(paymentId) {
     try {
       return await tryBackendPost(`/api/payments/${encodeURIComponent(paymentId)}/success`, {});
-    } catch {
-      await mockDelay();
-      return {
-        payment_id: paymentId,
-        invoice_id: "inv-demo-1",
-        payment_status: "SUCCEEDED",
-        invoice_status: "PAID",
-        message: "Mock payment success.",
-        checklist_stub: { created: true },
-        document_request_stub: { created: true, count: 2, source: "required_documents_templates", requests: [] },
-        in_app_message_stub: {
-          created: true,
-          event_code: "payment.completed",
-          channels: ["in_app_message", "email_log"],
-          note: "Mock: same channels as backend after payment success.",
-        },
-        email_logs_stub: [{ template: "payment_completed_notice", to: "demo@customer.com", status: "queued" }],
-        mocked: true,
-      };
+    } catch (err) {
+      const msg = err && typeof err.message === "string" ? err.message.trim() : "";
+      throw new Error(msg || "결제 완료 처리에 실패했습니다. 결제가 중복되지 않도록 고객센터에 문의해 주세요.");
     }
   },
   async markFailure(paymentId) {
     try {
       return await tryBackendPost(`/api/payments/${encodeURIComponent(paymentId)}/failure`, {});
-    } catch {
-      await mockDelay();
-      return {
-        payment_id: paymentId,
-        invoice_id: "inv-demo-1",
-        payment_status: "FAILED",
-        invoice_status: "FAILED",
-        message: "Mock payment failure.",
-        checklist_stub: { created: false, items: [] },
-        document_request_stub: {
-          created: false,
-          count: 0,
-          source: "required_documents_templates",
-          requests: [],
-        },
-        in_app_message_stub: { created: false, event_code: "", channels: [], note: "" },
-        email_logs_stub: [],
-        mocked: true,
-      };
+    } catch (err) {
+      const msg = err && typeof err.message === "string" ? err.message.trim() : "";
+      throw new Error(msg || "결제 실패 상태 반영에 실패했습니다.");
     }
   },
   async markCancel(paymentId) {
     try {
       return await tryBackendPost(`/api/payments/${encodeURIComponent(paymentId)}/cancel`, {});
-    } catch {
-      await mockDelay();
-      return {
-        payment_id: paymentId,
-        invoice_id: "inv-demo-1",
-        payment_status: "CANCELED",
-        invoice_status: "CANCELED",
-        message: "Mock payment canceled.",
-        checklist_stub: { created: false, items: [] },
-        document_request_stub: {
-          created: false,
-          count: 0,
-          source: "required_documents_templates",
-          requests: [],
-        },
-        in_app_message_stub: { created: false, event_code: "", channels: [], note: "" },
-        email_logs_stub: [],
-        mocked: true,
-      };
+    } catch (err) {
+      const msg = err && typeof err.message === "string" ? err.message.trim() : "";
+      throw new Error(msg || "결제 취소 상태 반영에 실패했습니다.");
     }
   },
 };
@@ -1427,7 +1445,7 @@ const schedulingAdminApi = {
 };
 
 const adminApi = {
-  /** @returns {Promise<Array<{ id, record_type, email, username, full_name, role, email_verified, membership_status, invitation_used, expires_at }>>} */
+  /** @returns {Promise<Array<{ id, record_type, email, username, full_name, role, sub_role?: string|null, email_verified, membership_status, invitation_used, expires_at }>>} */
   async listRegistrationStatus() {
     return await tryBackendGet("/api/admin/accounts/registration-status");
   },
@@ -1586,62 +1604,6 @@ const adminDevApi = {
   },
 };
 
-const serviceCatalogApi = {
-  /**
-   * Service category shape:
-   * { id, name, slug, description, is_public }
-   */
-  async listCategories() {
-    try {
-      return await tryBackendGet("/api/services/categories?public_only=true");
-    } catch {
-      await mockDelay();
-      return [
-        { id: "cat-1", name: "Landing Setup", slug: "landing-setup", description: "Core setup services.", is_public: true },
-        { id: "cat-2", name: "Operations Support", slug: "operations-support", description: "Ongoing support services.", is_public: true },
-      ];
-    }
-  },
-  /**
-   * Service shape:
-   * { id, category_id, name, base_price, ai_guide_default_price, ai_supported, in_person_only, is_public, summary, help_description }
-   */
-  async listServices(categorySlug = "") {
-    const query = categorySlug ? `?public_only=true&category=${encodeURIComponent(categorySlug)}` : "?public_only=true";
-    try {
-      return await tryBackendGet(`/api/services${query}`);
-    } catch {
-      await mockDelay();
-      return [
-        {
-          id: "svc-1",
-          category_id: "cat-1",
-          name: "Starter Landing Package",
-          base_price: 0,
-          ai_guide_default_price: APP_CONFIG.defaultAiGuideUnitPriceUsd,
-          ai_supported: true,
-          in_person_only: false,
-          is_public: true,
-          summary: "Fast start package for onboarding.",
-          help_description: "Helps with checklist, quote, invoice, and first document submission.",
-        },
-        {
-          id: "svc-2",
-          category_id: "cat-2",
-          name: "On-site Compliance Review",
-          base_price: 0,
-          ai_guide_default_price: APP_CONFIG.defaultAiGuideUnitPriceUsd,
-          ai_supported: false,
-          in_person_only: true,
-          is_public: true,
-          summary: "In-person compliance review support.",
-          help_description: "Helps teams pass review requirements through guided in-person checks.",
-        },
-      ];
-    }
-  },
-};
-
 // Admin service catalog APIs for restricted catalog management.
 // These endpoints are implemented in LandingHelpAI_backend under:
 // - /api/admin/service-catalog/...
@@ -1795,7 +1757,11 @@ const serviceCatalogAdminApi = {
 
   async listCategories(includeInactive = true) {
     try {
-      return await tryBackendGet(`/api/admin/service-catalog/categories?include_inactive=${includeInactive ? "true" : "false"}`);
+      return await tryBackendGetOr503EmptyList(
+        `/api/admin/service-catalog/categories?include_inactive=${includeInactive ? "true" : "false"}`,
+        {},
+        { emptyOn404: true }
+      );
     } catch (err) {
       if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
@@ -1807,7 +1773,8 @@ const serviceCatalogAdminApi = {
   async createCategory(payload) {
     try {
       return await tryBackendPost("/api/admin/service-catalog/categories", payload);
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
       const id = `cat-${Date.now()}`;
       const now = new Date().toISOString();
@@ -1820,7 +1787,8 @@ const serviceCatalogAdminApi = {
   async updateCategory(categoryId, payload) {
     try {
       return await tryBackendPatch(`/api/admin/service-catalog/categories/${encodeURIComponent(categoryId)}`, payload);
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
       const now = new Date().toISOString();
       const cat = this._mock.categories.find((c) => c.id === categoryId);
@@ -1834,7 +1802,8 @@ const serviceCatalogAdminApi = {
   async archiveCategory(categoryId) {
     try {
       return await tryBackendPatch(`/api/admin/service-catalog/categories/${encodeURIComponent(categoryId)}/archive`, {});
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
       const now = new Date().toISOString();
       const cat = this._mock.categories.find((c) => c.id === categoryId);
@@ -1849,7 +1818,8 @@ const serviceCatalogAdminApi = {
     try {
       // Safe delete endpoint: rejects when packages exist.
       return await tryBackendDelete(`/api/admin/service-catalog/categories/${encodeURIComponent(categoryId)}`);
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
       const cat = this._mock.categories.find((c) => c.id === categoryId);
       if (!cat) throw new Error("Mock category not found");
@@ -1867,7 +1837,7 @@ const serviceCatalogAdminApi = {
     if (categoryId) qs.set("category_id", categoryId);
     try {
       const path = `/api/admin/service-catalog/packages?${qs.toString()}`;
-      return await tryBackendGet(path);
+      return await tryBackendGetOr503EmptyList(path, {}, { emptyOn404: true });
     } catch (err) {
       if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
@@ -1882,7 +1852,8 @@ const serviceCatalogAdminApi = {
   async getPackage(packageId) {
     try {
       return await tryBackendGet(`/api/admin/service-catalog/packages/${encodeURIComponent(packageId)}`);
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
       const pkg = this._mock.packages.find((p) => p.id === packageId);
       if (!pkg) throw new Error("Mock package not found");
@@ -1893,7 +1864,8 @@ const serviceCatalogAdminApi = {
   async createPackage(payload) {
     try {
       return await tryBackendPost("/api/admin/service-catalog/packages", payload);
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
       const id = `pkg-${Date.now()}`;
       const now = new Date().toISOString();
@@ -1908,7 +1880,8 @@ const serviceCatalogAdminApi = {
   async updatePackage(packageId, payload) {
     try {
       return await tryBackendPatch(`/api/admin/service-catalog/packages/${encodeURIComponent(packageId)}`, payload);
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
       const now = new Date().toISOString();
       const pkg = this._mock.packages.find((p) => p.id === packageId);
@@ -1922,7 +1895,8 @@ const serviceCatalogAdminApi = {
   async setPackageVisibility(packageId, visible) {
     try {
       return await tryBackendPatch(`/api/admin/service-catalog/packages/${encodeURIComponent(packageId)}/visibility`, { visible });
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
       const now = new Date().toISOString();
       const pkg = this._mock.packages.find((p) => p.id === packageId);
@@ -1936,7 +1910,8 @@ const serviceCatalogAdminApi = {
   async setPackageActivation(packageId, active) {
     try {
       return await tryBackendPatch(`/api/admin/service-catalog/packages/${encodeURIComponent(packageId)}/activation`, { active });
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
       const now = new Date().toISOString();
       const pkg = this._mock.packages.find((p) => p.id === packageId);
@@ -1950,7 +1925,8 @@ const serviceCatalogAdminApi = {
   async archivePackage(packageId) {
     try {
       return await tryBackendPatch(`/api/admin/service-catalog/packages/${encodeURIComponent(packageId)}/archive`, {});
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
       const now = new Date().toISOString();
       const pkg = this._mock.packages.find((p) => p.id === packageId);
@@ -1965,7 +1941,8 @@ const serviceCatalogAdminApi = {
   async deletePackageIfSafe(packageId) {
     try {
       return await tryBackendDelete(`/api/admin/service-catalog/packages/${encodeURIComponent(packageId)}`);
-    } catch {
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
       const pkg = this._mock.packages.find((p) => p.id === packageId);
       if (!pkg) throw new Error("Mock package not found");
@@ -1984,8 +1961,13 @@ const serviceCatalogAdminApi = {
   async listModulesByPackage(packageId, includeInactive = true) {
     try {
       const qs = `?include_inactive=${includeInactive ? "true" : "false"}`;
-      return await tryBackendGet(`/api/admin/service-catalog/packages/${encodeURIComponent(packageId)}/modules${qs}`);
-    } catch {
+      return await tryBackendGetOr503EmptyList(
+        `/api/admin/service-catalog/packages/${encodeURIComponent(packageId)}/modules${qs}`,
+        {},
+        { emptyOn404: true }
+      );
+    } catch (err) {
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
       const mods = this._mock.modules_by_package_id[packageId] || [];
       if (includeInactive) return mods.slice().sort((a, b) => a.sort_order - b.sort_order);
@@ -2060,7 +2042,11 @@ const serviceCatalogAdminApi = {
   async listAddonsByPackage(packageId, includeInactive = true) {
     try {
       const qs = `?include_inactive=${includeInactive ? "true" : "false"}`;
-      return await tryBackendGet(`/api/admin/service-catalog/packages/${encodeURIComponent(packageId)}/addons${qs}`);
+      return await tryBackendGetOr503EmptyList(
+        `/api/admin/service-catalog/packages/${encodeURIComponent(packageId)}/addons${qs}`,
+        {},
+        { emptyOn404: true }
+      );
     } catch (err) {
       if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
@@ -2155,7 +2141,7 @@ const serviceCatalogAdminApi = {
   // Service-first (ServiceItem + PackageServiceLink) APIs
   // ============================================================
 
-  async listServiceItems(deliveryCapability = null, active = null, visible = null, includeInactive = true) {
+  async listServiceItems(deliveryCapability = null, active = null, visible = null, includeInactive = false) {
     try {
       const params = new URLSearchParams();
       if (deliveryCapability) params.set("delivery_capability", deliveryCapability);
@@ -2233,9 +2219,17 @@ const serviceCatalogAdminApi = {
   async createServiceItem(payload) {
     try {
       return await tryBackendPost("/api/admin/service-catalog/service-items", payload);
-    } catch {
+    } catch (err) {
+      // Backward-compatible retry path for older backend routes.
+      if (isHttp404Error(err)) {
+        return await tryBackendPost("/api/admin/service-items", payload);
+      }
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
-      const id = `si-${Date.now()}`;
+      const catalogUuid =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `00000000-0000-4000-8000-${String(Date.now()).padStart(12, "0").slice(-12)}`;
       const now = new Date().toISOString();
       // Fallback: create a legacy module/addon in the first package.
       const firstPkg = (this._mock.packages && this._mock.packages[0]) || null;
@@ -2259,7 +2253,7 @@ const serviceCatalogAdminApi = {
       const aiGuideN = Number(payload.ai_guide_default_price ?? APP_CONFIG.defaultAiGuideUnitPriceUsd);
       const aiGuideSafe = Number.isFinite(aiGuideN) ? Math.max(0, aiGuideN) : APP_CONFIG.defaultAiGuideUnitPriceUsd;
       const readShape = {
-        id,
+        id: catalogUuid,
         code: `svc-${Date.now()}`,
         slug: null,
         name: payload.name,
@@ -2289,7 +2283,7 @@ const serviceCatalogAdminApi = {
       if (!aiCap && inPerson) {
         readShape.code = `addon-${Date.now()}`;
         const a = {
-          id,
+          id: catalogUuid,
           package_id,
           code: readShape.code,
           name: payload.name,
@@ -2314,7 +2308,7 @@ const serviceCatalogAdminApi = {
         return { ...readShape };
       }
       const m = {
-        id,
+        id: catalogUuid,
         package_id,
         code: readShape.code,
         name: payload.name,
@@ -2411,10 +2405,32 @@ const serviceCatalogAdminApi = {
     }
   },
 
+  async getServiceItemWorkflowDbState(serviceItemId) {
+    try {
+      return await tryBackendGet(
+        `/api/admin/service-catalog/service-items/${encodeURIComponent(serviceItemId)}/workflow-db-state`
+      );
+    } catch {
+      await mockDelay();
+      return {
+        service_item_id: serviceItemId,
+        database_available: false,
+        active_workflow_config: null,
+        partner_rules: [],
+        partner_rule_count: 0,
+      };
+    }
+  },
+
   async updateServiceItem(serviceItemId, payload) {
     try {
       return await tryBackendPatch(`/api/admin/service-catalog/service-items/${encodeURIComponent(serviceItemId)}`, payload);
-    } catch {
+    } catch (err) {
+      // Backward-compatible retry path for older backend routes.
+      if (isHttp404Error(err)) {
+        return await tryBackendPatch(`/api/admin/service-items/${encodeURIComponent(serviceItemId)}`, payload);
+      }
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
       const now = new Date().toISOString();
       // Try module
@@ -2679,7 +2695,12 @@ const serviceCatalogAdminApi = {
   async addServiceItemToPackage(packageId, payload) {
     try {
       return await tryBackendPost(`/api/admin/service-catalog/packages/${encodeURIComponent(packageId)}/service-links`, payload);
-    } catch {
+    } catch (err) {
+      // Backward-compatible retry path for older backend routes.
+      if (isHttp404Error(err)) {
+        return await tryBackendPost(`/api/admin/packages/${encodeURIComponent(packageId)}/service-links`, payload);
+      }
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
       // Fallback: derive type from existing module/addon id.
       const now = new Date().toISOString();
@@ -2717,7 +2738,10 @@ const serviceCatalogAdminApi = {
   async removeServiceItemFromPackage(packageId, serviceItemId) {
     try {
       return await tryBackendDelete(`/api/admin/service-catalog/packages/${encodeURIComponent(packageId)}/service-links/${encodeURIComponent(serviceItemId)}`);
-    } catch {
+    } catch (err) {
+      // Treat missing link as idempotent delete success.
+      if (isHttp404Error(err)) return null;
+      if (!shouldUseMockFallback(err)) throw err;
       await mockDelay();
       // Remove module/addon by id from the legacy mock for this package.
       const mods = this._mock.modules_by_package_id[packageId] || [];
@@ -3422,17 +3446,39 @@ const serviceDocumentsAdminApi = {
 /** Customer: browse categories & services (no prices). GET /api/service-catalog/browse/... */
 const serviceCatalogBrowseApi = {
   async listCategories() {
-    return await tryBackendGet("/api/service-catalog/browse/categories");
+    // Backend exposes flat ``/service-items`` only; stable synthetic bucket for legacy call sites.
+    return [
+      {
+        id: "__lhai_flat_catalog__",
+        name: "Services",
+        description: "",
+        problem_group: "",
+        customer_title: "Services",
+        customer_subtitle: "",
+        customer_help_text: "",
+        sort_order: 0,
+      },
+    ];
   },
 
-  async listServiceItems(categoryId) {
-    return await tryBackendGet(`/api/service-catalog/browse/categories/${encodeURIComponent(categoryId)}/service-items`);
+  /** Flat catalog (``rec_service_items``); non-UUID rows are dropped client-side. */
+  async listAllServiceItems() {
+    const rows = await tryBackendGet("/api/service-catalog/browse/service-items");
+    return filterBrowseCatalogServiceItems(rows);
+  },
+
+  /** @param {string} _categoryId kept for call sites; server returns the same flat list for every id. */
+  async listServiceItems(_categoryId) {
+    const rows = await tryBackendGet("/api/service-catalog/browse/service-items");
+    return filterBrowseCatalogServiceItems(rows);
   },
 };
 
 /** Customer: service-linked intake. /api/service-intake/... */
 const serviceIntakeCustomerApi = {
   async getActiveBundle(serviceItemId, params = {}) {
+    const sid0 = String(serviceItemId ?? "").trim();
+    abortIfInvalidServiceItemId(sid0);
     const q = new URLSearchParams();
     if (params.delivery_mode != null && params.delivery_mode !== "") {
       q.set("delivery_mode", String(params.delivery_mode));
@@ -3444,12 +3490,18 @@ const serviceIntakeCustomerApi = {
       q.set("service_instance_id", String(params.service_instance_id));
     }
     const qs = q.toString();
-    const path = `/api/service-intake/catalog/service-items/${encodeURIComponent(serviceItemId)}/active-bundle${qs ? `?${qs}` : ""}`;
+    const path = `/api/service-intake/catalog/service-items/${encodeURIComponent(sid0)}/active-bundle${qs ? `?${qs}` : ""}`;
     return await tryBackendGet(path);
   },
 
   async startSubmission(body) {
-    return await tryBackendPost("/api/service-intake/submissions", body);
+    const raw = body && typeof body === "object" && !Array.isArray(body) ? { ...body } : {};
+    const sid = String(raw.service_item_id ?? "").trim();
+    abortIfInvalidServiceItemId(sid);
+    raw.service_item_id = sid;
+    delete raw.service_id;
+    delete raw.serviceNameHint;
+    return await tryBackendPost("/api/service-intake/submissions", raw);
   },
 
   async upsertAnswer(submissionId, body) {
@@ -3466,7 +3518,13 @@ const serviceIntakeCustomerApi = {
 
   /** Runtime intake session (per SERVICE thread); requires DB backend. */
   async createOrResumeSession(body) {
-    return await tryBackendPost("/api/service-intake/sessions", body);
+    const raw = body && typeof body === "object" && !Array.isArray(body) ? { ...body } : {};
+    const sid = String(raw.service_item_id ?? "").trim();
+    abortIfInvalidServiceItemId(sid);
+    raw.service_item_id = sid;
+    delete raw.service_id;
+    delete raw.serviceNameHint;
+    return await tryBackendPost("/api/service-intake/sessions", raw);
   },
 
   async getRuntimeSession(sessionId, customerProfileId) {
@@ -3494,9 +3552,24 @@ const serviceIntakeCustomerApi = {
     return await tryBackendGet(`/api/service-intake/sessions/${encodeURIComponent(sessionId)}/answers?${q}`);
   },
 
-  /** Branching step-by-step flow (one prompt at a time). */
+  /**
+   * Branching step-by-step flow (one prompt at a time).
+   * Payload is only ``customer_profile_id``, ``thread_id``, ``service_instance_id``, ``service_item_id`` (rec UUID).
+   * Unknown keys (name-based service hint keys) are never forwarded.
+   */
   async flowStart(body) {
-    return await tryBackendPost("/api/service-intake/flow/start", body);
+    const src = body && typeof body === "object" ? /** @type {Record<string, unknown>} */ (body) : {};
+    const payload = {
+      customer_profile_id: String(src.customer_profile_id ?? "").trim(),
+      thread_id: String(src.thread_id ?? "").trim(),
+      service_instance_id: String(src.service_instance_id ?? "").trim(),
+      service_item_id: String(src.service_item_id ?? "").trim(),
+    };
+    if (!payload.customer_profile_id || !payload.thread_id || !payload.service_instance_id) {
+      throw new Error("필수 정보가 없어 인테이크를 시작할 수 없습니다. 메시지함을 새로고침한 뒤 다시 시도해 주세요.");
+    }
+    abortIfInvalidServiceItemId(payload.service_item_id);
+    return await tryBackendPost("/api/service-intake/flow/start", payload);
   },
 
   async flowGetPrompt(sessionId, customerProfileId) {
@@ -4215,7 +4288,6 @@ const surveyCustomerApi = {
         quote: {
           quote_id: quoteId,
           status: "DRAFT",
-          service_id: payload?.service_id || "",
           summary: "Mock quote request created from survey selection.",
           request_details: payload || {},
           mocked: true,
@@ -4225,25 +4297,27 @@ const surveyCustomerApi = {
   },
 
   async submitServiceFlow(payload) {
+    const cleaned = sanitizeServiceFlowSubmitPayloadForNetwork(payload);
     try {
-      return await tryBackendPost("/api/surveys/service-flow/submit", payload);
+      return await tryBackendPost("/api/surveys/service-flow/submit", cleaned);
     } catch {
       await mockDelay();
       const quoteId = `q-${Date.now()}`;
+      const flowSid = String(cleaned?.selected_services?.[0]?.id || "").trim();
       return {
         quote: {
           quote_id: quoteId,
           status: "DRAFT",
-          service_id: payload?.selected_services?.[0]?.id || "",
+          ...(isCatalogRecServiceItemUuidString(flowSid) ? { service_item_id: flowSid } : {}),
           summary: "Survey submitted. Awaiting admin review for quote preparation.",
           request_details: {
             workflow_state: "SURVEY_REVIEW_PENDING",
-            survey_submission: payload || {},
+            survey_submission: cleaned,
           },
           mocked: true,
         },
         review_state: "SURVEY_REVIEW_PENDING",
-        stored_submission: payload || {},
+        stored_submission: cleaned,
       };
     }
   },
@@ -4269,7 +4343,6 @@ export {
   dashboardApi,
   customerCasesApi,
   authApi,
-  serviceCatalogApi,
   serviceCatalogAdminApi,
   surveyBuilderAdminApi,
   serviceIntakeAdminApi,

@@ -30,13 +30,13 @@
 
 .lhai-button--secondary {
   border-color: var(--lhai-color-border);
-  background: rgba(6, 18, 36, 0.38);
+  background: var(--lhai-panel-38);
   color: var(--lhai-color-text);
 }
 
 .lhai-button--danger {
   background: var(--lhai-status-danger);
-  color: #1b0609;
+  color: #ffffff;
 }
 
 /* Form fields */
@@ -57,23 +57,24 @@
   padding: 10px 12px;
   border-radius: var(--lhai-radius-sm);
   border: 1px solid var(--lhai-color-border);
-  background: rgba(6, 18, 36, 0.35);
+  background: var(--lhai-color-surface);
   color: var(--lhai-color-text);
+  box-shadow: inset 0 1px 2px var(--lhai-panel-06);
 }
 
 .lhai-input:focus,
 .lhai-select:focus,
 .lhai-textarea:focus {
   outline: none;
-  border-color: rgba(110, 168, 254, 0.65);
-  box-shadow: 0 0 0 3px rgba(110, 168, 254, 0.2);
+  border-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
 }
 
-/* 네이티브 드롭다운: 밝은 팝업에 어두운 글자가 안 보이는 경우 대비 */
+/* 네이티브 드롭다운 — 라이트 스킴 */
 .lhai-select {
-  color-scheme: dark;
+  color-scheme: light;
   cursor: pointer;
-  background-color: rgba(15, 23, 42, 0.92);
+  background-color: var(--lhai-color-surface);
   color: var(--lhai-color-text);
 }
 
@@ -172,16 +173,17 @@
   min-height: 42px;
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-sm);
-  background: rgba(6, 18, 36, 0.35);
+  background: var(--lhai-color-surface);
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: inset 0 1px 2px var(--lhai-panel-06);
 }
 
 .lhai-birth-date-icon {
   pointer-events: none;
   display: flex;
-  color: rgba(230, 238, 252, 0.85);
+  color: var(--lhai-color-text-muted);
 }
 
 .lhai-birth-date-picker-overlay {
@@ -197,22 +199,22 @@
   cursor: pointer;
   font-size: 1rem;
   box-sizing: border-box;
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 .lhai-birth-date-picker-overlay:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.45);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
 }
 
 .lhai-birth-date-picker-overlay:focus-visible {
-  outline: 2px solid rgba(110, 168, 254, 0.75);
+  outline: 2px solid rgba(59, 130, 246, 0.65);
   outline-offset: 2px;
 }
 
 /* Cards */
 .lhai-card {
-  background: linear-gradient(180deg, rgba(17, 26, 45, 0.92), rgba(15, 23, 42, 0.92));
+  background: linear-gradient(180deg, #ffffff 0%, var(--lhai-color-surface-alt) 100%);
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-md);
   box-shadow: var(--lhai-shadow-md);
@@ -399,7 +401,7 @@
   color: var(--lhai-color-text-muted);
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-md);
-  background: rgba(17, 26, 45, 0.6);
+  background: var(--lhai-color-surface);
   text-decoration: none;
   transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
@@ -431,7 +433,7 @@
   text-align: center;
   box-sizing: border-box;
   pointer-events: none;
-  border: 2px solid rgba(17, 26, 45, 0.95);
+  border: 2px solid var(--lhai-color-surface);
 }
 
 /* Admin topbar: Admin ▾ user menu */
@@ -449,13 +451,13 @@
   font: inherit;
   color: var(--lhai-color-text);
   cursor: pointer;
-  background: rgba(17, 26, 45, 0.6);
+  background: var(--lhai-color-surface-alt);
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-md);
 }
 
 .lhai-user-menu__trigger:hover {
-  border-color: rgba(230, 238, 252, 0.28);
+  border-color: rgba(59, 130, 246, 0.35);
 }
 
 .lhai-user-menu__trigger:focus-visible {
@@ -494,7 +496,7 @@
   background: var(--lhai-color-surface);
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-md);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--lhai-shadow-lg);
 }
 
 .lhai-user-menu__panel[hidden] {
@@ -571,7 +573,7 @@
 }
 
 .lhai-section-container {
-  background: rgba(17, 26, 45, 0.45);
+  background: var(--lhai-panel-12);
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-md);
   padding: var(--lhai-space-4);
@@ -645,7 +647,7 @@ a.lhai-table__link:hover {
   padding: var(--lhai-space-3);
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-sm);
-  background: rgba(6, 18, 36, 0.3);
+  background: var(--lhai-color-surface);
 }
 
 /* Empty / error / loading states */
@@ -662,8 +664,9 @@ a.lhai-table__link:hover {
 
 .lhai-state--error {
   border-style: solid;
-  border-color: rgba(255, 90, 106, 0.45);
-  color: #ffc7ce;
+  border-color: rgba(220, 38, 38, 0.35);
+  color: #991b1b;
+  background: rgba(254, 226, 226, 0.45);
 }
 
 .lhai-state--loading {
@@ -676,7 +679,7 @@ a.lhai-table__link:hover {
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.12), transparent);
   animation: lhai-shimmer 1.2s infinite;
 }
 
@@ -733,11 +736,11 @@ a.lhai-table__link:hover {
   border-radius: var(--lhai-radius-md);
   background: var(--lhai-color-surface);
   color: var(--lhai-color-text);
-  box-shadow: var(--lhai-shadow-sm, 0 12px 40px rgba(0, 0, 0, 0.35));
+  box-shadow: var(--lhai-shadow-lg);
 }
 
 .lhai-dialog::backdrop {
-  background: rgba(6, 10, 18, 0.72);
+  background: rgba(15, 23, 42, 0.28);
 }
 
 .lhai-dialog__inner {
@@ -814,10 +817,10 @@ a.lhai-table__link:hover {
 .lhai-message-toast {
   min-width: min(360px, calc(100vw - 32px));
   max-width: 420px;
-  background: linear-gradient(180deg, rgba(17, 26, 45, 0.98), rgba(15, 23, 42, 0.98));
-  border: 1px solid rgba(110, 168, 254, 0.4);
+  background: linear-gradient(180deg, #ffffff 0%, var(--lhai-color-surface-alt) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.28);
   border-radius: var(--lhai-radius-md);
-  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--lhai-shadow-lg);
   padding: 12px 12px 10px;
   pointer-events: auto;
 }
@@ -847,7 +850,7 @@ a.lhai-table__link:hover {
 
 .lhai-message-toast__close {
   border: 1px solid var(--lhai-color-border);
-  background: rgba(6, 18, 36, 0.35);
+  background: var(--lhai-color-surface);
   color: var(--lhai-color-text);
   border-radius: var(--lhai-radius-sm);
   font-size: 0.74rem;

@@ -1,5 +1,5 @@
 html {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
@@ -7,8 +7,11 @@ body {
   font-size: var(--lhai-font-size-md);
   line-height: var(--lhai-line-height-base);
   color: var(--lhai-color-text);
-  background: radial-gradient(1200px 800px at 20% -10%, rgba(110, 168, 254, 0.22), transparent 60%),
-    linear-gradient(180deg, #060b16, var(--lhai-color-bg));
+  background:
+    radial-gradient(900px 520px at 12% -8%, rgba(251, 113, 133, 0.12), transparent 55%),
+    radial-gradient(1000px 600px at 88% 0%, rgba(59, 130, 246, 0.18), transparent 58%),
+    radial-gradient(800px 500px at 50% 100%, rgba(147, 197, 253, 0.35), transparent 55%),
+    linear-gradient(180deg, #ffffff 0%, var(--lhai-color-bg) 42%, #eef4ff 100%);
 }
 
 .lhai-container {
@@ -23,7 +26,9 @@ body {
   align-items: center;
   padding: var(--lhai-space-4) var(--lhai-space-6);
   border-bottom: 1px solid var(--lhai-color-border);
-  background: rgba(6, 18, 36, 0.4);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(243, 247, 255, 0.88));
+  backdrop-filter: blur(10px);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
   overflow: visible;
 }
 
@@ -38,6 +43,7 @@ body {
   flex-direction: column;
   border-right: 1px solid var(--lhai-color-border);
   padding: var(--lhai-space-6) var(--lhai-space-4);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(238, 244, 255, 0.35));
 }
 
 .lhai-sidebar__inner {

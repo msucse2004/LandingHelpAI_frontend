@@ -1,19 +1,19 @@
-/* 고객 청구서: 히어로·법·운영 안내 (다크 테마 유지) */
+/* 고객 청구서: 히어로·법·운영 안내 */
 
 .lhai-invoice-hero.lhai-quote-hero {
-  border-color: rgba(251, 191, 36, 0.22);
-  background: linear-gradient(165deg, rgba(42, 32, 12, 0.5) 0%, rgba(8, 18, 36, 0.72) 55%, rgba(6, 14, 28, 0.68) 100%);
+  border-color: rgba(251, 191, 36, 0.28);
+  background: linear-gradient(165deg, #fffbeb 0%, #fef3c7 38%, #eef4ff 100%);
 }
 
 .lhai-invoice-hero__web-note {
   margin: var(--lhai-space-4) 0 0;
   font-size: var(--lhai-font-size-xs, 0.82rem);
   line-height: 1.5;
-  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.68));
+  color: var(--lhai-color-text-muted);
   padding: var(--lhai-space-2) var(--lhai-space-3);
   border-radius: var(--lhai-radius-sm);
-  border: 1px solid rgba(251, 191, 36, 0.18);
-  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(251, 191, 36, 0.22);
+  background: var(--lhai-panel-08);
   max-width: 40rem;
 }
 
@@ -22,8 +22,8 @@
 }
 
 .lhai-invoice-hero__cost-card--settled {
-  border-color: rgba(110, 168, 254, 0.32);
-  background: linear-gradient(145deg, rgba(18, 42, 78, 0.4) 0%, rgba(6, 18, 36, 0.55) 100%);
+  border-color: rgba(59, 130, 246, 0.28);
+  background: linear-gradient(145deg, #dbeafe 0%, var(--lhai-color-surface-alt) 100%);
 }
 
 .lhai-invoice-meta {
@@ -31,7 +31,7 @@
   padding: var(--lhai-space-4) var(--lhai-space-3);
   border-radius: var(--lhai-radius-md, 8px);
   border: 1px solid rgba(148, 163, 184, 0.28);
-  background: rgba(15, 23, 42, 0.45);
+  background: var(--lhai-color-surface);
 }
 
 .lhai-invoice-meta__dates {
@@ -51,7 +51,7 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.55));
+  color: var(--lhai-color-text-muted);
   margin-bottom: 0.35rem;
 }
 
@@ -59,13 +59,13 @@
   font-size: clamp(1.05rem, 2.4vw, 1.2rem);
   font-weight: 600;
   line-height: 1.35;
-  color: var(--lhai-color-text, #e2e8f0);
+  color: var(--lhai-color-text);
 }
 
 .lhai-invoice-meta__date-value--muted {
   font-size: var(--lhai-font-size-sm, 0.92rem);
   font-weight: 500;
-  color: var(--lhai-color-text-muted, #94a3b8);
+  color: var(--lhai-color-text-muted);
 }
 
 .lhai-invoice-meta__dl {
@@ -82,7 +82,7 @@
 .lhai-invoice-meta__dt {
   margin: 0;
   font-size: var(--lhai-font-size-xs, 0.78rem);
-  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.55));
+  color: var(--lhai-color-text-muted);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -91,7 +91,7 @@
   margin: 0;
   font-size: var(--lhai-font-size-sm, 0.9rem);
   line-height: 1.45;
-  color: var(--lhai-color-text, #e2e8f0);
+  color: var(--lhai-color-text);
   word-break: break-word;
 }
 
@@ -99,7 +99,7 @@
   font-family: ui-monospace, monospace;
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--lhai-color-text-muted, #94a3b8);
+  color: var(--lhai-color-text-muted);
 }
 
 .lhai-invoice-meta__dd--status .lhai-badge {
@@ -136,7 +136,7 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--lhai-color-text-muted, #94a3b8);
+  color: var(--lhai-color-text-muted);
 }
 
 .lhai-invoice-parties__dl {
@@ -151,7 +151,7 @@
 .lhai-invoice-parties__dt {
   margin: 0;
   font-size: var(--lhai-font-size-xs, 0.78rem);
-  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.55));
+  color: var(--lhai-color-text-muted);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -160,7 +160,7 @@
   margin: 0;
   font-size: var(--lhai-font-size-sm, 0.92rem);
   line-height: 1.45;
-  color: var(--lhai-color-text, #e2e8f0);
+  color: var(--lhai-color-text);
   word-break: break-word;
   white-space: pre-line;
 }
@@ -180,7 +180,7 @@
   font-size: var(--lhai-font-size-md, 1rem);
   font-weight: 600;
   margin: 0;
-  color: var(--lhai-color-text, #e2e8f0);
+  color: var(--lhai-color-text);
 }
 
 .lhai-invoice-scope__service-name {
@@ -188,7 +188,7 @@
   font-size: clamp(1.05rem, 2.2vw, 1.2rem);
   font-weight: 600;
   line-height: 1.35;
-  color: var(--lhai-color-accent, #8ec5ff);
+  color: var(--lhai-color-primary-strong);
 }
 
 .lhai-invoice-scope__label {
@@ -197,14 +197,14 @@
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--lhai-color-text-muted, #94a3b8);
+  color: var(--lhai-color-text-muted);
 }
 
 .lhai-invoice-scope__prose {
   margin: 0;
   font-size: var(--lhai-font-size-sm, 0.93rem);
   line-height: 1.55;
-  color: var(--lhai-color-text-muted, #cbd5e1);
+  color: var(--lhai-color-text-muted);
   white-space: pre-line;
 }
 
@@ -216,7 +216,7 @@
   padding: 0.65rem 0.85rem;
   border-radius: var(--lhai-radius-sm);
   border: 1px solid rgba(110, 168, 254, 0.22);
-  background: rgba(18, 42, 78, 0.35);
+  background: var(--lhai-panel-18);
   font-size: var(--lhai-font-size-sm, 0.9rem);
   line-height: 1.5;
 }
@@ -225,10 +225,10 @@
   padding: 1rem 1.125rem;
   border-radius: var(--lhai-radius-md, 8px);
   border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(15, 23, 42, 0.55);
+  background: var(--lhai-color-surface-alt);
   font-size: var(--lhai-font-size-sm, 0.9rem);
   line-height: 1.55;
-  color: var(--lhai-color-text-muted, #94a3b8);
+  color: var(--lhai-color-text-muted);
 }
 
 .lhai-invoice-customer__legal {
@@ -236,14 +236,14 @@
   padding: 1rem 1.125rem;
   border-radius: var(--lhai-radius-md, 8px);
   border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(15, 23, 42, 0.65);
+  background: var(--lhai-color-surface-alt);
   font-size: 0.9375rem;
   line-height: 1.55;
-  color: var(--lhai-color-text-muted, #94a3b8);
+  color: var(--lhai-color-text-muted);
 }
 
 .lhai-invoice-customer__legal strong {
-  color: var(--lhai-color-text, #e2e8f0);
+  color: var(--lhai-color-text);
   font-weight: 600;
 }
 
@@ -257,7 +257,7 @@
   margin: 0;
   font-size: var(--lhai-font-size-sm, 0.92rem);
   font-weight: 600;
-  color: var(--lhai-color-text, #e2e8f0);
+  color: var(--lhai-color-text);
 }
 
 .lhai-invoice-after-payment__list {
@@ -267,7 +267,7 @@
 .lhai-invoice-customer__after-list {
   margin: 0.5rem 0 0;
   padding-left: 1.25rem;
-  color: var(--lhai-color-text-muted, #94a3b8);
+  color: var(--lhai-color-text-muted);
   line-height: 1.55;
 }
 
@@ -283,28 +283,28 @@
   border: 1px solid rgba(110, 168, 254, 0.26);
   border-left-width: 4px;
   border-left-color: rgba(110, 168, 254, 0.55);
-  background: rgba(18, 42, 78, 0.38);
+  background: var(--lhai-panel-22);
 }
 
 .lhai-invoice-payment-notice__title {
   margin: 0 0 0.65rem;
   font-size: var(--lhai-font-size-sm, 0.95rem);
   font-weight: 600;
-  color: var(--lhai-color-text, #e2e8f0);
+  color: var(--lhai-color-text);
 }
 
 .lhai-invoice-payment-notice__lead {
   margin: 0 0 0.85rem;
   font-size: var(--lhai-font-size-sm, 0.95rem);
   line-height: 1.6;
-  color: var(--lhai-color-text, #e2e8f0);
+  color: var(--lhai-color-text);
   font-weight: 500;
 }
 
 .lhai-invoice-payment-notice__list {
   margin: 0;
   padding-left: 1.2rem;
-  color: var(--lhai-color-text-muted, #94a3b8);
+  color: var(--lhai-color-text-muted);
   font-size: var(--lhai-font-size-sm, 0.88rem);
   line-height: 1.55;
 }
@@ -333,7 +333,7 @@
   overflow-x: auto;
   border-radius: var(--lhai-radius-md, 8px);
   border: 1px solid rgba(148, 163, 184, 0.28);
-  background: rgba(15, 23, 42, 0.4);
+  background: var(--lhai-color-surface);
 }
 
 .lhai-invoice-amount-summary__table {
@@ -355,8 +355,8 @@
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--lhai-color-text-muted, #94a3b8);
-  background: rgba(0, 0, 0, 0.15);
+  color: var(--lhai-color-text-muted);
+  background: var(--lhai-panel-08);
 }
 
 .lhai-invoice-amount-summary__th-amount {
@@ -369,7 +369,7 @@
   font-variant-numeric: tabular-nums;
   font-family: ui-monospace, monospace;
   white-space: nowrap;
-  color: var(--lhai-color-text, #e2e8f0);
+  color: var(--lhai-color-text);
 }
 
 .lhai-invoice-amount-summary__row--total td {
@@ -380,7 +380,7 @@
 }
 
 .lhai-invoice-amount-summary__row--paid td {
-  color: var(--lhai-color-text-muted, #94a3b8);
+  color: var(--lhai-color-text-muted);
   font-size: var(--lhai-font-size-sm, 0.9rem);
 }
 
@@ -389,7 +389,7 @@
   font-size: clamp(1rem, 2.2vw, 1.12rem);
   border-bottom: none;
   padding-top: 0.65rem;
-  color: var(--lhai-color-accent, #8ec5ff);
+  color: var(--lhai-color-primary-strong);
 }
 
 .lhai-invoice-amount-summary__table tfoot tr:last-child td {
@@ -429,7 +429,7 @@
   margin: 0;
   font-size: var(--lhai-font-size-xs, 0.82rem);
   line-height: 1.55;
-  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.68));
+  color: var(--lhai-color-text-muted);
 }
 
 .lhai-invoice-actions__helper-line + .lhai-invoice-actions__helper-line {
@@ -454,7 +454,7 @@
 /* 결제 완료 후 — 준비 서류·메시지함 안내 */
 .lhai-invoice-postpay-continuation {
   border: 1px solid rgba(110, 168, 254, 0.28);
-  background: linear-gradient(160deg, rgba(18, 42, 78, 0.35) 0%, rgba(8, 18, 36, 0.55) 100%);
+  background: linear-gradient(160deg, #ffffff 0%, #eef4ff 100%);
   padding: var(--lhai-space-4, 1rem) var(--lhai-space-4, 1rem) var(--lhai-space-5, 1.25rem);
   border-radius: var(--lhai-radius-md, 8px);
 }
@@ -467,7 +467,7 @@
   margin: 0;
   padding-left: 1.25rem;
   line-height: 1.65;
-  color: var(--lhai-color-text, #e2e8f0);
+  color: var(--lhai-color-text);
   font-size: var(--lhai-font-size-sm, 0.92rem);
 }
 
@@ -477,7 +477,7 @@
 
 .lhai-invoice-postpay__channels {
   font-weight: 500;
-  color: var(--lhai-color-text, #e2e8f0);
+  color: var(--lhai-color-text);
   border-left: 3px solid rgba(110, 168, 254, 0.55);
   padding-left: var(--lhai-space-3, 0.75rem);
 }
@@ -495,6 +495,6 @@
 
 .lhai-invoice-postpay__legal-hint {
   font-size: var(--lhai-font-size-xs, 0.82rem);
-  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.62));
+  color: var(--lhai-color-text-muted);
   line-height: 1.55;
 }

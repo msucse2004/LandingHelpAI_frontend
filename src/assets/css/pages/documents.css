@@ -10,8 +10,8 @@
 }
 
 .lhai-required-docs-section {
-  border: 1px solid rgba(110, 168, 254, 0.22);
-  background: linear-gradient(165deg, rgba(18, 42, 78, 0.28) 0%, rgba(6, 18, 36, 0.42) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: linear-gradient(165deg, #ffffff 0%, var(--lhai-color-surface-alt) 55%, rgba(251, 113, 133, 0.05) 100%);
 }
 
 .lhai-required-docs-section[hidden] {
@@ -19,7 +19,7 @@
 }
 
 .lhai-required-docs-section .lhai-required-docs-msglink {
-  color: rgba(125, 211, 252, 0.95);
+  color: var(--lhai-color-primary-strong);
   font-weight: 500;
   text-decoration: underline;
   text-underline-offset: 0.15em;
@@ -35,7 +35,7 @@
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: var(--lhai-radius-md, 8px);
   padding: var(--lhai-space-4);
-  background: rgba(15, 23, 42, 0.45);
+  background: var(--lhai-color-surface);
 }
 
 .lhai-required-doc-card__title-row {
@@ -62,7 +62,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--lhai-color-text-muted, rgba(255, 255, 255, 0.55));
+  color: var(--lhai-color-text-muted);
   margin: var(--lhai-space-3) 0 0.25rem;
 }
 
@@ -70,14 +70,14 @@
   margin: 0;
   font-size: var(--lhai-font-size-sm, 0.92rem);
   line-height: 1.55;
-  color: var(--lhai-color-text, #e2e8f0);
+  color: var(--lhai-color-text);
 }
 
 .lhai-doc-item {
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-sm);
   padding: var(--lhai-space-3);
-  background: rgba(6, 18, 36, 0.2);
+  background: var(--lhai-panel-20);
 }
 
 .lhai-doc-meta {

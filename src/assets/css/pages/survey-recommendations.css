@@ -10,7 +10,7 @@
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-sm);
   padding: var(--lhai-space-4);
-  background: rgba(6, 18, 36, 0.03);
+  background: var(--lhai-panel-03);
   margin-bottom: var(--lhai-space-4);
 }
 
@@ -38,10 +38,10 @@
 }
 
 .survey-recommendations__item {
-  border: 1px dashed rgba(6, 18, 36, 0.18);
+  border: 1px dashed var(--lhai-panel-18);
   border-radius: var(--lhai-radius-sm);
   padding: var(--lhai-space-3);
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--lhai-color-surface);
 }
 
 .survey-recommendations__select-row {
@@ -67,7 +67,7 @@
 
 .survey-recommendations__divider {
   height: 1px;
-  background: rgba(6, 18, 36, 0.12);
+  background: var(--lhai-panel-12);
   margin: var(--lhai-space-5) 0;
 }
 
@@ -76,7 +76,7 @@
   padding: var(--lhai-space-3);
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-sm);
-  background: rgba(6, 18, 36, 0.03);
+  background: var(--lhai-panel-03);
 }
 
 .survey-recommendations__block-title {

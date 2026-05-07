@@ -74,6 +74,9 @@
                     </div>
 
                     <div class="admin-services__category-detail-panel">
+                      <div class="admin-services__category-editor-nav">
+                        <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageCategoryBackToListBtn">← Back to Category list</button>
+                      </div>
                       <h4 class="lhai-section__title admin-services__category-editor-title" id="manageCategoryEditorTitle">Create New Category</h4>
                       <div class="admin-services__manage-mode" id="manageCategoryModeHint">신규 생성 모드입니다.</div>
                       <form class="lhai-form admin-services__editor" id="manageCategoryForm">
@@ -108,9 +111,11 @@
                           <div class="admin-services__primary-action-buttons">
                             <div class="admin-services__row-actions" id="manageCategoryActionsCreate">
                               <button type="submit" class="lhai-button lhai-button--primary" id="manageCategoryCreateSubmitBtn">Create</button>
+                              <button type="button" class="lhai-button lhai-button--secondary" id="manageCategoryCancelCreateBtn">Cancel</button>
                             </div>
                             <div class="admin-services__row-actions" id="manageCategoryActionsEdit" hidden>
                               <button type="submit" class="lhai-button lhai-button--primary" id="manageCategorySaveSubmitBtn">Save Changes</button>
+                              <button type="button" class="lhai-button lhai-button--secondary" id="manageCategoryCancelEditBtn">Cancel</button>
                             </div>
                           </div>
                           <div class="admin-services__danger-zone" id="manageCategoryDangerZone" hidden>
@@ -146,6 +151,9 @@
                     </div>
 
                     <div class="admin-services__package-detail-panel">
+                      <div class="admin-services__package-editor-nav">
+                        <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="managePackageBackToListBtn">← Back to Package list</button>
+                      </div>
                       <h4 class="lhai-section__title admin-services__package-editor-title" id="managePackageEditorTitle">Create New Package</h4>
                       <div class="admin-services__manage-mode" id="managePackageModeHint">신규 생성 모드입니다.</div>
                       <form class="lhai-form admin-services__editor" id="managePackageForm">
@@ -240,9 +248,11 @@
                           <div class="admin-services__primary-action-buttons">
                             <div class="admin-services__row-actions" id="managePackageActionsCreate">
                               <button type="submit" class="lhai-button lhai-button--primary" id="managePackageCreateSubmitBtn">Create</button>
+                              <button type="button" class="lhai-button lhai-button--secondary" id="managePackageCancelCreateBtn">Cancel</button>
                             </div>
                             <div class="admin-services__row-actions" id="managePackageActionsEdit" hidden>
                               <button type="submit" class="lhai-button lhai-button--primary" id="managePackageSaveSubmitBtn">Save Changes</button>
+                              <button type="button" class="lhai-button lhai-button--secondary" id="managePackageCancelEditBtn">Cancel</button>
                             </div>
                           </div>
                           <div class="admin-services__danger-zone" id="managePackageDangerZone" hidden>
@@ -302,8 +312,10 @@
                         <button type="button" class="admin-services__tab-btn is-active" data-service-editor-tab="details" role="tab" aria-selected="true" id="manageServiceTabDetailsBtn"
                           data-i18n="common.admin_services.intake.tab_service_details">Service details</button>
                         <button type="button" class="admin-services__tab-btn" data-service-editor-tab="intake" role="tab" aria-selected="false" id="manageServiceTabIntakeBtn" disabled
+                          title="서비스를 먼저 저장해 rec_service_items UUID가 생긴 뒤에 인테이크 템플릿·블록을 편집할 수 있습니다."
                           data-i18n="common.admin_services.intake.tab_intake_builder">Customer Intake Builder</button>
                         <button type="button" class="admin-services__tab-btn" data-service-editor-tab="documents" role="tab" aria-selected="false" id="manageServiceTabDocumentsBtn" disabled
+                          title="서비스를 먼저 저장해 rec_service_items UUID가 생긴 뒤에 필수 문서 목록을 편집할 수 있습니다."
                           data-i18n="common.admin_services.documents.tab_label">Required Documents</button>
                         <button type="button" class="admin-services__tab-btn" data-service-editor-tab="workflow" role="tab" aria-selected="false" id="manageServiceTabWorkflowBtn"
                           data-i18n="common.admin_services.workflow.tab_label">Service Workflow</button>
@@ -339,10 +351,9 @@
 
                         <section class="admin-services__editor-section">
                           <h5 class="admin-services__editor-section-title">Assignment</h5>
-                          <label class="lhai-label" for="manageServiceCategoryId">Category</label>
-                          <select class="lhai-select" id="manageServiceCategoryId"></select>
                           <label class="lhai-label" for="manageServicePackageId">Package</label>
                           <select class="lhai-select" id="manageServicePackageId"></select>
+                          <p class="lhai-help">Category is inherited from the selected package.</p>
                         </section>
 
                         <section class="admin-services__editor-section">
@@ -353,7 +364,7 @@
                           <div class="admin-services__bool-grid">
                             <div class="admin-services__bool-control">
                               <label class="admin-services__switch" for="manageServiceAiCapable">
-                                <input id="manageServiceAiCapable" type="checkbox" />
+                                <input id="manageServiceAiCapable" type="checkbox" checked />
                                 <span class="admin-services__switch-slider" aria-hidden="true"></span>
                                 <span class="admin-services__switch-label">AI Agent support</span>
                               </label>
@@ -420,13 +431,15 @@
                           <div class="admin-services__primary-action-buttons">
                             <div class="admin-services__row-actions" id="manageServiceActionsCreate">
                               <button type="submit" class="lhai-button lhai-button--primary" id="manageServiceCreateSubmitBtn">Create</button>
+                              <button type="button" class="lhai-button lhai-button--secondary" id="manageServiceCancelCreateBtn">Cancel</button>
                             </div>
                             <div class="admin-services__row-actions" id="manageServiceActionsEdit" hidden>
                               <button type="submit" class="lhai-button lhai-button--primary" id="manageServiceSaveSubmitBtn">Save Changes</button>
+                              <button type="button" class="lhai-button lhai-button--secondary" id="manageServiceCancelEditBtn">Cancel</button>
                             </div>
                           </div>
                           <div class="admin-services__danger-zone" id="manageServiceDangerZone" hidden>
-                            <p class="admin-services__bool-help u-mb-2" id="manageServiceDeleteHelp" data-i18n="common.admin_services.manage.delete_help.service">패키지에 연결되지 않았고 견적/이력 제약이 없을 때만 삭제할 수 있습니다.</p>
+                            <p class="admin-services__bool-help u-mb-2" id="manageServiceDeleteHelp" data-i18n="common.admin_services.manage.delete_ok.service">패키지에 연결되어 있지 않으면 보관 처리 후 이 목록에서 사라집니다. 견적·이력이 있으면 서버가 거부할 수 있습니다.</p>
                             <button type="button" class="lhai-button lhai-button--danger" id="manageServiceDeleteBtn" data-i18n="common.admin_services.manage.delete_button.service">서비스 영구 삭제</button>
                           </div>
                         </section>
@@ -668,6 +681,10 @@
                               <span class="admin-services__switch-label" data-i18n="common.admin_services.workflow.label.admin_notify">관리자 알림</span>
                             </label>
                           </div>
+                          <label class="lhai-label" for="mswHumanPartnerType" data-i18n="common.admin_services.workflow.label.partner_type">파트너 유형</label>
+                          <select class="lhai-select" id="mswHumanPartnerType">
+                            <option value="" data-i18n="common.admin_services.workflow.partner_type.placeholder">선택…</option>
+                          </select>
                           <label class="lhai-label" for="mswHumanPartnerNotifyEmail" data-i18n="common.admin_services.workflow.label.human_partner_notify_email">인테이크 완료 시 통지할 파트너 이메일</label>
                           <input class="lhai-input" type="email" id="mswHumanPartnerNotifyEmail" maxlength="320" placeholder="partner@example.com (계정 없이 수신만 가능)" autocomplete="email" />
                           <p class="lhai-help-text u-mt-1" data-i18n="common.admin_services.workflow.help.human_partner_notify_email">고객이 인테이크를 제출하면 이 주소로 요약 메일이 발송됩니다. 등록 파트너 계정이 없어도 됩니다.</p>
@@ -696,20 +713,20 @@
                             <p class="lhai-label u-mb-1">고정 파트너 전달 방식</p>
                             <div class="admin-services__workflow-radios admin-services__workflow-radios--inline">
                               <label class="admin-services__workflow-radio-label">
-                                <input type="radio" name="mswSingleFixedTargetMode" value="email" checked />
-                                <span>이메일 주소로 전달 (비회원 파트너)</span>
-                              </label>
-                              <label class="admin-services__workflow-radio-label">
-                                <input type="radio" name="mswSingleFixedTargetMode" value="registered_catalog" />
+                                <input type="radio" name="mswSingleFixedTargetMode" value="registered_catalog" checked />
                                 <span>등록 파트너 계정 선택</span>
                               </label>
+                              <label class="admin-services__workflow-radio-label">
+                                <input type="radio" name="mswSingleFixedTargetMode" value="email" />
+                                <span>이메일 주소로 전달 (비회원 파트너)</span>
+                              </label>
                             </div>
-                            <div id="mswSingleFixedPartnerEmailPanel" class="u-mt-2">
+                            <div id="mswSingleFixedPartnerEmailPanel" class="u-mt-2" hidden>
                               <label class="lhai-label" for="mswSingleDefaultPartner">파트너 이메일</label>
                               <input class="lhai-input" id="mswSingleDefaultPartner" type="email" maxlength="200" autocomplete="off" placeholder="예: partner@example.com" />
                               <p class="lhai-help">고객 제출 직후 이 이메일로 신청이 전달됩니다.</p>
                             </div>
-                            <div id="mswSingleFixedPartnerCatalogPanel" class="u-mt-2" hidden>
+                            <div id="mswSingleFixedPartnerCatalogPanel" class="u-mt-2">
                               <label class="lhai-label" for="mswSingleFixedPartnerCatalogSelect">파트너 (계정 연결됨)</label>
                               <select class="lhai-select" id="mswSingleFixedPartnerCatalogSelect" autocomplete="off">
                                 <option value="">유형을 먼저 선택한 뒤 목록이 채워집니다…</option>
@@ -820,6 +837,24 @@
                           <button type="button" class="lhai-button lhai-button--primary" id="manageServiceWorkflowSaveBtn"
                             data-i18n="common.admin_services.workflow.save">워크플로 저장</button>
                         </div>
+
+                        <section class="lhai-card admin-services__workflow-db-panel u-mt-3" id="mswWorkflowDbPanel" hidden aria-labelledby="mswDbStateHeading">
+                          <h5 class="admin-services__workflow-card-title" id="mswDbStateHeading" data-i18n="common.admin_services.workflow.db.panel_title">DB 워크플로 저장 상태</h5>
+                          <p class="lhai-help u-mb-2" data-i18n="common.admin_services.workflow.db.panel_lead">
+                            서버에 저장된 활성 <code>service_workflow_config</code> 및 파트너 규칙입니다. 인테이크 디스패치에 사용됩니다.
+                          </p>
+                          <p class="lhai-help admin-services__workflow-db-loading" id="mswWorkflowDbPanelLoading" hidden data-i18n="common.admin_services.workflow.db.loading">불러오는 중…</p>
+                          <div id="mswWorkflowDbPanelBody" class="admin-services__workflow-db-body"></div>
+                          <p class="admin-services__workflow-db-warn" id="mswWorkflowDbPanelWarn" hidden role="alert"></p>
+                          <div class="admin-services__workflow-db-diag u-mt-2 u-flex-between u-gap-2" style="flex-wrap:wrap;align-items:center;">
+                            <p class="lhai-help u-m-0">
+                              <span data-i18n="common.admin_services.workflow.db.diag_label">스레드별 인테이크 디스패치 진단 API:</span>
+                              <code class="admin-services__workflow-db-code" id="mswWorkflowDbDiagUrl">/api/admin/intake-dispatch-diagnostics</code>
+                            </p>
+                            <button type="button" class="lhai-button lhai-button--secondary" id="mswWorkflowDbCopyDiagApiBtn"
+                              data-i18n="common.admin_services.workflow.db.copy_diag_url">URL 복사</button>
+                          </div>
+                        </section>
                       </div>
                       </div>
 

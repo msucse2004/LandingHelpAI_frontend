@@ -29,7 +29,7 @@
 .lhai-quote-prep__panel {
   border-radius: var(--lhai-radius-md);
   border: 1px solid var(--lhai-color-border);
-  background: rgba(6, 18, 36, 0.35);
+  background: var(--lhai-panel-35);
   padding: var(--lhai-space-4);
 }
 
@@ -39,7 +39,7 @@
 }
 
 .lhai-quote-prep__panel--editor {
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: var(--lhai-color-border);
 }
 
 .lhai-quote-prep__panel-title {
@@ -117,8 +117,8 @@
 
 .lhai-quote-prep__badge--locked {
   color: var(--lhai-color-text-muted);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--lhai-panel-08);
+  border: 1px solid var(--lhai-color-border);
 }
 
 .lhai-quote-prep__warn {
@@ -136,7 +136,7 @@
   gap: var(--lhai-space-3);
   margin-top: var(--lhai-space-4);
   padding-top: var(--lhai-space-4);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--lhai-color-border);
 }
 
 .lhai-quote-prep .lhai-quote-editor__section {
@@ -187,7 +187,7 @@
 .lhai-quote-prep__delivery-item + .lhai-quote-prep__delivery-item {
   margin-top: var(--lhai-space-3);
   padding-top: var(--lhai-space-3);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--lhai-color-border);
 }
 
 .lhai-quote-prep__delivery-item-title {

@@ -58,7 +58,7 @@
   margin: 0;
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-md);
-  background: rgba(15, 23, 42, 0.35);
+  background: var(--lhai-panel-12);
   color: inherit;
   font: inherit;
   cursor: pointer;

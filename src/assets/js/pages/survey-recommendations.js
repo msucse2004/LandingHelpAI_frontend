@@ -2,6 +2,7 @@ import { surveyCustomerApi } from "../core/api.js";
 import { initCommonI18nAndApplyDom } from "../core/i18n-dom.js";
 import { t } from "../core/i18n-client.js";
 import { qs, safeText } from "../core/utils.js";
+import { isCatalogRecServiceItemUuidString } from "../lib/catalog-rec-service-item-id.js";
 
 function parseSubmissionId() {
   const q = new URLSearchParams(window.location.search);
@@ -104,26 +105,51 @@ function renderPackages(rec) {
 
   recommendedAddonById = Object.fromEntries(recommendedAddons.map((a) => [a.id, a]));
 
-  selectedPackageIds = new Set(recommendedPackages.map((p) => p.id));
-  selectedAddonIds = new Set(recommendedAddons.map((a) => a.id));
+  selectedPackageIds = new Set(
+    recommendedPackages.filter((p) => isCatalogRecServiceItemUuidString(p.id)).map((p) => p.id)
+  );
+  selectedAddonIds = new Set(
+    recommendedAddons.filter((a) => isCatalogRecServiceItemUuidString(a.id)).map((a) => a.id)
+  );
 
   wrap.innerHTML = recommendedPackages
     .map((p) => {
+      const pkgOk = isCatalogRecServiceItemUuidString(p.id);
       const pkgModules = modulesByPkgId[p.id] || [];
       const pkgAddons = addonsByPkgId[p.id] || [];
       const pkgExp = p.explanation ? `<div class="lhai-help">${safeText(p.explanation)}</div>` : "";
+      const pkgMappingWarn = pkgOk
+        ? ""
+        : `<p class="lhai-help" role="alert">${safeText(
+            t(
+              "common.survey_recommendations.mapping_repair_package",
+              "이 패키지는 카탈로그 UUID로 연결되지 않아 견적 요청에 포함할 수 없습니다. 관리자에게 서비스 매핑 복구를 요청하세요."
+            )
+          )}</p>`;
 
       const addonOptions = pkgAddons
         .map((a) => {
+          const addonOk = isCatalogRecServiceItemUuidString(a.id);
           const exp = a.explanation ? `<div class="lhai-help">${safeText(a.explanation)}</div>` : "";
+          const addonWarn = addonOk
+            ? ""
+            : `<p class="lhai-help u-mt-1" role="alert">${safeText(
+                t(
+                  "common.survey_recommendations.mapping_repair_addon",
+                  "이 추가 항목은 카탈로그 UUID가 아니어서 선택·전송되지 않습니다."
+                )
+              )}</p>`;
           return `
             <label class="survey-recommendations__addon-option">
               <div class="survey-recommendations__item-row">
                 <div style="display:flex; align-items:flex-start; gap:12px;">
-                  <input type="checkbox" class="survey-recommendations__addon-checkbox" data-addon-id="${safeText(a.id)}" checked />
+                  <input type="checkbox" class="survey-recommendations__addon-checkbox" data-addon-id="${safeText(a.id)}" ${
+                    addonOk ? "checked" : ""
+                  } ${addonOk ? "" : "disabled"} />
                   <div>
                     <div class="survey-recommendations__item-name" style="font-weight:900; margin-bottom:2px;">${safeText(a.name || "-")}</div>
                     ${exp}
+                    ${addonWarn}
                   </div>
                 </div>
               </div>
@@ -135,9 +161,12 @@ function renderPackages(rec) {
       return `
         <div class="survey-recommendations__package">
           <div class="survey-recommendations__select-row">
-            <input type="checkbox" class="survey-recommendations__package-checkbox survey-recommendations__select-checkbox" data-package-id="${safeText(p.id)}" checked />
+            <input type="checkbox" class="survey-recommendations__package-checkbox survey-recommendations__select-checkbox" data-package-id="${safeText(p.id)}" ${
+              pkgOk ? "checked" : ""
+            } ${pkgOk ? "" : "disabled"} />
             <div class="survey-recommendations__package-title">${safeText(p.name || p.code || "-")}</div>
           </div>
+          ${pkgMappingWarn}
           ${pkgExp}
           <div class="survey-recommendations__grid">
             <div>
@@ -166,6 +195,7 @@ function renderPackages(rec) {
   wrap.querySelectorAll(".survey-recommendations__package-checkbox").forEach((cb) => {
     cb.addEventListener("change", () => {
       const pkgId = cb.getAttribute("data-package-id") || "";
+      if (!isCatalogRecServiceItemUuidString(pkgId)) return;
       const enabled = cb.checked;
       if (enabled) selectedPackageIds.add(pkgId);
       else selectedPackageIds.delete(pkgId);
@@ -175,9 +205,9 @@ function renderPackages(rec) {
         selectedAddonIds.delete(aid);
         const el = addonCheckboxElById[aid];
         if (el) {
-          el.disabled = !enabled;
-          el.checked = enabled;
-          if (enabled) selectedAddonIds.add(aid);
+          el.disabled = !enabled || !isCatalogRecServiceItemUuidString(aid);
+          el.checked = enabled && isCatalogRecServiceItemUuidString(aid);
+          if (enabled && isCatalogRecServiceItemUuidString(aid)) selectedAddonIds.add(aid);
         }
       });
 
@@ -188,6 +218,7 @@ function renderPackages(rec) {
   wrap.querySelectorAll(".survey-recommendations__addon-checkbox").forEach((cb) => {
     cb.addEventListener("change", () => {
       const aid = cb.getAttribute("data-addon-id") || "";
+      if (!isCatalogRecServiceItemUuidString(aid)) return;
       if (cb.checked) selectedAddonIds.add(aid);
       else selectedAddonIds.delete(aid);
       updateSelectionSummary();
@@ -228,8 +259,16 @@ async function init() {
     const statusEl = qs("#surveyRecQuoteFormStatus");
     if (statusEl) statusEl.textContent = "";
 
-    if (!selectedPackageIds.size) {
-      setStatus(t("common.survey_recommendations.pick_one_package", "Select at least one package."));
+    const acceptedPackageIds = [...selectedPackageIds].filter((id) => isCatalogRecServiceItemUuidString(id));
+    const includedAddonIds = [...selectedAddonIds].filter((id) => isCatalogRecServiceItemUuidString(id));
+
+    if (!acceptedPackageIds.length) {
+      setStatus(
+        t(
+          "common.survey_recommendations.pick_valid_catalog_uuid",
+          "카탈로그 UUID가 있는 패키지를 하나 이상 선택하세요. 연결이 안 된 항목은 관리자에게 서비스 매핑 복구를 요청하세요."
+        )
+      );
       return;
     }
 
@@ -252,8 +291,8 @@ async function init() {
     setStatus(t("common.survey_recommendations.saving", "Saving your selection and requesting a quote…"));
     try {
       const selection = await surveyCustomerApi.createServiceSelection(submissionId, {
-        accepted_package_ids: [...selectedPackageIds],
-        included_addon_ids: [...selectedAddonIds],
+        accepted_package_ids: acceptedPackageIds,
+        included_addon_ids: includedAddonIds,
       });
 
       const quoteRes = await surveyCustomerApi.submitQuoteFromSelection(selection.id, {

@@ -1,50 +1,74 @@
 :root {
-  /* Color tokens */
-  --lhai-color-bg: #0b1220;
-  --lhai-color-surface: #111a2d;
-  --lhai-color-surface-alt: #0f172a;
-  --lhai-color-text: #e6eefc;
-  --lhai-color-text-muted: rgba(230, 238, 252, 0.72);
-  --lhai-color-border: rgba(230, 238, 252, 0.14);
-  --lhai-color-primary: #6ea8fe;
-  --lhai-color-primary-strong: #2f6df6;
-  --lhai-color-primary-contrast: #061224;
+  /* Color tokens — bright, airy (rec-friendly blue + soft warmth) */
+  --lhai-color-bg: #f3f7ff;
+  --lhai-color-surface: #ffffff;
+  --lhai-color-surface-alt: #eef4ff;
+  /* Slightly raised panels / table stripes (light) */
+  --lhai-color-surface-raised: #f8fafc;
+  --lhai-border-subtle: rgba(59, 130, 246, 0.12);
+  --lhai-border-strong: rgba(59, 130, 246, 0.26);
+  --lhai-color-text: #132238;
+  --lhai-color-text-muted: rgba(19, 34, 56, 0.62);
+  --lhai-color-border: rgba(59, 130, 246, 0.18);
+  --lhai-color-primary: #3b82f6;
+  --lhai-color-primary-strong: #2563eb;
+  --lhai-color-primary-contrast: #ffffff;
+  --lhai-color-accent: #fb7185;
+  --lhai-color-accent-soft: rgba(251, 113, 133, 0.14);
+
+  /* Semi-transparent panels (replaces former rgba(6,18,36,…) on dark theme) */
+  --lhai-panel-03: rgba(59, 130, 246, 0.045);
+  --lhai-panel-06: rgba(59, 130, 246, 0.07);
+  --lhai-panel-08: rgba(59, 130, 246, 0.085);
+  --lhai-panel-12: rgba(59, 130, 246, 0.11);
+  --lhai-panel-18: rgba(59, 130, 246, 0.14);
+  --lhai-panel-20: rgba(59, 130, 246, 0.16);
+  --lhai-panel-22: rgba(59, 130, 246, 0.17);
+  --lhai-panel-25: rgba(59, 130, 246, 0.19);
+  --lhai-panel-28: rgba(59, 130, 246, 0.21);
+  --lhai-panel-30: rgba(59, 130, 246, 0.22);
+  --lhai-panel-35: rgba(59, 130, 246, 0.24);
+  --lhai-panel-38: rgba(59, 130, 246, 0.26);
+  --lhai-panel-40: rgba(59, 130, 246, 0.27);
+  --lhai-panel-42: rgba(59, 130, 246, 0.28);
+  --lhai-panel-45: rgba(59, 130, 246, 0.3);
+  --lhai-panel-50: rgba(59, 130, 246, 0.33);
 
   /* Semantic status colors */
-  --lhai-status-success: #42d392;
-  --lhai-status-warning: #ffcc66;
-  --lhai-status-danger: #ff5a6a;
-  --lhai-status-info: #70c3ff;
+  --lhai-status-success: #16a34a;
+  --lhai-status-warning: #d97706;
+  --lhai-status-danger: #dc2626;
+  --lhai-status-info: #0284c7;
 
-  /* Role/status badge colors */
-  --lhai-badge-customer-bg: rgba(112, 195, 255, 0.2);
-  --lhai-badge-customer-text: #b8e4ff;
-  --lhai-badge-operator-bg: rgba(66, 211, 146, 0.2);
-  --lhai-badge-operator-text: #b6f5da;
-  --lhai-badge-admin-bg: rgba(255, 90, 106, 0.2);
-  --lhai-badge-admin-text: #ffc7ce;
-  --lhai-badge-risk-low-bg: rgba(66, 211, 146, 0.2);
-  --lhai-badge-risk-low-text: #b6f5da;
-  --lhai-badge-risk-medium-bg: rgba(255, 204, 102, 0.2);
-  --lhai-badge-risk-medium-text: #ffe2ab;
-  --lhai-badge-risk-high-bg: rgba(255, 90, 106, 0.2);
-  --lhai-badge-risk-high-text: #ffc7ce;
+  /* Role/status badge colors (readable on light bg) */
+  --lhai-badge-customer-bg: rgba(59, 130, 246, 0.14);
+  --lhai-badge-customer-text: #1d4ed8;
+  --lhai-badge-operator-bg: rgba(22, 163, 74, 0.14);
+  --lhai-badge-operator-text: #15803d;
+  --lhai-badge-admin-bg: rgba(220, 38, 38, 0.12);
+  --lhai-badge-admin-text: #b91c1c;
+  --lhai-badge-risk-low-bg: rgba(22, 163, 74, 0.12);
+  --lhai-badge-risk-low-text: #166534;
+  --lhai-badge-risk-medium-bg: rgba(245, 158, 11, 0.18);
+  --lhai-badge-risk-medium-text: #b45309;
+  --lhai-badge-risk-high-bg: rgba(220, 38, 38, 0.12);
+  --lhai-badge-risk-high-text: #b91c1c;
 
-  /* Header account badge — one color per permission tier (1 = highest) */
-  --lhai-badge-tier-1-bg: rgba(239, 68, 68, 0.26);
-  --lhai-badge-tier-1-text: #fecaca;
-  --lhai-badge-tier-2-bg: rgba(249, 115, 22, 0.26);
-  --lhai-badge-tier-2-text: #fed7aa;
-  --lhai-badge-tier-3-bg: rgba(234, 179, 8, 0.24);
-  --lhai-badge-tier-3-text: #fef08a;
-  --lhai-badge-tier-4-bg: rgba(168, 85, 247, 0.24);
-  --lhai-badge-tier-4-text: #e9d5ff;
-  --lhai-badge-tier-5-bg: rgba(56, 189, 248, 0.22);
-  --lhai-badge-tier-5-text: #bae6fd;
-  --lhai-badge-tier-6-bg: rgba(148, 163, 184, 0.22);
-  --lhai-badge-tier-6-text: #e2e8f0;
-  --lhai-badge-tier-unknown-bg: rgba(100, 116, 139, 0.22);
-  --lhai-badge-tier-unknown-text: #cbd5e1;
+  /* Header account badge */
+  --lhai-badge-tier-1-bg: rgba(239, 68, 68, 0.14);
+  --lhai-badge-tier-1-text: #b91c1c;
+  --lhai-badge-tier-2-bg: rgba(249, 115, 22, 0.16);
+  --lhai-badge-tier-2-text: #c2410c;
+  --lhai-badge-tier-3-bg: rgba(234, 179, 8, 0.2);
+  --lhai-badge-tier-3-text: #a16207;
+  --lhai-badge-tier-4-bg: rgba(168, 85, 247, 0.14);
+  --lhai-badge-tier-4-text: #7e22ce;
+  --lhai-badge-tier-5-bg: rgba(56, 189, 248, 0.16);
+  --lhai-badge-tier-5-text: #0369a1;
+  --lhai-badge-tier-6-bg: rgba(148, 163, 184, 0.2);
+  --lhai-badge-tier-6-text: #475569;
+  --lhai-badge-tier-unknown-bg: rgba(100, 116, 139, 0.16);
+  --lhai-badge-tier-unknown-text: #475569;
 
   /* Spacing tokens */
   --lhai-space-0: 0;
@@ -64,10 +88,10 @@
   --lhai-radius-lg: 18px;
   --lhai-radius-pill: 999px;
 
-  /* Shadow tokens */
-  --lhai-shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.2);
-  --lhai-shadow-md: 0 10px 30px rgba(0, 0, 0, 0.35);
-  --lhai-shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.45);
+  /* Shadow tokens — soft, colorful */
+  --lhai-shadow-sm: 0 2px 10px rgba(37, 99, 235, 0.08);
+  --lhai-shadow-md: 0 10px 28px rgba(37, 99, 235, 0.1);
+  --lhai-shadow-lg: 0 18px 44px rgba(37, 99, 235, 0.12);
 
   /* Typography scale */
   --lhai-font-family-base: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji",
@@ -86,6 +110,7 @@
   --lhai-bg: var(--lhai-color-bg);
   --lhai-surface: var(--lhai-color-surface);
   --lhai-surface-2: var(--lhai-color-surface-alt);
+  --lhai-surface-raised: var(--lhai-color-surface-raised);
   --lhai-text: var(--lhai-color-text);
   --lhai-muted: var(--lhai-color-text-muted);
   --lhai-border: var(--lhai-color-border);
@@ -96,4 +121,9 @@
   --lhai-warning: var(--lhai-status-warning);
   --lhai-success: var(--lhai-status-success);
   --lhai-shadow: var(--lhai-shadow-md);
+
+  /* base.css compatibility */
+  --lhai-font: var(--lhai-font-family-base);
+  --lhai-font-size: var(--lhai-font-size-md);
+  --lhai-line-height: var(--lhai-line-height-base);
 }

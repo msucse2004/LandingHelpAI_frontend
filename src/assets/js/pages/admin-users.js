@@ -59,6 +59,7 @@ function rowTemplate(row) {
   const isAccount = row.record_type === "account";
   const uname = displayUsername(row) || "—";
   const role = String(row.role || "");
+  const subRoleRaw = String(row.sub_role ?? "").trim();
   const badgeClass = isAccount ? "lhai-badge--customer" : "lhai-badge--info";
   const typeLabel = isAccount ? "회원" : "초대";
   const name = String(row.full_name || "").trim() || "—";
@@ -71,12 +72,18 @@ function rowTemplate(row) {
     ? `<td><button type="button" class="lhai-button lhai-button--danger lhai-button--compact js-delete-record">${escapeHtml(actionText)}</button></td>`
     : `<td></td>`;
 
+  const subRoleCell =
+    subRoleRaw !== ""
+      ? `<td><span class="lhai-badge ${badgeClass}">${escapeHtml(subRoleRaw)}</span></td>`
+      : "<td></td>";
+
   tr.innerHTML = `
     <td><span class="lhai-badge ${isAccount ? "lhai-badge--success" : "lhai-badge--info"}">${escapeHtml(typeLabel)}</span></td>
     <td>${accountCell}</td>
     <td>${escapeHtml(name)}</td>
     <td>${escapeHtml(row.email || "")}</td>
     <td><span class="lhai-badge ${badgeClass}">${escapeHtml(role || "—")}</span></td>
+    ${subRoleCell}
     ${deleteCell}
   `;
   return tr;
@@ -116,7 +123,7 @@ function renderFilteredRows() {
   if (!filtered.length) {
     const tr = document.createElement("tr");
     tr.innerHTML =
-      '<td colspan="6" class="lhai-state lhai-state--empty">조건에 맞는 데이터가 없습니다. 필터를 조정해 주세요.</td>';
+      '<td colspan="7" class="lhai-state lhai-state--empty">조건에 맞는 데이터가 없습니다. 필터를 조정해 주세요.</td>';
     tbody.appendChild(tr);
     return;
   }
@@ -171,7 +178,7 @@ async function loadTable() {
     setLoadStatus("표시할 가입/초대 데이터가 없습니다.");
     const tr = document.createElement("tr");
     tr.innerHTML =
-      '<td colspan="6" class="lhai-state lhai-state--empty">표시할 데이터가 없습니다. 초대 메일을 보내거나 회원가입 후 새로고침해 주세요.</td>';
+      '<td colspan="7" class="lhai-state lhai-state--empty">표시할 데이터가 없습니다. 초대 메일을 보내거나 회원가입 후 새로고침해 주세요.</td>';
     tbody.appendChild(tr);
     return;
   }

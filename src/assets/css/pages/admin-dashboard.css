@@ -1,7 +1,7 @@
 /* Admin dashboard — survey → quote prep queue */
 .lhai-admin-survey-review {
   border-color: rgba(250, 204, 21, 0.35);
-  background: linear-gradient(135deg, rgba(250, 204, 21, 0.08), rgba(6, 18, 36, 0.35));
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.08), var(--lhai-panel-35));
 }
 
 .lhai-admin-survey-review__list {
@@ -19,7 +19,7 @@
   padding: var(--lhai-space-4);
   border-radius: var(--lhai-radius-md);
   border: 1px solid rgba(250, 204, 21, 0.4);
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--lhai-color-surface);
 }
 
 .lhai-admin-survey-review-card__badge {
@@ -30,9 +30,9 @@
   font-size: var(--lhai-font-size-xs);
   font-weight: 800;
   letter-spacing: 0.03em;
-  color: #fde68a;
-  background: rgba(250, 204, 21, 0.15);
-  border: 1px solid rgba(250, 204, 21, 0.45);
+  color: #6b3f00;
+  background: rgba(250, 204, 21, 0.32);
+  border: 1px solid rgba(217, 119, 6, 0.55);
 }
 
 .lhai-admin-survey-review-card__title {
@@ -44,13 +44,17 @@
 .lhai-admin-survey-review-card__meta {
   margin: 0;
   font-size: var(--lhai-font-size-sm);
-  color: var(--lhai-color-text-muted);
+  color: rgba(19, 34, 56, 0.82);
   line-height: 1.5;
 }
 
 .lhai-admin-survey-review-card__meta strong {
   color: var(--lhai-color-text);
   font-weight: 600;
+}
+
+.lhai-admin-survey-review .lhai-help {
+  color: rgba(19, 34, 56, 0.78);
 }
 
 @media (max-width: 720px) {

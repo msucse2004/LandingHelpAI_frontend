@@ -48,8 +48,8 @@
   margin: 0 0 var(--lhai-space-4);
   padding: var(--lhai-space-3) var(--lhai-space-4);
   border-radius: var(--lhai-radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--lhai-color-border);
+  background: var(--lhai-panel-12);
   font-size: var(--lhai-font-size-sm);
   color: var(--lhai-color-text-muted);
 }
@@ -79,7 +79,7 @@
   margin-top: var(--lhai-space-4);
   padding: var(--lhai-space-3);
   border-radius: var(--lhai-radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--lhai-color-border);
   font-size: var(--lhai-font-size-sm);
   color: var(--lhai-color-text-muted);
   line-height: 1.5;
@@ -91,7 +91,7 @@
   gap: var(--lhai-space-3);
   margin-top: var(--lhai-space-5);
   padding-top: var(--lhai-space-4);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--lhai-color-border);
 }
 
 .lhai-survey-done__actions .lhai-button {

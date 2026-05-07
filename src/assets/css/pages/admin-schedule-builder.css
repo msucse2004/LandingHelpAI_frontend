@@ -105,7 +105,7 @@
   border: 1px solid var(--lhai-color-border);
   border-radius: 999px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--lhai-panel-03);
 }
 
 .lhai-sb-view-btn {
@@ -184,7 +184,7 @@
   padding: 0.35rem 0.45rem;
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-sm);
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--lhai-panel-08);
   text-align: left;
   color: var(--lhai-color-text);
   cursor: pointer;
@@ -198,9 +198,9 @@
 
 .lhai-sb-month-cell.is-empty {
   min-height: 94px;
-  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border: 1px dashed var(--lhai-color-border);
   border-radius: var(--lhai-radius-sm);
-  background: rgba(255, 255, 255, 0.01);
+  background: var(--lhai-panel-03);
 }
 
 .lhai-sb-month-cell__date {
@@ -220,7 +220,7 @@
 
 .lhai-sb-month-cell__item {
   cursor: grab;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--lhai-color-border);
   border-radius: 6px;
   padding: 2px 4px;
   margin-bottom: 3px;
@@ -286,7 +286,7 @@
 
 .lhai-sb-day {
   position: relative;
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--lhai-panel-08);
   border-radius: var(--lhai-radius-sm);
   min-height: 392px;
   border: 1px dashed transparent;
@@ -328,7 +328,7 @@ body.lhai-sb-is-dragging .lhai-sb-block:not(.lhai-sb-block--drag-source) {
   line-height: 1.25;
   cursor: grab;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--lhai-color-border);
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(34, 211, 238, 0.2));
   z-index: 1;
   user-select: none;

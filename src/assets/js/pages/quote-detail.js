@@ -9,6 +9,7 @@ import { formatMoney } from "../core/utils.js";
 import { formatSurveyAnswerForDisplay } from "../core/survey-answer-display.js";
 import { resolveAppHeaderShell, refreshHeaderMailUnreadBadge } from "../core/app-header.js";
 import { getQuoteLocaleBundle, resolveQuoteUiLang } from "./quote-detail-locale.js";
+import { isCatalogRecServiceItemUuidString } from "../lib/catalog-rec-service-item-id.js";
 
 function qs(selector) {
   return document.querySelector(selector);
@@ -234,7 +235,9 @@ function heroServiceRequestLabel(quote) {
     .filter(Boolean);
   if (catTitles.length) return catTitles.join(", ");
 
-  let sn = (quote?.service_name || rd.service_id || "").toString().trim();
+  const rawItem = String(rd.service_item_id || "").trim();
+  const fromUuid = isCatalogRecServiceItemUuidString(rawItem) ? rawItem : "";
+  let sn = (quote?.service_name || fromUuid || "").toString().trim();
   if (/^survey request:\s*/i.test(sn)) {
     sn = sn.replace(/^survey request:\s*/i, "").trim();
   }

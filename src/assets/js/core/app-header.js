@@ -2,6 +2,7 @@
  * 앱 상단 헤더(브랜드 · 메시지함 · 계정 메뉴) 단일 포맷.
  * HTML에는 `#lhai-app-header-root`만 두고, 역할·경로에 따라 브랜드/내 정보 링크만 바뀝니다.
  * 마운트 직후: 배지·계정 메뉴·로그아웃 버튼 연결.
+ * 미읽음이 증가하면 고객·운영자 공통으로 ``lhai-message-toast``(청구서 도착 알림과 동일 스타일)를 띄웁니다.
  */
 import { canAccessAdminShell } from "./role-tiers.js";
 import { t } from "./i18n-client.js";
@@ -61,7 +62,8 @@ export function resolveAppHeaderShell() {
 
 const HEADER_MAIL_BADGE_POLL_MS = 10_000;
 const HEADER_MESSAGES_CHANGED = "lhai:messages-changed";
-let lastCustomerUnreadCount = null;
+/** 직전 폴링·갱신 시점의 미읽음 수(고객·운영자 공통). 증가 시 토스트 표시. */
+let lastHeaderMailUnreadCount = null;
 
 /**
  * 고객: 읽지 않은 메시지 건수. 운영자 셸: 온보딩 스레드 중 고객 측 미읽음 스레드 수.
@@ -113,11 +115,19 @@ export async function refreshHeaderMailUnreadBadge() {
   return refreshHeaderMailUnreadBadgeWithPopup();
 }
 
-function showCustomerMessageToast(count) {
-  const shell = resolveAppHeaderShell();
-  if (shell.adminShell) return;
-  const currentPath = window.location.pathname.split("/").pop() || "";
-  if (currentPath === "messages.html") return;
+function escapeHtmlForToast(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * 견적 승인 후 청구서 안내 등과 동일한 ``lhai-message-toast`` 포맷.
+ * 고객·운영자(관리) 셸 모두에서 미읽음이 늘었을 때 표시합니다.
+ */
+function showNewMessageArrivalToast(count) {
   let root = document.querySelector("#lhai-message-toast-root");
   if (!(root instanceof HTMLElement)) {
     root = document.createElement("div");
@@ -126,12 +136,19 @@ function showCustomerMessageToast(count) {
     document.body.appendChild(root);
   }
   const shown = count > 99 ? "99+" : String(Math.max(1, count));
+  const title = escapeHtmlForToast(t("common.header.message_toast_title", "새 메시지가 도착했습니다"));
+  const body = escapeHtmlForToast(
+    t("common.header.message_toast_body", "읽지 않은 메시지 {count}건이 있습니다.").replace(/\{count\}/g, shown)
+  );
+  const cta = escapeHtmlForToast(t("common.header.message_toast_cta", "메시지함으로 이동"));
+  const closeLabel = escapeHtmlForToast(t("common.header.message_toast_close", "닫기"));
+  const closeAria = escapeHtmlForToast(t("common.header.message_toast_close_aria", "알림 닫기"));
   root.innerHTML = `
     <div class="lhai-message-toast" role="status" aria-live="polite">
-      <div class="lhai-message-toast__title">새 메시지가 도착했습니다</div>
-      <div class="lhai-message-toast__body">읽지 않은 메시지 ${shown}건이 있습니다.</div>
-      <a class="lhai-message-toast__cta" href="messages.html">메시지함으로 이동</a>
-      <button type="button" class="lhai-message-toast__close" aria-label="알림 닫기">닫기</button>
+      <div class="lhai-message-toast__title">${title}</div>
+      <div class="lhai-message-toast__body">${body}</div>
+      <a class="lhai-message-toast__cta" href="messages.html">${cta}</a>
+      <button type="button" class="lhai-message-toast__close" aria-label="${closeAria}">${closeLabel}</button>
     </div>
   `.trim();
   root.classList.add("is-visible");
@@ -154,18 +171,16 @@ function showCustomerMessageToast(count) {
 async function refreshHeaderMailUnreadBadgeWithPopup({ suppressPopup = false } = {}) {
   const count = await fetchHeaderUnreadMessageCount();
   applyHeaderMailUnreadBadge(count);
-  const { adminShell } = resolveAppHeaderShell();
   const isVisible = document.visibilityState === "visible";
   if (
     !suppressPopup &&
-    !adminShell &&
-    typeof lastCustomerUnreadCount === "number" &&
-    count > lastCustomerUnreadCount &&
+    typeof lastHeaderMailUnreadCount === "number" &&
+    count > lastHeaderMailUnreadCount &&
     isVisible
   ) {
-    showCustomerMessageToast(count);
+    showNewMessageArrivalToast(count);
   }
-  if (!adminShell) lastCustomerUnreadCount = count;
+  lastHeaderMailUnreadCount = count;
   return count;
 }
 

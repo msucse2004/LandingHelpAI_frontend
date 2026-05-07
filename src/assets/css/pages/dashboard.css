@@ -34,7 +34,7 @@
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-sm);
   padding: var(--lhai-space-2) var(--lhai-space-3);
-  background: rgba(6, 18, 36, 0.22);
+  background: var(--lhai-panel-22);
 }
 
 @media (max-width: 1200px) {

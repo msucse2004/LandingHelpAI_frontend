@@ -172,7 +172,7 @@
 
 .lhai-case-bubble--system {
   background: #334155;
-  color: #e2e8f0;
+  color: var(--lhai-color-text);
   border: 1px solid #475569;
 }
 

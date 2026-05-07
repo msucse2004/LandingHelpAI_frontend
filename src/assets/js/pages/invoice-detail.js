@@ -908,6 +908,39 @@ function renderPaymentResult(result, success) {
   }
 }
 
+const MARK_SUCCESS_SESSION_PREFIX = "lhai_payment_mark_success_done:";
+
+/**
+ * Stripe·mock 체크아웃이 ``success_url``로 돌아온 뒤: ``payment_id`` + ``result=success`` 로 결제 확정 API를 한 번 호출한다.
+ * (페이지를 직접 열었을 때만 ``markSuccess`` 하던 기존 동작의 빈틈을 맞춘다.)
+ */
+async function maybeCompletePaymentFromReturnUrl(invoiceId) {
+  const params = new URLSearchParams(window.location.search);
+  const pid = (params.get("payment_id") || params.get("paymentId") || "").trim();
+  const resultRaw = (params.get("result") || "").trim().toLowerCase();
+  const result = resultRaw.split("?")[0].trim();
+  if (!pid || result !== "success" || !invoiceId) return;
+  const key = `${MARK_SUCCESS_SESSION_PREFIX}${pid}`;
+  if (window.sessionStorage.getItem(key)) return;
+  try {
+    await handlePaymentSuccess(pid, String(invoiceId));
+    window.sessionStorage.setItem(key, "1");
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete("payment_id");
+      u.searchParams.delete("paymentId");
+      u.searchParams.delete("result");
+      u.searchParams.delete("mock_payment");
+      u.searchParams.delete("ref");
+      history.replaceState(null, "", u);
+    } catch {
+      /* non-browser */
+    }
+  } catch {
+    setMessage(t("customer.invoice.pay_error", ""));
+  }
+}
+
 async function handlePaymentSuccess(paymentId, invoiceId) {
   const result = await paymentApi.markSuccess(paymentId);
   if (!result) return;
@@ -1033,6 +1066,7 @@ async function initInvoiceDetailPage() {
 
   patchState({ invoice });
   renderInvoice(invoice, quote);
+  await maybeCompletePaymentFromReturnUrl(String(invoice.id));
 
   await resolveAppHeaderShell({ variant: "customer" });
   refreshHeaderMailUnreadBadge().catch(() => {});
@@ -1046,6 +1080,11 @@ async function initInvoiceDetailPage() {
         failure_url: `${window.location.origin}/src/pages/invoice-detail.html?invoice_id=${encodeURIComponent(String(invoice.id))}&payment_id={PAYMENT_ID}&result=failure`,
         cancel_url: `${window.location.origin}/src/pages/invoice-detail.html?invoice_id=${encodeURIComponent(String(invoice.id))}&payment_id={PAYMENT_ID}&result=cancel`,
       });
+      const checkout = String(start?.checkout_url || "").trim();
+      if (checkout.startsWith("http://") || checkout.startsWith("https://") || checkout.startsWith("/")) {
+        window.location.assign(checkout);
+        return;
+      }
       await handlePaymentSuccess(start.payment_id, String(invoice.id));
       setMessage(t("customer.invoice.pay_success", ""));
     } catch {

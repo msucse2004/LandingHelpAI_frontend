@@ -12,7 +12,13 @@ import {
 } from "../intake/intake-runtime-view.js";
 import { coerceToIsoDateInputValue, effectiveIntakeInputType, shouldHideIntakeBlockTitle } from "../intake/intake-form-presentation.js";
 import { formatMessageTimestamp, resolveBackendMediaUrl, safeText } from "../core/utils.js";
+import { t } from "../core/i18n-client.js";
 import { bindMessageAiFeedback, buildAiFeedbackHtml } from "./message-ai-feedback.js";
+import {
+  assertServiceItemUuid,
+  intakeStartServiceItemIdFromCardJson,
+  isCatalogRecServiceItemUuidString,
+} from "../lib/catalog-rec-service-item-id.js";
 
 /** @param {unknown} s */
 function escapeHtml(s) {
@@ -429,7 +435,8 @@ function renderThreadListRow(row) {
 
 /** 서비스 스레드 표시용: 동일 서비스·배송 방식·카탈로그 조합이 API에서 중복될 때 한 줄만 남깁니다. */
 function serviceThreadDedupeKey(row) {
-  const itemId = String(row?.service_item_id || row?.service_id || "").trim();
+  const raw = String(row?.service_item_id ?? "").trim();
+  const itemId = isCatalogRecServiceItemUuidString(raw) ? raw : "";
   const name = serviceThreadDisplayName(row).trim().toLowerCase();
   const dm = String(row?.selected_delivery_mode || "").trim().toUpperCase();
   return `${itemId}||${name}||${dm}`;
@@ -1326,12 +1333,14 @@ function renderWorkflowCardBubble(m, up) {
   if (!readOnly) {
     if (ct === "INTAKE_START") {
       const instC = pickWorkflowStr(cj, "service_instance_id", "serviceInstanceId");
-      const itemC = pickWorkflowStr(cj, "service_item_id", "serviceItemId");
-      actionsHtml = `<div class="lhai-workflow-card__actions">
+      const itemC = intakeStartServiceItemIdFromCardJson(cj);
+      if (itemC) {
+        actionsHtml = `<div class="lhai-workflow-card__actions">
         <button type="button" class="lhai-button lhai-button--primary lhai-workflow-card__action" data-lhai-wf-action="intake_start" data-service-instance="${escapeHtml(
           instC
         )}" data-service-item-id="${escapeHtml(itemC)}">답변 시작하기</button>
       </div>`;
+      }
     } else if (ct === "EMAIL_PARTNER_RESPONSE") {
       const oid = String(cj.partner_offer_id || cj.offer_id || "").trim();
       if (oid && wfId) {
@@ -1380,28 +1389,6 @@ function renderWorkflowCardBubble(m, up) {
   </div>`;
 }
 
-/** 스레드 메시지에 남은 INTAKE_START 카드에서 catalog UUID를 찾습니다(워크플로 행 누락·구버전 카드 대비). */
-function intakeStartServiceItemIdFromMessages() {
-  const list = Array.isArray(currentThreadMessages) ? currentThreadMessages : [];
-  for (let i = list.length - 1; i >= 0; i -= 1) {
-    const m = list[i];
-    if (!m || typeof m !== "object") continue;
-    const mt = String(m.message_type || "").trim().toUpperCase();
-    const ct = String(m.card_type || "").trim().toUpperCase();
-    if (mt !== "WORKFLOW_CARD" && ct !== "INTAKE_START") continue;
-    const up = m.ui_payload && typeof m.ui_payload === "object" ? /** @type {Record<string, unknown>} */ (m.ui_payload) : null;
-    const raw =
-      m.card_json && typeof m.card_json === "object"
-        ? /** @type {Record<string, unknown>} */ (m.card_json)
-        : up && String(up.widget_type || "").trim() === "workflow_card" && up.card_json && typeof up.card_json === "object"
-          ? /** @type {Record<string, unknown>} */ (up.card_json)
-          : {};
-    const sid = pickWorkflowStr(raw, "service_item_id", "serviceItemId");
-    if (sid) return sid;
-  }
-  return "";
-}
-
 /**
  * @param {HTMLButtonElement} btn
  */
@@ -1416,19 +1403,9 @@ async function runWorkflowIntakeStart(btn) {
         ? currentThreadHeaderMeta
         : {}
   );
-  const wf =
-    currentThreadWorkflowSummary && typeof currentThreadWorkflowSummary === "object"
-      ? /** @type {Record<string, unknown>} */ (currentThreadWorkflowSummary)
-      : {};
+  /** INTAKE_START 버튼은 카드 렌더 시 ``card_json``에서 읽은 UUID만 ``data-service-item-id``에 넣습니다(스레드 스캔 폴백 없음). */
   const itemFromBtn = String(btn.getAttribute("data-service-item-id") || "").trim();
-  let itemId = String(
-    itemFromBtn ||
-      pickWorkflowStr(meta, "service_item_id", "serviceItemId") ||
-      pickWorkflowStr(meta, "service_id", "serviceId") ||
-      pickWorkflowStr(wf, "service_item_id", "serviceItemId") ||
-      ""
-  ).trim();
-  if (!itemId) itemId = intakeStartServiceItemIdFromMessages();
+  const itemId = isCatalogRecServiceItemUuidString(itemFromBtn) ? itemFromBtn : "";
   const instFromBtn = String(btn.getAttribute("data-service-instance") || "").trim();
   const instId = String(
     instFromBtn || pickWorkflowStr(meta, "service_instance_id", "serviceInstanceId") || ""
@@ -1441,7 +1418,6 @@ async function runWorkflowIntakeStart(btn) {
       missing,
       selectedThreadId: tid,
       metaKeys: meta && typeof meta === "object" ? Object.keys(meta) : [],
-      wfKeys: wf && typeof wf === "object" ? Object.keys(wf) : [],
       buttonDataset: { service_item_id: itemFromBtn, service_instance: instFromBtn },
       threadMessageCount: Array.isArray(currentThreadMessages) ? currentThreadMessages.length : 0,
       detailThreadLoaded: Boolean(currentThreadDetailThread),
@@ -1452,13 +1428,30 @@ async function runWorkflowIntakeStart(btn) {
     );
     return;
   }
+  try {
+    assertServiceItemUuid(itemId);
+  } catch {
+    window.alert(
+      t(
+        "common.messages.workflow.mapping_repair_needed",
+        "서비스 연결 정보가 누락되었습니다. 관리자에게 서비스 매핑 복구를 요청하세요."
+      )
+    );
+    return;
+  }
+  if (!instId) {
+    window.alert(
+      "서비스 인스턴스 정보가 누락되었습니다. 메시지함을 새로고침한 뒤 다시 시도해 주세요. 문제가 계속되면 운영팀에 문의해 주세요."
+    );
+    return;
+  }
   btn.disabled = true;
   try {
     await serviceIntakeCustomerApi.flowStart({
       customer_profile_id: cp,
       thread_id: tid,
-      service_item_id: itemId || undefined,
-      service_instance_id: instId || undefined,
+      service_instance_id: instId,
+      service_item_id: itemId,
     });
     await loadThreadMessages();
     syncWorkflowSummaryStrip();

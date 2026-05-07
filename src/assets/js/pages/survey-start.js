@@ -14,6 +14,7 @@ import {
   orderedActiveBlocks,
   previewFieldFromGroupChild,
 } from "../intake/intake-preview-branching.js";
+import { isCatalogRecServiceItemUuidString, isLegacyServiceId } from "../lib/catalog-rec-service-item-id.js";
 import { qs, safeText, scrollPageToTop } from "../core/utils.js";
 
 const esc = safeText;
@@ -450,7 +451,7 @@ function updateChrome() {
     if (phase === "review") {
       next.textContent = submittingReview
         ? t("common.service_flow.btn_submitting_request", "요청 제출 중…")
-        : t("common.service_flow.btn_submit_request", "이 요청 제출하기");
+        : t("common.service_flow.btn_submit_request", "제출하기");
     } else if (phase === "services" && servicesCategoryIndex < servicesCategoryOrder.length - 1) {
       next.textContent = t("common.service_flow.btn_next_category", "다음 카테고리");
     } else {
@@ -1052,7 +1053,9 @@ async function loadServicesForSelectedCategory() {
     const all = [];
     for (const categoryId of selectedCategoryIds) {
       const perCategory = await serviceCatalogBrowseApi.listServiceItems(categoryId);
-      const rows = Array.isArray(perCategory) ? perCategory : [];
+      const rows = (Array.isArray(perCategory) ? perCategory : []).filter(
+        (x) => x && isCatalogRecServiceItemUuidString(x.id)
+      );
       serviceItemsByCategoryId.set(categoryId, rows);
       const validIds = new Set(rows.map((x) => x.id).filter(Boolean));
       const prior = selectedServiceIds.filter((id) => validIds.has(id));
@@ -1326,7 +1329,21 @@ function buildAnswerJsonWithLabelSnapshot(answerJson, question = null) {
   return aj;
 }
 
+function validateSelectedServiceIdsForSubmit() {
+  for (const sid of selectedServiceIds) {
+    const tId = String(sid || "").trim();
+    if (!tId || isLegacyServiceId(tId) || !isCatalogRecServiceItemUuidString(tId)) {
+      return t(
+        "common.service_flow.invalid_service_item_id",
+        "서비스 식별자가 올바르지 않습니다. 카테고리를 다시 선택한 뒤 서비스를 고르세요."
+      );
+    }
+  }
+  return "";
+}
+
 function buildServiceFlowSubmitPayload() {
+  // selected_services[].id must be rec_service_items.id (UUID) from GET /api/service-catalog/browse/...
   const selectedCategoryRows = categories
     .filter((c) => selectedCategoryIds.includes(c.id))
     .map((c) => ({
@@ -1411,7 +1428,10 @@ function renderReview() {
   })();
 
   const nextStepHints = [
-    "「이 요청 제출하기」를 누르면 고객님의 요청이 먼저 안전하게 접수됩니다.",
+    t(
+      "common.service_flow.review_next_hint_submit_click",
+      "「제출하기」를 누르면 고객님의 요청이 먼저 안전하게 접수됩니다."
+    ),
     "접수된 정보는 운영팀(담당자)이 확인하고, 필요한 내용을 검토합니다.",
     "검토가 완료되면 상황에 맞는 견적서를 준비해 이메일과 메시지함으로 보내드립니다.",
   ];
@@ -1599,6 +1619,13 @@ async function goNext() {
     setStatus("설문을 접수하는 중입니다...");
     try {
       await mergeRegisteredIdentityFromMeIntoCommonInfo(commonInfo);
+      const idErr = validateSelectedServiceIdsForSubmit();
+      if (idErr) {
+        setStatus(idErr);
+        submittingReview = false;
+        updateChrome();
+        return;
+      }
       const payload = buildServiceFlowSubmitPayload();
       const result = await surveyCustomerApi.submitServiceFlow(payload);
       const quoteId = result?.quote?.quote_id || "";

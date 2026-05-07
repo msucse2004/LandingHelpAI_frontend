@@ -100,7 +100,7 @@
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-sm);
   padding: var(--lhai-space-4);
-  background: rgba(6, 18, 36, 0.22);
+  background: var(--lhai-panel-22);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -167,7 +167,7 @@
   border-radius: var(--lhai-radius-sm);
   padding: var(--lhai-space-4);
   margin-top: var(--lhai-space-4);
-  background: rgba(6, 18, 36, 0.12);
+  background: var(--lhai-panel-12);
 }
 
 .admin-survey-builder__question-editor-stack {
@@ -283,7 +283,7 @@
   padding: var(--lhai-space-2) var(--lhai-space-3);
   border: 1px dashed rgba(148, 163, 184, 0.35);
   border-radius: var(--lhai-radius-sm);
-  background: rgba(6, 18, 36, 0.12);
+  background: var(--lhai-panel-12);
 }
 
 .admin-survey-builder__adv-details summary {
@@ -295,7 +295,7 @@
 .admin-survey-builder__adv-details--low-emphasis {
   border-style: solid;
   border-color: rgba(148, 163, 184, 0.22);
-  background: rgba(6, 18, 36, 0.06);
+  background: var(--lhai-panel-06);
 }
 
 .admin-survey-builder__adv-details--low-emphasis summary {
@@ -320,7 +320,7 @@
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-sm);
   padding: var(--lhai-space-4);
-  background: rgba(6, 18, 36, 0.2);
+  background: var(--lhai-panel-20);
 }
 
 .admin-survey-builder__rule-card.is-selected {
@@ -389,7 +389,7 @@
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-sm);
   padding: var(--lhai-space-4);
-  background: rgba(6, 18, 36, 0.18);
+  background: var(--lhai-panel-18);
 }
 
 .admin-survey-builder__if-then__label {
@@ -444,7 +444,7 @@
   border: 1px dashed var(--lhai-color-border);
   border-radius: var(--lhai-radius-sm);
   color: var(--lhai-color-text);
-  background: rgba(6, 18, 36, 0.18);
+  background: var(--lhai-panel-18);
 }
 
 .admin-survey-builder__preview {
@@ -452,7 +452,7 @@
   border: 1px solid var(--lhai-color-border);
   border-radius: var(--lhai-radius-sm);
   padding: var(--lhai-space-4);
-  background: rgba(6, 18, 36, 0.2);
+  background: var(--lhai-panel-20);
 }
 
 .admin-survey-builder__preview-title {
