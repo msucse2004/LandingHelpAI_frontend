@@ -1835,6 +1835,7 @@
 .admin-intake-preview__card--question .admin-intake-preview__q-title {
   margin: var(--lhai-space-2) 0;
   font-size: 1rem;
+  color: var(--lhai-color-text);
 }
 
 .admin-intake-preview__card-head {
@@ -1923,6 +1924,7 @@
 .admin-intake-preview__form-label {
   font-weight: 600;
   margin-bottom: var(--lhai-space-1);
+  color: var(--lhai-color-text);
 }
 
 .admin-intake-preview__form-help {
@@ -1959,6 +1961,7 @@
   gap: var(--lhai-space-2);
   font-size: 0.9rem;
   cursor: pointer;
+  color: var(--lhai-color-text);
 }
 
 .admin-intake-preview__form-actions {
@@ -1990,6 +1993,7 @@
   margin: 0 0 var(--lhai-space-1);
   font-size: 0.95rem;
   font-weight: 600;
+  color: var(--lhai-color-text);
 }
 
 .admin-intake-preview__subfield {
@@ -2024,12 +2028,30 @@
   color: var(--lhai-color-text);
 }
 
+/* Quill HTML often ships inline color: rgb(0,0,0) — invisible on dark default panels only */
+.admin-intake-preview__scroll .lhai-intake-block--style-default .lhai-intake-block__body--html {
+  color: var(--lhai-color-text);
+}
+
+.admin-intake-preview__scroll .lhai-intake-block--style-default .lhai-intake-block__body--html * {
+  color: inherit !important;
+}
+
 .admin-intake-preview__scroll .lhai-intake-block__img {
   background: var(--lhai-panel-22);
 }
 
-.admin-intake-preview__scroll .lhai-intake-block__body--html a {
+.admin-intake-preview__scroll .lhai-intake-block--style-default .lhai-intake-block__body--html a {
+  color: rgba(147, 197, 253, 0.95) !important;
+}
+
+.admin-intake-preview__scroll .lhai-intake-block__doc-link {
   color: rgba(147, 197, 253, 0.95);
+}
+
+.admin-intake-preview__history-row strong {
+  color: var(--lhai-color-text);
+  font-weight: 700;
 }
 
 /* Customer Intake Builder — Quill (dark shell) */

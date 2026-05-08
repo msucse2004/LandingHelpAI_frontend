@@ -1162,3 +1162,130 @@
 .lhai-workflow-card__offer .lhai-workflow-card__action {
   margin-top: 4px;
 }
+
+/* --- Intake partner dispatch diagnostics (operator SERVICE threads) --- */
+.lhai-intake-diag-panel {
+  border-color: rgb(255 255 255 / 0.12);
+}
+
+.lhai-intake-diag-body {
+  max-height: min(70vh, 520px);
+  overflow: auto;
+}
+
+.lhai-intake-diag-line,
+.lhai-intake-diag-block {
+  margin: 0.35rem 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.lhai-intake-diag-k {
+  font-weight: 600;
+  margin-right: 0.35rem;
+  color: var(--lhai-color-muted, #8a9ba8);
+}
+
+.lhai-intake-diag-code {
+  font-size: 0.82rem;
+  word-break: break-all;
+}
+
+.lhai-intake-diag-status {
+  display: inline-block;
+  font-weight: 600;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+}
+
+.lhai-intake-diag-status--ok {
+  color: #2ecc71;
+  background: rgb(46 204 113 / 0.12);
+}
+
+.lhai-intake-diag-status--nopartner {
+  color: #e67e22;
+  background: rgb(230 126 34 / 0.15);
+}
+
+.lhai-intake-diag-status--partial {
+  color: #f1c40f;
+  background: rgb(241 196 15 / 0.12);
+}
+
+.lhai-intake-diag-status--failed {
+  color: #e74c3c;
+  background: rgb(231 76 60 / 0.12);
+}
+
+.lhai-intake-diag-acc {
+  margin-top: 0.5rem;
+  border: 1px solid var(--lhai-color-border, rgb(255 255 255 / 0.1));
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  background: rgb(0 0 0 / 0.15);
+}
+
+.lhai-intake-diag-acc__summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.lhai-intake-diag-acc__body {
+  margin-top: 0.35rem;
+}
+
+.lhai-intake-diag-pre {
+  margin: 0;
+  max-height: 240px;
+  overflow: auto;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  padding: 0.5rem;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.35);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.lhai-intake-diag-checks td {
+  font-size: 0.78rem;
+  vertical-align: top;
+}
+
+.lhai-intake-diag-check--pass td {
+  color: #2ecc71;
+}
+
+.lhai-intake-diag-check--warn td {
+  color: #f1c40f;
+}
+
+.lhai-intake-diag-check--fail td {
+  color: #e74c3c;
+  font-weight: 600;
+}
+
+.lhai-intake-diag-toast {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(120%);
+  z-index: 12000;
+  padding: 0.55rem 1rem;
+  border-radius: 6px;
+  background: rgb(30 40 50 / 0.95);
+  color: #ecf0f1;
+  font-size: 0.88rem;
+  box-shadow: 0 4px 20px rgb(0 0 0 / 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.lhai-intake-diag-toast.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}

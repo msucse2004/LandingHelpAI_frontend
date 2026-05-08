@@ -1,5 +1,11 @@
 import { mountMessagesSidebar } from "../components/sidebar.js";
-import { customerWorkflowsApi, messagesApi, serviceIntakeCustomerApi, userCustomerApi } from "../core/api.js";
+import {
+  customerWorkflowsApi,
+  messagesApi,
+  serviceCatalogAdminApi,
+  serviceIntakeCustomerApi,
+  userCustomerApi,
+} from "../core/api.js";
 import { getCustomerMessagingProfileId } from "../core/auth.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { canAccessAdminShell } from "../core/role-tiers.js";
@@ -19,6 +25,7 @@ import {
   intakeStartServiceItemIdFromCardJson,
   isCatalogRecServiceItemUuidString,
 } from "../lib/catalog-rec-service-item-id.js";
+import { buildIntakeDispatchDiagnosticsHtml } from "./messages-intake-diagnostics-ui.js";
 
 /** @param {unknown} s */
 function escapeHtml(s) {
@@ -1582,6 +1589,68 @@ function renderChatBubbles() {
   requestAnimationFrame(() => scrollChatToBottom());
 }
 
+function showIntakeDispatchDiagToast(message) {
+  let el = document.querySelector("#lhaiIntakeDiagToast");
+  if (!(el instanceof HTMLElement)) {
+    el = document.createElement("div");
+    el.id = "lhaiIntakeDiagToast";
+    el.className = "lhai-intake-diag-toast";
+    el.setAttribute("role", "status");
+    document.body.appendChild(el);
+  }
+  el.textContent = String(message || "");
+  el.classList.add("is-visible");
+  const prev = /** @type {number | undefined} */ (el._lhaiHideT);
+  if (prev) window.clearTimeout(prev);
+  el._lhaiHideT = window.setTimeout(() => {
+    el.classList.remove("is-visible");
+  }, 2800);
+}
+
+function wireIntakeDispatchDiagnosticsPanel() {
+  const runBtn = document.querySelector("#lhaiIntakeDispatchDiagRunBtn");
+  const body = document.querySelector("#lhaiIntakeDispatchDiagBody");
+  const loading = document.querySelector("#lhaiIntakeDispatchDiagLoading");
+  if (!(runBtn instanceof HTMLButtonElement) || !(body instanceof HTMLElement)) return;
+  const clone = /** @type {HTMLButtonElement} */ (runBtn.cloneNode(true));
+  runBtn.replaceWith(clone);
+  clone.addEventListener("click", async () => {
+    const tid = String(selectedThreadId || "").trim();
+    if (!tid) return;
+    if (loading instanceof HTMLElement) {
+      loading.hidden = false;
+      loading.textContent = "불러오는 중…";
+    }
+    body.innerHTML = "";
+    try {
+      const data = await serviceCatalogAdminApi.getIntakeDispatchDiagnostics({ threadId: tid });
+      body.innerHTML = buildIntakeDispatchDiagnosticsHtml(data);
+      const copyBtn = document.querySelector("#lhaiIntakeDiagCopyTidBtn");
+      if (copyBtn instanceof HTMLButtonElement) {
+        copyBtn.addEventListener("click", async () => {
+          let out = "";
+          try {
+            out = JSON.stringify(data, null, 2);
+          } catch {
+            out = String(data);
+          }
+          try {
+            await navigator.clipboard.writeText(out);
+            showIntakeDispatchDiagToast("진단 전체(JSON)가 복사되었습니다");
+          } catch {
+            showIntakeDispatchDiagToast("복사에 실패했습니다");
+          }
+        });
+      }
+    } catch (e) {
+      const msg = e && typeof e.message === "string" ? e.message : String(e);
+      body.innerHTML = `<p class="lhai-state lhai-state--error">${escapeHtml(msg)}</p>`;
+    } finally {
+      if (loading instanceof HTMLElement) loading.hidden = true;
+    }
+  });
+}
+
 /** @param {Record<string, unknown> | null | undefined} threadMeta */
 function renderMessageDetailShell(threadMeta) {
   const container = document.querySelector("#messageDetailContainer");
@@ -1604,6 +1673,18 @@ function renderMessageDetailShell(threadMeta) {
              운영 화면: <strong>서비스 전용</strong> 스레드입니다. 해당 서비스 계약·진행 범위의 문의에 회신합니다.
            </div>`
       : "";
+  const showIntakeDiag =
+    Boolean(operatorInboxMode && threadMeta && normalizeThreadRole(threadMeta) === "SERVICE");
+  const intakeDiagBlock = showIntakeDiag
+    ? `<section class="lhai-card lhai-intake-diag-panel u-mb-2" id="lhaiIntakeDispatchDiagWrap" aria-labelledby="lhaiIntakeDiagHeading">
+        <div class="lhai-intake-diag-panel__head" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.5rem">
+          <h3 id="lhaiIntakeDiagHeading" class="lhai-card__title" style="margin:0;font-size:1rem">파트너 배정 진단</h3>
+          <button type="button" class="lhai-button lhai-button--secondary" id="lhaiIntakeDispatchDiagRunBtn">진단 불러오기</button>
+        </div>
+        <p class="lhai-help u-mt-1" id="lhaiIntakeDispatchDiagLoading" hidden>불러오는 중…</p>
+        <div id="lhaiIntakeDispatchDiagBody" class="lhai-intake-diag-body u-mt-2"></div>
+      </section>`
+    : "";
   const customerExtras =
     !operatorInboxMode && isAdminChannel
       ? `<div class="lhai-thread-detail-banner lhai-messages-ai-scope u-mb-2" role="region" aria-label="채널 안내">
@@ -1638,6 +1719,7 @@ function renderMessageDetailShell(threadMeta) {
       <p id="messageChatSubtitle" class="lhai-chat-header__subtitle lhai-service-header__meta u-text-muted"></p>
     </div>
     ${operatorContextBanner}
+    ${intakeDiagBlock}
     ${customerExtras}
     <div id="messageWorkflowSummary" class="lhai-thread-workflow-summary" hidden></div>
     <div id="messageChatScroll" class="lhai-chat-scroll" role="log" aria-live="polite">
@@ -1651,6 +1733,9 @@ function renderMessageDetailShell(threadMeta) {
     </form>
   `;
   syncChatHeader(threadMeta);
+  if (showIntakeDiag) {
+    wireIntakeDispatchDiagnosticsPanel();
+  }
 }
 
 /** @param {Record<string, unknown> | null | undefined} threadMeta */

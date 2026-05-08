@@ -4601,7 +4601,10 @@ function ucdBindManageEvents() {
       {
         workingMsg: t("common.admin_services.manage.feedback.saving", "Saving…"),
         successMsg: isEdit
-          ? t("common.admin_services.manage.feedback.saved", "Saved.")
+          ? `${t("common.admin_services.manage.feedback.saved", "Saved.")}\n${t(
+              "common.admin_services.manage.feedback.workflow_db_after_basic_save",
+              "워크플로·파트너 배정 DB(service_workflow_configs)는 Service Workflow 탭에서「워크플로 저장」할 때 반영됩니다."
+            )}`
           : t("common.admin_services.manage.feedback.created", "Created."),
         errorPrefix: t("common.admin_services.manage.feedback.error", "Error"),
       }
@@ -4704,16 +4707,24 @@ function ucdBindManageEvents() {
       ucdRenderManage();
       msiOnServiceContextChanged();
       let savedMsg = t("common.admin_services.manage.feedback.saved", "Saved.");
+      const prc = saved && saved.partner_rule_count != null ? Number(saved.partner_rule_count) : null;
       if (
         saved &&
         typeof saved.workflow_config_id === "string" &&
         saved.workflow_config_id &&
         saved.workflow_config_version != null &&
-        saved.partner_rule_count != null
+        prc != null &&
+        Number.isFinite(prc) &&
+        prc >= 1
       ) {
         savedMsg += `\n${t("common.admin_services.workflow.db.save_meta", "DB 동기화")}: workflow_config_id=${saved.workflow_config_id}, v${String(saved.workflow_config_version)}, partner_rule_count=${String(saved.partner_rule_count)}`;
       }
-      ucdWorkflowSaveStatusSet(savedMsg, "success");
+      let wfSaveVariant = "success";
+      if (saved && saved.workflow_db_health_warning) {
+        savedMsg += `\n${t("common.admin_services.workflow.db.health_warning_label", "워크플로 DB 점검")}: ${String(saved.workflow_db_health_warning)}`;
+        wfSaveVariant = "neutral";
+      }
+      ucdWorkflowSaveStatusSet(savedMsg, wfSaveVariant);
       void workflowRefreshDbStatusPanel();
     } catch (err) {
       const msg = err && typeof err.message === "string" ? err.message : String(err);

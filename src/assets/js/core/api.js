@@ -2418,8 +2418,31 @@ const serviceCatalogAdminApi = {
         active_workflow_config: null,
         partner_rules: [],
         partner_rule_count: 0,
+        active_workflow_config_id: null,
+        active_workflow_config_count: 0,
+        active_partner_rule_count: 0,
+        service_partners_preview: [],
+        workflow_config_json_single_partner_preview: null,
+        catalog_workflow_type: null,
+        sync_health_status: "WARN",
+        sync_health_errors: [],
+        sync_health_warnings: ["(mock) workflow-db-state unavailable"],
       };
     }
+  },
+
+  /**
+   * 인테이크 제출 후 파트너 디스패치 진단(관리자 전용).
+   * @param {{ threadId?: string, sessionId?: string }} opts
+   */
+  async getIntakeDispatchDiagnostics(opts = {}) {
+    const threadId = String(opts.threadId || "").trim();
+    const sessionId = String(opts.sessionId || "").trim();
+    const qs = new URLSearchParams();
+    if (threadId) qs.set("thread_id", threadId);
+    if (sessionId) qs.set("session_id", sessionId);
+    const q = qs.toString();
+    return await tryBackendGet(`/api/admin/intake-dispatch-diagnostics${q ? `?${q}` : ""}`);
   },
 
   async updateServiceItem(serviceItemId, payload) {
