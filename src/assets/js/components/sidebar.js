@@ -141,7 +141,9 @@ async function loadSidebar(targetSelector = "#sidebar", variant = "customer") {
 
 /** messages.html: 관리자는 다른 admin 화면과 동일한 왼쪽 메뉴, 그 외는 고객 partial */
 async function mountMessagesSidebar() {
-  await loadSidebar("#sidebar", canAccessAdminShell() ? "admin" : "customer");
+  // PARTNER는 admin 셸 대상이 아니므로 customer sidebar를 사용한다.
+  const variant = canAccessAdminShell() ? "admin" : "customer";
+  await loadSidebar("#sidebar", variant);
 }
 
 export { loadSidebar, mountMessagesSidebar };

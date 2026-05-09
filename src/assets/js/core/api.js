@@ -957,6 +957,24 @@ const messagesApi = {
   },
 };
 
+const partnerThreadsApi = {
+  async listThreads() {
+    return await tryBackendGet("/api/partner/threads");
+  },
+  async threadDetail(threadId) {
+    const t = String(threadId || "").trim();
+    if (!t) throw new Error("threadId required");
+    return await tryBackendGet(`/api/partner/threads/${encodeURIComponent(t)}/detail`);
+  },
+  async sendMessage(threadId, body) {
+    const t = String(threadId || "").trim();
+    if (!t) throw new Error("threadId required");
+    return await tryBackendPost(`/api/partner/threads/${encodeURIComponent(t)}/messages`, {
+      body: String(body || ""),
+    });
+  },
+};
+
 const emailLogsApi = {
   async list(customerProfileId = "profile::demo@customer.com") {
     try {
@@ -4361,6 +4379,7 @@ export {
   schedulingAdminApi,
   invoiceApi,
   messagesApi,
+  partnerThreadsApi,
   quoteApi,
   timelineApi,
   dashboardApi,

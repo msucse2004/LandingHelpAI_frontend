@@ -2,11 +2,13 @@ import { mountMessagesSidebar } from "../components/sidebar.js";
 import {
   customerWorkflowsApi,
   messagesApi,
+  partnerThreadsApi,
   serviceCatalogAdminApi,
   serviceIntakeCustomerApi,
   userCustomerApi,
 } from "../core/api.js";
-import { getCustomerMessagingProfileId } from "../core/auth.js";
+import { getCurrentRole, getCustomerMessagingProfileId } from "../core/auth.js";
+import { ROLES } from "../core/config.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { canAccessAdminShell } from "../core/role-tiers.js";
 import { syncHeaderRoleBadge } from "../core/role-header-badge.js";
@@ -57,6 +59,8 @@ let currentThreadDetailThread = null;
 let chatSendLocked = false;
 /** init 시점에 한 번 설정 — 운영자는 고객센터(온보딩) 스레드만 목록·답장 */
 let operatorInboxMode = false;
+/** init 시점에 한 번 설정 — 파트너는 partner_threads API만 사용 */
+let partnerInboxMode = false;
 /** @type {string} */
 let threadListLoadError = "";
 /** @type {{ first_name?: string, last_name?: string, full_name?: string } | null | undefined} */
@@ -68,7 +72,7 @@ function applyMessagesPageQuery() {
   const tid = (q.get("thread_id") || q.get("thread") || "").trim();
   if (operatorInboxMode) {
     if (cp) threadOwnerProfileId = cp;
-  } else if (cp) {
+  } else if (!partnerInboxMode && cp) {
     customerProfileId = cp;
   }
   return tid;
@@ -76,13 +80,13 @@ function applyMessagesPageQuery() {
 
 function isMineDirection(direction) {
   const d = String(direction || "").toUpperCase();
-  if (operatorInboxMode) return d === "OUTBOUND";
+  if (operatorInboxMode || partnerInboxMode) return d === "OUTBOUND";
   return d === "INBOUND";
 }
 
 async function loadMeBasicInfoSafe() {
   if (cachedMeBasicInfo !== undefined) return cachedMeBasicInfo;
-  if (operatorInboxMode) {
+  if (operatorInboxMode || partnerInboxMode) {
     cachedMeBasicInfo = null;
     return cachedMeBasicInfo;
   }
@@ -101,7 +105,7 @@ async function loadMeBasicInfoSafe() {
  * @param {Array<Record<string, unknown>>} messages
  */
 async function applyQuestionGroupNamePrefillFallback(messages) {
-  if (!Array.isArray(messages) || !messages.length || operatorInboxMode) return;
+  if (!Array.isArray(messages) || !messages.length || operatorInboxMode || partnerInboxMode) return;
   const me = await loadMeBasicInfoSafe();
   if (!me || typeof me !== "object") return;
   const first = String(me.first_name || "").trim();
@@ -1548,6 +1552,12 @@ function renderChatBubbles() {
       const isWorkflowCard = mt === "WORKFLOW_CARD" || wt === "workflow_card";
       const isForm = wt === "form_prompt";
       const isIntakeContent = wt === "intake_content_block";
+      const meta =
+        m && typeof m === "object" && m.json_metadata && typeof m.json_metadata === "object"
+          ? /** @type {Record<string, unknown>} */ (m.json_metadata)
+          : null;
+      const intakeSummaryKind = String(meta?.kind || "").trim();
+      const isPartnerIntakeSummary = intakeSummaryKind === "partner_intake_submission_summary";
       const bubbleClass = [
         mine ? "lhai-chat-bubble--me" : "lhai-chat-bubble--them",
         isForm ? "lhai-chat-bubble--form-prompt" : "",
@@ -1556,8 +1566,9 @@ function renderChatBubbles() {
       ]
         .filter(Boolean)
         .join(" ");
-      const showTitle = !mine && Boolean(m.title) && !isForm && !isIntakeContent && !isWorkflowCard;
-      const titleLine = showTitle ? `<div class="lhai-chat-bubble__title">${escapeHtml(String(m.title))}</div>` : "";
+      const showTitle = !mine && (Boolean(m.title) || isPartnerIntakeSummary) && !isForm && !isIntakeContent && !isWorkflowCard;
+      const resolvedTitle = isPartnerIntakeSummary ? "고객 신청서" : String(m.title || "");
+      const titleLine = showTitle ? `<div class="lhai-chat-bubble__title">${escapeHtml(resolvedTitle)}</div>` : "";
 
       let formBlock = "";
       if (isForm && up) {
@@ -1704,7 +1715,7 @@ function renderMessageDetailShell(threadMeta) {
              </div>
            </div>`
         : "";
-  const placeholder = "메시지를 입력하세요";
+  const placeholder = partnerInboxMode ? "고객에게 보낼 메시지를 입력하세요." : "메시지를 입력하세요";
   const sendLabel = "보내기";
 
   container.className = "lhai-message-detail lhai-message-detail--chat";
@@ -1790,6 +1801,16 @@ function syncChatHeader(threadMeta) {
     return;
   }
 
+  if (partnerInboxMode) {
+    badges.innerHTML = "";
+    eyebrow.textContent = "파트너 메시지함";
+    eyebrow.hidden = false;
+    titleEl.textContent = serviceThreadDisplayName(threadMeta);
+    applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, "");
+    subtitle.textContent = "배정된 고객 서비스 thread를 확인하고 고객과 대화할 수 있습니다.";
+    return;
+  }
+
   badges.innerHTML = threadListBadgesHtml(threadMeta, detailBadgeOpts);
 
   if (role === "ADMIN") {
@@ -1842,6 +1863,19 @@ async function loadThreadMessages() {
       currentThreadMessages = await messagesApi.operatorThreadMessages(selectedThreadId, {
         customerProfileId: cp,
       });
+    } else if (partnerInboxMode) {
+      const detail = await partnerThreadsApi.threadDetail(selectedThreadId);
+      if (detail && typeof detail === "object" && Array.isArray(detail.messages)) {
+        currentThreadMessages = detail.messages;
+        const wf = detail.workflow;
+        currentThreadWorkflowSummary =
+          wf && typeof wf === "object" ? /** @type {Record<string, unknown>} */ (wf) : null;
+        const th = detail.thread;
+        currentThreadDetailThread =
+          th && typeof th === "object" ? /** @type {Record<string, unknown>} */ (th) : null;
+      } else {
+        currentThreadMessages = [];
+      }
     } else {
       let detailOk = false;
       try {
@@ -1873,7 +1907,7 @@ async function loadThreadMessages() {
     currentThreadDetailThread = null;
   }
 
-  if (!operatorInboxMode && Array.isArray(currentThreadMessages) && currentThreadMessages.length) {
+  if (!operatorInboxMode && !partnerInboxMode && Array.isArray(currentThreadMessages) && currentThreadMessages.length) {
     await applyQuestionGroupNamePrefillFallback(currentThreadMessages);
     const unreadIncoming = currentThreadMessages.filter((m) => {
       const mine = isMineDirection(m?.direction);
@@ -1907,6 +1941,8 @@ async function refresh() {
   try {
     threads = operatorInboxMode
       ? await messagesApi.listOperatorOnboardingThreads()
+      : partnerInboxMode
+        ? await partnerThreadsApi.listThreads()
       : await messagesApi.listThreads({
           customerProfileId,
           category,
@@ -2032,6 +2068,8 @@ async function onComposerSubmit(event) {
         threadId: selectedThreadId,
         customerProfileId: threadOwnerProfileId,
       });
+    } else if (partnerInboxMode) {
+      await partnerThreadsApi.sendMessage(selectedThreadId, text);
     } else {
       await messagesApi.sendThreadMessage(text, { threadId: selectedThreadId, customerProfileId });
     }
@@ -2048,6 +2086,7 @@ async function onComposerSubmit(event) {
 
 async function initMessagesPage() {
   operatorInboxMode = canAccessAdminShell();
+  partnerInboxMode = !operatorInboxMode && getCurrentRole() === ROLES.PARTNER;
   syncHeaderRoleBadge();
   await mountMessagesSidebar();
   if (!protectCurrentPage()) return;
@@ -2055,23 +2094,25 @@ async function initMessagesPage() {
 
   const filtersEl = document.querySelector(".lhai-message-filters");
   if (filtersEl instanceof HTMLElement) {
-    filtersEl.style.display = operatorInboxMode ? "none" : "";
+    filtersEl.style.display = operatorInboxMode || partnerInboxMode ? "none" : "";
   }
   const listHint = document.querySelector(".lhai-thread-list-hint");
   if (listHint instanceof HTMLElement) {
-    listHint.style.display = operatorInboxMode ? "none" : "";
+    listHint.style.display = operatorInboxMode || partnerInboxMode ? "none" : "";
   }
   const subtitle = document.querySelector(".lhai-subtitle");
   if (subtitle) {
     subtitle.textContent = operatorInboxMode
       ? "고객별 고객센터(ADMIN)와 서비스별(SERVICE) 스레드가 구분되어 표시됩니다. 목록에서 스레드 유형·담당 방식을 확인한 뒤 선택하세요."
-      : "고객센터(전역)와 서비스별 대화가 구분되어 있습니다. 서비스 스레드에서는 해당 계약/서비스 맥락의 메시지와 담당 방식(AI·운영·시스템)을 확인할 수 있습니다.";
+      : partnerInboxMode
+        ? "배정된 고객 서비스 thread를 확인하고 고객과 대화할 수 있습니다."
+        : "고객센터(전역)와 서비스별 대화가 구분되어 있습니다. 서비스 스레드에서는 해당 계약/서비스 맥락의 메시지와 담당 방식(AI·운영·시스템)을 확인할 수 있습니다.";
   }
 
   const initialThreadId = applyMessagesPageQuery();
   const q = new URLSearchParams(window.location.search);
   const explicitProfile = (q.get("customer_profile_id") || q.get("customer") || "").trim();
-  if (!operatorInboxMode && !explicitProfile) {
+  if (!operatorInboxMode && !partnerInboxMode && !explicitProfile) {
     customerProfileId = getCustomerMessagingProfileId();
   }
   if (initialThreadId) {

@@ -19,6 +19,7 @@ function hasRole(allowedRoles = []) {
 function ensureCustomerAccess() {
   return ensureAuthenticated() && hasRole([
     ROLES.CUSTOMER,
+    ROLES.PARTNER,
     ROLES.AGENT,
     ROLES.SUPERVISOR,
     ROLES.HEADQUARTERS_STAFF,
