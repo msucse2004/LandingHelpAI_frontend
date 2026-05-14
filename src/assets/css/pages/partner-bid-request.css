@@ -1,0 +1,93 @@
+/* BIDDING_ONLY — 견적 요청 상세·제출 */
+
+.lhai-par-bid__back {
+  margin: 0 0 var(--lhai-space-3);
+  font-size: 0.9rem;
+}
+
+.lhai-par-bid__error {
+  color: var(--lhai-color-danger, #f87171);
+  margin-bottom: var(--lhai-space-3);
+}
+
+.lhai-par-bid__loading {
+  margin-top: var(--lhai-space-4);
+  color: var(--lhai-text-muted, #94a3b8);
+}
+
+.lhai-par-bid__selected-banner {
+  padding: var(--lhai-space-3);
+  margin-bottom: var(--lhai-space-4);
+  border-radius: var(--lhai-radius-md, 8px);
+  border: 1px solid var(--lhai-border-subtle, rgba(148, 163, 184, 0.25));
+  background: var(--lhai-surface-raised, rgba(255, 255, 255, 0.06));
+}
+
+.lhai-par-bid__selected-banner p {
+  margin: 0 0 var(--lhai-space-2);
+}
+
+.lhai-par-bid__closed-banner {
+  padding: var(--lhai-space-3);
+  margin-bottom: var(--lhai-space-4);
+  border-radius: var(--lhai-radius-md, 8px);
+  color: var(--lhai-text-muted, #94a3b8);
+  border: 1px solid var(--lhai-border-subtle, rgba(148, 163, 184, 0.2));
+}
+
+.lhai-par-bid__msg-gate {
+  margin-top: var(--lhai-space-3);
+  padding: var(--lhai-space-3);
+  border-radius: var(--lhai-radius-md, 8px);
+  background: var(--lhai-surface-raised, rgba(255, 255, 255, 0.04));
+  border: 1px dashed var(--lhai-border-subtle, rgba(148, 163, 184, 0.35));
+  color: var(--lhai-text-muted, #94a3b8);
+  font-size: 0.9rem;
+}
+
+.lhai-par-bid__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-3);
+  margin-top: var(--lhai-space-2);
+}
+
+.lhai-par-bid__field label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--lhai-text-muted, #94a3b8);
+  margin-bottom: var(--lhai-space-1);
+}
+
+.lhai-par-bid__field input,
+.lhai-par-bid__field select,
+.lhai-par-bid__field textarea {
+  width: 100%;
+  max-width: 32rem;
+  box-sizing: border-box;
+}
+
+.lhai-par-bid__field textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.lhai-par-bid__field-hint {
+  font-size: 0.75rem;
+  color: var(--lhai-text-muted, #94a3b8);
+  margin-top: 0.25rem;
+}
+
+.lhai-par-bid__actions {
+  margin-top: var(--lhai-space-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+  align-items: center;
+}
+
+.lhai-par-bid__form-error {
+  color: var(--lhai-color-danger, #f87171);
+  font-size: 0.9rem;
+  margin: 0;
+}

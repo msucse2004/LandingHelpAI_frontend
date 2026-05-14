@@ -18,6 +18,7 @@ const inviteErrorBody = document.getElementById("inviteErrorBody");
 const inviteErrorCloseBtn = document.getElementById("inviteErrorCloseBtn");
 const invitePartnerFields = document.getElementById("invitePartnerFields");
 const invitePartnerType = document.getElementById("invitePartnerType");
+const invitePartnerMode = document.getElementById("invitePartnerMode");
 const invitePreferredChannel = document.getElementById("invitePreferredChannel");
 const inviteEmail = document.getElementById("inviteEmail");
 const inviteSignupUrlWrap = document.getElementById("inviteSignupUrlWrap");
@@ -140,6 +141,7 @@ async function ensurePartnerTypeOptionsLoaded() {
 
 function clearPartnerFields() {
   if (invitePartnerType instanceof HTMLSelectElement) invitePartnerType.selectedIndex = 0;
+  if (invitePartnerMode instanceof HTMLSelectElement) invitePartnerMode.selectedIndex = 0;
   if (invitePreferredChannel instanceof HTMLSelectElement) {
     invitePreferredChannel.value = "BOTH";
   }
@@ -231,6 +233,7 @@ if (protectCurrentPage() && form) {
     const role_name = String(fd.get("inviteRole") || "").trim();
     const personal_message = String(fd.get("personalMessage") || "").trim();
     const partner_type = String(fd.get("invitePartnerType") || "").trim();
+    const partner_mode = String(fd.get("invitePartnerMode") || "").trim().toUpperCase();
     const preferred_channel =
       invitePreferredChannel instanceof HTMLSelectElement
         ? String(invitePreferredChannel.value || "").trim()
@@ -269,6 +272,18 @@ if (protectCurrentPage() && form) {
         openInviteErrorDialog("초대를 보낼 수 없습니다", [msg]);
         return;
       }
+      if (!partner_mode) {
+        const msg = "파트너 모드(ASSIGNED_ONLY / BIDDING_ONLY)를 선택해 주세요.";
+        setPageAlert(msg, { error: true });
+        openInviteErrorDialog("초대를 보낼 수 없습니다", [msg]);
+        return;
+      }
+      if (partner_mode !== "ASSIGNED_ONLY" && partner_mode !== "BIDDING_ONLY") {
+        const msg = "partner_mode는 ASSIGNED_ONLY 또는 BIDDING_ONLY만 허용됩니다.";
+        setPageAlert(msg, { error: true });
+        openInviteErrorDialog("초대를 보낼 수 없습니다", [msg]);
+        return;
+      }
     }
 
     if (!getAccessToken()?.trim()) {
@@ -291,6 +306,7 @@ if (protectCurrentPage() && form) {
       };
       if (rn === "partner") {
         payload.partner_type = partner_type;
+        payload.partner_mode = partner_mode;
         payload.preferred_channel = preferred_channel || "BOTH";
       }
       const data = await adminApi.sendMemberInvitation(payload);
@@ -302,9 +318,10 @@ if (protectCurrentPage() && form) {
       }
       if (resultMeta) {
         const pt = data.partner_type ? ` · 파트너 유형: <strong>${data.partner_type}</strong>` : "";
+        const pm = data.partner_mode ? ` · 파트너 모드: <strong>${data.partner_mode}</strong>` : "";
         resultMeta.innerHTML = `대상: <strong>${escapeHtmlMeta(email)}</strong> · 역할: <strong>${escapeHtmlMeta(
           data.role_name || role_name,
-        )}</strong>${pt} · 링크 만료(참고): ${formatExpiresAt(data.expires_at)} · 메일 발송: <strong>${
+        )}</strong>${pt}${pm} · 링크 만료(참고): ${formatExpiresAt(data.expires_at)} · 메일 발송: <strong>${
           sent ? "예" : "아니오(서버 SMTP 확인)"
         }</strong>`;
       }

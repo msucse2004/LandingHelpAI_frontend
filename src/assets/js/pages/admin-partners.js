@@ -18,6 +18,7 @@ const createForm = document.getElementById("createPartnerForm");
 const createCancelBtn = document.getElementById("createPartnerCancelBtn");
 const createSubmitBtn = document.getElementById("createPartnerSubmitBtn");
 const createPartnerType = document.getElementById("createPartnerType");
+const createPartnerMode = document.getElementById("createPartnerMode");
 const createPartnerName = document.getElementById("createPartnerName");
 const createPartnerEmail = document.getElementById("createPartnerEmail");
 const createPartnerPhone = document.getElementById("createPartnerPhone");
@@ -146,6 +147,7 @@ function rowTemplate(row) {
   tr.innerHTML = `
     <td>${escapeHtml(row.name || "—")}</td>
     <td>${escapeHtml(row.partner_type_label || row.partner_type || "—")}</td>
+    <td>${escapeHtml(String(row.partner_mode || "").trim() || "—")}</td>
     <td>${escapeHtml(row.email || "—")}</td>
     <td>${escapeHtml(cityStateLabel(row))}</td>
     <td>${escapeHtml(String(row.preferred_channel || "").trim() || "—")}</td>
@@ -300,8 +302,14 @@ createForm?.addEventListener("submit", async (e) => {
     }
   }
 
+  const modeRaw = createPartnerMode instanceof HTMLSelectElement ? createPartnerMode.value.trim().toUpperCase() : "";
+  if (!modeRaw) {
+    setPageAlert("파트너 모드(ASSIGNED_ONLY / BIDDING_ONLY)를 선택해 주세요.", { error: true });
+    return;
+  }
   const payload = {
     partner_type: createPartnerType instanceof HTMLSelectElement ? createPartnerType.value.trim().toUpperCase() : "",
+    partner_mode: modeRaw,
     name: createPartnerName instanceof HTMLInputElement ? createPartnerName.value.trim() : "",
     email: createAccount ? accountEmail : partnerEmail || null,
     phone: createPartnerPhone instanceof HTMLInputElement ? createPartnerPhone.value.trim() || null : null,

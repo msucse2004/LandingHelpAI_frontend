@@ -1,5 +1,6 @@
 import { customerCasesApi, dashboardApi, timelineApi } from "../core/api.js";
-import { getCustomerMessagingProfileId } from "../core/auth.js";
+import { getCurrentRole, getCustomerMessagingProfileId } from "../core/auth.js";
+import { ROLES } from "../core/config.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { patchState } from "../core/state.js";
 import { loadSidebar } from "../components/sidebar.js";
@@ -207,6 +208,10 @@ function bindDashboardCrossTabRefreshAfterDevReset() {
 }
 
 async function initDashboardPage() {
+  if (getCurrentRole() === ROLES.PARTNER) {
+    window.location.replace("partner-dashboard.html");
+    return;
+  }
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
   bindDashboardCrossTabRefreshAfterDevReset();

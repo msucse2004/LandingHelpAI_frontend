@@ -71,6 +71,14 @@
               파트너 역할/유형은 초대에만 저장되며, 가입 완료 후 파트너 프로필에 반영되어 워크플로우 매칭에 사용됩니다. 이름·전화·지역은 초대받은 분이 회원가입 화면에서 입력합니다.
             </p>
 
+            <label class="lhai-label u-mt-2" for="invitePartnerMode">파트너 모드 <span class="lhai-field-error">*</span></label>
+            <select class="lhai-select" id="invitePartnerMode" name="invitePartnerMode" aria-describedby="invitePartnerModeHelp">
+              <option value="">선택…</option>
+              <option value="ASSIGNED_ONLY">ASSIGNED_ONLY (고정 배정)</option>
+              <option value="BIDDING_ONLY">BIDDING_ONLY (입찰·선택)</option>
+            </select>
+            <p class="lhai-help" id="invitePartnerModeHelp">워크플로 단계와 별개로, 파트너 계정의 동작 모드를 구분합니다.</p>
+
             <label class="lhai-label u-mt-2" for="invitePreferredChannel">선호 연락 채널</label>
             <select class="lhai-select" id="invitePreferredChannel" name="invitePreferredChannel" aria-describedby="invitePreferredChannelHelp">
               <option value="BOTH" selected>이메일 + 인앱 (BOTH)</option>

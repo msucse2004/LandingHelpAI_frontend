@@ -13,6 +13,11 @@
   transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
 }
 
+/* ``[hidden]``만으로는 위 ``display: inline-flex``에 밀려 숨겨지지 않는 브라우저/스택 대비 */
+button.lhai-button[hidden] {
+  display: none !important;
+}
+
 .lhai-button:hover {
   transform: translateY(-1px);
 }

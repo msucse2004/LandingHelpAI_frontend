@@ -1289,3 +1289,132 @@
   transform: translateX(-50%) translateY(0);
   pointer-events: auto;
 }
+
+/* 고객 비딩: 파트너 견적 카드 (SERVICE 스레드) */
+.lhai-customer-bid-panel {
+  border: 1px solid var(--lhai-color-border, rgb(255 255 255 / 0.12));
+  border-radius: 8px;
+  padding: var(--lhai-space-3, 0.75rem);
+  background: var(--lhai-color-surface-alt, rgb(12 18 24 / 0.85));
+}
+
+.lhai-customer-bid-panel__head {
+  margin-bottom: var(--lhai-space-2, 0.5rem);
+}
+
+.lhai-customer-bid-panel__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.lhai-customer-bid-panel__intro {
+  margin: 0 0 var(--lhai-space-3, 0.75rem);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--lhai-color-muted, #9aa8b4);
+}
+
+.lhai-customer-bid-panel__flash {
+  margin-bottom: var(--lhai-space-3, 0.75rem);
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  background: rgb(46 125 90 / 0.35);
+  border: 1px solid rgb(74 222 128 / 0.35);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.lhai-customer-bid-panel__selected-msg {
+  margin: 0 0 var(--lhai-space-2, 0.5rem);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.lhai-customer-bid-panel__empty {
+  margin: 0 0 var(--lhai-space-3, 0.75rem);
+  font-size: 0.85rem;
+  color: var(--lhai-color-muted, #9aa8b4);
+}
+
+.lhai-customer-bid-panel__cards {
+  display: grid;
+  gap: var(--lhai-space-3, 0.75rem);
+}
+
+.lhai-customer-bid-card {
+  border: 1px solid var(--lhai-color-border, rgb(255 255 255 / 0.12));
+  border-radius: 8px;
+  padding: var(--lhai-space-3, 0.75rem);
+  background: rgb(0 0 0 / 0.2);
+}
+
+.lhai-customer-bid-card--selected {
+  border-color: rgb(74 222 128 / 0.45);
+  box-shadow: 0 0 0 1px rgb(74 222 128 / 0.15);
+}
+
+.lhai-customer-bid-card__name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: var(--lhai-space-2, 0.5rem);
+}
+
+.lhai-customer-bid-card__dl {
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+}
+
+.lhai-customer-bid-card__dl dt {
+  margin: 0;
+  font-weight: 600;
+  color: var(--lhai-color-muted, #9aa8b4);
+}
+
+.lhai-customer-bid-card__dl dd {
+  margin: 0;
+}
+
+.lhai-customer-bid-card__partner-msg {
+  margin-top: var(--lhai-space-3, 0.75rem);
+  padding-top: var(--lhai-space-2, 0.5rem);
+  border-top: 1px solid var(--lhai-color-border, rgb(255 255 255 / 0.08));
+}
+
+.lhai-customer-bid-card__partner-msg-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--lhai-color-muted, #9aa8b4);
+  margin-bottom: 0.25rem;
+}
+
+.lhai-customer-bid-card__partner-msg-body {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.lhai-customer-bid-card__actions {
+  margin-top: var(--lhai-space-3, 0.75rem);
+}
+
+.lhai-customer-bid-card__state {
+  margin: var(--lhai-space-3, 0.75rem) 0 0;
+  font-size: 0.82rem;
+}
+
+.lhai-chat-composer__bid-lock-note {
+  margin: 0;
+  padding: 0 2px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.lhai-chat-composer--bid-locked .lhai-chat-composer__input {
+  opacity: 0.65;
+}

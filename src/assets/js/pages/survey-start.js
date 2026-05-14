@@ -1007,43 +1007,127 @@ function readCommonInfoFromForm() {
   };
 }
 
-function validateCommonInfo(info) {
-  const adults = Number.parseInt(info.adult_count || "0", 10);
-  const minors = Number.parseInt(info.minor_count || "0", 10);
-  if (Number.isNaN(adults) || adults < 0) {
-    return "만 18세 이상 인원을 0 이상으로 입력해 주세요.";
+/** @typedef {{ key: string, label: string }} CommonInfoIssue */
+
+/** @type {Record<string, string>} */
+const COMMON_INFO_FOCUS_BY_KEY = {
+  profile_first: "#sfProfileFirstName",
+  profile_last: "#sfProfileLastName",
+  profile_birth: "#sfProfileBirthDate",
+  profile_email: "#sfProfileEmail",
+  entry_date: "#sfCommonEntryDate",
+  adult_count: "#sfCommonAdultCount",
+  minor_count: "#sfCommonMinorCount",
+  minor_ages: "#sfCommonMinorAgesList",
+  target_state: "#sfCommonTargetState",
+  target_city: "#sfCommonTargetCity",
+  preferred_language: "#sfCommonPreferredLanguage",
+};
+
+/**
+ * @param {Record<string, unknown>} info from readCommonInfoFromForm
+ * @returns {CommonInfoIssue[]}
+ */
+function validateCommonInfoIssues(info) {
+  /** @type {CommonInfoIssue[]} */
+  const issues = [];
+
+  const fn = String(info.profile_first_name || "").trim();
+  const ln = String(info.profile_last_name || "").trim();
+  if (!fn) issues.push({ key: "profile_first", label: "First name(이름)" });
+  if (!ln) issues.push({ key: "profile_last", label: "Last name(성)" });
+  if (!String(info.profile_birth_date || "").trim()) {
+    issues.push({ key: "profile_birth", label: "생년월일" });
   }
-  if (Number.isNaN(minors) || minors < 0) {
-    return "만 18세 이하 인원을 0 이상으로 입력해 주세요.";
+  const em = String(info.profile_email || "").trim();
+  if (!em) issues.push({ key: "profile_email", label: "이메일" });
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
+    issues.push({ key: "profile_email", label: "이메일(형식이 올바른지 확인)" });
   }
-  if (adults + minors <= 0) {
-    return "함께 이동 인원(성인/미성년)을 1명 이상 입력해 주세요.";
+
+  const adultRaw = info.adult_count;
+  const minorRaw = info.minor_count;
+  const adults = Number.parseInt(String(adultRaw ?? "").trim() || "0", 10);
+  const minors = Number.parseInt(String(minorRaw ?? "").trim() || "0", 10);
+  const adultStr = String(adultRaw ?? "").trim();
+  const minorStr = String(minorRaw ?? "").trim();
+
+  if (adultStr !== "" && Number.isNaN(adults)) {
+    issues.push({ key: "adult_count", label: "만 18세 이상 인원(숫자)" });
+  } else if (Number.isNaN(adults) || adults < 0) {
+    issues.push({ key: "adult_count", label: "만 18세 이상 인원(0 이상 숫자)" });
   }
-  if (minors > 0) {
+  if (minorStr !== "" && Number.isNaN(minors)) {
+    issues.push({ key: "minor_count", label: "만 18세 이하 인원(숫자)" });
+  } else if (Number.isNaN(minors) || minors < 0) {
+    issues.push({ key: "minor_count", label: "만 18세 이하 인원(0 이상 숫자)" });
+  }
+  if (!Number.isNaN(adults) && !Number.isNaN(minors) && adults + minors <= 0) {
+    issues.push({ key: "adult_count", label: "함께 이동 인원(성인·미성년 합 1명 이상)" });
+  }
+
+  if (!Number.isNaN(minors) && minors > 0) {
     const ages = Array.isArray(info.minor_ages) ? info.minor_ages : [];
     if (ages.length !== minors) {
-      return "만 18세 이하 인원 수에 맞게 나이를 모두 입력해 주세요.";
-    }
-    for (const a of ages) {
-      const n = Number.parseInt(String(a || ""), 10);
-      if (Number.isNaN(n) || n < 0 || n >= 18) {
-        return "만 18세 이하 나이는 0~17 사이로 입력해 주세요.";
+      issues.push({ key: "minor_ages", label: "만 18세 이하 각 인원의 나이(전부 입력)" });
+    } else {
+      for (let i = 0; i < ages.length; i++) {
+        const n = Number.parseInt(String(ages[i] || ""), 10);
+        if (Number.isNaN(n) || n < 0 || n >= 18) {
+          issues.push({ key: "minor_ages", label: `만 18세 이하 ${i + 1}번째 나이(0~17)` });
+          break;
+        }
       }
     }
   }
-  if (!info.entry_date) {
-    return "입국(또는 시작) 예정일을 선택해 주세요.";
+
+  if (!String(info.entry_date || "").trim()) {
+    issues.push({ key: "entry_date", label: "입국(또는 시작) 예정일" });
   }
-  if (!info.target_state) {
-    return "정착 희망 주(State)를 선택해 주세요.";
+  if (!String(info.target_state || "").trim()) {
+    issues.push({ key: "target_state", label: "정착 희망 주(State)" });
   }
   if (!String(info.target_city || "").trim()) {
-    return "정착 희망 도시명을 입력해 주세요.";
+    issues.push({ key: "target_city", label: "정착 희망 도시명" });
   }
-  if (!info.preferred_language) {
-    return "선호 언어를 선택해 주세요.";
+  if (!String(info.preferred_language || "").trim()) {
+    issues.push({ key: "preferred_language", label: "선호 언어" });
   }
-  return "";
+
+  return issues;
+}
+
+/** @param {CommonInfoIssue[]} issues */
+function focusFirstCommonInfoIssue(issues) {
+  for (const iss of issues) {
+    const sel = COMMON_INFO_FOCUS_BY_KEY[iss.key];
+    if (!sel) continue;
+    const el = qs(sel);
+    if (el instanceof HTMLElement) {
+      const focusable =
+        el instanceof HTMLInputElement ||
+        el instanceof HTMLSelectElement ||
+        el instanceof HTMLTextAreaElement ||
+        el instanceof HTMLButtonElement
+          ? el
+          : /** @type {HTMLElement | null} */ (el.querySelector("input, select, textarea"));
+      if (focusable instanceof HTMLElement) {
+        focusable.focus();
+        focusable.scrollIntoView({ block: "center", behavior: "smooth" });
+      } else {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+      return;
+    }
+  }
+}
+
+/** @param {CommonInfoIssue[]} issues */
+function formatCommonInfoValidationAlert(issues) {
+  if (!issues.length) return "";
+  if (issues.length === 1) return `필수 항목을 완료해 주세요.\n\n• ${issues[0].label}`;
+  const lines = issues.map((x) => `• ${x.label}`);
+  return `다음 필수 항목을 입력·선택해 주세요.\n\n${lines.join("\n")}`;
 }
 
 async function loadServicesForSelectedCategory() {
@@ -1562,9 +1646,13 @@ async function goNext() {
 
   if (phase === "common_info") {
     const info = readCommonInfoFromForm();
-    const validationError = validateCommonInfo(info);
-    if (validationError) {
-      setStatus(validationError);
+    const issues = validateCommonInfoIssues(info);
+    if (issues.length) {
+      const alertText = formatCommonInfoValidationAlert(issues);
+      const statusLine = issues.map((x) => x.label).join(" · ");
+      setStatus(statusLine);
+      window.alert(alertText);
+      focusFirstCommonInfoIssue(issues);
       return;
     }
     commonInfo = info;
@@ -1690,6 +1778,10 @@ async function init() {
   await initCommonI18nAndApplyDom(document);
   qs("#sfBackBtn")?.addEventListener("click", goBack);
   qs("#sfNextBtn")?.addEventListener("click", () => void goNext());
+  qs("#sfCommonInfoForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    void goNext();
+  });
   qs("#sfServicesPrevCategoryBtn")?.addEventListener("click", () => moveServicesCategory(-1));
   qs("#sfServicesNextCategoryBtn")?.addEventListener("click", () => moveServicesCategory(1));
   qs("#sfCommonMinorCount")?.addEventListener("input", renderMinorAgeInputs);

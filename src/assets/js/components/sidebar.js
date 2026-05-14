@@ -1,4 +1,5 @@
 import { getCurrentRole } from "../core/auth.js";
+import { ROLES } from "../core/config.js";
 import { adminDevApi } from "../core/api.js";
 import { canAccessAdminShell } from "../core/role-tiers.js";
 import { initI18nDomains, t } from "../core/i18n-client.js";
@@ -33,6 +34,17 @@ function resolveSidebarActiveHref(currentFile, variant) {
     "case-detail.html": "cases.html",
   };
   if (variant === "admin") return adminMap[currentFile] || currentFile;
+  if (getCurrentRole() === ROLES.PARTNER) {
+    const partnerMap = {
+      "partner-dashboard.html": "partner-dashboard.html",
+      "partner-assigned-request.html": "partner-dashboard.html",
+      "partner-bid-request.html": "partner-dashboard.html",
+      "messages.html": "messages.html",
+      "profile.html": "profile.html",
+      "password.html": "profile.html",
+    };
+    return partnerMap[currentFile] || currentFile;
+  }
   return customerMap[currentFile] || currentFile;
 }
 
@@ -118,6 +130,39 @@ function bindAdminDevResetQuotesInvoices(sidebarRoot) {
 }
 
 async function loadSidebar(targetSelector = "#sidebar", variant = "customer") {
+  const currentPath = window.location.pathname || "";
+  const currentBase = basename(currentPath);
+  let navDebugPrev = "";
+  try {
+    navDebugPrev = sessionStorage.getItem("lhai_nav_debug_prev_path") || "";
+    sessionStorage.setItem("lhai_nav_debug_prev_path", currentPath);
+  } catch {
+    /* ignore */
+  }
+  if (currentBase.startsWith("partner-")) {
+    let partnerMode = "";
+    try {
+      partnerMode = sessionStorage.getItem("lhai_partner_mode") || "";
+    } catch {
+      /* ignore */
+    }
+    let refPath = "";
+    try {
+      const r = document.referrer || "";
+      refPath = r ? new URL(r).pathname : "";
+    } catch {
+      refPath = "";
+    }
+    console.info("[lhai partner nav]", {
+      phase: "sidebar:loadSidebar",
+      previousPath: navDebugPrev || "(없음/첫 로드)",
+      currentPath,
+      partnerRole: getCurrentRole(),
+      partnerMode,
+      redirectTarget: refPath || null,
+    });
+  }
+
   const target = document.querySelector(targetSelector);
   if (!target) return;
 
@@ -144,6 +189,15 @@ async function mountMessagesSidebar() {
   // PARTNER는 admin 셸 대상이 아니므로 customer sidebar를 사용한다.
   const variant = canAccessAdminShell() ? "admin" : "customer";
   await loadSidebar("#sidebar", variant);
+}
+
+/** BIDDING_ONLY 파트너는 고객 메시지함 링크를 숨긴다(대시보드가 메인). */
+export function applyPartnerBiddingSidebarMessagingHide() {
+  if (getCurrentRole() !== ROLES.PARTNER) return;
+  const link = document.querySelector('#sidebar a[data-lhai-partner-messages="1"]');
+  if (!(link instanceof HTMLElement)) return;
+  const mode = (sessionStorage.getItem("lhai_partner_mode") || "").trim().toUpperCase();
+  link.style.display = mode === "BIDDING_ONLY" ? "none" : "";
 }
 
 export { loadSidebar, mountMessagesSidebar };

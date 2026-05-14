@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>견적 요청 — Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/partner-dashboard.css" />
+  <link rel="stylesheet" href="../assets/css/pages/partner-assigned-request.css" />
+  <link rel="stylesheet" href="../assets/css/pages/partner-bid-request.css" />
+</head>
+<body>
+  <div id="lhai-app-header-root"></div>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar"></aside>
+    <main class="lhai-main">
+      <p class="lhai-par-bid__back"><a href="partner-dashboard.html#partner-requests">← 대시보드로</a></p>
+
+      <section class="lhai-page-header lhai-par-detail__hero">
+        <div>
+          <h1 class="lhai-title" id="partnerBidPageTitle">견적 요청</h1>
+          <p class="lhai-subtitle" id="partnerBidPageSubtitle"></p>
+        </div>
+      </section>
+
+      <p class="lhai-par-bid__error" id="partnerBidError" role="alert" hidden></p>
+      <p class="lhai-par-bid__loading" id="partnerBidLoading">불러오는 중…</p>
+
+      <div id="partnerBidMain" hidden>
+        <section class="lhai-card lhai-par-detail__hero">
+          <h2 class="lhai-card__title">요약</h2>
+          <div class="lhai-par-detail__hero-grid">
+            <div>
+              <p class="lhai-par-detail__hero-label">서비스명</p>
+              <p class="lhai-par-detail__hero-value" id="partnerBidSvcName">—</p>
+            </div>
+            <div>
+              <p class="lhai-par-detail__hero-label">요청 상태</p>
+              <p class="lhai-par-detail__hero-value" id="partnerBidRequestStatus">—</p>
+            </div>
+            <div>
+              <p class="lhai-par-detail__hero-label">제출 마감 시간</p>
+              <p class="lhai-par-detail__hero-value" id="partnerBidExpires">—</p>
+            </div>
+          </div>
+        </section>
+
+        <div id="partnerBidSelectedBanner" class="lhai-par-bid__selected-banner" hidden>
+          <p><strong>고객이 이 견적을 선택했습니다.</strong></p>
+          <div class="lhai-par-bid__actions">
+            <button type="button" class="lhai-button lhai-button--primary" id="partnerBidOpenMessagesBtn">고객과 메시지 열기</button>
+          </div>
+        </div>
+
+        <div id="partnerBidClosedBanner" class="lhai-par-bid__closed-banner" hidden>
+          <p>이 견적 요청은 종료되었거나 더 이상 수정할 수 없습니다.</p>
+        </div>
+
+        <section class="lhai-card">
+          <h2 class="lhai-card__title">고객 요청 요약</h2>
+          <dl class="lhai-par-detail__dl">
+            <div>
+              <dt>고객 표시명</dt>
+              <dd id="partnerBidCustName">—</dd>
+            </div>
+            <div>
+              <dt>지역</dt>
+              <dd id="partnerBidCustLoc">—</dd>
+            </div>
+            <div>
+              <dt>제출 시간</dt>
+              <dd id="partnerBidIntakeSubmitted">—</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="lhai-card">
+          <h2 class="lhai-card__title">인테이크 답변</h2>
+          <div class="lhai-par-detail__intake" id="partnerBidIntakeBody"></div>
+        </section>
+
+        <section class="lhai-card" id="partnerBidFormSection">
+          <h2 class="lhai-card__title">견적 입력</h2>
+          <form class="lhai-par-bid__form" id="partnerBidForm" novalidate>
+            <div class="lhai-par-bid__field">
+              <label for="partnerBidPrice">가격 <span class="u-text-muted">(필수, 0 초과)</span></label>
+              <input type="number" id="partnerBidPrice" name="price_amount" min="0" step="0.01" inputmode="decimal" required />
+            </div>
+            <div class="lhai-par-bid__field">
+              <label for="partnerBidCurrency">통화</label>
+              <select id="partnerBidCurrency" name="price_currency">
+                <option value="USD">USD</option>
+                <option value="KRW">KRW</option>
+                <option value="EUR">EUR</option>
+              </select>
+            </div>
+            <div class="lhai-par-bid__field">
+              <label for="partnerBidEta">예상 처리 시간 <span class="u-text-muted">(필수)</span></label>
+              <input type="text" id="partnerBidEta" name="estimated_time" maxlength="512" autocomplete="off" />
+              <p class="lhai-par-bid__field-hint">예: 오늘 가능, 2영업일 이내</p>
+            </div>
+            <div class="lhai-par-bid__field">
+              <label for="partnerBidIncluded">포함 항목 <span class="u-text-muted">(필수)</span></label>
+              <textarea id="partnerBidIncluded" name="included_items" rows="3" placeholder="줄바꿈으로 여러 항목을 구분할 수 있습니다."></textarea>
+            </div>
+            <div class="lhai-par-bid__field">
+              <label for="partnerBidMessage">고객에게 보여줄 메시지 <span class="u-text-muted">(선택)</span></label>
+              <textarea id="partnerBidMessage" name="message_to_customer" rows="4"></textarea>
+              <p class="lhai-par-bid__field-hint">비워 두면 저장 시 생략됩니다. (백엔드와 동일 정책)</p>
+            </div>
+            <p class="lhai-par-bid__form-error" id="partnerBidFormError" role="alert" hidden></p>
+            <div class="lhai-par-bid__actions">
+              <button type="submit" class="lhai-button lhai-button--primary" id="partnerBidSubmitBtn">견적 제출</button>
+            </div>
+          </form>
+          <div class="lhai-par-bid__msg-gate" id="partnerBidMsgGate">
+            고객이 선택하면 메시지를 시작할 수 있습니다.
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/app-header.js"></script>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/partner-bid-request.js"></script>
+</body>
+</html>

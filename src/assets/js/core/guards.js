@@ -48,6 +48,7 @@ function ensureTierAccess(maxInclusiveTier) {
 const PAGE_GUARDS = {
   "profile.html": [
     ROLES.CUSTOMER,
+    ROLES.PARTNER,
     ROLES.AGENT,
     ROLES.SUPERVISOR,
     ROLES.HEADQUARTERS_STAFF,
@@ -58,6 +59,7 @@ const PAGE_GUARDS = {
   ],
   "password.html": [
     ROLES.CUSTOMER,
+    ROLES.PARTNER,
     ROLES.AGENT,
     ROLES.SUPERVISOR,
     ROLES.HEADQUARTERS_STAFF,

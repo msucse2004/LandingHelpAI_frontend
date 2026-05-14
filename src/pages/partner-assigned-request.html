@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>배정 신청 상세 - Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/partner-assigned-request.css" />
+</head>
+<body>
+  <div id="lhai-app-header-root"></div>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar"></aside>
+    <main class="lhai-main">
+      <section class="lhai-page-header lhai-par-detail__header-row">
+        <div>
+          <p class="lhai-par-detail__back"><a class="lhai-link" href="partner-dashboard.html#partner-requests">← 신청 리스트로</a></p>
+          <h1 class="lhai-title" id="partnerAssignedPageTitle">배정 신청 상세</h1>
+          <p class="lhai-subtitle u-text-muted" id="partnerAssignedSubtitle" hidden></p>
+        </div>
+      </section>
+
+      <p class="lhai-help lhai-par-detail__error" id="partnerAssignedError" role="alert" hidden></p>
+
+      <div id="partnerAssignedContent" hidden>
+        <section class="lhai-card lhai-par-detail__hero" aria-label="요약">
+          <div class="lhai-par-detail__hero-grid">
+            <div>
+              <h2 class="lhai-card__title lhai-par-detail__hero-label">서비스명</h2>
+              <p class="lhai-par-detail__hero-value" id="partnerAssignedServiceName">—</p>
+            </div>
+            <div>
+              <h2 class="lhai-card__title lhai-par-detail__hero-label">상태</h2>
+              <p class="lhai-par-detail__hero-value" id="partnerAssignedStatus">—</p>
+            </div>
+            <div>
+              <h2 class="lhai-card__title lhai-par-detail__hero-label">제출 시간</h2>
+              <p class="lhai-par-detail__hero-value" id="partnerAssignedSubmittedAt">—</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="lhai-card" aria-labelledby="partnerAssignedCustomerHeading">
+          <h2 class="lhai-card__title" id="partnerAssignedCustomerHeading">고객 기본 정보</h2>
+          <dl class="lhai-par-detail__dl">
+            <div><dt>이름</dt><dd id="partnerAssignedCustName">—</dd></div>
+            <div><dt>이메일</dt><dd id="partnerAssignedCustEmail">—</dd></div>
+            <div><dt>생년월일</dt><dd id="partnerAssignedCustDob">—</dd></div>
+            <div><dt>성별</dt><dd id="partnerAssignedCustGender">—</dd></div>
+          </dl>
+        </section>
+
+        <section class="lhai-card" aria-labelledby="partnerAssignedServiceHeading">
+          <h2 class="lhai-card__title" id="partnerAssignedServiceHeading">서비스 정보</h2>
+          <dl class="lhai-par-detail__dl">
+            <div><dt>서비스명</dt><dd id="partnerAssignedSvcName">—</dd></div>
+            <div><dt>결제 상태</dt><dd id="partnerAssignedSvcPaid">—</dd></div>
+            <div><dt>현재 상태</dt><dd id="partnerAssignedSvcStatus">—</dd></div>
+          </dl>
+        </section>
+
+        <section class="lhai-card" aria-labelledby="partnerAssignedIntakeHeading">
+          <h2 class="lhai-card__title" id="partnerAssignedIntakeHeading">인테이크 답변</h2>
+          <div id="partnerAssignedIntakeBody" class="lhai-par-detail__intake"></div>
+        </section>
+
+        <section class="lhai-card" aria-labelledby="partnerAssignedChatHeading">
+          <h2 class="lhai-card__title" id="partnerAssignedChatHeading">고객과 메시지</h2>
+          <p class="u-text-muted lhai-par-detail__chat-hint">이 대화는 고객과 배정 파트너가 함께 볼 수 있는 메시지로 전달됩니다.</p>
+          <div class="lhai-par-detail__chat-scroll" id="partnerAssignedChatScroll" role="log" aria-live="polite"></div>
+          <form class="lhai-par-detail__composer" id="partnerAssignedChatForm" autocomplete="off">
+            <label class="u-sr-only" for="partnerAssignedChatInput">메시지</label>
+            <textarea id="partnerAssignedChatInput" class="lhai-par-detail__textarea" rows="3" placeholder="메시지를 입력하세요" required></textarea>
+            <div class="lhai-par-detail__composer-actions">
+              <button type="submit" class="lhai-button lhai-button--primary" id="partnerAssignedSendBtn">보내기</button>
+            </div>
+          </form>
+          <p class="lhai-help lhai-par-detail__send-error" id="partnerAssignedSendError" role="alert" hidden></p>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/app-header.js"></script>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/partner-assigned-request.js"></script>
+</body>
+</html>

@@ -14,16 +14,25 @@
       <section class="lhai-page-header u-flex-between u-gap-4">
         <div>
           <h1 class="lhai-title">회원 상세</h1>
-          <p class="lhai-subtitle">계정 ID로 조회한 등록 정보입니다. 동일·상위 등급 회원도 열람할 수 있으며, 가입·인증 수정과 계정 삭제는 자신보다 낮은 티어(본인·동일·상위 제외)에만 적용됩니다.</p>
+          <p class="lhai-subtitle">계정 ID로 조회한 등록 정보입니다. 동일·상위 등급 회원도 열람할 수 있으며, 프로필·가입·인증 수정과 계정 삭제는 자신보다 낮은 티어(본인·동일·상위 제외)에만 적용됩니다.</p>
         </div>
         <a class="lhai-button lhai-button--secondary" href="admin-users.html">목록으로</a>
       </section>
       <p class="lhai-help" id="detailAlert" role="status" aria-live="polite"></p>
       <p class="lhai-help u-mt-2" id="detailReadOnlyHint" hidden role="status">
-        이 계정은 본인과 동일하거나 더 높은 등급입니다. 아래는 열람만 가능하며 가입·인증 수정과 계정 삭제는 사용할 수 없습니다.
+        이 계정은 본인과 동일하거나 더 높은 등급입니다. 아래는 열람만 가능하며 프로필·가입·인증 수정과 계정 삭제는 사용할 수 없습니다.
       </p>
       <section class="lhai-card" id="detailCard" hidden>
-        <h2 class="lhai-card__title">프로필</h2>
+        <div class="u-flex-between u-gap-4 u-flex-wrap u-mb-2" style="align-items: center;">
+          <h2 class="lhai-card__title u-mb-0">프로필</h2>
+          <div class="u-flex u-gap-2 u-flex-wrap" id="profileCardActions" hidden>
+            <button type="button" class="lhai-button lhai-button--secondary" id="profileEditBtn">수정</button>
+            <button type="button" class="lhai-button lhai-button--primary" id="profileSaveBtn" hidden>저장</button>
+            <button type="button" class="lhai-button lhai-button--secondary" id="profileCancelBtn" hidden>취소</button>
+          </div>
+        </div>
+        <p class="lhai-help u-mb-2" id="profileEditHint" hidden>아이디·이메일·역할·가입 상태는 이 카드에서 바꾸지 않습니다. 가입·인증은 아래 섹션에서 수정하세요.</p>
+        <p class="lhai-help u-mb-2" id="profileCardAlert" role="status" aria-live="polite" hidden></p>
         <dl class="lhai-detail-dl" id="detailDl"></dl>
       </section>
       <section class="lhai-card u-mt-4" id="registrationEditCard" hidden aria-labelledby="regEditTitle">

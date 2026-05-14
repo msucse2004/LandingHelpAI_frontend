@@ -1,6 +1,10 @@
 import { APP_CONFIG } from "./config.js";
 import { clearAccessToken, clearSession, getAccessToken } from "./auth.js";
 import {
+  debugPartnerDashboardApi,
+  partnerDashboardResponsePreview,
+} from "./partner-dashboard-debug.js";
+import {
   abortIfInvalidServiceItemId,
   assertServiceItemUuid,
   filterBrowseCatalogServiceItems,
@@ -84,6 +88,26 @@ function formatFastApiDetail(detail) {
   }
 }
 
+/** 로그인 POST의 401은 만료 토큰이 아니라 자격·인증 상태 거절인 경우가 많음 — 서버 detail을 그대로 쓴다. */
+function _isAuthLoginPostPath(path) {
+  const p = String(path || "")
+    .split("?")[0]
+    .replace(/\/+$/, "");
+  return p.endsWith("/api/auth/login");
+}
+
+function _mapAuthLoginUnauthorizedMessage(detailRaw) {
+  const d = formatFastApiDetail(detailRaw).trim();
+  if (d === "Invalid credentials") {
+    return "아이디(또는 이메일) 또는 비밀번호가 올바르지 않습니다.";
+  }
+  if (d === "Email is not verified") {
+    return "이메일 인증이 완료되지 않았습니다. 가입 시 받은 인증 메일을 확인하거나 관리자에게 문의해 주세요.";
+  }
+  if (d) return d;
+  return "아이디(또는 이메일) 또는 비밀번호가 올바르지 않습니다.";
+}
+
 async function apiFetch(path, options = {}) {
   // TODO: Replace with real backend request pipeline in next step.
   await mockDelay(80);
@@ -107,6 +131,11 @@ async function tryBackendPost(path, body, extraHeaders = {}) {
   const payload = contentType.includes("application/json") ? await response.json() : await response.text();
   if (!response.ok) {
     if (response.status === 401) {
+      if (_isAuthLoginPostPath(path)) {
+        const raw = typeof payload === "object" && payload !== null ? payload.detail : payload;
+        handleUnauthorized();
+        throwBackendRequestFailed(response, _mapAuthLoginUnauthorizedMessage(raw));
+      }
       handleUnauthorized();
       throw new Error("인증이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.");
     }
@@ -725,6 +754,19 @@ const aiApi = {
   },
 };
 
+/** 고객 인앱 thread detail / messages API 디버그 (``localStorage`` ``LHAI_DEBUG_CUSTOMER_MESSAGES=1``). */
+function _lhaiDebugCustomerMessagesEnabled() {
+  try {
+    return (
+      typeof window !== "undefined" &&
+      window.localStorage &&
+      window.localStorage.getItem("LHAI_DEBUG_CUSTOMER_MESSAGES") === "1"
+    );
+  } catch {
+    return false;
+  }
+}
+
 const messagesApi = {
   async list({ customerProfileId = "profile::demo@customer.com", category = "", unreadOnly = false } = {}) {
     const params = new URLSearchParams({ customer_profile_id: customerProfileId });
@@ -817,15 +859,64 @@ const messagesApi = {
   async threadDetail(threadId, { customerProfileId = "profile::demo@customer.com" } = {}) {
     const t = String(threadId || "").trim();
     const params = new URLSearchParams({ customer_profile_id: customerProfileId });
+    const path = `/api/messages/threads/${encodeURIComponent(t)}/detail?${params.toString()}`;
+    const dbg = _lhaiDebugCustomerMessagesEnabled();
+    if (dbg) {
+      // eslint-disable-next-line no-console
+      console.info("[LHAI_DEBUG_CUSTOMER_MESSAGES] threadDetail request", {
+        requestPath: path,
+        fullUrl: `${APP_CONFIG.apiBaseUrl}${path}`,
+        customer_profile_id: customerProfileId,
+        thread_id: t,
+      });
+    }
     try {
-      return await tryBackendGet(
-        `/api/messages/threads/${encodeURIComponent(t)}/detail?${params.toString()}`
-      );
-    } catch {
+      const body = await tryBackendGet(path);
+      if (dbg) {
+        const msgs = body && typeof body === "object" && Array.isArray(body.messages) ? body.messages : [];
+        const ids = msgs.map((m) => String((m && m.id) || ""));
+        const partnerish = msgs.filter((m) => {
+          const title = String((m && m.title) || "");
+          const b = String((m && m.body) || "");
+          return title.includes("파트너 답변") || title.includes("파트너") || b.includes("파트너 답변");
+        });
+        // eslint-disable-next-line no-console
+        console.info("[LHAI_DEBUG_CUSTOMER_MESSAGES] threadDetail response", {
+          response_status: "ok",
+          customer_profile_id: customerProfileId,
+          thread_id: t,
+          messages_count: msgs.length,
+          message_ids: ids,
+          partner_reply_like_count: partnerish.length,
+          partner_reply_like_preview: partnerish.slice(0, 5).map((m) => ({
+            id: String((m && m.id) || ""),
+            title_preview: String((m && m.title) || "").slice(0, 80),
+            body_preview: String((m && m.body) || "").slice(0, 80),
+          })),
+        });
+      }
+      return body;
+    } catch (err) {
+      if (dbg) {
+        // eslint-disable-next-line no-console
+        console.warn("[LHAI_DEBUG_CUSTOMER_MESSAGES] threadDetail error (fallback may run in caller)", {
+          customer_profile_id: customerProfileId,
+          thread_id: t,
+          err: String(err && err.message ? err.message : err),
+        });
+      }
       await mockDelay();
       const messages = await this.threadMessages(t, { customerProfileId });
       const threads = await this.listThreads({ customerProfileId });
       const thread = threads.find((x) => String(x.thread_id) === t) || null;
+      if (dbg) {
+        // eslint-disable-next-line no-console
+        console.info("[LHAI_DEBUG_CUSTOMER_MESSAGES] threadDetail mock fallback", {
+          customer_profile_id: customerProfileId,
+          thread_id: t,
+          messages_count: messages.length,
+        });
+      }
       return { thread, workflow: null, messages };
     }
   },
@@ -958,6 +1049,48 @@ const messagesApi = {
 };
 
 const partnerThreadsApi = {
+  async dashboard() {
+    const path = "/api/partner/dashboard";
+    const url = `${APP_CONFIG.apiBaseUrl}${path}`;
+    debugPartnerDashboardApi("fetch", { method: "GET", url });
+    try {
+      const data = await tryBackendGet(path);
+      debugPartnerDashboardApi("response", {
+        method: "GET",
+        url,
+        status: 200,
+        preview: partnerDashboardResponsePreview(data),
+      });
+      return data;
+    } catch (err) {
+      const st = err && typeof err === "object" && "status" in err ? /** @type {{ status?: number }} */ (err).status : undefined;
+      debugPartnerDashboardApi("error", {
+        method: "GET",
+        url,
+        status: st,
+        message: err && typeof err.message === "string" ? err.message.slice(0, 400) : String(err).slice(0, 400),
+      });
+      throw err;
+    }
+  },
+  /**
+   * @param {string} bidRequestId
+   * @returns {Promise<Record<string, unknown>>}
+   */
+  async bidRequestDetail(bidRequestId) {
+    const id = String(bidRequestId || "").trim();
+    if (!id) throw new Error("bidRequestId required");
+    return await tryBackendGet(`/api/partner/bid-requests/${encodeURIComponent(id)}`);
+  },
+  /**
+   * @param {string} bidRequestId
+   * @param {Record<string, unknown>} body
+   */
+  async submitBidRequest(bidRequestId, body) {
+    const id = String(bidRequestId || "").trim();
+    if (!id) throw new Error("bidRequestId required");
+    return await tryBackendPost(`/api/partner/bid-requests/${encodeURIComponent(id)}/submit`, body);
+  },
   async listThreads() {
     return await tryBackendGet("/api/partner/threads");
   },
@@ -1475,7 +1608,7 @@ const adminApi = {
   async getAuthAccount(userId) {
     return await tryBackendGet(`/api/admin/accounts/${encodeURIComponent(userId)}`);
   },
-  /** @returns {Promise<object>} updated row */
+  /** @returns {Promise<object>} updated row — 가입·인증·프로필(이름·생년월일·성별·파트너 메타 등; username 제외) PATCH */
   async patchAuthAccountRegistration(userId, patch) {
     if (!getAccessToken()?.trim()) {
       throw new Error("수정하려면 로그인 후 발급된 액세스 토큰이 필요합니다.");
@@ -1529,7 +1662,14 @@ const adminApi = {
     return await tryBackendPost(`/api/admin/partners/${encodeURIComponent(partnerId)}/account`, payload);
   },
   async sendMemberInvitation(payload) {
-    const { email, role_name, personal_message = "", partner_type, preferred_channel } = payload || {};
+    const {
+      email,
+      role_name,
+      personal_message = "",
+      partner_type,
+      partner_mode,
+      preferred_channel,
+    } = payload || {};
     const body = {
       email,
       role_name,
@@ -1539,6 +1679,9 @@ const adminApi = {
     if (rn === "partner") {
       if (partner_type != null && String(partner_type).trim() !== "") {
         body.partner_type = String(partner_type).trim();
+      }
+      if (partner_mode != null && String(partner_mode).trim() !== "") {
+        body.partner_mode = String(partner_mode).trim().toUpperCase();
       }
       const pc = preferred_channel != null ? String(preferred_channel).trim() : "";
       body.preferred_channel = pc || "BOTH";
@@ -3645,6 +3788,39 @@ const customerWorkflowsApi = {
   },
 };
 
+/** 고객: 비딩 워크플로 서비스 요청별 견적 목록·선택 (JWT). */
+const customerBidsApi = {
+  /**
+   * ``service_request_id``는 서비스 스레드 워크플로의 ``workflow_instance_id`` 와 동일한 값으로 조회합니다.
+   * 견적 요청이 아직 없으면 404 → 빈 목록으로 처리합니다.
+   * @param {string} serviceRequestId
+   * @returns {Promise<{ bid_request_id?: string, status: string, bids: Array<Record<string, unknown>> }>}
+   */
+  async listByServiceRequest(serviceRequestId) {
+    const id = String(serviceRequestId || "").trim();
+    if (!id) throw new Error("service_request_id required");
+    const path = `/api/customer/service-requests/${encodeURIComponent(id)}/bids`;
+    try {
+      const raw = await tryBackendGet(path);
+      return raw && typeof raw === "object"
+        ? /** @type {{ bid_request_id?: string, status: string, bids: Array<Record<string, unknown>> }} */ (raw)
+        : { status: "OPEN", bids: [] };
+    } catch (err) {
+      if (isHttp404Error(err)) {
+        return { bid_request_id: "", status: "OPEN", bids: [] };
+      }
+      throw err;
+    }
+  },
+
+  /** @param {string} bidId */
+  async selectBid(bidId) {
+    const id = String(bidId || "").trim();
+    if (!id) throw new Error("bid_id required");
+    return await tryBackendPost(`/api/customer/bids/${encodeURIComponent(id)}/select`, {});
+  },
+};
+
 /** Customer profile (logged-in) — used for prefill on customer survey steps. */
 const userCustomerApi = {
   async getMeBasicInfo() {
@@ -4392,6 +4568,7 @@ export {
   serviceCatalogBrowseApi,
   serviceIntakeCustomerApi,
   customerWorkflowsApi,
+  customerBidsApi,
   userCustomerApi,
   surveyCustomerApi,
   paymentApi,

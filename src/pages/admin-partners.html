@@ -54,6 +54,7 @@
               <tr>
                 <th scope="col">이름</th>
                 <th scope="col">유형</th>
+                <th scope="col">모드</th>
                 <th scope="col">이메일</th>
                 <th scope="col">시·주</th>
                 <th scope="col">선호 채널</th>
@@ -77,6 +78,13 @@
         <label class="lhai-label" for="createPartnerType">파트너 유형 <span class="lhai-field-error">*</span></label>
         <select class="lhai-select" id="createPartnerType" required>
           <option value="">선택…</option>
+        </select>
+
+        <label class="lhai-label" for="createPartnerMode">파트너 모드 <span class="lhai-field-error">*</span></label>
+        <select class="lhai-select" id="createPartnerMode" required>
+          <option value="">선택…</option>
+          <option value="ASSIGNED_ONLY">ASSIGNED_ONLY (고정 배정)</option>
+          <option value="BIDDING_ONLY">BIDDING_ONLY (입찰·선택)</option>
         </select>
 
         <label class="lhai-label" for="createPartnerName">이름 <span class="lhai-field-error">*</span></label>

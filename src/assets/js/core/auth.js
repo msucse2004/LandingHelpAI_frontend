@@ -1,4 +1,5 @@
 import { ROLES } from "./config.js";
+import { debugDashboard, isPartnerDashboardDebugEnabled } from "./partner-dashboard-debug.js";
 
 const TOKEN_KEY = "lhai_access_token";
 const SESSION_KEY = "lhai_session";
@@ -62,6 +63,13 @@ function getCurrentUserId() {
 
 function isAuthenticated() {
   return Boolean(getAccessToken());
+}
+
+/** 파트너 대시보드 디버그 플래그가 켜진 경우에만 auth 관련 phase 로그(토큰·이메일 값은 넣지 않음). */
+export function emitPartnerDashboardAuthDebug(phase, payload) {
+  if (!isPartnerDashboardDebugEnabled()) return;
+  const p = payload && typeof payload === "object" ? payload : {};
+  debugDashboard(phase, p);
 }
 
 /**

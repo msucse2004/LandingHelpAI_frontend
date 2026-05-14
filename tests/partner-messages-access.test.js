@@ -100,3 +100,25 @@ test("partnerThreadsApi uses /api/partner/threads endpoints", async () => {
   assert.equal(calls[2].init.method, "POST");
   assert.equal(JSON.parse(calls[2].init.body).body, "고객에게 안내드립니다.");
 });
+
+test("partnerThreadsApi.dashboard calls GET /api/partner/dashboard", async () => {
+  installWindowStub();
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    return buildJsonResponse({
+      partner_mode: "ASSIGNED_ONLY",
+      dashboard_type: "ASSIGNED_WORK",
+      stats: { new_requests: 0, in_progress: 0, waiting_customer: 0, completed: 0 },
+      requests: [],
+    });
+  };
+
+  const { partnerThreadsApi } = await importFresh(
+    "c:\\workspace\\LandingHelpAI\\LandingHelpAI_frontend\\src\\assets\\js\\core\\api.js"
+  );
+
+  const dash = await partnerThreadsApi.dashboard();
+  assert.equal(dash.dashboard_type, "ASSIGNED_WORK");
+  assert.equal(calls.some((u) => u.includes("/api/partner/dashboard")), true);
+});
