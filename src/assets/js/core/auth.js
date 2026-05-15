@@ -89,6 +89,13 @@ function getCustomerMessagingProfileId() {
 
 /** Clears stored token/session and sends the user to the login page. */
 function logout() {
+  try {
+    void import("./realtime-client.js").then((m) => {
+      if (typeof m.stopRealtimeClient === "function") m.stopRealtimeClient();
+    });
+  } catch {
+    /* ignore */
+  }
   clearAccessToken();
   clearSession();
   window.location.href = "login.html";

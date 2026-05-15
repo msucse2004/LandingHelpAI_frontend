@@ -22,6 +22,7 @@ import {
 } from "../intake/intake-runtime-view.js";
 import { coerceToIsoDateInputValue, effectiveIntakeInputType, shouldHideIntakeBlockTitle } from "../intake/intake-form-presentation.js";
 import { formatMessageTimestamp, resolveBackendMediaUrl, safeText } from "../core/utils.js";
+import { getRealtimeStatus, subscribeRealtimeEvents } from "../core/realtime-client.js";
 import { t } from "../core/i18n-client.js";
 import { bindMessageAiFeedback, buildAiFeedbackHtml } from "./message-ai-feedback.js";
 import {
@@ -45,6 +46,24 @@ function isLhaiDebugCustomerMessages() {
     return typeof window !== "undefined" && window.localStorage && window.localStorage.getItem("LHAI_DEBUG_CUSTOMER_MESSAGES") === "1";
   } catch {
     return false;
+  }
+}
+
+function isMessagesDebugRealtime() {
+  try {
+    return typeof window !== "undefined" && window.localStorage?.getItem("LHAI_DEBUG_REALTIME") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function messagesRtDebug(...args) {
+  if (!isMessagesDebugRealtime()) return;
+  try {
+    // eslint-disable-next-line no-console
+    console.info("[lhai][messages-realtime]", ...args);
+  } catch {
+    /* ignore */
   }
 }
 
@@ -571,6 +590,13 @@ function renderThreadList(threads = []) {
     );
   }
   container.innerHTML = blocks.length ? blocks.join("") : threads.map(renderThreadListRow).join("");
+}
+
+/** @param {HTMLElement} wrap @param {number} [thresholdPx] */
+function isChatScrollNearBottom(wrap, thresholdPx = 120) {
+  if (!(wrap instanceof HTMLElement)) return true;
+  const { scrollTop, scrollHeight, clientHeight } = wrap;
+  return scrollHeight - scrollTop - clientHeight <= thresholdPx;
 }
 
 function scrollChatToBottom() {
@@ -1586,11 +1612,17 @@ function syncWorkflowSummaryStrip() {
     </div>`;
 }
 
-function renderChatBubbles() {
+function renderChatBubbles(options = {}) {
   const stream = document.querySelector("#messageChatStream");
   if (!stream) return;
+  const scrollIfNearBottom = Boolean(options.scrollIfNearBottom);
+  const wrap = document.querySelector("#messageChatScroll");
+  const stickToBottom = !scrollIfNearBottom || (wrap instanceof HTMLElement && isChatScrollNearBottom(wrap));
   if (!currentThreadMessages.length) {
     stream.innerHTML = `<div class="lhai-chat-empty">이 대화에 메시지가 없습니다.</div>`;
+    requestAnimationFrame(() => {
+      if (stickToBottom) scrollChatToBottom();
+    });
     return;
   }
   stream.innerHTML = currentThreadMessages
@@ -1650,7 +1682,9 @@ function renderChatBubbles() {
       </div>`;
     })
     .join("");
-  requestAnimationFrame(() => scrollChatToBottom());
+  requestAnimationFrame(() => {
+    if (stickToBottom) scrollChatToBottom();
+  });
 }
 
 function showIntakeDispatchDiagToast(message) {
@@ -2131,7 +2165,50 @@ function syncChatHeader(threadMeta) {
   }
 }
 
-async function loadThreadMessages() {
+/** 폴백 폴링에서 DOM 재렌더를 줄이기 위한 스레드 메시지 시그니처. */
+function threadMessagesListSignature(msgs) {
+  if (!Array.isArray(msgs)) return "null";
+  let unreadN = 0;
+  for (const m of msgs) {
+    if (m && typeof m === "object" && m.unread) unreadN += 1;
+  }
+  const n = msgs.length;
+  const last = n ? msgs[n - 1] : null;
+  return `${n}:${String(last?.id || "")}:${String(last?.created_at || "")}:${unreadN}`;
+}
+
+/** @param {Record<string, unknown>} d */
+function messagesRealtimeLifecycleFromDetail(d) {
+  const life = String(d?.lifecycle || "").trim();
+  if (life) return life;
+  if (d?.connected && !d?.fallback) return "connected";
+  if (d?.connecting) return "connecting";
+  if (d?.fallback) return "fallback";
+  return "disconnected";
+}
+
+/** Step 8: 짧은 폴링은 SSE ``fallback`` 이고 탭이 보일 때만. */
+function shouldRunMessagesFallbackPoll(d) {
+  const life = messagesRealtimeLifecycleFromDetail(d);
+  if (life === "connected" || life === "connecting") return false;
+  if (life !== "fallback") return false;
+  if (typeof document !== "undefined" && document.visibilityState !== "visible") return false;
+  return true;
+}
+
+async function loadThreadMessages(options = {}) {
+  const realtime = Boolean(options.realtime);
+  const dispatchHeaderOnMarkRead = Boolean(options.dispatchHeaderOnMarkRead);
+  const silentIfUnchanged = Boolean(options.silentIfUnchanged);
+  let savedComposer = null;
+  if (realtime) {
+    const ta = document.querySelector("#messageChatInput");
+    if (ta instanceof HTMLTextAreaElement) {
+      savedComposer = ta.value;
+      messagesRtDebug("composer snapshot for realtime refresh", String(savedComposer.length), "chars");
+    }
+  }
+
   if (!selectedThreadId) {
     currentThreadMessages = [];
     currentThreadWorkflowSummary = null;
@@ -2150,6 +2227,9 @@ async function loadThreadMessages() {
     await refreshCustomerBidPanel();
     return;
   }
+  let markedReadCount = 0;
+  const prevSig =
+    silentIfUnchanged && selectedThreadId ? threadMessagesListSignature(currentThreadMessages) : "";
   try {
     if (operatorInboxMode) {
       currentThreadMessages = await messagesApi.operatorThreadMessages(selectedThreadId, {
@@ -2221,6 +2301,7 @@ async function loadThreadMessages() {
           try {
             await messagesApi.markRead(String(m.id), true);
             m.unread = false;
+            markedReadCount += 1;
           } catch {
             // Ignore per-message read failure and keep page usable.
           }
@@ -2228,13 +2309,59 @@ async function loadThreadMessages() {
       );
     }
   }
-  renderChatBubbles();
+  const sigUnchanged =
+    silentIfUnchanged &&
+    prevSig &&
+    prevSig === threadMessagesListSignature(currentThreadMessages);
+  /* Partner/operator: thread-level unread is cleared on detail fetch; message rows may be
+   * unchanged so the signature matches and we must not return before list/header badge sync. */
+  if (sigUnchanged && !partnerInboxMode && !operatorInboxMode) {
+    messagesRtDebug("fallback tick skipped unchanged thread messages");
+    return;
+  }
+  messagesRtDebug("markRead count", markedReadCount, { customerPath: !operatorInboxMode && !partnerInboxMode });
+  const listBadgeSyncReason =
+    partnerInboxMode && selectedThreadId
+      ? "partner-thread-read"
+      : !operatorInboxMode && !partnerInboxMode && markedReadCount > 0
+        ? "customer-mark-read"
+        : "";
+
+  if (listBadgeSyncReason) {
+    await refreshThreadListOnly({ syncHeader: true, reloadCurrentMessages: false, reason: listBadgeSyncReason });
+    window.dispatchEvent(
+      new CustomEvent("lhai:messages-changed", {
+        detail: { reason: listBadgeSyncReason, thread_id: String(selectedThreadId || "").trim() },
+      }),
+    );
+  }
+
+  renderChatBubbles(realtime ? { scrollIfNearBottom: true } : {});
+  if (savedComposer != null) {
+    const ta2 = document.querySelector("#messageChatInput");
+    if (ta2 instanceof HTMLTextAreaElement) {
+      ta2.value = savedComposer;
+      messagesRtDebug("composer restored after realtime refresh");
+    }
+  }
+  if (dispatchHeaderOnMarkRead) {
+    const alreadySynced = Boolean(listBadgeSyncReason);
+    const isStaffInbox = partnerInboxMode || operatorInboxMode;
+    const shouldDispatch = isStaffInbox ? !alreadySynced || operatorInboxMode : false;
+    if (shouldDispatch) {
+      window.dispatchEvent(
+        new CustomEvent("lhai:messages-changed", {
+          detail: { reason: "realtime-thread-read", thread_id: String(selectedThreadId || "").trim() },
+        }),
+      );
+    }
+  }
   logCustomerMessagesDomAfterRender();
   syncWorkflowSummaryStrip();
   await refreshCustomerBidPanel();
 }
 
-async function refresh() {
+async function fetchThreadsListForMessagesPage() {
   threadListLoadError = "";
   const categoryFilter = document.querySelector("#messageCategoryFilter");
   const unreadOnlyFilter = document.querySelector("#messageUnreadOnly");
@@ -2247,11 +2374,11 @@ async function refresh() {
       ? await messagesApi.listOperatorOnboardingThreads()
       : partnerInboxMode
         ? await partnerThreadsApi.listThreads()
-      : await messagesApi.listThreads({
-          customerProfileId,
-          category,
-          unreadOnly,
-        });
+        : await messagesApi.listThreads({
+            customerProfileId,
+            category,
+            unreadOnly,
+          });
   } catch (err) {
     const msg = err && typeof err.message === "string" ? err.message : "";
     threadListLoadError = msg || "대화 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
@@ -2261,7 +2388,10 @@ async function refresh() {
   if (operatorInboxMode && Array.isArray(threads) && threads.length) {
     threads = sortOperatorInboxThreads(threads);
   }
+  return threads;
+}
 
+function reconcileMessagesPageSelectionAfterListFetch(threads) {
   if (operatorInboxMode) {
     if (!selectedThreadId && threads.length) {
       const prefer = threadOwnerProfileId
@@ -2295,8 +2425,10 @@ async function refresh() {
       selectedThreadId = threads.length ? pickDefaultThreadId(threads) : "";
     }
   }
+}
 
-  const threadMeta = threads.find((t) => {
+function findThreadMetaInList(threads) {
+  return threads.find((t) => {
     if (operatorInboxMode) {
       return (
         String(t.thread_id) === selectedThreadId &&
@@ -2305,6 +2437,200 @@ async function refresh() {
     }
     return String(t.thread_id) === selectedThreadId;
   });
+}
+
+function threadHasMessageId(messageId) {
+  if (!messageId) return true;
+  const arr = Array.isArray(currentThreadMessages) ? currentThreadMessages : [];
+  return arr.some((m) => String(m?.id || "") === String(messageId));
+}
+
+/** 동시에 같은 ``message_id``로 핸들러가 겹치는 것만 막는다(영구 무시 dedupe 아님). */
+const messagesRealtimeMessageCreatedLocks = new Set();
+
+let messagesFallbackPollTimer = null;
+const MESSAGES_FALLBACK_POLL_MS = 12_000;
+let messagesRealtimeUnsub = null;
+let messagesRealtimeStatusBound = false;
+let messagesPageVisibilityBound = false;
+/** ``"run"`` | ``"stop"`` — 디버그 로그 스팸 방지 */
+let messagesLastFallbackPollDesired = null;
+
+function ensureMessagesPageVisibilityBinding() {
+  if (typeof document === "undefined" || messagesPageVisibilityBound) return;
+  messagesPageVisibilityBound = true;
+  document.addEventListener("visibilitychange", () => {
+    messagesRtDebug("messages page visibility", document.visibilityState);
+    onMessagesRealtimeStatus({ detail: getRealtimeStatus() });
+  });
+}
+
+function startMessagesFallbackPolling() {
+  if (messagesFallbackPollTimer != null) return;
+  messagesRtDebug("fallback polling start", MESSAGES_FALLBACK_POLL_MS, "ms");
+  messagesFallbackPollTimer = window.setInterval(() => {
+    void (async () => {
+      messagesRtDebug("fallback tick");
+      await refreshThreadListOnly({
+        syncHeader: true,
+        reloadCurrentMessages: true,
+        reason: "fallback-poll",
+      });
+    })();
+  }, MESSAGES_FALLBACK_POLL_MS);
+}
+
+function stopMessagesFallbackPolling() {
+  if (messagesFallbackPollTimer == null) return;
+  window.clearInterval(messagesFallbackPollTimer);
+  messagesFallbackPollTimer = null;
+  messagesRtDebug("fallback stopped");
+}
+
+function onMessagesRealtimeStatus(ev) {
+  const d = ev?.detail || getRealtimeStatus();
+  const life = messagesRealtimeLifecycleFromDetail(d);
+  const run = shouldRunMessagesFallbackPoll(d);
+  messagesRtDebug("realtime-status", { lifecycle: life, fallbackPoll: run });
+  if (run) {
+    if (messagesLastFallbackPollDesired !== "run") {
+      messagesRtDebug("realtime fallback, polling enabled");
+      messagesLastFallbackPollDesired = "run";
+    }
+    startMessagesFallbackPolling();
+  } else {
+    if (messagesLastFallbackPollDesired !== "stop") {
+      messagesRtDebug("realtime connected, polling reduced", life);
+      messagesLastFallbackPollDesired = "stop";
+    }
+    stopMessagesFallbackPolling();
+  }
+}
+
+/**
+ * 목록·헤더 메타만 갱신(채팅 셸 전체는 다시 그리지 않음). ``reloadCurrentMessages`` 시 현재 스레드 메시지만 ``loadThreadMessages`` 로 동기화.
+ * @param {{ syncHeader?: boolean; reloadCurrentMessages?: boolean; reason?: string }} [options]
+ */
+async function refreshThreadListOnly(options = {}) {
+  const syncHeader = options.syncHeader !== false;
+  const reloadCurrentMessages = Boolean(options.reloadCurrentMessages);
+  messagesRtDebug("list refresh start", options.reason || "");
+  const threads = await fetchThreadsListForMessagesPage();
+  const threadsForUi = operatorInboxMode ? threads : dedupeThreadsForMessagesList(threads, selectedThreadId);
+  renderThreadList(threadsForUi);
+  if (syncHeader && selectedThreadId) {
+    const threadMeta = findThreadMetaInList(threads);
+    if (threadMeta && typeof threadMeta === "object") {
+      currentThreadHeaderMeta = /** @type {Record<string, unknown>} */ ({ ...threadMeta });
+      selectedThreadRole = normalizeThreadRole(threadMeta);
+      syncChatHeader(currentThreadHeaderMeta);
+    }
+  }
+  if (reloadCurrentMessages && selectedThreadId) {
+    messagesRtDebug("detail refresh start (fallback poll)", { thread_id: selectedThreadId });
+    await loadThreadMessages({
+      realtime: true,
+      dispatchHeaderOnMarkRead: true,
+      silentIfUnchanged: options.reason === "fallback-poll",
+    });
+    messagesRtDebug("detail refresh done (fallback poll)");
+  }
+  messagesRtDebug("list refresh done", options.reason || "");
+}
+
+async function handleMessageCreatedRealtime({ threadId, messageId, sameThread, sel }) {
+  const runDetailAndList = async (reason) => {
+    await loadThreadMessages({ realtime: true, dispatchHeaderOnMarkRead: true });
+    await refreshThreadListOnly({ syncHeader: true, reloadCurrentMessages: false, reason });
+    return threadHasMessageId(messageId);
+  };
+
+  if (sameThread) {
+    messagesRtDebug("detail refresh start (same thread)");
+    let visible = await runDetailAndList("message.created");
+    messagesRtDebug("detail refresh done");
+    if (!messageId || visible) {
+      return;
+    }
+    console.info("[lhai][messages-realtime] message.created not visible after refresh, scheduling retry", messageId);
+    await new Promise((r) => setTimeout(r, 800));
+    if (String(selectedThreadId || "").trim() !== sel) {
+      messagesRtDebug("message.created retry aborted (thread switched)");
+      return;
+    }
+    visible = await runDetailAndList("message.created-retry-800");
+    if (!messageId || visible) {
+      return;
+    }
+    console.info("[lhai][messages-realtime] message.created not visible after refresh, scheduling retry", messageId);
+    await new Promise((r) => setTimeout(r, 2000));
+    if (String(selectedThreadId || "").trim() !== sel) {
+      messagesRtDebug("message.created retry aborted (thread switched)");
+      return;
+    }
+    await runDetailAndList("message.created-retry-2000");
+    return;
+  }
+  messagesRtDebug("list refresh start (other thread)");
+  await refreshThreadListOnly({ syncHeader: true, reloadCurrentMessages: false, reason: "message.created-other" });
+  messagesRtDebug("list refresh done");
+}
+
+async function handleMessagesRealtimeEvent(detail) {
+  const type = String(detail?.type || "").trim();
+  const data = detail?.data && typeof detail.data === "object" ? detail.data : {};
+  const payload = data.payload && typeof data.payload === "object" ? data.payload : {};
+  const threadId = String(data.thread_id || payload.thread_id || "").trim();
+  const messageId = String(data.message_id || payload.message_id || "").trim();
+  const sel = String(selectedThreadId || "").trim();
+  const sameThread = Boolean(threadId && sel && threadId === sel);
+
+  messagesRtDebug("message event received", { type, threadId, messageId, sameThread });
+
+  if (type === "message.created") {
+    const mid = messageId;
+    if (mid && messagesRealtimeMessageCreatedLocks.has(mid)) {
+      messagesRtDebug("message.created skipped (in-flight duplicate)", mid);
+      return;
+    }
+    if (mid) messagesRealtimeMessageCreatedLocks.add(mid);
+    try {
+      await handleMessageCreatedRealtime({ threadId, messageId: mid, sameThread, sel });
+    } finally {
+      if (mid) messagesRealtimeMessageCreatedLocks.delete(mid);
+    }
+    return;
+  }
+
+  if (type === "unread.changed" || type === "thread.updated") {
+    messagesRtDebug("list refresh start", type);
+    await refreshThreadListOnly({ syncHeader: true, reloadCurrentMessages: false, reason: type });
+    messagesRtDebug("list refresh done", type);
+  }
+}
+
+function wireMessagesPageRealtime() {
+  if (messagesRealtimeUnsub) {
+    try {
+      messagesRealtimeUnsub();
+    } catch {
+      /* ignore */
+    }
+    messagesRealtimeUnsub = null;
+  }
+  messagesRealtimeUnsub = subscribeRealtimeEvents(handleMessagesRealtimeEvent);
+  if (!messagesRealtimeStatusBound) {
+    messagesRealtimeStatusBound = true;
+    window.addEventListener("lhai:realtime-status", onMessagesRealtimeStatus);
+  }
+  ensureMessagesPageVisibilityBinding();
+  onMessagesRealtimeStatus({ detail: getRealtimeStatus() });
+}
+
+async function refresh() {
+  const threads = await fetchThreadsListForMessagesPage();
+  reconcileMessagesPageSelectionAfterListFetch(threads);
+  const threadMeta = findThreadMetaInList(threads);
   currentThreadHeaderMeta =
     threadMeta && typeof threadMeta === "object"
       ? /** @type {Record<string, unknown>} */ ({ ...threadMeta })
@@ -2509,6 +2835,8 @@ async function initMessagesPage() {
   });
 
   await refresh();
+
+  wireMessagesPageRealtime();
 
   bindMessageAiFeedback({
     getContext: () => ({
