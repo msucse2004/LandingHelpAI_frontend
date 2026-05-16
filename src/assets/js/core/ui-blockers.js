@@ -217,6 +217,16 @@ export function diagnoseShellTopLayerBlockers(phase = "unspecified") {
         htmlOverflow: hcs.overflow,
         htmlPointerEvents: hcs.pointerEvents,
       });
+      try {
+        console.log({
+          bodyInert: Boolean(body.inert),
+          htmlInert: Boolean(html.inert),
+          bodyStyleAttrOverflow: body.getAttribute("style"),
+          bodyOpenDialogs: document.querySelectorAll("dialog[open]").length,
+        });
+      } catch {
+        /* ignore */
+      }
     } else {
       console.log("(body/html 없음)");
     }
@@ -240,13 +250,14 @@ export function diagnoseShellTopLayerBlockers(phase = "unspecified") {
         if (cs.visibility === "hidden") continue;
         if (cs.opacity === "0") continue;
         if (cs.pointerEvents === "none") continue;
+        const rect = el.getBoundingClientRect();
+        const cov = _viewportCoverageRatio(vw, vh, rect);
+        if (cov < 0.6) continue;
         const zi = cs.zIndex;
         const ziNum = parseInt(String(zi), 10);
-        // (z-index가 auto가 아님) 또는 (수치 10 이상)
-        const zOk = zi !== "auto" || (!Number.isNaN(ziNum) && ziNum >= 10);
-        if (!zOk) continue;
-        const rect = el.getBoundingClientRect();
-        if (_viewportCoverageRatio(vw, vh, rect) < 0.6) continue;
+        /* z-index:auto 인 전체 화면 고정 레이어는 기존 로직에서 누락됨 → 매우 큰 덮개만 추가 포함 */
+        const zIndexed = zi !== "auto" || (!Number.isNaN(ziNum) && ziNum >= 10);
+        if (!zIndexed && cov < 0.88) continue;
         fixedCandidates.push(el);
         if (fixedCandidates.length >= MAX_LOGGED) break;
       }
@@ -267,6 +278,30 @@ export function diagnoseShellTopLayerBlockers(phase = "unspecified") {
       });
     });
     console.groupEnd();
+
+    console.group("H. 화면 중앙 elementsFromPoint 스택 (상위 14개)");
+    try {
+      const cx = Math.floor(vw / 2);
+      const cy = Math.floor(vh / 2);
+      const stack = document.elementsFromPoint(cx, cy).slice(0, 14);
+      stack.forEach((el, i) => {
+        if (!(el instanceof Element)) return;
+        const cs = window.getComputedStyle(el);
+        console.log(`hit[${i}]`, {
+          tag: el.tagName,
+          id: el.id || "",
+          className: (el.className && String(el.className).slice(0, 160)) || "",
+          pointerEvents: cs.pointerEvents,
+          opacity: cs.opacity,
+          position: cs.position,
+          zIndex: cs.zIndex,
+          rect: _rectToPlain(el.getBoundingClientRect()),
+        });
+      });
+    } catch (err) {
+      console.log("hit stack failed", err);
+    }
+    console.groupEnd();
   } finally {
     console.groupEnd();
   }
@@ -284,9 +319,10 @@ function _isPartnerShellPage() {
 function _installPartnerPageshowRecovery() {
   if (_pageshowRecoveryInstalled) return;
   _pageshowRecoveryInstalled = true;
-  window.addEventListener("pageshow", (ev) => {
-    if (!ev.persisted) return;
+  window.addEventListener("pageshow", () => {
     if (!_isPartnerShellPage()) return;
+    // persisted(BFCache) 뿐 아니라 일반 표시에서도 호출: 다른 탭·히스토리에서 열린 dialog
+    // backdrop이 남아 파트너 셸 전체가 회색·무클릭처럼 보이는 경우를 정리합니다.
     clearShellTopLayerBlockers();
   });
 }
@@ -295,6 +331,54 @@ function _installPartnerPageshowRecovery() {
  * 열린 네이티브 `<dialog>`를 모두 닫아 ::backdrop top-layer를 제거합니다.
  * (파트너 셸 HTML에는 dialog가 없으므로, 잔여물만 대상으로 해도 안전합니다.)
  */
+function _unlockPartnerShellDocumentInteraction() {
+  /* 모달 dialog 닫은 뒤에도 Chromium 등에서 body에 남는 inert / overflow:hidden / pointer-events:none 정리 */
+  try {
+    document.documentElement.removeAttribute("inert");
+    document.body.removeAttribute("inert");
+    document.documentElement.style.removeProperty("overflow");
+    document.body.style.removeProperty("overflow");
+    document.documentElement.style.removeProperty("pointer-events");
+    document.body.style.removeProperty("pointer-events");
+  } catch {
+    /* ignore */
+  }
+  document.querySelectorAll("[inert]").forEach((el) => {
+    if (!(el instanceof HTMLElement)) return;
+    try {
+      el.removeAttribute("inert");
+      el.inert = false;
+    } catch {
+      /* ignore */
+    }
+  });
+
+  /* dialog 열림 수는 0인데도 모달 스택이 남은 경우: html/body·레이아웃 루트에 aria-hidden="true"만 남음 (진단 E구역) */
+  const shellAriaRoots = [
+    document.documentElement,
+    document.body,
+    document.querySelector("#lhai-app-header-root"),
+    document.querySelector(".lhai-layout"),
+    document.querySelector(".lhai-sidebar"),
+    document.querySelector(".lhai-main"),
+  ];
+  shellAriaRoots.forEach((el) => {
+    if (!(el instanceof HTMLElement)) return;
+    try {
+      if (el.getAttribute("aria-hidden") === "true") {
+        el.removeAttribute("aria-hidden");
+      }
+    } catch {
+      /* ignore */
+    }
+  });
+
+  /* 관리 셸 전용 스크림이 DOM에 남아 있는 경우(비정상 공유·복원) — 파트너 페이지에서는 항상 숨김 */
+  document.querySelectorAll(".admin-services__intake-side-backdrop").forEach((el) => {
+    if (el instanceof HTMLElement) el.hidden = true;
+  });
+}
+
 export function clearShellTopLayerBlockers() {
   _installPartnerPageshowRecovery();
   document.querySelectorAll("dialog").forEach((el) => {
@@ -305,4 +389,8 @@ export function clearShellTopLayerBlockers() {
       /* ignore */
     }
   });
+
+  if (!_isPartnerShellPage()) return;
+
+  _unlockPartnerShellDocumentInteraction();
 }

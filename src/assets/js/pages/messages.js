@@ -135,9 +135,17 @@ let customerBidSelectBannerUntil = 0;
 let customerBidSelectBannerThreadId = "";
 /** @type {string} */
 let threadListLoadError = "";
+/** 첫 목록 로드 직후 ``thread_id`` URL 파라미터가 목록에 없을 때 한 번만 ``console.warn`` */
+let messagesUrlRequestedThreadId = "";
+
+/** @param {unknown} a @param {unknown} b */
+function threadIdEquals(a, b) {
+  return String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
+}
+
 /** @type {{ first_name?: string, last_name?: string, full_name?: string } | null | undefined} */
 let cachedMeBasicInfo;
-/** @returns {string} optional initial thread id from URL */
+/** @returns {string} optional initial thread id from URL (``thread_id`` / ``thread``) for deep-link selection */
 function applyMessagesPageQuery() {
   const q = new URLSearchParams(window.location.search);
   const cp = (q.get("customer_profile_id") || q.get("customer") || "").trim();
@@ -484,7 +492,7 @@ function renderThreadListRow(row) {
     "lhai-message-item",
     isAdmin ? "lhai-message-item--admin" : "lhai-message-item--service",
     rowUnread ? "is-unread" : "",
-    selectedThreadId === row.thread_id ? "is-active" : "",
+    threadIdEquals(selectedThreadId, row.thread_id) ? "is-active" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -542,7 +550,7 @@ function dedupeThreadsForMessagesList(threads, selectedId) {
   }
   const deduped = [];
   for (const arr of groups.values()) {
-    const preferred = arr.find((x) => String(x.thread_id) === sid);
+    const preferred = arr.find((x) => threadIdEquals(x.thread_id, sid));
     if (preferred) {
       deduped.push(preferred);
       continue;
@@ -2405,7 +2413,7 @@ function reconcileMessagesPageSelectionAfterListFetch(threads) {
       selectedThreadId &&
       !threads.some(
         (t) =>
-          String(t.thread_id) === selectedThreadId &&
+          threadIdEquals(t.thread_id, selectedThreadId) &&
           String(t.customer_profile_id || "") === String(threadOwnerProfileId || "")
       )
     ) {
@@ -2418,12 +2426,36 @@ function reconcileMessagesPageSelectionAfterListFetch(threads) {
       }
     }
   } else {
+    if (selectedThreadId && threads.length) {
+      const rowMatch = threads.find((t) => threadIdEquals(t.thread_id, selectedThreadId));
+      if (rowMatch) {
+        selectedThreadId = String(rowMatch.thread_id || "").trim();
+      }
+    }
     if (!selectedThreadId && threads.length) {
       selectedThreadId = pickDefaultThreadId(threads);
     }
-    if (selectedThreadId && !threads.some((t) => String(t.thread_id) === selectedThreadId)) {
+    if (selectedThreadId && !threads.some((t) => threadIdEquals(t.thread_id, selectedThreadId))) {
       selectedThreadId = threads.length ? pickDefaultThreadId(threads) : "";
     }
+  }
+  const urlTid = String(messagesUrlRequestedThreadId || "").trim();
+  if (urlTid) {
+    const found = threads.some((t) => threadIdEquals(t.thread_id, urlTid));
+    if (!found) {
+      try {
+        // eslint-disable-next-line no-console
+        console.warn("[lhai][messages] thread_id query not in loaded thread list; using default selection.", {
+          thread_id: urlTid,
+          operatorInboxMode,
+          partnerInboxMode,
+          thread_count: Array.isArray(threads) ? threads.length : 0,
+        });
+      } catch {
+        /* ignore */
+      }
+    }
+    messagesUrlRequestedThreadId = "";
   }
 }
 
@@ -2431,11 +2463,11 @@ function findThreadMetaInList(threads) {
   return threads.find((t) => {
     if (operatorInboxMode) {
       return (
-        String(t.thread_id) === selectedThreadId &&
+        threadIdEquals(t.thread_id, selectedThreadId) &&
         String(t.customer_profile_id || "") === String(threadOwnerProfileId || "")
       );
     }
-    return String(t.thread_id) === selectedThreadId;
+    return threadIdEquals(t.thread_id, selectedThreadId);
   });
 }
 
@@ -2450,10 +2482,13 @@ const messagesRealtimeMessageCreatedLocks = new Set();
 
 let messagesFallbackPollTimer = null;
 const MESSAGES_FALLBACK_POLL_MS = 12_000;
+/** SSE 연결 시 detail·목록 안전망(이벤트 유실 대비). 토스트 없음, composer 보존은 loadThreadMessages(realtime) 경로. */
+const MESSAGES_SAFETY_SYNC_MS = 30_000;
+let messagesSafetyPollTimer = null;
 let messagesRealtimeUnsub = null;
 let messagesRealtimeStatusBound = false;
 let messagesPageVisibilityBound = false;
-/** ``"run"`` | ``"stop"`` — 디버그 로그 스팸 방지 */
+/** ``"run"`` | ``"stop"`` | ``"safety"`` — 디버그 로그 스팸 방지 */
 let messagesLastFallbackPollDesired = null;
 
 function ensureMessagesPageVisibilityBinding() {
@@ -2487,23 +2522,84 @@ function stopMessagesFallbackPolling() {
   messagesRtDebug("fallback stopped");
 }
 
+function stopMessagesSafetyPolling() {
+  if (messagesSafetyPollTimer == null) return;
+  window.clearInterval(messagesSafetyPollTimer);
+  messagesSafetyPollTimer = null;
+  messagesRtDebug("safety polling stop");
+}
+
+/**
+ * SSE connected 전용: 30초마다 현재 스레드 detail + 목록 동기화(유실 보정). 폴백 폴링과 별도.
+ * @param {number} [intervalMs]
+ */
+function startMessagesSafetyPolling(intervalMs) {
+  const ms = Math.max(10_000, Number(intervalMs) || MESSAGES_SAFETY_SYNC_MS);
+  if (messagesSafetyPollTimer != null) {
+    return;
+  }
+  messagesRtDebug("safety polling start", ms, "ms");
+  messagesSafetyPollTimer = window.setInterval(() => {
+    void (async () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        messagesRtDebug("safety tick skipped: document not visible");
+        return;
+      }
+      const tid = String(selectedThreadId || "").trim();
+      if (!tid) {
+        messagesRtDebug("safety tick skipped: no selectedThreadId");
+        return;
+      }
+      const nBefore = Array.isArray(currentThreadMessages) ? currentThreadMessages.length : 0;
+      messagesRtDebug("safety tick", { thread_id: tid, message_count_before: nBefore });
+      await loadThreadMessages({ realtime: true, silentIfUnchanged: true });
+      const nAfter = Array.isArray(currentThreadMessages) ? currentThreadMessages.length : 0;
+      messagesRtDebug("current thread refreshed (safety-sync)", {
+        thread_id: tid,
+        message_count_before: nBefore,
+        message_count_after: nAfter,
+      });
+      await refreshThreadListOnly({
+        syncHeader: true,
+        reloadCurrentMessages: false,
+        reason: "safety-sync",
+      });
+    })();
+  }, ms);
+}
+
 function onMessagesRealtimeStatus(ev) {
   const d = ev?.detail || getRealtimeStatus();
   const life = messagesRealtimeLifecycleFromDetail(d);
-  const run = shouldRunMessagesFallbackPoll(d);
-  messagesRtDebug("realtime-status", { lifecycle: life, fallbackPoll: run });
-  if (run) {
-    if (messagesLastFallbackPollDesired !== "run") {
-      messagesRtDebug("realtime fallback, polling enabled");
-      messagesLastFallbackPollDesired = "run";
-    }
-    startMessagesFallbackPolling();
-  } else {
-    if (messagesLastFallbackPollDesired !== "stop") {
-      messagesRtDebug("realtime connected, polling reduced", life);
-      messagesLastFallbackPollDesired = "stop";
-    }
+  const connected = !!d?.connected;
+  const fallback = !!d?.fallback;
+  const sseConnected = life === "connected" || (!life && connected && !fallback);
+  const runFallback = shouldRunMessagesFallbackPoll(d);
+
+  messagesRtDebug("realtime-status", { lifecycle: life, sseConnected, fallbackPoll: runFallback });
+
+  if (sseConnected) {
     stopMessagesFallbackPolling();
+    if (messagesLastFallbackPollDesired !== "safety") {
+      messagesRtDebug("realtime connected — fallback poll stopped, safety polling on");
+      messagesLastFallbackPollDesired = "safety";
+    }
+    startMessagesSafetyPolling(MESSAGES_SAFETY_SYNC_MS);
+  } else {
+    stopMessagesSafetyPolling();
+    if (runFallback) {
+      if (messagesLastFallbackPollDesired !== "run") {
+        messagesRtDebug("realtime fallback — safety polling off, fallback polling on");
+        messagesLastFallbackPollDesired = "run";
+      }
+      startMessagesFallbackPolling();
+    } else {
+      stopMessagesFallbackPolling();
+      if (messagesLastFallbackPollDesired !== "stop") {
+        messagesRtDebug("realtime disconnected/connecting — safety and fallback polling off", life);
+        messagesLastFallbackPollDesired = "stop";
+      }
+    }
   }
 }
 
@@ -2546,9 +2642,16 @@ async function handleMessageCreatedRealtime({ threadId, messageId, sameThread, s
   };
 
   if (sameThread) {
-    messagesRtDebug("detail refresh start (same thread)");
+    const nBefore = Array.isArray(currentThreadMessages) ? currentThreadMessages.length : 0;
+    messagesRtDebug("detail refresh start (same thread)", { message_count_before: nBefore });
     let visible = await runDetailAndList("message.created");
-    messagesRtDebug("detail refresh done");
+    const nAfter = Array.isArray(currentThreadMessages) ? currentThreadMessages.length : 0;
+    messagesRtDebug("current thread refreshed", {
+      reason: "message.created",
+      message_count_before: nBefore,
+      message_count_after: nAfter,
+      message_id_visible: visible,
+    });
     if (!messageId || visible) {
       return;
     }
@@ -2584,8 +2687,14 @@ async function handleMessagesRealtimeEvent(detail) {
   const messageId = String(data.message_id || payload.message_id || "").trim();
   const sel = String(selectedThreadId || "").trim();
   const sameThread = Boolean(threadId && sel && threadId === sel);
-
-  messagesRtDebug("message event received", { type, threadId, messageId, sameThread });
+  const msgCountBefore = Array.isArray(currentThreadMessages) ? currentThreadMessages.length : 0;
+  messagesRtDebug("event received", {
+    type,
+    threadId,
+    messageId,
+    sameThread,
+    message_count_before: msgCountBefore,
+  });
 
   if (type === "message.created") {
     const mid = messageId;
@@ -2744,6 +2853,7 @@ async function initMessagesPage() {
   }
 
   const initialThreadId = applyMessagesPageQuery();
+  messagesUrlRequestedThreadId = String(initialThreadId || "").trim();
   const q = new URLSearchParams(window.location.search);
   const explicitProfile = (q.get("customer_profile_id") || q.get("customer") || "").trim();
   if (!operatorInboxMode && !partnerInboxMode && !explicitProfile) {

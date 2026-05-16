@@ -11,7 +11,7 @@
   <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
     <aside class="lhai-sidebar" id="sidebar"></aside>
-    <main class="lhai-main">
+    <main class="lhai-main lhai-partner-dash" id="partnerDashboardMain">
       <section class="lhai-page-header">
         <div>
           <h1 class="lhai-title" id="partnerDashboardTitle">파트너 대시보드</h1>
@@ -21,19 +21,16 @@
 
       <p class="lhai-help lhai-partner-dash__error" id="partnerDashboardError" role="alert" hidden></p>
 
-      <!-- ASSIGNED_ONLY 통계 -->
-      <section class="lhai-grid lhai-grid--4 lhai-partner-dash__stats" id="partnerDashStatsAssigned" aria-label="배정 업무 요약">
+      <!-- ASSIGNED_ONLY: 진행중 / 완료 요약 (비딩 통계와 DOM 분리) -->
+      <section
+        class="lhai-grid lhai-grid--2 lhai-partner-dash__stats lhai-partner-dash__stats--assigned lhai-assigned-dashboard__stats"
+        id="partnerDashStatsAssigned"
+        aria-label="진행 요약"
+        hidden
+      >
         <article class="lhai-card lhai-partner-dash__stat-card">
-          <h2 class="lhai-card__title lhai-partner-dash__stat-title">새 신청</h2>
-          <p class="lhai-partner-dash__stat-value" id="partnerStatNew">—</p>
-        </article>
-        <article class="lhai-card lhai-partner-dash__stat-card">
-          <h2 class="lhai-card__title lhai-partner-dash__stat-title">진행 중</h2>
+          <h2 class="lhai-card__title lhai-partner-dash__stat-title">진행중</h2>
           <p class="lhai-partner-dash__stat-value" id="partnerStatProgress">—</p>
-        </article>
-        <article class="lhai-card lhai-partner-dash__stat-card">
-          <h2 class="lhai-card__title lhai-partner-dash__stat-title">고객 응답 대기</h2>
-          <p class="lhai-partner-dash__stat-value" id="partnerStatWaiting">—</p>
         </article>
         <article class="lhai-card lhai-partner-dash__stat-card">
           <h2 class="lhai-card__title lhai-partner-dash__stat-title">완료</h2>
@@ -41,8 +38,13 @@
         </article>
       </section>
 
-      <!-- BIDDING_ONLY 통계 -->
-      <section class="lhai-grid lhai-grid--4 lhai-partner-dash__stats" id="partnerDashStatsBidding" aria-label="견적 요청 요약" hidden>
+      <!-- BIDDING_ONLY: 견적 파이프라인 통계 (배정 업무 문구 없음) -->
+      <section
+        class="lhai-grid lhai-grid--4 lhai-partner-dash__stats lhai-bidding-dashboard__stats"
+        id="partnerDashStatsBidding"
+        aria-label="견적 요청 파이프라인"
+        hidden
+      >
         <article class="lhai-card lhai-partner-dash__stat-card">
           <h2 class="lhai-card__title lhai-partner-dash__stat-title">새 견적 요청</h2>
           <p class="lhai-partner-dash__stat-value" id="partnerStatBiddingOpen">—</p>
@@ -62,30 +64,37 @@
       </section>
 
       <section class="lhai-card" id="partner-requests">
-        <h2 class="lhai-card__title" id="partnerRequestsSectionTitle">신청 리스트</h2>
-        <p class="u-text-muted lhai-partner-dash__empty" id="partnerDashboardEmpty" hidden></p>
+        <h2 class="lhai-card__title" id="partnerRequestsSectionTitle">목록</h2>
+        <p class="u-text-muted lhai-partner-dash__empty" id="partnerDashboardEmpty" role="status" hidden></p>
 
-        <div id="partnerTableAssignedWrap">
-          <div class="lhai-partner-dash__table-wrap" id="partnerDashboardTableWrapAssigned" hidden>
-            <table class="lhai-partner-dash__table">
-              <thead>
-                <tr>
-                  <th scope="col">서비스명</th>
-                  <th scope="col">고객명</th>
-                  <th scope="col">제출 시간</th>
-                  <th scope="col">상태</th>
-                  <th scope="col">최근 메시지</th>
-                  <th scope="col"><span class="u-sr-only">작업</span></th>
-                </tr>
-              </thead>
-              <tbody id="partnerDashboardTbodyAssigned"></tbody>
-            </table>
+        <div
+          class="lhai-partner-dash__unsupported-panel lhai-bidding-dashboard__unsupported"
+          id="partnerDashboardUnsupportedPanel"
+          hidden
+          role="alert"
+        >
+          <h3 class="lhai-partner-dash__unsupported-title" id="partnerDashboardUnsupportedTitle">대시보드를 표시할 수 없습니다</h3>
+          <p class="u-text-muted lhai-partner-dash__unsupported-body" id="partnerDashboardUnsupportedBody"></p>
+        </div>
+
+        <div id="partnerTableAssignedWrap" class="lhai-assigned-dashboard">
+          <div id="partnerAssignedCardsRoot" class="lhai-partner-dash__assigned-root lhai-assigned-dashboard__list" hidden>
+            <section class="lhai-partner-dash__subsection" aria-labelledby="partnerAssignedInProgressHeading">
+              <h3 class="lhai-partner-dash__subsection-title" id="partnerAssignedInProgressHeading">진행중</h3>
+              <p class="u-text-muted lhai-partner-dash__section-empty" id="partnerAssignedInProgressEmpty" hidden></p>
+              <div id="partnerAssignedInProgressCards" class="lhai-partner-dash__card-list"></div>
+            </section>
+            <section class="lhai-partner-dash__subsection lhai-partner-dash__subsection--completed" aria-labelledby="partnerAssignedCompletedHeading">
+              <h3 class="lhai-partner-dash__subsection-title" id="partnerAssignedCompletedHeading">완료</h3>
+              <p class="u-text-muted lhai-partner-dash__section-empty" id="partnerAssignedCompletedEmpty" hidden></p>
+              <div id="partnerAssignedCompletedCards" class="lhai-partner-dash__card-list"></div>
+            </section>
           </div>
         </div>
 
-        <div id="partnerTableBiddingWrap" hidden>
-          <div class="lhai-partner-dash__table-wrap" id="partnerDashboardTableWrapBidding" hidden>
-            <table class="lhai-partner-dash__table">
+        <div id="partnerTableBiddingWrap" class="lhai-bidding-dashboard" hidden>
+          <div class="lhai-partner-dash__table-wrap lhai-bidding-dashboard__table-wrap" id="partnerDashboardTableWrapBidding" hidden>
+            <table class="lhai-partner-dash__table lhai-bidding-dashboard__table">
               <thead>
                 <tr>
                   <th scope="col">서비스명</th>

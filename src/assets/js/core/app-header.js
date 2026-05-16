@@ -247,23 +247,23 @@ function wireHeaderRealtimeHandlers() {
       if (type !== "message.created") return;
 
       if (isMessagesHtmlPage()) {
-        rtDebug("toast suppressed reason: messages page", { messageId });
+        rtDebug("realtime toast suppressed reason: messages page", { messageId });
         return;
       }
       if (typeof document !== "undefined" && document.visibilityState !== "visible") {
-        rtDebug("toast suppressed reason: document not visible", { messageId });
+        rtDebug("realtime toast suppressed reason: document not visible", { messageId });
         return;
       }
       if (isOwnRealtimeActor(actorType)) {
-        rtDebug("toast suppressed reason: own actor", { actorType });
+        rtDebug("realtime toast suppressed reason: own actor", { actorType });
         return;
       }
       if (!tryAcquireRealtimeToastSlot(messageId)) {
-        rtDebug("toast suppressed reason: duplicate", { messageId });
+        rtDebug("realtime toast suppressed reason: duplicate", { messageId });
         return;
       }
 
-      rtDebug("toast shown", { messageId, actorType });
+      rtDebug("realtime toast shown", { messageId, actorType });
       showRealtimeInboxToast();
     })();
   });
@@ -404,9 +404,7 @@ async function refreshHeaderMailUnreadBadgeWithPopup({ suppressPopup = false } =
   const prev = lastHeaderMailUnreadCount;
   const count = await fetchHeaderUnreadMessageCount();
   applyHeaderMailUnreadBadge(count);
-  if (realtimeDebugLive()) {
-    rtDebug("polling count old/new", { old: prev, new: count });
-  }
+  rtDebug("polling count old/new", { old: prev, new: count });
   const isVisible = document.visibilityState === "visible";
   if (
     !suppressPopup &&
@@ -414,7 +412,9 @@ async function refreshHeaderMailUnreadBadgeWithPopup({ suppressPopup = false } =
     count > prev &&
     isVisible
   ) {
-    if (Date.now() - lastRealtimeInboxToastWallMs < POLLING_TOAST_AFTER_REALTIME_MS) {
+    if (isMessagesHtmlPage()) {
+      rtDebug("polling toast suppressed reason: messages page", { old: prev, new: count });
+    } else if (Date.now() - lastRealtimeInboxToastWallMs < POLLING_TOAST_AFTER_REALTIME_MS) {
       rtDebug("polling toast suppressed reason: recent realtime inbox toast wall", {
         old: prev,
         new: count,

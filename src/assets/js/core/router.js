@@ -8,6 +8,25 @@
 
 import { debugDashboard, isPartnerDashboardDebugEnabled } from "./partner-dashboard-debug.js";
 
+/**
+ * 메시지함으로 특정 스레드를 연다(풀 페이지 이동).
+ * @param {string} threadId
+ */
+export function navigateToMessagesThread(threadId) {
+  if (typeof window === "undefined") return;
+  window.location.assign(buildMessagesThreadUrl(threadId));
+}
+
+/**
+ * @param {string} [threadId]
+ * @returns {string} 상대 경로 ``messages.html`` 또는 쿼리 포함 URL
+ */
+export function buildMessagesThreadUrl(threadId) {
+  const tid = String(threadId ?? "").trim();
+  if (!tid) return "messages.html";
+  return `messages.html?thread_id=${encodeURIComponent(tid)}`;
+}
+
 function initRouter() {
   if (typeof window !== "undefined" && isPartnerDashboardDebugEnabled()) {
     const page = (window.location.pathname || "").split("/").pop() || "";

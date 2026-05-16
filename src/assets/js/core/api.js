@@ -1106,6 +1106,16 @@ const partnerThreadsApi = {
       body: String(body || ""),
     });
   },
+  /**
+   * ASSIGNED_ONLY: mark assigned SERVICE thread completed (customer notice).
+   * @param {string} threadId
+   * @returns {Promise<Record<string, unknown>>}
+   */
+  async completeAssignedRequest(threadId) {
+    const t = String(threadId || "").trim();
+    if (!t) throw new Error("threadId required");
+    return await tryBackendPost(`/api/partner/assigned-requests/${encodeURIComponent(t)}/complete`, {});
+  },
 };
 
 const emailLogsApi = {
