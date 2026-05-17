@@ -25,4 +25,8 @@ function getSinglePartnerMatchingRuleOptions() {
   return SINGLE_PARTNER_MATCHING_RULES.map((x) => ({ ...x }));
 }
 
-export { getSinglePartnerMatchingRuleOptions };
+function getMultiPartnerMatchingStrategyOptions() {
+  return getSinglePartnerMatchingRuleOptions();
+}
+
+export { getSinglePartnerMatchingRuleOptions, getMultiPartnerMatchingStrategyOptions };

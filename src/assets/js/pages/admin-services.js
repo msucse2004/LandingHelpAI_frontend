@@ -3109,9 +3109,60 @@ function ucdIsDuplicateName(type, id, name) {
 
 function ucdNormalizeList(payload) {
   if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.items)) return payload.items;
-  if (Array.isArray(payload?.data)) return payload.data;
+  if (payload && typeof payload === "object") {
+    for (const key of ["items", "data", "results", "categories", "packages", "services"]) {
+      if (Array.isArray(payload[key])) return payload[key];
+    }
+  }
   return [];
+}
+
+function ucdManageTableRowCount(tableBodyId) {
+  const tbody = qs(tableBodyId);
+  if (!tbody) return 0;
+  return tbody.querySelectorAll("tr[data-id]").length;
+}
+
+/** 메모리(ucdCategories)와 Category 목록 DOM이 어긋난 경우 API에서 다시 로드. */
+async function ucdReloadHierarchyIfStale() {
+  const tableShowsCategories = ucdManageTableRowCount("#manageCategoryTable") > 0;
+  if (!ucdCategories.length && tableShowsCategories) {
+    await ucdReload();
+    return true;
+  }
+  if (!ucdCategories.length) {
+    await ucdReload();
+    return true;
+  }
+  return false;
+}
+
+function ucdPopulateManagePackageCategorySelect(preferredCategoryId = null) {
+  const catSel = qs("#managePackageCategoryId");
+  if (!catSel) return;
+  const preferred =
+    preferredCategoryId != null
+      ? String(preferredCategoryId).trim()
+      : String(catSel.value || ucdSelectedCategoryId || "").trim();
+  const placeholder = t("common.admin_services.manage.select_placeholder", "선택");
+  catSel.innerHTML = `<option value="">${esc(placeholder)}</option>${ucdCategories
+    .map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`)
+    .join("")}`;
+  if (preferred && ucdCategories.some((c) => String(c.id) === preferred)) {
+    catSel.value = preferred;
+  }
+}
+
+async function ucdRefreshManageHierarchyForPackageEditor(preferredCategoryId = null) {
+  await ucdReloadHierarchyIfStale();
+  if (!ucdCategories.length) await ucdReload();
+  const prevPackageCategoryId = qs("#managePackageCategoryId")?.value || "";
+  ucdRenderManage();
+  const preselect =
+    preferredCategoryId != null
+      ? String(preferredCategoryId).trim()
+      : String(prevPackageCategoryId || ucdSelectedCategoryId || "").trim();
+  ucdPopulateManagePackageCategorySelect(preselect || null);
 }
 
 function ucdSortByOrderThenId(a, b) {
@@ -3140,6 +3191,13 @@ function ucdInitTopTabs() {
     if (panelId === "panel-inventory") {
       const invRoot = qs("#inventoryTreeRoot");
       if (invRoot) ucdScheduleInventoryConnectors(invRoot);
+    }
+    if (panelId === "panel-manage") {
+      void (async () => {
+        await ucdReload();
+        ucdRenderInventory();
+        ucdRenderManage();
+      })();
     }
   };
   ucdTopTabActivate = activate;
@@ -3183,6 +3241,9 @@ function ucdActivateManagePanel(panelId) {
   if (panelId !== "manage-category-panel") ucdSetCategoryEditorViewMode("list");
   if (panelId !== "manage-package-panel") ucdSetPackageEditorViewMode("list");
   if (panelId !== "manage-service-panel") ucdSetServiceEditorViewMode("list");
+  if (panelId === "manage-package-panel") {
+    void ucdRefreshManageHierarchyForPackageEditor();
+  }
 }
 
 /**
@@ -3908,7 +3969,6 @@ function ucdRenderManage() {
     })
     .join("");
 
-  const catSel = qs("#managePackageCategoryId");
   const svcPkgSel = qs("#manageServicePackageId");
   const pkgFilterSel = qs("#managePackageFilterCategory");
   const pkgSearch = qs("#managePackageSearch");
@@ -3919,7 +3979,7 @@ function ucdRenderManage() {
   const addModuleSel = qs("#managePackageAddModuleId");
   const addAddonSel = qs("#managePackageAddAddonId");
   const compositionBody = qs("#managePackageCompositionTable");
-  if (catSel) catSel.innerHTML = `<option value="">선택</option>${ucdCategories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}`;
+  ucdPopulateManagePackageCategorySelect();
   if (svcPkgSel) svcPkgSel.innerHTML = `<option value="">선택</option>${ucdPackages.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}`;
   if (pkgFilterSel) {
     pkgFilterSel.innerHTML = `<option value="">All categories</option>${ucdCategories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}`;
@@ -4750,14 +4810,20 @@ function ucdBindManageEvents() {
     ucdSetManageMode("Category", "create");
     ucdSetCategoryEditorViewMode("editor");
   });
-  qs("#managePackageCreateBtn")?.addEventListener("click", () => {
+  qs("#managePackageCreateBtn")?.addEventListener("click", async () => {
     ucdManageActionStatusClear("Package");
     ucdSelectedPackageId = "";
-    qs("#managePackageId").value = ""; qs("#managePackageName").value = ""; qs("#managePackageDescription").value = ""; qs("#managePackageCategoryId").value = "";
+    const preselectCategoryId = String(ucdSelectedCategoryId || "").trim();
+    qs("#managePackageId").value = "";
+    qs("#managePackageName").value = "";
+    qs("#managePackageDescription").value = "";
     qs("#managePackageLongDescription").value = "";
-    qs("#managePackageAiSupported").checked = false; qs("#managePackageBasePrice").value = "0"; qs("#managePackageCurrency").value = "USD";
-    qs("#managePackageActive").checked = true; qs("#managePackageVisible").checked = true;
-    ucdRenderManage();
+    qs("#managePackageAiSupported").checked = false;
+    qs("#managePackageBasePrice").value = "0";
+    qs("#managePackageCurrency").value = "USD";
+    qs("#managePackageActive").checked = true;
+    qs("#managePackageVisible").checked = true;
+    await ucdRefreshManageHierarchyForPackageEditor(preselectCategoryId || null);
     ucdSetManageMode("Package", "create");
     ucdSetPackageEditorViewMode("editor");
   });

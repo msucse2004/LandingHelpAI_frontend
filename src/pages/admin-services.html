@@ -781,14 +781,16 @@
                           <select class="lhai-select" id="mswMultiPartnerType" autocomplete="off">
                             <option value="" data-msw-placeholder="1" data-i18n="common.admin_services.workflow.partner_type.placeholder">선택…</option>
                           </select>
-                          <label class="lhai-label" for="mswMultiRequestType" data-i18n="common.admin_services.workflow.label.request_type">Request type</label>
-                          <input class="lhai-input" id="mswMultiRequestType" type="text" maxlength="120" autocomplete="off" placeholder="예: AUTO_PURCHASE_RFP" />
+                          <p class="lhai-help" data-i18n="common.admin_services.workflow.request_type.derived_from_partner_type">파트너 요청 유형(Request type)은 위 Partner Type에 따라 서버에서 자동 설정됩니다(예: 자동차 딜러 → AUTO_PURCHASE_RFP).</p>
                           <label class="lhai-label" for="mswMultiMatchingStrategy" data-i18n="common.admin_services.workflow.label.matching_strategy">Partner matching strategy</label>
-                          <input class="lhai-input" id="mswMultiMatchingStrategy" type="text" maxlength="200" autocomplete="off" placeholder="예: 지역·가용일·스코어" />
+                          <select class="lhai-select" id="mswMultiMatchingStrategy" autocomplete="off">
+                            <option value="" data-msw-placeholder="1" data-i18n="common.admin_services.workflow.matching_strategy.placeholder">선택…</option>
+                          </select>
+                          <p class="lhai-help" data-i18n="common.admin_services.workflow.matching_strategy.multi_help">비우면 고객 주(State) 우선 후 확장(same_state_first_then_expand)이 적용됩니다.</p>
                           <div class="admin-services__workflow-grid-2">
                             <div>
                               <label class="lhai-label" for="mswMultiMaxRequests" data-i18n="common.admin_services.workflow.label.max_requests">Max partner request count</label>
-                              <input class="lhai-input" id="mswMultiMaxRequests" type="number" min="1" max="99" value="5" />
+                              <input class="lhai-input" id="mswMultiMaxRequests" type="number" min="1" max="1000" value="1000" />
                             </div>
                             <div>
                               <label class="lhai-label" for="mswMultiMinResponses" data-i18n="common.admin_services.workflow.label.min_responses">Min response count</label>

@@ -7,7 +7,10 @@ import { t } from "../core/i18n-client.js";
 import { isCatalogRecServiceItemUuidString, isUuid } from "../lib/catalog-rec-service-item-id.js";
 import { qs, qsa, safeText as esc } from "../core/utils.js";
 import { normalizePartnerTypesFromApi, partnerTypeOptionDisplayText } from "./admin-partner-type-options.js";
-import { getSinglePartnerMatchingRuleOptions } from "./workflow-matching-rule-registry.js";
+import {
+  getMultiPartnerMatchingStrategyOptions,
+  getSinglePartnerMatchingRuleOptions,
+} from "./workflow-matching-rule-registry.js";
 import { getSinglePartnerIntakeBuilderFallbackOptions } from "./workflow-intake-builder-registry.js";
 
 const MSW_WORKFLOW_TYPES = [
@@ -508,6 +511,57 @@ function mswSingleIntakeBuilderLabel(value) {
   return hit ? String(hit.label || raw) : raw;
 }
 
+function mswMultiMatchingStrategyOptionsSync() {
+  return getMultiPartnerMatchingStrategyOptions().map((x) => ({ ...x }));
+}
+
+function mswIsKnownMultiMatchingStrategy(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return false;
+  return mswMultiMatchingStrategyOptionsSync().some((o) => String(o.value || "").trim() === raw);
+}
+
+function mswMultiMatchingStrategyLabel(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return t(
+      "common.admin_services.workflow.matching_strategy.default_label",
+      "고객 주 우선 후 확장 (same_state_first_then_expand)"
+    );
+  }
+  const hit = mswMultiMatchingStrategyOptionsSync().find((o) => String(o.value || "").trim() === raw);
+  return hit ? String(hit.label || raw) : raw;
+}
+
+function mswPopulateMultiMatchingStrategyOptions() {
+  const el = qs("#mswMultiMatchingStrategy");
+  if (!(el instanceof HTMLSelectElement)) return;
+  const mp = mswPerTypeConfig.MULTI_PARTNER_QUOTE_AND_SELECT || {};
+  const restoreCandidate =
+    String(el.value || "").trim() ||
+    (mswSelectedWorkflowType() === "MULTI_PARTNER_QUOTE_AND_SELECT"
+      ? String(mp.matching_strategy || "").trim()
+      : "");
+  const opts = mswMultiMatchingStrategyOptionsSync();
+  el.innerHTML = "";
+  const ph = document.createElement("option");
+  ph.value = "";
+  ph.dataset.mswPlaceholder = "1";
+  ph.textContent = t("common.admin_services.workflow.matching_strategy.placeholder", "선택…");
+  el.appendChild(ph);
+  for (const o of opts) {
+    const value = String(o.value || "").trim();
+    if (!value) continue;
+    const op = document.createElement("option");
+    op.value = value;
+    op.dataset.mswStandard = "1";
+    if (o.description) op.title = String(o.description);
+    op.textContent = String(o.label || value);
+    el.appendChild(op);
+  }
+  mswAssignSelectValueWithLegacy("mswMultiMatchingStrategy", restoreCandidate);
+}
+
 function mswPopulateSingleIntakeBuilderOptions() {
   const el = qs("#mswSingleRequestType");
   if (!(el instanceof HTMLSelectElement)) return;
@@ -623,9 +677,8 @@ function mswDefaultSlice(type) {
     case "MULTI_PARTNER_QUOTE_AND_SELECT":
       return {
         partner_type: "",
-        request_type: "",
         matching_strategy: "",
-        max_requests: 5,
+        max_requests: 1000,
         min_responses: 1,
         timeout_hours: 48,
         ranking_rule: "low_price_first",
@@ -638,7 +691,11 @@ function mswDefaultSlice(type) {
 }
 
 function mswMergeDefaults(type, partial) {
-  return { ...mswDefaultSlice(type), ...(partial && typeof partial === "object" ? partial : {}) };
+  const merged = { ...mswDefaultSlice(type), ...(partial && typeof partial === "object" ? partial : {}) };
+  if (type === "MULTI_PARTNER_QUOTE_AND_SELECT") {
+    delete merged.request_type;
+  }
+  return merged;
 }
 
 /** Pull server subsection for a workflow type (supports alternate root keys). */
@@ -926,14 +983,13 @@ function mswExtractSliceFromDom(type) {
         };
       }
     case "MULTI_PARTNER_QUOTE_AND_SELECT": {
-      const maxR = Number(mswVal("mswMultiMaxRequests", "5"));
+      const maxR = Number(mswVal("mswMultiMaxRequests", "1000"));
       const minR = Number(mswVal("mswMultiMinResponses", "1"));
       const hrs = Number(mswVal("mswMultiTimeoutHours", "48"));
       return {
         partner_type: mswVal("mswMultiPartnerType", ""),
-        request_type: mswVal("mswMultiRequestType", ""),
         matching_strategy: mswVal("mswMultiMatchingStrategy", ""),
-        max_requests: Number.isFinite(maxR) ? Math.max(1, Math.min(99, maxR)) : 5,
+        max_requests: Number.isFinite(maxR) ? Math.max(1, Math.min(1000, maxR)) : 1000,
         min_responses: Number.isFinite(minR) ? Math.max(0, Math.min(99, minR)) : 1,
         timeout_hours: Number.isFinite(hrs) ? Math.max(1, Math.min(720, hrs)) : 48,
         ranking_rule: mswVal("mswMultiRankingRule", "low_price_first") || "low_price_first",
@@ -1065,13 +1121,11 @@ function mswApplySliceToDom(type, sliceIn) {
   }
   if (type === "MULTI_PARTNER_QUOTE_AND_SELECT") {
     if (mswPartnerTypeSelectsNeedStructure()) mswPopulatePartnerTypeSelectOptions();
+    mswPopulateMultiMatchingStrategyOptions();
     mswAssignPartnerTypeSelectValue("mswMultiPartnerType", slice.partner_type || "");
-    const rt = qs("#mswMultiRequestType");
-    if (rt) rt.value = slice.request_type || "";
-    const ms = qs("#mswMultiMatchingStrategy");
-    if (ms) ms.value = slice.matching_strategy || "";
+    mswAssignSelectValueWithLegacy("mswMultiMatchingStrategy", slice.matching_strategy || "");
     const mx = qs("#mswMultiMaxRequests");
-    if (mx) mx.value = String(slice.max_requests ?? 5);
+    if (mx) mx.value = String(slice.max_requests ?? 1000);
     const mn = qs("#mswMultiMinResponses");
     if (mn) mn.value = String(slice.min_responses ?? 1);
     const th = qs("#mswMultiTimeoutHours");
@@ -1113,7 +1167,8 @@ function mswToggleSections() {
 /** @param {unknown} strategyRaw */
 function mswMultiStrategyUsesCustomerState(strategyRaw) {
   const s = String(strategyRaw || "").trim().toLowerCase();
-  if (!s) return false;
+  if (!s || s === "same_state_first_then_expand") return true;
+  if (mswIsKnownMultiMatchingStrategy(s) && s !== "same_state_first_then_expand") return false;
   if (s.includes("customer_state")) return true;
   if (s.includes("same_state") || s.includes("same state") || s.includes("same-state")) return true;
   if (s.includes("state") && (s.includes("match") || s.includes("geo") || s.includes("지역"))) return true;
@@ -1160,10 +1215,9 @@ function workflowComputeValidation(intakeFieldKeys) {
         );
       }
     }
-    const rt = String(mp.request_type || "").trim();
-    if (!rt) {
+    if (matchStr && !mswIsKnownMultiMatchingStrategy(matchStr)) {
       warnings.push(
-        "요청 유형(Request type)을 비우면 서버에 기본 견적 코드(QUOTE_REQUEST)로 저장됩니다. 자동차 RFP 등은 AUTO_PURCHASE_RFP처럼 구분 문자열을 넣는 것을 권장합니다."
+        `매칭 전략「${matchStr}」은(는) 표준 목록에 없는 legacy 값입니다. 가능하면 목록에서 전략을 선택해 주세요.`
       );
     }
   }
@@ -1434,17 +1488,17 @@ function mswBuildPreviewSections() {
           "시스템이 아래에 적어 둔 매칭 전략에 맞게 후보 파트너를 찾습니다."
         )
       );
-      const mt = String(match).trim();
-      if (mt) {
-        steps.push(
-          t("common.admin_services.workflow.preview.step.strategy_detail", "매칭 전략(관리자 메모): {s}").replace("{s}", mt)
-        );
-      }
+      steps.push(
+        t("common.admin_services.workflow.preview.step.strategy_detail", "매칭 전략: {s}").replace(
+          "{s}",
+          mswMultiMatchingStrategyLabel(match)
+        )
+      );
     }
-    const maxP = Number(mswVal("mswMultiMaxRequests", "5"));
+    const maxP = Number(mswVal("mswMultiMaxRequests", "1000"));
     const minR = Number(mswVal("mswMultiMinResponses", "1"));
     const hours = Number(mswVal("mswMultiTimeoutHours", "48"));
-    const maxOk = Number.isFinite(maxP) ? maxP : 5;
+    const maxOk = Number.isFinite(maxP) ? maxP : 1000;
     const minOk = Number.isFinite(minR) ? minR : 1;
     const hrsOk = Number.isFinite(hours) ? hours : 48;
     steps.push(
@@ -1453,9 +1507,28 @@ function mswBuildPreviewSections() {
         String(maxOk)
       )
     );
-    const rtMulti = mswVal("mswMultiRequestType", "").trim();
-    if (rtMulti) {
-      steps.push(t("common.admin_services.workflow.preview.step.single_req", "요청 유형 라벨: {r}").replace("{r}", rtMulti));
+    const ptMulti = String(mswVal("mswMultiPartnerType", "") || "").trim().toUpperCase();
+    if (ptMulti === "AUTO_DEALER") {
+      steps.push(
+        t(
+          "common.admin_services.workflow.preview.step.multi_request_auto",
+          "파트너 요청 유형은 자동차 구매 RFP(AUTO_PURCHASE_RFP)로 전달됩니다."
+        )
+      );
+    } else if (ptMulti === "PHONE_VENDOR") {
+      steps.push(
+        t(
+          "common.admin_services.workflow.preview.step.multi_request_phone",
+          "파트너 요청 유형은 전화/개통 신청(PHONE_ACTIVATION_APPLICATION)으로 전달됩니다."
+        )
+      );
+    } else if (ptMulti) {
+      steps.push(
+        t(
+          "common.admin_services.workflow.preview.step.multi_request_quote",
+          "파트너 요청 유형은 일반 견적(QUOTE_REQUEST)으로 전달됩니다."
+        )
+      );
     }
     steps.push(
       t(
@@ -1838,9 +1911,8 @@ function mswResetFormToDefaults() {
     ["mswSinglePostStep2", "NONE"],
     ["mswSinglePostStep3", "NONE"],
     ["mswMultiPartnerType", ""],
-    ["mswMultiRequestType", ""],
     ["mswMultiMatchingStrategy", ""],
-    ["mswMultiMaxRequests", "5"],
+    ["mswMultiMaxRequests", "1000"],
     ["mswMultiMinResponses", "1"],
     ["mswMultiTimeoutHours", "48"],
     ["mswMultiRankingRule", "low_price_first"],
@@ -1894,6 +1966,7 @@ function mswBindPanel() {
   mswPopulateSingleMatchingRuleOptions();
   mswPopulateSingleIntakeBuilderOptions();
   mswPopulateSinglePostWorkflowOptions();
+  mswPopulateMultiMatchingStrategyOptions();
   void mswRefreshPartnerTypesFromApi();
 
   const onAny = () => {
@@ -2041,7 +2114,11 @@ export function workflowGetPayload() {
     ai_guide: mswDeepClone(mswPerTypeConfig.AI_ONLY_GUIDE),
     human_ops: mswDeepClone(mswPerTypeConfig.HUMAN_AGENT_MANAGED),
     single_partner: mswDeepClone(mswPerTypeConfig.SINGLE_PARTNER_APPLICATION),
-    multi_partner: mswDeepClone(mswPerTypeConfig.MULTI_PARTNER_QUOTE_AND_SELECT),
+    multi_partner: (() => {
+      const mp = mswDeepClone(mswPerTypeConfig.MULTI_PARTNER_QUOTE_AND_SELECT);
+      if (mp && typeof mp === "object") delete mp.request_type;
+      return mp;
+    })(),
   };
   /**
    * 고정·등록 파트너 모드에서 DOM 카탈로그 선택이 단일 정본이다.
