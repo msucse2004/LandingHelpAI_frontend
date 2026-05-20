@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>자동차 구매 견적 비교 — Landing Help AI</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" />
+  <link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" />
+  <link rel="stylesheet" href="../assets/css/components.css" />
+  <link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/customer-bid-results.css" />
+</head>
+<body>
+  <div id="lhai-app-header-root"></div>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar"></aside>
+    <main class="lhai-main lhai-cbr-page">
+      <p class="lhai-cbr-back"><a id="cbrBackLink" href="messages.html">← 메시지함으로</a></p>
+
+      <section class="lhai-page-header">
+        <div>
+          <h1 class="lhai-title">자동차 구매 견적 결과</h1>
+          <p class="lhai-subtitle">도착한 차량 제안을 한곳에서 비교하고 선택할 수 있습니다.</p>
+        </div>
+      </section>
+
+      <p id="cbrError" class="lhai-state lhai-state--error" role="alert" hidden></p>
+      <p id="cbrLoading" class="lhai-cbr-loading">견적을 불러오는 중…</p>
+
+      <div id="cbrMain" hidden>
+        <div id="cbrStatusBanner" class="lhai-cbr-banner" hidden role="status"></div>
+
+        <section class="lhai-card lhai-cbr-summary" aria-label="견적 요약">
+          <dl class="lhai-cbr-summary__grid">
+            <div><dt>도착한 제안</dt><dd><span id="cbrOfferCount">0</span>개</dd></div>
+            <div><dt>참여 파트너</dt><dd><span id="cbrPartnerCount">0</span>명</dd></div>
+            <div><dt>비딩 마감까지</dt><dd id="cbrCountdown">—</dd></div>
+            <div><dt>최근 업데이트</dt><dd id="cbrRecentUpdate">—</dd></div>
+            <div><dt>견적 요청 사용</dt><dd id="cbrQuoteUsage">—</dd></div>
+          </dl>
+        </section>
+
+        <nav id="cbrTabs" class="lhai-cbr-tabs" aria-label="제안 탭"></nav>
+
+        <section class="lhai-card lhai-cbr-toolbar">
+          <label class="lhai-field">
+            <span class="lhai-label">정렬</span>
+            <select id="cbrSort"></select>
+          </label>
+          <div id="cbrFilters" class="lhai-cbr-filters">
+            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterBudget" /> 예산 안</label>
+            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterNew" /> 신차</label>
+            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterUsed" /> 중고차</label>
+            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterCleanTitle" /> Clean title</label>
+            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterNoAccident" /> 사고 이력 없음</label>
+            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterAlt" checked /> 대안 제안 포함</label>
+            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterUpdated" /> 업데이트된 제안만</label>
+            <label class="lhai-field">
+              <span class="lhai-label">브랜드</span>
+              <select id="cbrFilterMake"><option value="">브랜드 전체</option></select>
+            </label>
+          </div>
+        </section>
+
+        <p id="cbrEmpty" class="lhai-state lhai-state--empty" hidden></p>
+        <div id="cbrCards" class="lhai-cbr-cards"></div>
+        <p id="cbrMessagesCta" class="lhai-cbr-messages-cta" hidden></p>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="cbrDetailModal" class="lhai-cbr-modal">
+    <div class="lhai-cbr-modal__inner">
+      <div id="cbrDetailBody"></div>
+      <div class="lhai-cbr-modal__foot">
+        <button type="button" class="lhai-button lhai-button--secondary" id="cbrDetailClose">닫기</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="cbrConfirmModal" class="lhai-cbr-modal">
+    <div class="lhai-cbr-modal__inner">
+      <h3 class="lhai-cbr-modal__title">제안 선택 확인</h3>
+      <div id="cbrConfirmBody"></div>
+      <p id="cbrConfirmWarn" class="lhai-cbr-confirm-warn" hidden role="alert"></p>
+      <div class="lhai-cbr-modal__foot">
+        <button type="button" class="lhai-button lhai-button--secondary" id="cbrConfirmCancel">취소</button>
+        <button type="button" class="lhai-button lhai-button--primary" id="cbrConfirmSubmit">선택 확정</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module" src="../assets/js/core/app-header.js"></script>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/pages/customer-bid-results.js"></script>
+</body>
+</html>

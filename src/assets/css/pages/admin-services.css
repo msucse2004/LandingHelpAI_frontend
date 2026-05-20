@@ -871,6 +871,12 @@
   color: var(--lhai-danger);
 }
 
+.admin-services__workflow-db-warn.admin-services__workflow-db-info {
+  border-color: rgba(96, 165, 250, 0.45);
+  background: rgba(30, 58, 138, 0.22);
+  color: var(--lhai-text, #e2e8f0);
+}
+
 .admin-services__workflow-db-code {
   display: inline-block;
   margin-left: 0.35em;

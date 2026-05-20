@@ -10,6 +10,10 @@ export function persistPartnerModeFromDashboard(data) {
     else sessionStorage.removeItem("lhai_partner_mode");
     if (dt) sessionStorage.setItem("lhai_partner_dashboard_type", dt);
     else sessionStorage.removeItem("lhai_partner_dashboard_type");
+    const caps = data?.bidding_capabilities;
+    if (Array.isArray(caps) && caps.length) {
+      sessionStorage.setItem("lhai_partner_bidding_capabilities", JSON.stringify(caps));
+    }
   } catch {
     /* ignore */
   }

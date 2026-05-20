@@ -1,0 +1,300 @@
+.lhai-cbr-page {
+  max-width: 1120px;
+}
+
+.lhai-cbr-back {
+  margin: 0 0 var(--lhai-space-4);
+}
+
+.lhai-cbr-back a {
+  color: var(--lhai-color-muted, #8fa3b5);
+  text-decoration: none;
+}
+
+.lhai-cbr-back a:hover {
+  color: var(--lhai-color-text, #e8eef4);
+}
+
+.lhai-cbr-loading {
+  color: var(--lhai-color-muted, #8fa3b5);
+}
+
+.lhai-cbr-summary__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--lhai-space-4);
+  margin: 0;
+}
+
+.lhai-cbr-summary__grid dt {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--lhai-color-muted, #8fa3b5);
+  margin-bottom: var(--lhai-space-1);
+}
+
+.lhai-cbr-summary__grid dd {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.lhai-cbr-banner {
+  padding: var(--lhai-space-3) var(--lhai-space-4);
+  border-radius: var(--lhai-radius-md, 8px);
+  margin-bottom: var(--lhai-space-4);
+  line-height: 1.45;
+}
+
+.lhai-cbr-banner--warn {
+  background: rgb(200 140 40 / 0.15);
+  border: 1px solid rgb(200 140 40 / 0.45);
+  color: #f0d9a8;
+}
+
+.lhai-cbr-banner--success {
+  background: rgb(60 140 90 / 0.15);
+  border: 1px solid rgb(60 140 90 / 0.45);
+  color: #b8e6c8;
+}
+
+.lhai-cbr-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+  margin: var(--lhai-space-4) 0;
+}
+
+.lhai-cbr-tab {
+  border: 1px solid var(--lhai-color-border);
+  background: var(--lhai-color-surface-alt, #1a2330);
+  color: var(--lhai-color-text, #e8eef4);
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.lhai-cbr-tab.is-active {
+  border-color: var(--lhai-color-primary, #3b6ea5);
+  background: rgb(59 110 165 / 0.2);
+}
+
+.lhai-cbr-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-space-4);
+  margin-bottom: var(--lhai-space-4);
+}
+
+.lhai-cbr-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-3) var(--lhai-space-4);
+  align-items: end;
+}
+
+.lhai-cbr-cards {
+  display: grid;
+  gap: var(--lhai-space-4);
+}
+
+@media (min-width: 720px) {
+  .lhai-cbr-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.lhai-cbr-card {
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-md, 8px);
+  padding: var(--lhai-space-4);
+  background: var(--lhai-color-surface, #121a24);
+}
+
+.lhai-cbr-card--selected {
+  border-color: var(--lhai-color-primary, #3b6ea5);
+  box-shadow: 0 0 0 1px rgb(59 110 165 / 0.35);
+}
+
+.lhai-cbr-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+  margin-bottom: var(--lhai-space-2);
+}
+
+.lhai-cbr-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.lhai-cbr-badge--updated {
+  background: rgb(80 120 200 / 0.25);
+  color: #a8c8f0;
+}
+
+.lhai-cbr-badge--alt {
+  background: rgb(160 100 200 / 0.2);
+  color: #d4b8f0;
+}
+
+.lhai-cbr-badge--match {
+  background: rgb(60 140 90 / 0.2);
+  color: #b8e6c8;
+}
+
+.lhai-cbr-card__title {
+  margin: 0 0 var(--lhai-space-2);
+  font-size: 1.1rem;
+}
+
+.lhai-cbr-card__meta,
+.lhai-cbr-card__relation {
+  margin: 0 0 var(--lhai-space-2);
+  font-size: 0.88rem;
+}
+
+.lhai-cbr-card__total {
+  margin: var(--lhai-space-3) 0 var(--lhai-space-1);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.lhai-cbr-card__budget {
+  margin: 0 0 var(--lhai-space-2);
+  font-size: 0.85rem;
+  color: var(--lhai-color-muted, #8fa3b5);
+}
+
+.lhai-cbr-card__prices {
+  margin: 0 0 var(--lhai-space-3);
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+  color: var(--lhai-color-muted, #8fa3b5);
+}
+
+.lhai-cbr-card__timeline,
+.lhai-cbr-card__match {
+  margin: 0 0 var(--lhai-space-2);
+  font-size: 0.85rem;
+}
+
+.lhai-cbr-card__timeline span {
+  color: var(--lhai-color-muted, #8fa3b5);
+}
+
+.lhai-cbr-card__preview {
+  margin: var(--lhai-space-3) 0;
+  padding: var(--lhai-space-3);
+  background: var(--lhai-color-surface-alt, #1a2330);
+  border-radius: var(--lhai-radius-sm, 6px);
+  font-size: 0.85rem;
+}
+
+.lhai-cbr-card__preview-label {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  color: var(--lhai-color-muted, #8fa3b5);
+  margin-bottom: var(--lhai-space-1);
+}
+
+.lhai-cbr-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+  margin-top: var(--lhai-space-3);
+}
+
+.lhai-cbr-messages-cta {
+  margin-top: var(--lhai-space-5);
+  text-align: center;
+}
+
+.lhai-cbr-modal {
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-md, 8px);
+  padding: 0;
+  max-width: min(520px, 92vw);
+  background: var(--lhai-color-surface, #121a24);
+  color: var(--lhai-color-text, #e8eef4);
+}
+
+.lhai-cbr-modal::backdrop {
+  background: rgb(0 0 0 / 0.55);
+}
+
+.lhai-cbr-modal__inner {
+  padding: var(--lhai-space-5);
+}
+
+.lhai-cbr-modal__title {
+  margin: 0 0 var(--lhai-space-3);
+}
+
+.lhai-cbr-modal__section {
+  margin-bottom: var(--lhai-space-4);
+}
+
+.lhai-cbr-modal__section h4 {
+  margin: 0 0 var(--lhai-space-2);
+  font-size: 0.9rem;
+}
+
+.lhai-cbr-dl {
+  margin: 0;
+  display: grid;
+  gap: var(--lhai-space-2);
+}
+
+.lhai-cbr-dl dt {
+  font-size: 0.72rem;
+  color: var(--lhai-color-muted, #8fa3b5);
+}
+
+.lhai-cbr-dl dd {
+  margin: 0;
+}
+
+.lhai-cbr-modal__total {
+  margin-top: var(--lhai-space-3);
+}
+
+.lhai-cbr-modal__notice {
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.lhai-cbr-modal__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--lhai-space-2);
+  margin-top: var(--lhai-space-4);
+}
+
+.lhai-cbr-confirm-warn {
+  margin: var(--lhai-space-3) 0 0;
+  padding: var(--lhai-space-3);
+  background: rgb(200 140 40 / 0.12);
+  border-radius: var(--lhai-radius-sm, 6px);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #f0d9a8;
+}
+
+/* 메시지함 CAR CTA 패널 */
+.lhai-customer-bid-panel__car-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--lhai-space-3);
+  margin: var(--lhai-space-3) 0;
+  font-size: 0.88rem;
+}
+
+.lhai-customer-bid-panel__car-cta {
+  margin-top: var(--lhai-space-3);
+}

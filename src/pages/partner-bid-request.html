@@ -27,7 +27,7 @@
       <p class="lhai-par-bid__loading" id="partnerBidLoading">불러오는 중…</p>
 
       <div id="partnerBidMain" hidden>
-        <section class="lhai-card lhai-par-detail__hero">
+        <section class="lhai-card lhai-par-detail__hero" id="partnerBidSharedHero">
           <h2 class="lhai-card__title">요약</h2>
           <div class="lhai-par-detail__hero-grid">
             <div>
@@ -45,6 +45,9 @@
           </div>
         </section>
 
+        <div id="partnerBidCarRoot" hidden></div>
+
+        <div id="partnerBidLegacyRoot">
         <div id="partnerBidSelectedBanner" class="lhai-par-bid__selected-banner" hidden>
           <p><strong>고객이 이 견적을 선택했습니다.</strong></p>
           <div class="lhai-par-bid__actions">
@@ -117,6 +120,7 @@
             고객이 선택하면 메시지를 시작할 수 있습니다.
           </div>
         </section>
+        </div>
       </div>
     </main>
   </div>

@@ -1418,3 +1418,96 @@
 .lhai-chat-composer--bid-locked .lhai-chat-composer__input {
   opacity: 0.65;
 }
+
+.lhai-customer-bid-panel__car-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--lhai-space-3, 0.75rem);
+  margin: var(--lhai-space-3, 0.75rem) 0;
+  font-size: 0.88rem;
+}
+
+.lhai-customer-bid-panel__car-summary dt {
+  font-size: 0.72rem;
+  color: var(--lhai-color-muted, #8fa3b5);
+  margin-bottom: 2px;
+}
+
+.lhai-customer-bid-panel__car-summary dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.lhai-customer-bid-panel__car-cta {
+  margin-top: var(--lhai-space-3, 0.75rem);
+}
+
+/* Step 10: CAR_PURCHASE 고정 비딩 배너 (메시지 스트림 위) */
+.lhai-messages-car-bid-banner-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.lhai-messages-car-bid-banner {
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-md, 8px);
+  padding: var(--lhai-space-4, 1rem);
+  background: linear-gradient(180deg, rgb(59 110 165 / 0.12) 0%, var(--lhai-color-surface, #121a24) 100%);
+}
+
+.lhai-messages-car-bid-banner--expired {
+  border-color: rgb(200 140 40 / 0.45);
+  background: rgb(200 140 40 / 0.08);
+}
+
+.lhai-messages-car-bid-banner--selected {
+  border-color: rgb(60 140 90 / 0.45);
+  background: rgb(60 140 90 / 0.08);
+}
+
+.lhai-messages-car-bid-banner__title {
+  margin: 0 0 var(--lhai-space-2, 0.5rem);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.lhai-messages-car-bid-banner__desc,
+.lhai-messages-car-bid-banner__line {
+  margin: 0 0 var(--lhai-space-2, 0.5rem);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.lhai-messages-car-bid-banner__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--lhai-space-3, 0.75rem);
+  margin: var(--lhai-space-3, 0.75rem) 0;
+}
+
+.lhai-messages-car-bid-banner__stats dt {
+  font-size: 0.72rem;
+  color: var(--lhai-color-muted, #8fa3b5);
+  margin-bottom: 2px;
+}
+
+.lhai-messages-car-bid-banner__stats dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.lhai-messages-car-bid-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2, 0.5rem);
+  margin-top: var(--lhai-space-3, 0.75rem);
+}
+
+.lhai-messages-bid-entry__cta {
+  margin: var(--lhai-space-3, 0.75rem) 0 0;
+}
+
+.lhai-chat-bubble--bid-entry {
+  border-left: 3px solid var(--lhai-color-primary, #3b6ea5);
+}

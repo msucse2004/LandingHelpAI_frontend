@@ -23,8 +23,24 @@ import {
 import { coerceToIsoDateInputValue, effectiveIntakeInputType, shouldHideIntakeBlockTitle } from "../intake/intake-form-presentation.js";
 import { formatMessageTimestamp, resolveBackendMediaUrl, safeText } from "../core/utils.js";
 import { getRealtimeStatus, subscribeRealtimeEvents } from "../core/realtime-client.js";
+import {
+  buildCustomerBidResultsHref,
+  isCarPurchaseBidUpdatedPayload,
+  normalizeBidUpdatedPayload,
+  showBidUpdatedToast,
+} from "../core/bid-realtime.js";
 import { t } from "../core/i18n-client.js";
 import { bindMessageAiFeedback, buildAiFeedbackHtml } from "./message-ai-feedback.js";
+import {
+  buildCustomerBidResultsPageHref,
+  formatCountdownToExpiry,
+  formatMoney,
+  formatQuoteRequestUsage,
+  formatRelativeTimeKo,
+  isCarPurchaseBidListResponse,
+  resolveCustomerBidDisplayPhase,
+} from "./customer-bid-results-logic.js";
+import { formatBidDeadlineForUi } from "../core/bid-deadline-display.js";
 import {
   assertServiceItemUuid,
   intakeStartServiceItemIdFromCardJson,
@@ -126,8 +142,29 @@ let operatorInboxMode = false;
 /** init 시점에 한 번 설정 — 파트너는 partner_threads API만 사용 */
 let partnerInboxMode = false;
 /** 같은 스레드에서만 유지되는 고객 견적 패널 스냅샷 */
-/** @type {{ bid_request_id?: string, status: string, bids: Array<Record<string, unknown>> } | null} */
+/** @type {Record<string, unknown> | null} */
 let customerBidPanelSnapshot = null;
+/** @type {ReturnType<typeof setInterval> | null} */
+let customerBidCountdownTimer = null;
+
+function stopCustomerBidCountdownTimer() {
+  if (customerBidCountdownTimer != null) {
+    clearInterval(customerBidCountdownTimer);
+    customerBidCountdownTimer = null;
+  }
+}
+
+function startCustomerBidCountdownTimer() {
+  stopCustomerBidCountdownTimer();
+  const tick = () => {
+    const el = document.querySelector("#messageCarBidCountdown");
+    const snap = customerBidPanelSnapshot;
+    if (!(el instanceof HTMLElement) || !snap) return;
+    el.textContent = formatBidDeadlineForUi(snap);
+  };
+  customerBidCountdownTimer = window.setInterval(tick, 60000);
+  tick();
+}
 let customerBidPanelAwaitingFetch = false;
 /** 스레드 전환 시 초기화 — 같은 스레드 재조회에서는 선택 완료 배너 유지 */
 let customerBidPanelBoundThreadId = "";
@@ -1651,15 +1688,23 @@ function renderChatBubbles(options = {}) {
           : null;
       const intakeSummaryKind = String(meta?.kind || "").trim();
       const isPartnerIntakeSummary = intakeSummaryKind === "partner_intake_submission_summary";
+      const isBidComparisonEntry = intakeSummaryKind === "bid_comparison_entry";
       const bubbleClass = [
         mine ? "lhai-chat-bubble--me" : "lhai-chat-bubble--them",
         isForm ? "lhai-chat-bubble--form-prompt" : "",
         isIntakeContent ? "lhai-chat-bubble--intake-content" : "",
         isWorkflowCard ? "lhai-chat-bubble--workflow-card" : "",
+        isBidComparisonEntry ? "lhai-chat-bubble--bid-entry" : "",
       ]
         .filter(Boolean)
         .join(" ");
-      const showTitle = !mine && (Boolean(m.title) || isPartnerIntakeSummary) && !isForm && !isIntakeContent && !isWorkflowCard;
+      const showTitle =
+        !mine &&
+        (Boolean(m.title) || isPartnerIntakeSummary) &&
+        !isForm &&
+        !isIntakeContent &&
+        !isWorkflowCard &&
+        !isBidComparisonEntry;
       const resolvedTitle = isPartnerIntakeSummary ? "고객 신청서" : String(m.title || "");
       const titleLine = showTitle ? `<div class="lhai-chat-bubble__title">${escapeHtml(resolvedTitle)}</div>` : "";
 
@@ -1671,10 +1716,13 @@ function renderChatBubbles(options = {}) {
         formBlock = renderIntakeThreadContentBlockBubble(up);
       } else if (isWorkflowCard) {
         formBlock = renderWorkflowCardBubble(m, up);
+      } else if (isBidComparisonEntry && meta) {
+        formBlock = renderBidComparisonEntryBubbleHtml(meta);
       }
 
       const bodyBlock =
-        (isForm || isIntakeContent || isWorkflowCard) && (up || isWorkflowCard)
+        (isForm || isIntakeContent || isWorkflowCard || isBidComparisonEntry) &&
+        (up || isWorkflowCard || isBidComparisonEntry)
           ? formBlock
           : `<p class="lhai-chat-bubble__body">${escapeHtml(String(scheduleReleasedMessageDisplayBody(m)))}</p>`;
 
@@ -1873,6 +1921,81 @@ function renderCustomerBidCardHtml(bid, requestStatus) {
     </article>`;
 }
 
+/** @param {Record<string, unknown>} snap */
+function renderCustomerCarBidBannerHtml(snap) {
+  const wid = customerBidServiceRequestId();
+  const href = buildCustomerBidResultsPageHref(wid, selectedThreadId);
+  const phase = resolveCustomerBidDisplayPhase(
+    String(snap.status || "OPEN"),
+    snap.expires_at != null ? String(snap.expires_at) : ""
+  );
+  const offerCount =
+    snap.offer_count != null
+      ? Number(snap.offer_count)
+      : Array.isArray(snap.offers)
+        ? snap.offers.length
+        : 0;
+  const recent = formatRelativeTimeKo(snap.recent_updated_at != null ? String(snap.recent_updated_at) : "");
+  const countdown = formatBidDeadlineForUi(snap);
+
+  if (phase === "CUSTOMER_SELECTED") {
+    const sel =
+      snap.selected_offer_summary && typeof snap.selected_offer_summary === "object"
+        ? /** @type {Record<string, unknown>} */ (snap.selected_offer_summary)
+        : null;
+    const title = sel ? String(sel.vehicle_title || "선택한 제안") : "선택한 제안";
+    const total = sel ? formatMoney(sel.estimated_total, String(sel.currency || "USD")) : "—";
+    return `
+      <div class="lhai-messages-car-bid-banner lhai-messages-car-bid-banner--selected" role="region" aria-label="파트너 선택 완료">
+        <p class="lhai-messages-car-bid-banner__title">파트너 선택 완료</p>
+        <p class="lhai-messages-car-bid-banner__line">선택한 제안: <strong>${escapeHtml(title)}</strong></p>
+        <p class="lhai-messages-car-bid-banner__line">예상 총액: <strong>${escapeHtml(total)}</strong></p>
+        <div class="lhai-messages-car-bid-banner__actions">
+          <button type="button" class="lhai-button lhai-button--secondary" data-lhai-focus-composer>메시지 열기</button>
+          <a class="lhai-button lhai-button--primary" href="${escapeHtml(href)}">선택한 제안 보기</a>
+        </div>
+      </div>`;
+  }
+
+  if (phase === "EXPIRED") {
+    return `
+      <div class="lhai-messages-car-bid-banner lhai-messages-car-bid-banner--expired" role="region" aria-label="비딩 종료">
+        <p class="lhai-messages-car-bid-banner__title">비딩이 종료되었습니다.</p>
+        <p class="lhai-messages-car-bid-banner__desc">현재까지 도착한 제안 중 하나를 선택해 주세요.</p>
+        <div class="lhai-messages-car-bid-banner__actions">
+          <a class="lhai-button lhai-button--primary" href="${escapeHtml(href)}">제안 선택하기</a>
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div class="lhai-messages-car-bid-banner" role="region" aria-label="자동차 구매 견적">
+      <p class="lhai-messages-car-bid-banner__title">자동차 구매 견적 진행 중</p>
+      <dl class="lhai-messages-car-bid-banner__stats">
+        <div><dt>도착한 제안</dt><dd>${escapeHtml(String(offerCount))}개</dd></div>
+        <div><dt>최근 업데이트</dt><dd>${escapeHtml(recent)}</dd></div>
+        <div><dt>비딩 마감까지</dt><dd id="messageCarBidCountdown">${escapeHtml(countdown)}</dd></div>
+      </dl>
+      <div class="lhai-messages-car-bid-banner__actions">
+        <a class="lhai-button lhai-button--primary" href="${escapeHtml(href)}">견적 비교하기</a>
+      </div>
+    </div>`;
+}
+
+/** @param {Record<string, unknown>} meta */
+function renderBidComparisonEntryBubbleHtml(meta) {
+  const wid = customerBidServiceRequestId() || String(meta.service_request_id || "").trim();
+  const href = buildCustomerBidResultsPageHref(wid, selectedThreadId);
+  return `
+    <div class="lhai-chat-bubble lhai-chat-bubble--bid-entry">
+      <div class="lhai-chat-bubble__title">${escapeHtml("자동차 견적 요청이 시작되었습니다")}</div>
+      <p class="lhai-chat-bubble__body">${escapeHtml("파트너들이 견적을 제출하면 견적 비교 화면에서 확인할 수 있습니다.")}</p>
+      <p class="lhai-messages-bid-entry__cta">
+        <a class="lhai-button lhai-button--primary" href="${escapeHtml(href)}">견적 비교 화면 열기</a>
+      </p>
+    </div>`;
+}
+
 function renderCustomerBidPanelInnerHtml() {
   const snap = customerBidPanelSnapshot;
   const intro = `<p class="lhai-customer-bid-panel__intro">${escapeHtml(BIDDING_POST_INTRO_TEXT_KO)}</p>`;
@@ -1908,9 +2031,25 @@ function renderCustomerBidPanelErrorHtml(message) {
   return `${head}${intro}<p class="lhai-state lhai-state--error">${escapeHtml(message)}</p>`;
 }
 
-async function refreshCustomerBidPanel() {
+function hideCustomerBiddingUi() {
+  const banner = document.querySelector("#messageCarBidBanner");
   const panel = document.querySelector("#messageBidResultsPanel");
-  if (!(panel instanceof HTMLElement)) return;
+  if (banner instanceof HTMLElement) {
+    banner.hidden = true;
+    banner.innerHTML = "";
+  }
+  if (panel instanceof HTMLElement) {
+    panel.hidden = true;
+    panel.innerHTML = "";
+  }
+  customerBidPanelSnapshot = null;
+  customerBidPanelAwaitingFetch = false;
+  stopCustomerBidCountdownTimer();
+}
+
+async function refreshCustomerBidPanel() {
+  const banner = document.querySelector("#messageCarBidBanner");
+  const panel = document.querySelector("#messageBidResultsPanel");
 
   if (customerBidPanelBoundThreadId !== selectedThreadId) {
     customerBidPanelBoundThreadId = selectedThreadId;
@@ -1920,25 +2059,18 @@ async function refreshCustomerBidPanel() {
   }
 
   if (!isCustomerServiceBiddingThreadContext()) {
-    panel.hidden = true;
-    panel.innerHTML = "";
-    customerBidPanelSnapshot = null;
-    customerBidPanelAwaitingFetch = false;
+    hideCustomerBiddingUi();
     syncCustomerComposerBidGate();
     return;
   }
 
   const wid = customerBidServiceRequestId();
   if (!wid) {
-    panel.hidden = true;
-    panel.innerHTML = "";
-    customerBidPanelSnapshot = null;
-    customerBidPanelAwaitingFetch = false;
+    hideCustomerBiddingUi();
     syncCustomerComposerBidGate();
     return;
   }
 
-  panel.hidden = false;
   customerBidPanelAwaitingFetch = true;
   syncCustomerComposerBidGate();
 
@@ -1948,7 +2080,11 @@ async function refreshCustomerBidPanel() {
   } catch (err) {
     const msg = err && typeof err.message === "string" ? err.message : "견적 정보를 불러오지 못했습니다.";
     customerBidPanelSnapshot = null;
-    panel.innerHTML = renderCustomerBidPanelErrorHtml(msg);
+    if (banner instanceof HTMLElement) {
+      banner.hidden = false;
+      banner.innerHTML = `<p class="lhai-state lhai-state--error">${escapeHtml(msg)}</p>`;
+    }
+    if (panel instanceof HTMLElement) panel.hidden = true;
     customerBidPanelAwaitingFetch = false;
     syncCustomerComposerBidGate();
     return;
@@ -1959,11 +2095,43 @@ async function refreshCustomerBidPanel() {
       ? {
           bid_request_id: String(snap.bid_request_id || ""),
           status: String(snap.status || "OPEN").trim().toUpperCase(),
+          bidding_mode: snap.bidding_mode != null ? String(snap.bidding_mode) : "",
           bids: Array.isArray(snap.bids) ? snap.bids : [],
+          offers: Array.isArray(snap.offers) ? snap.offers : snap.offers === null ? null : [],
+          expires_at: snap.expires_at != null ? String(snap.expires_at) : "",
+          is_expired: snap.is_expired === true,
+          remaining_label: snap.remaining_label != null ? String(snap.remaining_label) : "",
+          bid_deadline:
+            snap.bid_deadline && typeof snap.bid_deadline === "object" ? snap.bid_deadline : null,
+          offer_count: snap.offer_count,
+          partner_count: snap.partner_count,
+          recent_updated_at: snap.recent_updated_at != null ? String(snap.recent_updated_at) : "",
+          quote_request_usage: snap.quote_request_usage,
+          customer_vehicle_requests: snap.customer_vehicle_requests,
+          selected_offer_summary: snap.selected_offer_summary,
         }
       : null;
   customerBidPanelAwaitingFetch = false;
-  panel.innerHTML = renderCustomerBidPanelInnerHtml();
+
+  const isCar = isCarPurchaseBidListResponse(customerBidPanelSnapshot);
+  if (isCar && banner instanceof HTMLElement) {
+    banner.hidden = false;
+    banner.innerHTML = renderCustomerCarBidBannerHtml(
+      /** @type {Record<string, unknown>} */ (customerBidPanelSnapshot)
+    );
+    startCustomerBidCountdownTimer();
+    if (panel instanceof HTMLElement) {
+      panel.hidden = true;
+      panel.innerHTML = "";
+    }
+  } else if (panel instanceof HTMLElement) {
+    if (banner instanceof HTMLElement) {
+      banner.hidden = true;
+      banner.innerHTML = "";
+    }
+    panel.hidden = false;
+    panel.innerHTML = renderCustomerBidPanelInnerHtml();
+  }
   syncCustomerComposerBidGate();
 }
 
@@ -2062,6 +2230,7 @@ function renderMessageDetailShell(threadMeta) {
     ${intakeDiagBlock}
     ${customerExtras}
     <div id="messageWorkflowSummary" class="lhai-thread-workflow-summary" hidden></div>
+    <section id="messageCarBidBanner" class="lhai-messages-car-bid-banner-wrap u-mb-2" hidden aria-label="자동차 구매 견적 안내"></section>
     <section id="messageBidResultsPanel" class="lhai-customer-bid-panel u-mb-2" hidden aria-label="파트너 견적 비교"></section>
     <div id="messageChatScroll" class="lhai-chat-scroll" role="log" aria-live="polite">
       <div id="messageChatStream" class="lhai-chat-stream"></div>
@@ -2711,6 +2880,35 @@ async function handleMessagesRealtimeEvent(detail) {
     return;
   }
 
+  if (type === "bid.updated") {
+    const bidPayload = normalizeBidUpdatedPayload({ type, data });
+    if (!isCarPurchaseBidUpdatedPayload(bidPayload)) return;
+    const wfId = String(
+      bidPayload.workflow_instance_id || bidPayload.service_request_id || "",
+    ).trim();
+    const evtThreadId = String(bidPayload.thread_id || threadId || "").trim();
+    const ourWid = customerBidServiceRequestId();
+    const matchThread = sameThread || Boolean(evtThreadId && selectedThreadId && evtThreadId === selectedThreadId);
+    const matchWf = Boolean(wfId && ourWid && wfId === ourWid);
+    if (matchThread || matchWf) {
+      messagesRtDebug("bid.updated — refresh car bid banner only (no stream reload)");
+      await refreshCustomerBidPanel();
+    } else if (typeof document !== "undefined" && document.visibilityState === "visible") {
+      const href = buildCustomerBidResultsHref(wfId, evtThreadId);
+      showBidUpdatedToast({
+        title: "자동차 견적이 업데이트되었습니다.",
+        cta: "견적 보기",
+        href,
+      });
+    }
+    window.dispatchEvent(
+      new CustomEvent("lhai:customer-bid-updated", {
+        detail: { thread_id: evtThreadId, workflow_instance_id: wfId },
+      })
+    );
+    return;
+  }
+
   if (type === "unread.changed" || type === "thread.updated") {
     messagesRtDebug("list refresh start", type);
     await refreshThreadListOnly({ syncHeader: true, reloadCurrentMessages: false, reason: type });
@@ -2896,6 +3094,16 @@ async function initMessagesPage() {
 
   detail?.addEventListener("click", (event) => {
     const t = event.target;
+    const focusComposer = t instanceof Element ? t.closest("[data-lhai-focus-composer]") : null;
+    if (focusComposer instanceof HTMLButtonElement) {
+      event.preventDefault();
+      const input = document.querySelector("#messageChatInput");
+      if (input instanceof HTMLTextAreaElement) {
+        input.focus();
+        input.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+      return;
+    }
     const bidSel = t instanceof Element ? t.closest("[data-lhai-select-bid]") : null;
     if (bidSel instanceof HTMLButtonElement) {
       event.preventDefault();

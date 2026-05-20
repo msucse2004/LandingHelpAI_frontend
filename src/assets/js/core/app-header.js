@@ -13,6 +13,14 @@ import { initLogoutButtons } from "./logout-button.js";
 import { getAccessToken, getCurrentRole, getCustomerMessagingProfileId } from "./auth.js";
 import { messagesApi, partnerThreadsApi } from "./api.js";
 import { startRealtimeClient, subscribeRealtimeEvents, getRealtimeStatus, realtimeDebugLive } from "./realtime-client.js";
+import {
+  buildCustomerBidResultsHref,
+  isCarPurchaseBidUpdatedPayload,
+  isCustomerBidResultsHtmlPage,
+  isCustomerDashboardHtmlPage,
+  normalizeBidUpdatedPayload,
+  showBidUpdatedToast,
+} from "./bid-realtime.js";
 import { ROLES } from "./config.js";
 
 const MAIL_ICON_SVG = `
@@ -242,6 +250,29 @@ function wireHeaderRealtimeHandlers() {
       } else if (type === "thread.updated") {
         rtDebug("badge refresh", type, "reason: thread.updated (optional) → suppressPopup true");
         await refreshHeaderMailUnreadBadgeWithPopup({ suppressPopup: true });
+      }
+
+      if (type === "bid.updated" && getCurrentRole() === ROLES.CUSTOMER) {
+        const bidPayload = normalizeBidUpdatedPayload(event);
+        if (isCarPurchaseBidUpdatedPayload(bidPayload)) {
+          const onDedicatedPage =
+            isMessagesHtmlPage() || isCustomerBidResultsHtmlPage() || isCustomerDashboardHtmlPage();
+          if (
+            !onDedicatedPage &&
+            typeof document !== "undefined" &&
+            document.visibilityState === "visible"
+          ) {
+            const wid = String(
+              bidPayload.workflow_instance_id || bidPayload.service_request_id || "",
+            ).trim();
+            const tid = String(bidPayload.thread_id || "").trim();
+            showBidUpdatedToast({
+              title: "자동차 견적이 업데이트되었습니다.",
+              cta: "견적 보기",
+              href: buildCustomerBidResultsHref(wid, tid),
+            });
+          }
+        }
       }
 
       if (type !== "message.created") return;

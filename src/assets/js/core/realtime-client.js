@@ -5,7 +5,14 @@
 import { getAccessToken } from "./auth.js";
 import { resolveApiBaseUrl } from "./config.js";
 
-const EVENT_NAMES = ["message.created", "thread.updated", "unread.changed", "thread.read", "heartbeat"];
+const EVENT_NAMES = [
+  "message.created",
+  "thread.updated",
+  "unread.changed",
+  "thread.read",
+  "bid.updated",
+  "heartbeat",
+];
 const WINDOW_REALTIME = "lhai:realtime-event";
 const WINDOW_STATUS = "lhai:realtime-status";
 

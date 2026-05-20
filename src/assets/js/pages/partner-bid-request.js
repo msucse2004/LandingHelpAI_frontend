@@ -4,6 +4,13 @@
  */
 import { applyPartnerBiddingSidebarMessagingHide, loadSidebar } from "../components/sidebar.js";
 import { partnerThreadsApi } from "../core/api.js";
+import { subscribeRealtimeEvents } from "../core/realtime-client.js";
+import {
+  isCarPurchaseBidUpdatedPayload,
+  isPartnerBidRequestHtmlPage,
+  normalizeBidUpdatedPayload,
+  showBidUpdatedToast,
+} from "../core/bid-realtime.js";
 import { getCurrentRole } from "../core/auth.js";
 import { ROLES } from "../core/config.js";
 import { refreshPartnerModeSession } from "../core/partner-mode-session.js";
@@ -11,6 +18,8 @@ import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { syncHeaderRoleBadge } from "../core/role-header-badge.js";
 import { clearShellTopLayerBlockers } from "../core/ui-blockers.js";
 import { formatMessageTimestamp } from "../core/utils.js";
+import { isCarPurchaseBiddingMode, resolvePartnerBidEditable } from "./partner-bid-request-car-logic.js";
+import { mountCarPurchaseBidUi } from "./partner-bid-request-car-ui.js";
 
 /** @param {unknown} err */
 function httpStatusFromError(err) {
@@ -56,6 +65,12 @@ function getExpiresAtFromQuery() {
   return v && String(v).trim() ? String(v).trim() : "";
 }
 
+/** 대시보드에서 넘긴 bid_request.status (OPEN | CUSTOMER_SELECTED | CLOSED) */
+function getRequestStatusFromQuery() {
+  const v = new URLSearchParams(window.location.search).get("request_status");
+  return v && String(v).trim() ? String(v).trim().toUpperCase() : "OPEN";
+}
+
 /** @param {string} bidStatus */
 function requestStatusHeroLabel(bidStatus) {
   const b = String(bidStatus || "").trim().toUpperCase();
@@ -78,8 +93,55 @@ function includedItemsToText(items) {
   return String(items).trim();
 }
 
-/** @param {Record<string, unknown>} data */
-function applyDetailToDom(data) {
+/**
+ * GENERAL bidding — 기존 단순 견적 폼.
+ * @param {Record<string, unknown>} data
+ * @param {{ expiresAtQuery: string, requestStatusQuery: string }} ctx
+ */
+function renderLegacyBidRequest(data, ctx) {
+  const legacyRoot = document.querySelector("#partnerBidLegacyRoot");
+  const carRoot = document.querySelector("#partnerBidCarRoot");
+  const sharedHero = document.querySelector("#partnerBidSharedHero");
+  if (legacyRoot instanceof HTMLElement) legacyRoot.hidden = false;
+  if (carRoot instanceof HTMLElement) {
+    carRoot.hidden = true;
+    carRoot.innerHTML = "";
+  }
+  if (sharedHero instanceof HTMLElement) sharedHero.hidden = false;
+
+  applyLegacyDetailToDom(data, ctx);
+}
+
+/**
+ * CAR_PURCHASE — 자동차 견적 UI.
+ * @param {Record<string, unknown>} data
+ * @param {object} mountCtx
+ */
+function renderCarPurchaseBidRequest(data, mountCtx) {
+  const legacyRoot = document.querySelector("#partnerBidLegacyRoot");
+  const carRoot = document.querySelector("#partnerBidCarRoot");
+  const sharedHero = document.querySelector("#partnerBidSharedHero");
+  if (legacyRoot instanceof HTMLElement) legacyRoot.hidden = true;
+  if (sharedHero instanceof HTMLElement) sharedHero.hidden = true;
+  if (!(carRoot instanceof HTMLElement)) return;
+
+  carRoot.hidden = false;
+  const svc =
+    data.service && typeof data.service === "object"
+      ? /** @type {Record<string, unknown>} */ (data.service)
+      : {};
+  const svcName = String(svc.name || "자동차 구매 견적");
+  setText("#partnerBidPageTitle", svcName);
+  setText("#partnerBidPageSubtitle", `요청 ID · ${String(data.bid_request_id || "").trim() || "—"}`);
+  setText("#partnerBidRequestStatus", requestStatusHeroLabel(normalizeBidStatus(
+    data.bid && typeof data.bid === "object" ? data.bid : {}
+  )));
+
+  mountCarPurchaseBidUi(carRoot, mountCtx);
+}
+
+/** @param {Record<string, unknown>} data @param {{ expiresAtQuery: string, requestStatusQuery: string }} ctx */
+function applyLegacyDetailToDom(data, ctx) {
   const svc =
     data.service && typeof data.service === "object"
       ? /** @type {Record<string, unknown>} */ (data.service)
@@ -94,7 +156,11 @@ function applyDetailToDom(data) {
     data.bid && typeof data.bid === "object" ? /** @type {Record<string, unknown>} */ (data.bid) : {};
 
   const bidStatus = normalizeBidStatus(bid);
-  const isEditable = bidStatus === "NOT_SUBMITTED" || bidStatus === "SUBMITTED";
+  const isEditable = resolvePartnerBidEditable({
+    bidStatus,
+    expiresAt: ctx.expiresAtQuery,
+    requestStatus: ctx.requestStatusQuery,
+  });
   const isSelected = bidStatus === "SELECTED";
   const isTerminalClosed = bidStatus === "CLOSED" || bidStatus === "REJECTED";
 
@@ -105,7 +171,7 @@ function applyDetailToDom(data) {
 
   setText("#partnerBidRequestStatus", requestStatusHeroLabel(bidStatus));
 
-  const expHint = getExpiresAtFromQuery();
+  const expHint = ctx.expiresAtQuery;
   setText("#partnerBidExpires", expHint ? formatMessageTimestamp(expHint) : "—");
 
   setText("#partnerBidCustName", String(cust.display_name || "—"));
@@ -158,14 +224,25 @@ function applyDetailToDom(data) {
     const pa = bid.price_amount;
     priceEl.value =
       pa != null && pa !== "" && Number.isFinite(Number(pa)) ? String(pa) : "";
+    priceEl.disabled = !isEditable;
   }
   if (curEl instanceof HTMLSelectElement) {
     const c = String(bid.price_currency || "USD").trim().toUpperCase().slice(0, 3);
     curEl.value = ["USD", "KRW", "EUR"].includes(c) ? c : "USD";
+    curEl.disabled = !isEditable;
   }
-  if (etaEl instanceof HTMLInputElement) etaEl.value = String(bid.estimated_time || "");
-  if (incEl instanceof HTMLTextAreaElement) incEl.value = includedItemsToText(bid.included_items);
-  if (msgEl instanceof HTMLTextAreaElement) msgEl.value = String(bid.message_to_customer || "");
+  if (etaEl instanceof HTMLInputElement) {
+    etaEl.value = String(bid.estimated_time || "");
+    etaEl.disabled = !isEditable;
+  }
+  if (incEl instanceof HTMLTextAreaElement) {
+    incEl.value = includedItemsToText(bid.included_items);
+    incEl.disabled = !isEditable;
+  }
+  if (msgEl instanceof HTMLTextAreaElement) {
+    msgEl.value = String(bid.message_to_customer || "");
+    msgEl.disabled = !isEditable;
+  }
 
   if (submitBtn instanceof HTMLButtonElement) {
     submitBtn.textContent = bidStatus === "SUBMITTED" ? "견적 수정 제출" : "견적 제출";
@@ -204,6 +281,8 @@ async function init() {
   applyPartnerBiddingSidebarMessagingHide();
 
   const bidRequestId = getBidRequestIdFromLocation();
+  const expiresAtQuery = getExpiresAtFromQuery();
+  const requestStatusQuery = getRequestStatusFromQuery();
   const loadingEl = document.querySelector("#partnerBidLoading");
   const mainEl = document.querySelector("#partnerBidMain");
   const errEl = document.querySelector("#partnerBidError");
@@ -247,7 +326,74 @@ async function init() {
 
   /** @type {Record<string, unknown>} */
   let latestDetail = /** @type {Record<string, unknown>} */ (detail);
-  applyDetailToDom(latestDetail);
+
+  const bidRequestBlock =
+    detail.bid_request && typeof detail.bid_request === "object"
+      ? /** @type {Record<string, unknown>} */ (detail.bid_request)
+      : null;
+  const expiresAtEffective =
+    bidRequestBlock?.expires_at != null
+      ? String(bidRequestBlock.expires_at)
+      : expiresAtQuery;
+  const pageCtx = { expiresAtQuery: expiresAtEffective, requestStatusQuery };
+
+  /** @param {Record<string, unknown>} data */
+  function renderBidRequestView(data) {
+    const brBlock =
+      data.bid_request && typeof data.bid_request === "object"
+        ? /** @type {Record<string, unknown>} */ (data.bid_request)
+        : bidRequestBlock;
+    const expEff =
+      brBlock?.expires_at != null ? String(brBlock.expires_at) : expiresAtEffective;
+    if (isCarPurchaseBiddingMode(data.bidding_mode)) {
+      renderCarPurchaseBidRequest(data, {
+        data,
+        expiresAtQuery: expEff,
+        requestStatusQuery,
+        bidRequestBlock: brBlock,
+        onDetailUpdate: (next) => {
+          latestDetail = /** @type {Record<string, unknown>} */ (next);
+          renderBidRequestView(latestDetail);
+        },
+        submitFn: (payload) => partnerThreadsApi.submitBidRequest(bidRequestId, payload),
+      });
+    } else {
+      renderLegacyBidRequest(data, pageCtx);
+    }
+  }
+
+  renderBidRequestView(latestDetail);
+
+  subscribeRealtimeEvents((ev) => {
+    const type = String(ev?.type || "").trim();
+    if (type !== "bid.updated") return;
+    const payload = normalizeBidUpdatedPayload(ev);
+    if (!isCarPurchaseBidUpdatedPayload(payload)) return;
+    const evtBr = String(payload.bid_request_id || "").trim();
+    const evtTid = String(payload.thread_id || "").trim();
+    if (evtBr && evtBr !== bidRequestId) return;
+    void (async () => {
+      try {
+        const next = await partnerThreadsApi.bidRequestDetail(bidRequestId);
+        latestDetail = /** @type {Record<string, unknown>} */ (next);
+        renderBidRequestView(latestDetail);
+      } catch {
+        /* ignore reload errors */
+      }
+    })();
+    if (
+      isPartnerBidRequestHtmlPage() &&
+      typeof document !== "undefined" &&
+      document.visibilityState === "visible"
+    ) {
+      const href = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      showBidUpdatedToast({
+        title: "비딩 정보가 업데이트되었습니다.",
+        cta: "확인",
+        href,
+      });
+    }
+  });
 
   const showError = (msg) => {
     window.alert(msg);
@@ -271,6 +417,8 @@ async function init() {
   if (form instanceof HTMLFormElement) {
     form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
+      if (isCarPurchaseBiddingMode(latestDetail.bidding_mode)) return;
+
       if (formErr instanceof HTMLElement) {
         formErr.hidden = true;
         formErr.textContent = "";
@@ -302,7 +450,7 @@ async function init() {
       try {
         const next = await partnerThreadsApi.submitBidRequest(bidRequestId, payload);
         latestDetail = /** @type {Record<string, unknown>} */ (next);
-        applyDetailToDom(latestDetail);
+        renderBidRequestView(latestDetail);
         window.alert("견적이 저장되었습니다.");
       } catch (err) {
         const msg =
@@ -318,7 +466,13 @@ async function init() {
             ? /** @type {Record<string, unknown>} */ (latestDetail.bid)
             : {};
         const bs = normalizeBidStatus(bRaw);
-        if (btn instanceof HTMLButtonElement) btn.disabled = !(bs === "NOT_SUBMITTED" || bs === "SUBMITTED");
+        if (btn instanceof HTMLButtonElement) {
+          btn.disabled = !resolvePartnerBidEditable({
+            bidStatus: bs,
+            expiresAt: expiresAtQuery,
+            requestStatus: requestStatusQuery,
+          });
+        }
       }
     });
   }

@@ -810,15 +810,9 @@
                               </select>
                             </div>
                           </div>
-                          <p class="lhai-label u-mt-2" data-i18n="common.admin_services.workflow.label.after_selection">After customer selection</p>
-                          <label class="lhai-label" for="mswMultiAfterHasAccount" data-i18n="common.admin_services.workflow.label.after_has_account">파트너에게 계정이 있을 때</label>
-                          <select class="lhai-select" id="mswMultiAfterHasAccount">
-                            <option value="add_thread" data-i18n="common.admin_services.workflow.after.opt_thread">기존 서비스 스레드에 연결</option>
-                          </select>
-                          <label class="lhai-label u-mt-2" for="mswMultiAfterNoAccount" data-i18n="common.admin_services.workflow.label.after_no_account">파트너에게 계정이 없을 때</label>
-                          <select class="lhai-select" id="mswMultiAfterNoAccount">
-                            <option value="email_summary" data-i18n="common.admin_services.workflow.after.opt_email">이메일 후속 + 고객에게 요약 표시</option>
-                          </select>
+                          <p class="lhai-help u-mt-2" data-i18n="common.admin_services.workflow.multi_partner_account_policy">
+                            파트너는 앱 계정이 있는 BIDDING_ONLY 파트너만 매칭됩니다. 고객이 선택하면 선택된 파트너가 서비스 메시지 스레드에 연결됩니다.
+                          </p>
                           <p class="lhai-help u-mt-2" data-i18n="common.admin_services.workflow.email_threshold_help">
                             이메일로 온 파트너 답변을 자동으로 고객에게 반영할 때, AI가 판단한 신뢰도가 이 숫자 이상일 때만 바로 반영합니다. 비워 두면 서버 기본값을 씁니다.
                           </p>

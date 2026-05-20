@@ -682,8 +682,6 @@ function mswDefaultSlice(type) {
         min_responses: 1,
         timeout_hours: 48,
         ranking_rule: "low_price_first",
-        after_has_account: "add_thread",
-        after_no_account: "email_summary",
       };
     default:
       return {};
@@ -694,6 +692,8 @@ function mswMergeDefaults(type, partial) {
   const merged = { ...mswDefaultSlice(type), ...(partial && typeof partial === "object" ? partial : {}) };
   if (type === "MULTI_PARTNER_QUOTE_AND_SELECT") {
     delete merged.request_type;
+    delete merged.after_has_account;
+    delete merged.after_no_account;
   }
   return merged;
 }
@@ -993,8 +993,6 @@ function mswExtractSliceFromDom(type) {
         min_responses: Number.isFinite(minR) ? Math.max(0, Math.min(99, minR)) : 1,
         timeout_hours: Number.isFinite(hrs) ? Math.max(1, Math.min(720, hrs)) : 48,
         ranking_rule: mswVal("mswMultiRankingRule", "low_price_first") || "low_price_first",
-        after_has_account: mswVal("mswMultiAfterHasAccount", "add_thread") || "add_thread",
-        after_no_account: mswVal("mswMultiAfterNoAccount", "email_summary") || "email_summary",
       };
     }
     default:
@@ -1136,10 +1134,6 @@ function mswApplySliceToDom(type, sliceIn) {
       const allowed = ["low_price_first", "high_rating_first", "fast_response_first", "manual"];
       rk.value = allowed.includes(v) ? v : "low_price_first";
     }
-    const ah = qs("#mswMultiAfterHasAccount");
-    if (ah instanceof HTMLSelectElement) ah.value = slice.after_has_account || "add_thread";
-    const an = qs("#mswMultiAfterNoAccount");
-    if (an instanceof HTMLSelectElement) an.value = slice.after_no_account || "email_summary";
   }
 }
 
@@ -1546,24 +1540,12 @@ function mswBuildPreviewSections() {
         "고객은 받은 제안을 비교하고({rule} 기준), 원하는 파트너를 선택합니다."
       ).replace("{rule}", rk || t("common.admin_services.workflow.preview.rule_fallback", "설정한 정렬"))
     );
-    const afterAcct = mswVal("mswMultiAfterHasAccount", "add_thread") || "add_thread";
-    const afterNo = mswVal("mswMultiAfterNoAccount", "email_summary") || "email_summary";
-    if (afterAcct === "add_thread") {
-      steps.push(
-        t(
-          "common.admin_services.workflow.preview.step.multi_in_app",
-          "선택된 파트너에게 앱 계정이 있으면, 고객 서비스 메시지방에 초대되어 이후 대화를 이어갑니다."
-        )
-      );
-    }
-    if (afterNo === "email_summary") {
-      steps.push(
-        t(
-          "common.admin_services.workflow.preview.step.multi_email",
-          "앱 계정이 없는 파트너는 이메일로 후속 견적·조율이 진행되며, 고객에게는 요약 형태로 안내됩니다."
-        )
-      );
-    }
+    steps.push(
+      t(
+        "common.admin_services.workflow.preview.step.multi_in_app",
+        "고객이 선택한 파트너(앱 계정 보유)가 서비스 메시지 스레드에 연결되어 이후 대화를 이어갑니다."
+      )
+    );
     blocks.push({ kind: "ol", items: steps });
     const pt = mswVal("mswMultiPartnerType", "").trim();
     if (pt) {
@@ -1916,8 +1898,6 @@ function mswResetFormToDefaults() {
     ["mswMultiMinResponses", "1"],
     ["mswMultiTimeoutHours", "48"],
     ["mswMultiRankingRule", "low_price_first"],
-    ["mswMultiAfterHasAccount", "add_thread"],
-    ["mswMultiAfterNoAccount", "email_summary"],
     ["mswEmailAutoPublishThreshold", ""],
   ];
   for (const [id, val] of defaults) {
@@ -2116,7 +2096,11 @@ export function workflowGetPayload() {
     single_partner: mswDeepClone(mswPerTypeConfig.SINGLE_PARTNER_APPLICATION),
     multi_partner: (() => {
       const mp = mswDeepClone(mswPerTypeConfig.MULTI_PARTNER_QUOTE_AND_SELECT);
-      if (mp && typeof mp === "object") delete mp.request_type;
+      if (mp && typeof mp === "object") {
+        delete mp.request_type;
+        delete mp.after_has_account;
+        delete mp.after_no_account;
+      }
       return mp;
     })(),
   };
@@ -2304,12 +2288,28 @@ export async function workflowRefreshDbStatusPanel() {
         : "";
     body.innerHTML = html + (syncList ? `<ul class="admin-services__workflow-db-sync u-mt-2">${syncList}</ul>` : "") + partnerHtml + spBlock;
     const prc = Number(data.partner_rule_count ?? data.active_partner_rule_count);
+    const wtDb = String(cfg.workflow_type || "").trim().toUpperCase();
+    const runtimeMatching =
+      data.runtime_partner_matching === true ||
+      wtDb === "MULTI_PARTNER_QUOTE_AND_SELECT" ||
+      wtDb === "PARTNER_BIDDING" ||
+      wtDb === "CUSTOMER_SELECTS_PARTNER";
+    const rulesRequired = data.partner_rules_required === true && !runtimeMatching;
     const noRuleMsg =
       "현재 active workflow에는 partner rule이 없습니다. 고객이 intake를 제출해도 파트너가 자동 배정되지 않습니다.";
-    if (warn && (!Number.isFinite(prc) || prc === 0)) {
+    const runtimeOkMsg =
+      "partner rule 0건은 정상입니다. 이 워크플로는 DB 규칙 대신 런타임 매칭(Partner Type·BIDDING_ONLY·커버리지)으로 파트너를 찾습니다. " +
+      "인테이크 후 파트너가 안 붙으면 등록 파트너(앱 계정·partner_type 일치)를 확인하세요.";
+    if (warn && (!Number.isFinite(prc) || prc === 0) && rulesRequired) {
       warn.hidden = false;
+      warn.classList.remove("admin-services__workflow-db-info");
       warn.textContent = t("common.admin_services.workflow.db.no_partner_rules", noRuleMsg);
+    } else if (warn && (!Number.isFinite(prc) || prc === 0) && runtimeMatching) {
+      warn.hidden = false;
+      warn.classList.add("admin-services__workflow-db-info");
+      warn.textContent = t("common.admin_services.workflow.db.runtime_matching_ok", runtimeOkMsg);
     } else if (warn && String(data.sync_health_status || "").toUpperCase() === "WARN") {
+      warn.classList.remove("admin-services__workflow-db-info");
       warn.hidden = false;
       warn.textContent = warns.length ? esc(String(warns[0])) : esc(String(data.sync_health_status));
     }

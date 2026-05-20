@@ -1,4 +1,5 @@
 import { customerCasesApi, dashboardApi, timelineApi } from "../core/api.js";
+import { buildCustomerBidResultsPageHref } from "./customer-bid-results-logic.js";
 import { getCurrentRole, getCustomerMessagingProfileId } from "../core/auth.js";
 import { ROLES } from "../core/config.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
@@ -88,7 +89,7 @@ function renderDashboardCasesPreview(items) {
     .join("");
 }
 
-function renderStatusCards(cards = []) {
+function renderStatusCards(cards = [], activeCarBid = null) {
   const target = qs("#dashboardStatusCards");
   if (!target) return;
   if (!cards.length) {
@@ -96,15 +97,33 @@ function renderStatusCards(cards = []) {
     return;
   }
 
+  const bid = activeCarBid && typeof activeCarBid === "object" ? activeCarBid : null;
+  const bidLabel = bid ? String(bid.remaining_label || "").trim() : "";
+  const bidHref =
+    bid && bid.service_request_id
+      ? buildCustomerBidResultsPageHref(String(bid.service_request_id), bid.thread_id ? String(bid.thread_id) : "")
+      : "";
+
   target.innerHTML = cards
-    .map(
-      (card) => `
+    .map((card) => {
+      const isService = card.key === "service";
+      const bidLine =
+        isService && bidLabel
+          ? `<p class="u-text-muted" style="font-size:0.88rem;margin:0.35rem 0 0;">비딩 ${escHtml(bidLabel)}</p>`
+          : "";
+      const bidCta =
+        isService && bidHref
+          ? `<p style="margin:0.5rem 0 0;"><a class="lhai-button lhai-button--secondary lhai-button--sm" href="${escHtml(bidHref)}">견적 비교</a></p>`
+          : "";
+      return `
       <article class="lhai-card">
-        <h2 class="lhai-card__title">${card.label}</h2>
-        <p class="lhai-metric-value">${card.value}</p>
+        <h2 class="lhai-card__title">${escHtml(card.label)}</h2>
+        <p class="lhai-metric-value">${escHtml(card.value)}</p>
+        ${bidLine}
+        ${bidCta}
       </article>
-    `
-    )
+    `;
+    })
     .join("");
 }
 
@@ -264,13 +283,29 @@ async function initDashboardPage() {
     aiButton.setAttribute("href", dashboardAggregate.ai_assistant_quick_link || "messages.html");
   }
 
-  renderStatusCards(dashboardAggregate.status_cards);
+  renderStatusCards(dashboardAggregate.status_cards, dashboardAggregate.active_car_bid);
   renderTimeline(timelineItems, "#dashboardTimelineContainer");
   renderChecklistSummary(checklistSummary);
   renderRecentMessages(dashboardAggregate.recent_messages);
   renderDocumentStatus(dashboardAggregate.document_status);
   renderRecentActivity(dashboardAggregate.recent_activity);
   renderDashboardCasesPreview(caseItems);
+
+  window.addEventListener("lhai:customer-bid-updated", () => {
+    void (async () => {
+      try {
+        const [items, aggregate] = await Promise.all([
+          customerCasesApi.list(),
+          dashboardApi.getAggregate(customerProfileId),
+        ]);
+        renderDashboardCasesPreview(items);
+        renderStatusCards(aggregate.status_cards, aggregate.active_car_bid);
+        applyDashboardBadgeLabels(aggregate);
+      } catch {
+        /* ignore */
+      }
+    })();
+  });
 }
 
 initDashboardPage();

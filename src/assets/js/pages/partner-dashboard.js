@@ -705,10 +705,13 @@ function renderBiddingDashboard(data) {
         const r = row && typeof row === "object" ? row : {};
         const bidRequestId = String(r.bid_request_id || "").trim();
         const expRaw = r.expires_at;
-        const expQ =
-          expRaw != null && String(expRaw).trim() !== ""
-            ? `?expires_at=${encodeURIComponent(String(expRaw).trim())}`
-            : "";
+        const qs = new URLSearchParams();
+        if (expRaw != null && String(expRaw).trim() !== "") {
+          qs.set("expires_at", String(expRaw).trim());
+        }
+        const reqSt = String(r.request_status || "").trim();
+        if (reqSt) qs.set("request_status", reqSt);
+        const expQ = qs.toString() ? `?${qs.toString()}` : "";
         const detailHref = `partner-bid-request.html${expQ}#/partner/bid-requests/${encodeURIComponent(bidRequestId)}`;
         const svc = escHtml(r.service_name || "—");
         const cust = escHtml(r.customer_display_name || "—");

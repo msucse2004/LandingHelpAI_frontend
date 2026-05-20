@@ -3798,36 +3798,122 @@ const customerWorkflowsApi = {
   },
 };
 
+/**
+ * 고객 CAR 견적 목록 쿼리 → API query string.
+ * @param {Record<string, string | number | boolean | null | undefined>} [query]
+ */
+function buildCustomerBidsListQueryString(query) {
+  if (!query || typeof query !== "object") return "";
+  const p = new URLSearchParams();
+  const setBool = (key, val) => {
+    if (val === true) p.set(key, "true");
+  };
+  const sort = String(query.sort || "").trim();
+  if (sort) p.set("sort", sort);
+  if (query.request_index != null && query.request_index !== "") {
+    p.set("request_index", String(query.request_index));
+  }
+  const cond = String(query.condition || "").trim();
+  if (cond) p.set("condition", cond);
+  setBool("budget_only", query.budget_only === true);
+  setBool("clean_title", query.clean_title === true);
+  setBool("no_accident", query.no_accident === true);
+  if (query.include_alternatives === false) p.set("include_alternatives", "false");
+  setBool("updated_only", query.updated_only === true);
+  const make = String(query.make || "").trim();
+  if (make) p.set("make", make);
+  const qs = p.toString();
+  return qs ? `?${qs}` : "";
+}
+
+/** @param {unknown} raw */
+function normalizeCustomerBidListResponse(raw) {
+  if (!raw || typeof raw !== "object") {
+    return { bid_request_id: "", status: "OPEN", bids: [], offers: null };
+  }
+  const o = /** @type {Record<string, unknown>} */ (raw);
+  return {
+    bid_request_id: String(o.bid_request_id || ""),
+    status: String(o.status || "OPEN"),
+    bidding_mode: o.bidding_mode != null ? String(o.bidding_mode) : null,
+    bids: Array.isArray(o.bids) ? o.bids : [],
+    expires_at: o.expires_at != null ? String(o.expires_at) : null,
+    bid_deadline:
+      o.bid_deadline && typeof o.bid_deadline === "object"
+        ? /** @type {Record<string, unknown>} */ (o.bid_deadline)
+        : null,
+    is_expired: o.is_expired === true,
+    remaining_label: o.remaining_label != null ? String(o.remaining_label) : null,
+    offer_count: o.offer_count != null ? Number(o.offer_count) : null,
+    partner_count: o.partner_count != null ? Number(o.partner_count) : null,
+    recent_updated_at: o.recent_updated_at != null ? String(o.recent_updated_at) : null,
+    quote_request_usage: o.quote_request_usage && typeof o.quote_request_usage === "object" ? o.quote_request_usage : null,
+    customer_vehicle_requests: Array.isArray(o.customer_vehicle_requests) ? o.customer_vehicle_requests : null,
+    offers: Array.isArray(o.offers) ? o.offers : o.offers === null ? null : [],
+    selected_offer_summary:
+      o.selected_offer_summary && typeof o.selected_offer_summary === "object"
+        ? o.selected_offer_summary
+        : null,
+  };
+}
+
 /** 고객: 비딩 워크플로 서비스 요청별 견적 목록·선택 (JWT). */
 const customerBidsApi = {
+  buildListQueryString: buildCustomerBidsListQueryString,
+
   /**
    * ``service_request_id``는 서비스 스레드 워크플로의 ``workflow_instance_id`` 와 동일한 값으로 조회합니다.
    * 견적 요청이 아직 없으면 404 → 빈 목록으로 처리합니다.
    * @param {string} serviceRequestId
-   * @returns {Promise<{ bid_request_id?: string, status: string, bids: Array<Record<string, unknown>> }>}
+   * @param {Record<string, string | number | boolean | null | undefined>} [query]
    */
-  async listByServiceRequest(serviceRequestId) {
+  async listByServiceRequest(serviceRequestId, query) {
     const id = String(serviceRequestId || "").trim();
     if (!id) throw new Error("service_request_id required");
-    const path = `/api/customer/service-requests/${encodeURIComponent(id)}/bids`;
+    const qs = buildCustomerBidsListQueryString(query);
+    const path = `/api/customer/service-requests/${encodeURIComponent(id)}/bids${qs}`;
     try {
       const raw = await tryBackendGet(path);
-      return raw && typeof raw === "object"
-        ? /** @type {{ bid_request_id?: string, status: string, bids: Array<Record<string, unknown>> }} */ (raw)
-        : { status: "OPEN", bids: [] };
+      return normalizeCustomerBidListResponse(raw);
     } catch (err) {
       if (isHttp404Error(err)) {
-        return { bid_request_id: "", status: "OPEN", bids: [] };
+        return normalizeCustomerBidListResponse(null);
       }
       throw err;
     }
   },
 
-  /** @param {string} bidId */
-  async selectBid(bidId) {
+  /**
+   * @param {string} threadId
+   * @param {Record<string, string | number | boolean | null | undefined>} [query]
+   */
+  async listByThread(threadId, query) {
+    const id = String(threadId || "").trim();
+    if (!id) throw new Error("thread_id required");
+    const qs = buildCustomerBidsListQueryString(query);
+    const path = `/api/customer/threads/${encodeURIComponent(id)}/bids${qs}`;
+    try {
+      const raw = await tryBackendGet(path);
+      return normalizeCustomerBidListResponse(raw);
+    } catch (err) {
+      if (isHttp404Error(err)) {
+        return normalizeCustomerBidListResponse(null);
+      }
+      throw err;
+    }
+  },
+
+  /**
+   * @param {string} bidId
+   * @param {{ selectedOfferId?: string, selected_offer_id?: string }} [options]
+   */
+  async selectBid(bidId, options = {}) {
     const id = String(bidId || "").trim();
     if (!id) throw new Error("bid_id required");
-    return await tryBackendPost(`/api/customer/bids/${encodeURIComponent(id)}/select`, {});
+    const body = {};
+    const offerId = String(options.selectedOfferId || options.selected_offer_id || "").trim();
+    if (offerId) body.selected_offer_id = offerId;
+    return await tryBackendPost(`/api/customer/bids/${encodeURIComponent(id)}/select`, body);
   },
 };
 
