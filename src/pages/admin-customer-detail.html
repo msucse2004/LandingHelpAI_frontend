@@ -2,46 +2,126 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Admin Customer Detail - Landing Help AI</title>
+  <title>Admin Customer 360 - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/admin-customer-detail.css" />
 </head>
 <body>
-    <div id="lhai-app-header-root"></div>
+  <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial admin-sidebar.html --></aside>
-    <main class="lhai-main">
-      <section class="lhai-page-header"><div><h1 class="lhai-title">Customer Detail</h1><p class="lhai-subtitle">Two-column detail pattern for operations.</p></div></section>
-      <section class="lhai-grid lhai-grid--2">
-        <article class="lhai-card"><h2 class="lhai-card__title">Overview</h2><div id="adminOpsOverview"></div></article>
-        <article class="lhai-card"><h2 class="lhai-card__title">Quote Status</h2><div id="adminOpsQuoteStatus"></div></article>
-      </section>
-      <section class="lhai-grid lhai-grid--2">
-        <article class="lhai-card"><h2 class="lhai-card__title">Invoice/Payment Status</h2><div id="adminOpsInvoicePayment"></div></article>
-        <article class="lhai-card"><h2 class="lhai-card__title">Document Status</h2><div id="adminOpsDocumentStatus"></div></article>
-      </section>
-      <section class="lhai-card">
-        <h2 class="lhai-card__title">Communication History (In-app + Email)</h2>
-        <div class="lhai-admin-comm-grid">
-          <article>
-            <h3 class="u-mb-2">In-app Messages</h3>
-            <div id="adminCustomerMessages"></div>
-          </article>
-          <article>
-            <h3 class="u-mb-2">Email Logs</h3>
-            <div id="adminCustomerEmailLogs"></div>
-          </article>
+    <aside class="lhai-sidebar" id="sidebar"></aside>
+    <main class="lhai-main ac360-main">
+      <section class="lhai-page-header ac360-page-header">
+        <div>
+          <p class="ac360-back"><a href="admin-customers.html" class="lhai-link">← 고객 목록</a></p>
+          <h1 class="lhai-title" id="ac360PageTitle">Customer 360</h1>
+          <p class="lhai-subtitle" id="ac360PageSubtitle">고객 프로필·인테이크·설문·워크플로·메시지를 한 화면에서 조회합니다.</p>
+        </div>
+        <div class="ac360-page-actions">
+          <button type="button" class="lhai-button lhai-button--secondary" id="ac360ReloadBtn">새로고침</button>
+          <a class="lhai-button lhai-button--secondary" id="ac360MessagesLink" href="messages.html">메시지함</a>
         </div>
       </section>
-      <section class="lhai-grid lhai-grid--2">
-        <article class="lhai-card"><h2 class="lhai-card__title">Schedule Status</h2><div id="adminOpsScheduleStatus"></div></article>
-        <article class="lhai-card"><h2 class="lhai-card__title">Recent Messages</h2><div id="adminOpsRecentMessages"></div></article>
-      </section>
-      <section class="lhai-grid lhai-grid--2">
-        <article class="lhai-card"><h2 class="lhai-card__title">AI Escalation History (Stub)</h2><div id="adminOpsAiEscalation"></div></article>
-        <article class="lhai-card"><h2 class="lhai-card__title">Audit History (Stub)</h2><div id="adminOpsAuditHistory"></div></article>
-      </section>
+
+      <div id="ac360GlobalError" class="ac360-banner ac360-banner--error" hidden role="alert"></div>
+      <div id="ac360GlobalLoading" class="lhai-state">Customer 360 데이터를 불러오는 중…</div>
+
+      <div id="ac360Root" class="ac360-root" hidden>
+        <nav class="ac360-toc" aria-label="섹션 목록">
+          <a href="#ac360SecBasic">기본 정보</a>
+          <a href="#ac360SecContact">연락처·위치</a>
+          <a href="#ac360SecFamily">가족·가구</a>
+          <a href="#ac360SecServices">서비스 프로필</a>
+          <a href="#ac360SecSurvey">설문</a>
+          <a href="#ac360SecIntake">인테이크</a>
+          <a href="#ac360SecQuotes">견적</a>
+          <a href="#ac360SecWorkflow">워크플로</a>
+          <a href="#ac360SecPartners">파트너·비딩</a>
+          <a href="#ac360SecMessages">메시지</a>
+          <a href="#ac360SecActivity">활동</a>
+          <a href="#ac360SecNotes">관리자 메모</a>
+        </nav>
+
+        <div class="ac360-sections">
+          <details class="ac360-section" id="ac360SecBasic" open>
+            <summary class="ac360-section__summary">1. 기본 정보</summary>
+            <div class="ac360-section__body" id="ac360Basic"></div>
+          </details>
+
+          <details class="ac360-section" id="ac360SecContact" open>
+            <summary class="ac360-section__summary">2. 연락처 / 위치</summary>
+            <div class="ac360-section__body" id="ac360Contact"></div>
+          </details>
+
+          <details class="ac360-section" id="ac360SecFamily">
+            <summary class="ac360-section__summary">3. 가족 / 가구</summary>
+            <div class="ac360-section__body" id="ac360Family"></div>
+          </details>
+
+          <details class="ac360-section" id="ac360SecServices" open>
+            <summary class="ac360-section__summary">4. 서비스 프로필</summary>
+            <div class="ac360-section__body" id="ac360Services"></div>
+          </details>
+
+          <details class="ac360-section" id="ac360SecSurvey">
+            <summary class="ac360-section__summary">5. 설문 응답</summary>
+            <div class="ac360-section__body" id="ac360Survey"></div>
+          </details>
+
+          <details class="ac360-section" id="ac360SecIntake">
+            <summary class="ac360-section__summary">6. 인테이크 응답</summary>
+            <div class="ac360-section__body" id="ac360Intake"></div>
+          </details>
+
+          <details class="ac360-section" id="ac360SecQuotes">
+            <summary class="ac360-section__summary">7. 견적 / 서비스 요청</summary>
+            <div class="ac360-section__body" id="ac360Quotes"></div>
+          </details>
+
+          <details class="ac360-section" id="ac360SecWorkflow">
+            <summary class="ac360-section__summary">8. 워크플로 / 케이스</summary>
+            <div class="ac360-section__body" id="ac360Workflow"></div>
+          </details>
+
+          <details class="ac360-section" id="ac360SecPartners">
+            <summary class="ac360-section__summary">9. 파트너 / 비딩</summary>
+            <div class="ac360-section__body" id="ac360Partners"></div>
+          </details>
+
+          <details class="ac360-section" id="ac360SecMessages">
+            <summary class="ac360-section__summary">10. 메시지</summary>
+            <div class="ac360-section__body" id="ac360Messages"></div>
+          </details>
+
+          <details class="ac360-section" id="ac360SecActivity">
+            <summary class="ac360-section__summary">11. 활동 타임라인</summary>
+            <div class="ac360-section__body" id="ac360Activity"></div>
+          </details>
+
+          <details class="ac360-section" id="ac360SecNotes">
+            <summary class="ac360-section__summary">12. 관리자 메모</summary>
+            <div class="ac360-section__body" id="ac360Notes"></div>
+          </details>
+
+          <details class="ac360-section ac360-section--secondary">
+            <summary class="ac360-section__summary">부가: 이메일 로그</summary>
+            <div class="ac360-section__body" id="ac360EmailLogs"></div>
+          </details>
+        </div>
+      </div>
+
+      <dialog id="ac360EditDialog" class="ac360-dialog">
+        <form id="ac360EditForm" method="dialog" class="ac360-dialog__form">
+          <h2 class="ac360-dialog__title" id="ac360EditDialogTitle">편집</h2>
+          <div id="ac360EditDialogFields" class="ac360-dialog__fields"></div>
+          <p id="ac360EditDialogError" class="ac360-banner ac360-banner--error" hidden role="alert"></p>
+          <div class="ac360-dialog__actions">
+            <button type="button" class="lhai-button lhai-button--secondary" id="ac360EditCancelBtn">취소</button>
+            <button type="submit" class="lhai-button lhai-button--primary" id="ac360EditSaveBtn">저장</button>
+          </div>
+        </form>
+      </dialog>
     </main>
   </div>
   <script type="module" src="../assets/js/core/app-header.js"></script>

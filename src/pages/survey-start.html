@@ -16,7 +16,7 @@
       <div>
         <h1 class="lhai-title" data-i18n="common.service_flow.heading">견적신청</h1>
         <p class="lhai-subtitle" data-i18n="common.service_flow.subtitle">
-          도움이 필요한 영역을 고르고 진행 방식을 선택한 뒤, 필요한 정보만 알려 주세요. 이 단계에서는 가격이 표시되지 않습니다.
+          기본 정보를 알려 주신 뒤 도움이 필요한 영역과 서비스를 선택해 주세요. 이 단계에서는 가격이 표시되지 않습니다.
         </p>
       </div>
     </section>
@@ -29,8 +29,8 @@
         <p class="lhai-help service-flow__progress-label" id="sfProgressLabel" aria-live="polite">—</p>
       </div>
 
-      <div id="sfStepCategory" class="service-flow__step">
-        <h2 class="service-flow__step-title" data-i18n="common.service_flow.step_category">1. 어떤 영역에서 도움이 필요하신가요?</h2>
+      <div id="sfStepCategory" class="service-flow__step" hidden>
+        <h2 class="service-flow__step-title" data-i18n="common.service_flow.step_category">2. 어떤 영역에서 도움이 필요하신가요?</h2>
         <p class="lhai-help" data-i18n="common.service_flow.help_category">해당되는 항목을 모두 선택해 주세요. 여러 영역을 선택할 수 있습니다.</p>
         <p class="lhai-help service-flow__step-note" id="sfCategoryStepNote">
           해당되는 항목을 모두 선택해 주세요. 여러 개를 선택할 수 있고, 선택한 항목 기준으로 다음 질문이 달라집니다.
@@ -39,8 +39,8 @@
         <div id="sfCategoryGrid" class="service-flow__category-grid" role="list"></div>
       </div>
 
-      <div id="sfStepCommonInfo" class="service-flow__step" hidden>
-        <h2 class="service-flow__step-title">2. 기본 정보를 알려주세요</h2>
+      <div id="sfStepCommonInfo" class="service-flow__step">
+        <h2 class="service-flow__step-title">1. 기본 정보를 알려주세요</h2>
         <p class="lhai-help">
           이후 견적·일정 안내를 더 빠르고 정확하게 연결하기 위한 공통 정보입니다.
           로그인 정보(이름/생년월일/이메일)도 함께 확인해 주세요.

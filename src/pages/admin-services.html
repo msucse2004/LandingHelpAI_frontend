@@ -449,9 +449,9 @@
                       <div class="admin-services__service-editor-panel" id="manageServiceIntakePanel" data-service-editor-panel="intake" hidden>
                         <div class="admin-services__intake-intro">
                           <p class="lhai-help admin-services__intake-lead" id="manageServiceIntakeLead"
-                            data-i18n="common.admin_services.intake.builder_lead">Stack blocks from top to bottom—customers see them in this order. Mix questions with notices, images, and rich text like a landinghelp.com service page.</p>
+                            data-i18n="common.admin_services.intake.builder_lead">Stack blocks from top to bottom—customers see them in this order. Add customer questions as Questions blocks (one step can hold one or many inputs). Mix with notices, images, and rich text.</p>
                           <p class="lhai-help admin-services__intake-flow-guide u-mt-2" id="manageServiceIntakeFlowGuide"
-                            data-i18n="common.admin_services.intake.flow_guide">Typical landinghelp.com-style flow: intro notice → explanatory image → main question → optional conditional notice or follow-up question (set Visibility on a block) → closing summary. Reorder with ↑↓.</p>
+                            data-i18n="common.admin_services.intake.flow_guide">Typical flow: intro notice → image → questions block (single or multi-field) → optional conditional notice (Visibility) → closing summary. Reorder with ↑↓.</p>
                           <p class="lhai-help admin-services__intake-hint" id="manageServiceIntakeHint" hidden></p>
                           <div class="admin-services__intake-preset-row u-flex u-gap-2 u-mt-2" style="flex-wrap:wrap;align-items:center;">
                             <span class="lhai-help u-m-0" data-i18n="common.admin_services.intake.presets_label">Starter</span>
@@ -465,8 +465,7 @@
                           <div class="admin-services__intake-add-menu u-flex u-gap-2" style="flex-wrap:wrap;align-items:center;">
                             <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakePreviewBtn" data-i18n="common.admin_services.intake.preview_open" data-i18n-title="common.admin_services.intake.preview_tooltip" title="Open a read-only preview of this intake flow.">Preview</button>
                             <span class="lhai-help u-m-0 u-align-self-center" data-i18n="common.admin_services.intake.add_blocks_label">Add blocks</span>
-                            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddQuestionBtn" data-i18n="common.admin_services.intake.add_question">+ Question</button>
-                            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddQuestionGroupBtn" data-i18n="common.admin_services.intake.add_question_group">+ Question group</button>
+                            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddQuestionGroupBtn" data-i18n="common.admin_services.intake.add_questions">+ Questions</button>
                             <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddNoticeBtn" data-i18n="common.admin_services.intake.add_notice">+ Notice</button>
                             <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddImageBtn" data-i18n="common.admin_services.intake.add_image">+ Image</button>
                             <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddRichTextBtn" data-i18n="common.admin_services.intake.add_rich_text">+ Rich text</button>
@@ -818,6 +817,47 @@
                           </p>
                           <label class="lhai-label" for="mswEmailAutoPublishThreshold" data-i18n="common.admin_services.workflow.label.email_auto_publish_threshold">이메일 자동 반영 기준(신뢰도 0~1)</label>
                           <input class="lhai-input" id="mswEmailAutoPublishThreshold" type="number" min="0" max="1" step="0.01" inputmode="decimal" placeholder="예: 0.85" />
+                          <section class="admin-services__workflow-bidding u-mt-3" id="mswBiddingSettings" aria-labelledby="mswBiddingHeading">
+                            <h6 class="admin-services__workflow-subtitle" id="mswBiddingHeading">Partner bidding policy</h6>
+                            <p class="lhai-help">Saved to <code>workflow_config_json.bidding</code>. Missing keys use server defaults (72h window, 3 rounds, 3 offers).</p>
+                            <label class="lhai-checkbox u-mt-2">
+                              <input type="checkbox" id="mswBiddingEnabled" checked />
+                              Enable partner bidding
+                            </label>
+                            <div class="admin-services__workflow-grid-2 u-mt-2">
+                              <div>
+                                <label class="lhai-label" for="mswBiddingWindowHours">Bidding window (hours)</label>
+                                <input class="lhai-input" id="mswBiddingWindowHours" type="number" min="1" max="720" value="72" />
+                              </div>
+                              <div>
+                                <label class="lhai-label" for="mswBiddingMaxRounds">Max new bidding rounds per customer</label>
+                                <input class="lhai-input" id="mswBiddingMaxRounds" type="number" min="1" max="20" value="3" />
+                              </div>
+                              <div>
+                                <label class="lhai-label" for="mswBiddingMaxOffers">Max offers per partner bid</label>
+                                <input class="lhai-input" id="mswBiddingMaxOffers" type="number" min="1" max="20" value="3" />
+                              </div>
+                              <div>
+                                <label class="lhai-label" for="mswBiddingDefaultSort">Default customer sort</label>
+                                <select class="lhai-select" id="mswBiddingDefaultSort">
+                                  <option value="recommended">Recommended</option>
+                                  <option value="lowest_total">Lowest total</option>
+                                  <option value="recently_updated">Recently updated</option>
+                                  <option value="photo_first">Photos first</option>
+                                  <option value="lowest_fees">Lowest fees</option>
+                                  <option value="fastest_timeline">Fastest timeline</option>
+                                </select>
+                              </div>
+                            </div>
+                            <label class="lhai-checkbox u-mt-2">
+                              <input type="checkbox" id="mswBiddingAllowUpdates" checked />
+                              Allow partners to update submitted offers
+                            </label>
+                            <label class="lhai-checkbox u-mt-1">
+                              <input type="checkbox" id="mswBiddingRequirePhotos" />
+                              Require at least one photo per offer
+                            </label>
+                          </section>
                         </section>
 
                         <div id="mswWorkflowValidation" class="admin-services__workflow-validation" hidden></div>
@@ -1006,9 +1046,31 @@
                                 <span class="admin-services__switch-label" data-i18n="common.admin_services.intake.prefill_enabled">Use saved customer data to prefill</span>
                               </label>
                             </div>
-                            <label class="lhai-label" for="manageServiceIntakePrefillSource" data-i18n="common.admin_services.intake.prefill_source_label">Value to load</label>
-                            <select class="lhai-select" id="manageServiceIntakePrefillSource"></select>
-                            <p class="lhai-help" data-i18n="common.admin_services.intake.prefill_source_help">Independent from Field key — this only selects which stored profile field seeds the answer.</p>
+                            <label class="lhai-label" for="manageServiceIntakePrefillMode" data-i18n="common.admin_services.intake.prefill_mode_label">Prefill mode</label>
+                            <select class="lhai-select" id="manageServiceIntakePrefillMode">
+                              <option value="dropdown_existing_values" data-i18n="common.admin_services.intake.prefill_mode_dropdown">Dropdown of existing values</option>
+                              <option value="auto_fill" data-i18n="common.admin_services.intake.prefill_mode_auto">Auto-fill</option>
+                              <option value="hide_if_exists" data-i18n="common.admin_services.intake.prefill_mode_hide">Hide if value exists</option>
+                              <option value="confirm_existing_value" data-i18n="common.admin_services.intake.prefill_mode_confirm">Confirm existing value</option>
+                            </select>
+                            <label class="lhai-label u-mt-2" for="manageServiceIntakePrefillSources" data-i18n="common.admin_services.intake.prefill_sources_label">Prefill sources</label>
+                            <select class="lhai-select" id="manageServiceIntakePrefillSources" multiple size="6"></select>
+                            <p class="lhai-help" data-i18n="common.admin_services.intake.prefill_sources_help">Hold Ctrl (Windows) or Cmd (Mac) to select multiple fields. Loaded from Customer Profile Field Registry.</p>
+                            <p class="lhai-help" id="manageServiceIntakePrefillRegistryStatus" hidden></p>
+                            <div class="admin-services__intake-toggle-row">
+                              <label class="admin-services__switch" for="manageServiceIntakePrefillHideEmpty">
+                                <input id="manageServiceIntakePrefillHideEmpty" type="checkbox" checked />
+                                <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                                <span class="admin-services__switch-label" data-i18n="common.admin_services.intake.prefill_hide_empty">Hide empty values</span>
+                              </label>
+                            </div>
+                            <div class="admin-services__intake-toggle-row">
+                              <label class="admin-services__switch" for="manageServiceIntakePrefillAllowManual">
+                                <input id="manageServiceIntakePrefillAllowManual" type="checkbox" checked />
+                                <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                                <span class="admin-services__switch-label" data-i18n="common.admin_services.intake.prefill_allow_manual">Allow manual input</span>
+                              </label>
+                            </div>
                             <div class="admin-services__intake-toggle-row">
                               <label class="admin-services__switch" for="manageServiceIntakePrefillEditable">
                                 <input id="manageServiceIntakePrefillEditable" type="checkbox" checked />
@@ -1016,19 +1078,22 @@
                                 <span class="admin-services__switch-label" data-i18n="common.admin_services.intake.prefill_editable">Let customers change this value</span>
                               </label>
                             </div>
+                            <h5 class="admin-services__intake-subsection-title u-mt-3" data-i18n="common.admin_services.intake.write_back_section">Write back to customer profile</h5>
                             <div class="admin-services__intake-toggle-row">
-                              <label class="admin-services__switch" for="manageServiceIntakePrefillWriteBack">
-                                <input id="manageServiceIntakePrefillWriteBack" type="checkbox" />
+                              <label class="admin-services__switch" for="manageServiceIntakeWriteBackEnabled">
+                                <input id="manageServiceIntakeWriteBackEnabled" type="checkbox" />
                                 <span class="admin-services__switch-slider" aria-hidden="true"></span>
-                                <span class="admin-services__switch-label" data-i18n="common.admin_services.intake.prefill_write_back">Update customer profile when they submit a new value</span>
+                                <span class="admin-services__switch-label" data-i18n="common.admin_services.intake.write_back_enabled">Write back to customer profile</span>
                               </label>
                             </div>
-                            <label class="lhai-label" for="manageServiceIntakePrefillExistingBehavior" data-i18n="common.admin_services.intake.prefill_existing_label">When a saved value exists</label>
-                            <select class="lhai-select" id="manageServiceIntakePrefillExistingBehavior">
-                              <option value="prefill_and_show" data-i18n="common.admin_services.intake.prefill_existing_show">Prefill and show the question</option>
-                              <option value="prefill_and_skip" data-i18n="common.admin_services.intake.prefill_existing_skip">Prefill and skip the step</option>
-                              <option value="confirm_only" data-i18n="common.admin_services.intake.prefill_existing_confirm">Confirm only (still show step)</option>
-                              <option value="ask_always" data-i18n="common.admin_services.intake.prefill_existing_ask">Always ask (ignore saved value for display)</option>
+                            <label class="lhai-label" for="manageServiceIntakeWriteBackTarget" data-i18n="common.admin_services.intake.write_back_target_label">Write-back target</label>
+                            <select class="lhai-select" id="manageServiceIntakeWriteBackTarget"></select>
+                            <label class="lhai-label u-mt-2" for="manageServiceIntakeWriteBackPolicy" data-i18n="common.admin_services.intake.write_back_policy_label">Overwrite policy</label>
+                            <select class="lhai-select" id="manageServiceIntakeWriteBackPolicy">
+                              <option value="confirm_if_existing" data-i18n="common.admin_services.intake.write_back_confirm">Confirm if existing (default)</option>
+                              <option value="empty_only" data-i18n="common.admin_services.intake.write_back_empty_only">Empty only</option>
+                              <option value="overwrite" data-i18n="common.admin_services.intake.write_back_overwrite">Always overwrite</option>
+                              <option value="admin_only_overwrite" data-i18n="common.admin_services.intake.write_back_admin_only">Admin only overwrite</option>
                             </select>
                             <label class="lhai-label u-mt-2" for="manageServiceIntakePrefillMissingBehavior" data-i18n="common.admin_services.intake.prefill_missing_label">When no saved value exists</label>
                             <select class="lhai-select" id="manageServiceIntakePrefillMissingBehavior">

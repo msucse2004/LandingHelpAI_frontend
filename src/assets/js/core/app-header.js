@@ -15,7 +15,7 @@ import { messagesApi, partnerThreadsApi } from "./api.js";
 import { startRealtimeClient, subscribeRealtimeEvents, getRealtimeStatus, realtimeDebugLive } from "./realtime-client.js";
 import {
   buildCustomerBidResultsHref,
-  isCarPurchaseBidUpdatedPayload,
+  isBiddingBidUpdatedPayload,
   isCustomerBidResultsHtmlPage,
   isCustomerDashboardHtmlPage,
   normalizeBidUpdatedPayload,
@@ -254,7 +254,7 @@ function wireHeaderRealtimeHandlers() {
 
       if (type === "bid.updated" && getCurrentRole() === ROLES.CUSTOMER) {
         const bidPayload = normalizeBidUpdatedPayload(event);
-        if (isCarPurchaseBidUpdatedPayload(bidPayload)) {
+        if (isBiddingBidUpdatedPayload(bidPayload)) {
           const onDedicatedPage =
             isMessagesHtmlPage() || isCustomerBidResultsHtmlPage() || isCustomerDashboardHtmlPage();
           if (
@@ -267,7 +267,7 @@ function wireHeaderRealtimeHandlers() {
             ).trim();
             const tid = String(bidPayload.thread_id || "").trim();
             showBidUpdatedToast({
-              title: "자동차 견적이 업데이트되었습니다.",
+              title: "견적이 업데이트되었습니다.",
               cta: "견적 보기",
               href: buildCustomerBidResultsHref(wid, tid),
             });

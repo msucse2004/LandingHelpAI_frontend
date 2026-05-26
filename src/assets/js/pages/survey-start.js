@@ -1,6 +1,6 @@
 /**
  * Service-driven customer flow:
- * category → common info → service(s) with inline questions → review.
+ * common info → category → service(s) with inline questions → review.
  */
 import { serviceCatalogBrowseApi, serviceIntakeCustomerApi, surveyCustomerApi, userCustomerApi } from "../core/api.js";
 import { getSession, getAccessToken, getCustomerMessagingProfileId } from "../core/auth.js";
@@ -242,7 +242,7 @@ let commonInfo = {
 };
 
 /** phase: 'category' | 'common_info' | 'services' | 'review' */
-let phase = "category";
+let phase = "common_info";
 let conditionalQuestions = [];
 let conditionalAnswersByItemId = {};
 let conditionalOptionsByItemId = {};
@@ -403,8 +403,8 @@ function currentTotalSteps() {
 }
 
 function currentStepNumber() {
-  if (phase === "category") return 1;
-  if (phase === "common_info") return 2;
+  if (phase === "common_info") return 1;
+  if (phase === "category") return 2;
   if (phase === "services") return 3;
   return 4;
 }
@@ -440,7 +440,7 @@ function showOnlyStep(which) {
 function updateChrome() {
   const back = qs("#sfBackBtn");
   if (back) {
-    back.disabled = phase === "category" || submittingReview;
+    back.disabled = phase === "common_info" || submittingReview;
     back.textContent = phase === "review"
       ? t("common.service_flow.btn_back_edit", "돌아가서 수정")
       : t("common.service_flow.btn_back", "이전");
@@ -590,14 +590,6 @@ function renderCategories() {
       updateChrome();
     });
   });
-}
-
-async function loadServicesAndGo() {
-  setStatus("");
-  phase = "common_info";
-  showOnlyStep("common_info");
-  await prefillProfileBasicInfo();
-  updateProgress();
 }
 
 async function loadConditionalQuestions(serviceIds = []) {
@@ -1634,16 +1626,6 @@ function renderReview() {
 
 async function goNext() {
   setStatus("");
-  if (phase === "category") {
-    if (!selectedCategoryIds.length) {
-      setStatus("해당되는 항목을 모두 선택해 주세요. 여러 개를 선택할 수 있습니다.");
-      return;
-    }
-    await loadServicesAndGo();
-    updateProgress();
-    return;
-  }
-
   if (phase === "common_info") {
     const info = readCommonInfoFromForm();
     const issues = validateCommonInfoIssues(info);
@@ -1657,6 +1639,17 @@ async function goNext() {
     }
     commonInfo = info;
     await mergeRegisteredIdentityFromMeIntoCommonInfo(commonInfo);
+    phase = "category";
+    showOnlyStep("category");
+    updateProgress();
+    return;
+  }
+
+  if (phase === "category") {
+    if (!selectedCategoryIds.length) {
+      setStatus("해당되는 항목을 모두 선택해 주세요. 여러 개를 선택할 수 있습니다.");
+      return;
+    }
     const loaded = await loadServicesForSelectedCategory();
     if (!loaded) return;
     await loadConditionalQuestions([]);
@@ -1733,9 +1726,10 @@ async function goNext() {
 
 function goBack() {
   setStatus("");
-  if (phase === "common_info") {
-    phase = "category";
-    showOnlyStep("category");
+  if (phase === "category") {
+    phase = "common_info";
+    showOnlyStep("common_info");
+    void prefillProfileBasicInfo();
     updateProgress();
     return;
   }
@@ -1748,9 +1742,8 @@ function goBack() {
       scrollPageToTop();
       return;
     }
-    phase = "common_info";
-    showOnlyStep("common_info");
-    void prefillProfileBasicInfo();
+    phase = "category";
+    showOnlyStep("category");
     updateProgress();
     return;
   }
@@ -1796,7 +1789,8 @@ async function init() {
   }
   renderCategories();
   updateCategorySelectedCount();
-  showOnlyStep("category");
+  await prefillProfileBasicInfo();
+  showOnlyStep("common_info");
   updateProgress();
 }
 

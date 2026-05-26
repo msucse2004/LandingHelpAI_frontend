@@ -6,9 +6,20 @@ import { loadSidebar } from "../components/sidebar.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
 import { initI18nDomains, mergeFallbackStrings, resetI18nClientState, t } from "../core/i18n-client.js";
 import { formatMoney } from "../core/utils.js";
-import { formatSurveyAnswerForDisplay } from "../core/survey-answer-display.js";
 import { resolveAppHeaderShell, refreshHeaderMailUnreadBadge } from "../core/app-header.js";
 import { getQuoteLocaleBundle, resolveQuoteUiLang } from "./quote-detail-locale.js";
+import { buildQuotePricingBreakdown } from "./quote-detail-pricing-logic.js";
+import { buildQuoteScopeContentFromQuote } from "./quote-detail-scope-logic.js";
+import { buildQuoteSupportContent } from "./quote-detail-support-logic.js";
+import {
+  buildRequestSummaryRows,
+  requestSummaryHasVisibleRows,
+} from "./quote-detail-request-logic.js";
+import {
+  buildRejectTransitionNote,
+  canCustomerDecideOnQuote,
+  quoteDecisionModalCostSummary,
+} from "./quote-detail-decision-modal.js";
 import { isCatalogRecServiceItemUuidString } from "../lib/catalog-rec-service-item-id.js";
 
 function qs(selector) {
@@ -17,6 +28,9 @@ function qs(selector) {
 
 let quoteApprovalBoostPollTimer = 0;
 let quoteApprovalBoostStopTimer = 0;
+let quoteDecisionInFlight = false;
+/** @type {HTMLElement | null} */
+let quoteDecisionModalTrigger = null;
 
 function stopPostApprovalMessageBoostPolling() {
   if (quoteApprovalBoostPollTimer) {
@@ -73,8 +87,24 @@ function setStatus(message, tone = "default") {
   const status = qs("#quoteActionStatus");
   if (!status) return;
   status.textContent = message || "";
-  status.classList.remove("lhai-quote-actions__status--error");
-  if (tone === "error") status.classList.add("lhai-quote-actions__status--error");
+  status.classList.remove("lhai-quote-actions__status--error", "lhai-quote-whats-next__action-status--error");
+  if (tone === "error") status.classList.add("lhai-quote-whats-next__action-status--error");
+}
+
+const QUOTE_APPROVE_BTN_IDS = ["quoteHeroApproveBtn", "quoteFooterApproveBtn"];
+const QUOTE_REJECT_BTN_IDS = ["quoteHeroRejectBtn", "quoteFooterRejectBtn"];
+const QUOTE_ASK_LINK_IDS = ["quoteHeroAskBtn", "quoteFooterAskBtn"];
+
+function quoteApproveButtons() {
+  return QUOTE_APPROVE_BTN_IDS.map((id) => document.getElementById(id)).filter(Boolean);
+}
+
+function quoteRejectButtons() {
+  return QUOTE_REJECT_BTN_IDS.map((id) => document.getElementById(id)).filter(Boolean);
+}
+
+function quoteAskLinks() {
+  return QUOTE_ASK_LINK_IDS.map((id) => document.getElementById(id)).filter(Boolean);
 }
 
 function showDecisionFeedbackLoading(message) {
@@ -92,11 +122,15 @@ function showDecisionFeedbackLoading(message) {
 function renderDecisionFeedbackPanel(quote) {
   const panel = qs("#quoteDecisionFeedback");
   if (!panel) return;
-  const st = (quote?.status || "").toUpperCase();
+  const st = normalizeQuoteStatus(quote?.status);
   panel.innerHTML = "";
   panel.className = "lhai-quote-decision-feedback";
 
-  if (st === "APPROVED") {
+  if (st === "APPROVED" || st === "PAID") {
+    if (st === "PAID") {
+      panel.hidden = true;
+      return;
+    }
     panel.hidden = false;
     panel.classList.add("lhai-quote-decision-feedback--success");
     const title = document.createElement("strong");
@@ -144,14 +178,27 @@ function scrollDecisionFeedbackIntoView() {
  * @param {"approve" | "reject"} which
  * @param {string} [workingLabel]
  */
+function quoteDecisionButtonEls() {
+  return [...quoteApproveButtons(), ...quoteRejectButtons()];
+}
+
 function setQuoteDecisionButtonsBusy(busy, which, workingLabel) {
-  const approveBtn = qs("#approveQuoteBtn");
-  const rejectBtn = qs("#rejectQuoteBtn");
+  quoteDecisionInFlight = !!busy;
+  setQuoteDecisionModalButtonsBusy(busy);
+  const approveBtns = quoteApproveButtons();
+  const rejectBtns = quoteRejectButtons();
   const w = workingLabel || t("customer.quote.feedback.processing_short", "Processing…");
-  [approveBtn, rejectBtn].forEach((b) => {
-    if (b) b.disabled = !!busy;
+  quoteDecisionButtonEls().forEach((b) => {
+    if (!busy) {
+      if (b.dataset.lhaiLabelSaved) {
+        b.textContent = b.dataset.lhaiLabelSaved;
+        delete b.dataset.lhaiLabelSaved;
+      }
+      b.setAttribute("aria-busy", "false");
+    }
+    b.disabled = !!busy;
   });
-  if (approveBtn) {
+  for (const approveBtn of approveBtns) {
     const on = Boolean(busy && which === "approve");
     approveBtn.setAttribute("aria-busy", on ? "true" : "false");
     if (on) {
@@ -159,7 +206,7 @@ function setQuoteDecisionButtonsBusy(busy, which, workingLabel) {
       approveBtn.textContent = w;
     }
   }
-  if (rejectBtn) {
+  for (const rejectBtn of rejectBtns) {
     const on = Boolean(busy && which === "reject");
     rejectBtn.setAttribute("aria-busy", on ? "true" : "false");
     if (on) {
@@ -169,23 +216,240 @@ function setQuoteDecisionButtonsBusy(busy, which, workingLabel) {
   }
 }
 
+function setQuoteDecisionModalButtonsBusy(busy) {
+  for (const id of [
+    "quoteApproveModalConfirm",
+    "quoteApproveModalCancel",
+    "quoteRejectModalConfirm",
+    "quoteRejectModalCancel",
+  ]) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !!busy;
+  }
+  const reasonEl = document.getElementById("quoteRejectModalReason");
+  if (reasonEl) reasonEl.disabled = !!busy;
+}
+
+function closeQuoteDecisionModals() {
+  const approveDlg = document.getElementById("quoteApproveConfirmDialog");
+  const rejectDlg = document.getElementById("quoteRejectConfirmDialog");
+  if (approveDlg instanceof HTMLDialogElement && approveDlg.open) approveDlg.close();
+  if (rejectDlg instanceof HTMLDialogElement && rejectDlg.open) rejectDlg.close();
+}
+
+function restoreQuoteDecisionModalFocus() {
+  if (quoteDecisionModalTrigger && typeof quoteDecisionModalTrigger.focus === "function") {
+    quoteDecisionModalTrigger.focus();
+  }
+  quoteDecisionModalTrigger = null;
+}
+
+function fillApproveModalBullets(ul) {
+  if (!ul) return;
+  ul.innerHTML = "";
+  const lines = [
+    t(
+      "customer.quote.modal.approve.bullet_invoice",
+      "After approval, an invoice and payment instructions will be sent to you."
+    ),
+    t(
+      "customer.quote.modal.approve.bullet_agent",
+      "After payment, Agent guidance will begin."
+    ),
+  ];
+  for (const line of lines) {
+    const li = document.createElement("li");
+    li.textContent = line;
+    ul.appendChild(li);
+  }
+}
+
+/** @param {unknown} quote */
+function populateApproveConfirmModal(quote) {
+  const { serviceSummary, totalText } = quoteDecisionModalCostSummary(
+    quote,
+    formatQuoteCostDisplay,
+    heroServiceRequestLabel
+  );
+  const titleEl = qs("#quoteApproveModalTitle");
+  const svcLabel = qs("#quoteApproveModalServiceLabel");
+  const totalLabel = qs("#quoteApproveModalTotalLabel");
+  const svcEl = qs("#quoteApproveModalService");
+  const totalEl = qs("#quoteApproveModalTotal");
+  const cancelBtn = qs("#quoteApproveModalCancel");
+  const confirmBtn = qs("#quoteApproveModalConfirm");
+
+  if (titleEl) {
+    titleEl.textContent = t("customer.quote.modal.approve.title", "Approve this quote?");
+  }
+  if (svcLabel) {
+    svcLabel.textContent = t("customer.quote.modal.approve.service_label", "Service summary");
+  }
+  if (totalLabel) {
+    totalLabel.textContent = t("customer.quote.modal.approve.total_label", "Proposed total");
+  }
+  if (svcEl) svcEl.textContent = serviceSummary;
+  if (totalEl) totalEl.textContent = totalText;
+  if (cancelBtn) cancelBtn.textContent = t("customer.quote.modal.cancel", "Cancel");
+  if (confirmBtn) confirmBtn.textContent = quoteCtaApproveLabel();
+  fillApproveModalBullets(qs("#quoteApproveModalBullets"));
+}
+
+/** @param {unknown} quote */
+function populateRejectConfirmModal(quote) {
+  void quote;
+  const titleEl = qs("#quoteRejectModalTitle");
+  const introEl = qs("#quoteRejectModalIntro");
+  const hintEl = qs("#quoteRejectModalHint");
+  const reasonLabel = qs("#quoteRejectModalReasonLabel");
+  const reasonEl = qs("#quoteRejectModalReason");
+  const cancelBtn = qs("#quoteRejectModalCancel");
+  const confirmBtn = qs("#quoteRejectModalConfirm");
+
+  if (titleEl) titleEl.textContent = t("customer.quote.modal.reject.title", "Decline this quote?");
+  if (introEl) {
+    introEl.textContent = t(
+      "customer.quote.modal.reject.intro",
+      "If you decline, this quote will not move forward."
+    );
+  }
+  if (hintEl) {
+    hintEl.textContent = t(
+      "customer.quote.modal.reject.reason_hint",
+      "If you can, please leave a short reason so the team can help."
+    );
+  }
+  if (reasonLabel) {
+    reasonLabel.textContent = t(
+      "customer.quote.modal.reject.reason_label",
+      "Reason for declining (optional)"
+    );
+  }
+  if (reasonEl) {
+    reasonEl.placeholder = t(
+      "customer.quote.modal.reject.reason_placeholder",
+      "Optional — e.g. timing, budget, or scope"
+    );
+    reasonEl.value = "";
+    reasonEl.disabled = false;
+  }
+  if (cancelBtn) cancelBtn.textContent = t("customer.quote.modal.cancel", "Cancel");
+  if (confirmBtn) confirmBtn.textContent = quoteCtaRejectLabel();
+}
+
+/**
+ * @param {unknown} quote
+ * @param {EventTarget | null} triggerEl
+ */
+function openApproveConfirmModal(quote, triggerEl) {
+  if (!canCustomerDecideOnQuote(quote?.status) || quoteDecisionInFlight) return;
+  const dialog = document.getElementById("quoteApproveConfirmDialog");
+  if (!(dialog instanceof HTMLDialogElement)) return;
+  quoteDecisionModalTrigger = triggerEl instanceof HTMLElement ? triggerEl : null;
+  populateApproveConfirmModal(quote);
+  dialog.showModal();
+  qs("#quoteApproveModalCancel")?.focus();
+}
+
+/**
+ * @param {unknown} quote
+ * @param {EventTarget | null} triggerEl
+ */
+function openRejectConfirmModal(quote, triggerEl) {
+  if (!canCustomerDecideOnQuote(quote?.status) || quoteDecisionInFlight) return;
+  const dialog = document.getElementById("quoteRejectConfirmDialog");
+  if (!(dialog instanceof HTMLDialogElement)) return;
+  quoteDecisionModalTrigger = triggerEl instanceof HTMLElement ? triggerEl : null;
+  populateRejectConfirmModal(quote);
+  dialog.showModal();
+  qs("#quoteRejectModalCancel")?.focus();
+}
+
+/**
+ * @param {() => unknown} getQuote
+ * @param {() => Promise<void>} runApprove
+ * @param {(note: string) => Promise<void>} runReject
+ */
+function wireQuoteDecisionModals(getQuote, runApprove, runReject) {
+  const approveDlg = document.getElementById("quoteApproveConfirmDialog");
+  const rejectDlg = document.getElementById("quoteRejectConfirmDialog");
+
+  qs("#quoteApproveModalCancel")?.addEventListener("click", () => {
+    if (approveDlg instanceof HTMLDialogElement) approveDlg.close();
+    restoreQuoteDecisionModalFocus();
+  });
+  qs("#quoteRejectModalCancel")?.addEventListener("click", () => {
+    if (rejectDlg instanceof HTMLDialogElement) rejectDlg.close();
+    restoreQuoteDecisionModalFocus();
+  });
+
+  if (approveDlg instanceof HTMLDialogElement) {
+    approveDlg.addEventListener("cancel", () => {
+      restoreQuoteDecisionModalFocus();
+    });
+  }
+  if (rejectDlg instanceof HTMLDialogElement) {
+    rejectDlg.addEventListener("cancel", () => {
+      restoreQuoteDecisionModalFocus();
+    });
+  }
+
+  qs("#quoteApproveModalConfirm")?.addEventListener("click", () => {
+    if (quoteDecisionInFlight) return;
+    const q = getQuote();
+    if (!canCustomerDecideOnQuote(q?.status)) return;
+    if (approveDlg instanceof HTMLDialogElement) approveDlg.close();
+    restoreQuoteDecisionModalFocus();
+    void runApprove();
+  });
+
+  qs("#quoteRejectModalConfirm")?.addEventListener("click", () => {
+    if (quoteDecisionInFlight) return;
+    const q = getQuote();
+    if (!canCustomerDecideOnQuote(q?.status)) return;
+    const reasonEl = document.getElementById("quoteRejectModalReason");
+    const note = buildRejectTransitionNote(reasonEl?.value);
+    if (rejectDlg instanceof HTMLDialogElement) rejectDlg.close();
+    restoreQuoteDecisionModalFocus();
+    void runReject(note);
+  });
+}
+
+/** API·레거시 표기 정규화 (ACCEPTED → APPROVED 등) */
+function normalizeQuoteStatus(status) {
+  const s = (status || "").toUpperCase();
+  if (s === "ACCEPTED") return "APPROVED";
+  return s;
+}
+
 function statusBadgeClass(status) {
-  if (status === "APPROVED") return "lhai-badge lhai-badge--risk-low";
-  if (status === "REJECTED" || status === "EXPIRED") return "lhai-badge lhai-badge--risk-high";
-  if (status === "PROPOSED") return "lhai-badge lhai-badge--risk-medium";
+  const s = normalizeQuoteStatus(status);
+  if (s === "APPROVED" || s === "PAID") return "lhai-badge lhai-badge--risk-low";
+  if (s === "REJECTED" || s === "EXPIRED") return "lhai-badge lhai-badge--risk-high";
+  if (s === "PROPOSED") return "lhai-badge lhai-badge--risk-medium";
   return "lhai-badge";
 }
 
 function customerFacingStatusLabel(status) {
-  const s = (status || "").toUpperCase();
+  const s = normalizeQuoteStatus(status);
   const map = {
     PROPOSED: t("customer.quote.status.proposed", "Proposed"),
     APPROVED: t("customer.quote.status.approved", "Approved"),
     REJECTED: t("customer.quote.status.rejected", "Rejected"),
     DRAFT: t("customer.quote.status.draft", "Draft"),
     EXPIRED: t("customer.quote.status.expired", "Expired"),
+    PAID: t("customer.quote.status.paid", "Paid"),
   };
   return map[s] || status || "—";
+}
+
+/** @param {string} quoteId */
+function buildQuoteMessagesHref(quoteId) {
+  const q = new URLSearchParams();
+  const id = String(quoteId || "").trim();
+  if (id) q.set("quote_id", id);
+  const qs = q.toString();
+  return qs ? `messages.html?${qs}` : "messages.html";
 }
 
 function looksLikeUuid(str) {
@@ -280,19 +544,6 @@ function deliveryModeCustomerLabel(mode) {
   return t(`common.service_flow.delivery.${key}.badge`, fallbacks[key]);
 }
 
-/** 전달 방식별 고객용 한 줄 설명 (설문 `delivery_mode`와 정렬) */
-function deliveryModeCustomerExplain(mode) {
-  const raw = (mode || "general").toString().trim().toLowerCase();
-  const key = ["ai_guide", "in_person", "ai_plus_human", "general"].includes(raw) ? raw : "general";
-  const fallbacks = {
-    ai_guide: "Digital steps, checklists, and uploads—so you always know what to do next.",
-    in_person: "Includes coordinated human or on-site help where your package says so, not chat-only.",
-    ai_plus_human: "Starts in the app; you can bring in a person when something needs a human decision or visit.",
-    general: "Plain-language guidance through the steps for this service.",
-  };
-  return t(`common.service_flow.delivery.${key}.explain`, fallbacks[key]);
-}
-
 function normalizeDeliveryModeKey(mode) {
   const raw = (mode || "general").toString().trim().toLowerCase();
   return ["ai_guide", "in_person", "ai_plus_human", "general"].includes(raw) ? raw : "general";
@@ -314,101 +565,53 @@ function uniqueDeliveryModesFromQuote(quote) {
   return out;
 }
 
-function aiHelpBulletsForMode(mode) {
-  const m = normalizeDeliveryModeKey(mode);
-  const byMode = {
-    ai_guide: [
-      t(
-        "customer.quote.ai.help.ai_guide.1",
-        "Shows the next task, what to upload, and what is still missing so the case does not stall."
-      ),
-      t(
-        "customer.quote.ai.help.ai_guide.2",
-        "Explains form fields and jargon in plain language while staying inside this quote’s scope."
-      ),
-    ],
-    in_person: [
-      t(
-        "customer.quote.ai.help.in_person.1",
-        "Coordinates scheduled human support—calls, meetings, or visits—when that is part of what you bought."
-      ),
-      t(
-        "customer.quote.ai.help.in_person.2",
-        "Keeps the same checklist visible so you see how live help fits between steps."
-      ),
-    ],
-    ai_plus_human: [
-      t(
-        "customer.quote.ai.help.ai_plus.1",
-        "Runs the digital checklist first so routine steps are done before anyone travels or blocks calendar time."
-      ),
-      t(
-        "customer.quote.ai.help.ai_plus.2",
-        "Flags when a step should switch to a person—for example signatures, inspections, or exceptions."
-      ),
-    ],
-    general: [
-      t(
-        "customer.quote.ai.help.general.1",
-        "Walks the sequence of tasks for this service in order, with short explanations at each step."
-      ),
-    ],
-  };
-  return byMode[m] || byMode.general;
+const QUOTE_SUPPORT_BULLET_FALLBACKS = {
+  "agent.1": "We guide you through the next steps in order.",
+  "agent.2": "We show checklists and what to prepare.",
+  "agent.3": "We respond to questions in your message inbox.",
+  "you.1": "Sign-ups, payments, and contract submissions are done by you.",
+  "you.2": "You review information and conditions before you submit.",
+  "you.3": "Contracts with carriers, dealers, or agencies remain your responsibility.",
+  "human.1": "If guidance is unclear or urgent, message the team from your inbox.",
+  "human.2": "When the agent cannot handle an exception, the operations team can step in.",
+  "support.in_person.1": "We coordinate calls, meetings, or on-site support included in your package.",
+  "support.in_person.2": "We explain what to prepare at each step.",
+  "support.in_person.3": "We respond to questions in your message inbox.",
+  "support.ai_plus.1": "We start with the digital checklist, then bring in a person when needed.",
+  "support.ai_plus.2": "We show what to prepare and what comes next.",
+  "support.general.1": "We explain the steps for this service in plain language.",
+  "support.general.2": "We show checklists and preparation items.",
+};
+
+function supportBulletText(bulletId) {
+  return t(`customer.quote.ai.bullet.${bulletId}`, QUOTE_SUPPORT_BULLET_FALLBACKS[bulletId] || bulletId);
 }
 
-function buildCustomerResponsibilityBullets() {
-  return [
-    t(
-      "customer.quote.ai.you.1",
-      "You submit your own documents and payments to government or third parties when the process requires it—those fees are usually separate from this quote."
-    ),
-    t(
-      "customer.quote.ai.you.2",
-      "You read requests from the team, fix mistakes quickly, and confirm decisions so work can move on."
-    ),
-  ];
+function supportSectionTitle(content) {
+  if (content.titleVariant === "agent") {
+    return t("customer.quote.ai.section_title_agent", "How Landing Help AI Agent supports you");
+  }
+  return t("customer.quote.ai.section_title", "Support for this quote");
 }
 
-function buildHumanEscalationBullets(modes) {
-  const set = new Set(modes);
-  const out = [];
-  const add = (line) => {
-    if (line && !out.includes(line)) out.push(line);
-  };
-  if (set.has("in_person")) {
-    add(
-      t(
-        "customer.quote.ai.human.in_person",
-        "Staff may handle on-site coordination, handoffs, or appointments that cannot be done only in the app."
-      )
+function supportSectionLede(content) {
+  if (content.contentVariant === "in_person") {
+    return t(
+      "customer.quote.ai.lede_in_person",
+      "This quote includes coordinated human support. Roles are split so you know who does what."
     );
   }
-  if (set.has("ai_plus_human")) {
-    add(
-      t(
-        "customer.quote.ai.human.ai_plus",
-        "You can ask for a person when a step needs judgment, a wet signature, or someone physically present."
-      )
-    );
-  }
-  add(
-    t(
-      "customer.quote.ai.human.always",
-      "Use your message thread with the team if something is unclear, urgent, or not covered by the checklist."
-    )
+  return t(
+    "customer.quote.ai.lede",
+    "The agent guides your next steps and makes it easy to see what you need to do yourself."
   );
-  return out;
 }
 
-function mergeUniqueBullets(lists) {
-  const out = [];
-  for (const list of lists) {
-    for (const line of list) {
-      if (line && !out.includes(line)) out.push(line);
-    }
+function supportAgentColumnHeading(content) {
+  if (content.contentVariant === "in_person") {
+    return t("customer.quote.ai.what_support_helps", "What support helps with");
   }
-  return out;
+  return t("customer.quote.ai.what_ai_helps", "What the agent helps with");
 }
 
 function fillBulletList(ul, lines) {
@@ -421,61 +624,50 @@ function fillBulletList(ul, lines) {
   }
 }
 
+function renderSupportDeliveryBadges(container, modeKeys) {
+  if (!container) return;
+  container.innerHTML = "";
+  if (!modeKeys.length) {
+    container.hidden = true;
+    return;
+  }
+  container.hidden = false;
+  for (const mode of modeKeys) {
+    const span = document.createElement("span");
+    span.className = "lhai-quote-ai__badge";
+    span.textContent = deliveryModeCustomerLabel(mode);
+    container.appendChild(span);
+  }
+}
+
 function renderAiSupportSection(quote) {
-  const modes = uniqueDeliveryModesFromQuote(quote);
-  const deliveryEl = qs("#quoteAiDeliverySummary");
+  const headingEl = qs("#quoteAiHeading");
+  const ledeEl = qs("#quoteAiLede");
+  const badgesEl = qs("#quoteAiDeliveryBadges");
+  const helpHead = qs("#quoteAiHelpSubhead");
+  const youHead = qs("#quoteAiYouSubhead");
+  const humanHead = qs("#quoteAiHumanSubhead");
   const helpUl = qs("#quoteAiHelpList");
   const youUl = qs("#quoteAiYouList");
   const humanUl = qs("#quoteAiHumanList");
 
-  const modeKeysForBullets = modes.length ? modes : ["general"];
-  const helpLines = mergeUniqueBullets(modeKeysForBullets.map((m) => aiHelpBulletsForMode(m)));
-
-  fillBulletList(helpUl, helpLines);
-  fillBulletList(youUl, buildCustomerResponsibilityBullets());
-  fillBulletList(humanUl, buildHumanEscalationBullets(modeKeysForBullets));
-
-  if (deliveryEl) {
-    if (!modes.length) {
-      deliveryEl.hidden = true;
-      deliveryEl.textContent = "";
-    } else if (modes.length === 1) {
-      deliveryEl.hidden = false;
-      const label = deliveryModeCustomerLabel(modes[0]);
-      const explain = deliveryModeCustomerExplain(modes[0]);
-      deliveryEl.textContent = `${t("customer.quote.ai.delivery_setup", "How this quote is set up")}: ${label} — ${explain}`;
-    } else {
-      deliveryEl.hidden = false;
-      const labels = modes.map((m) => deliveryModeCustomerLabel(m)).join(` ${t("customer.quote.ai.delivery_and", "and")} `);
-      deliveryEl.textContent = `${t("customer.quote.ai.delivery_setup", "How this quote is set up")}: ${labels}. ${t(
-        "customer.quote.ai.delivery_multi_hint",
-        "The bullets below spell out what that means in practice."
-      )}`;
-    }
+  const modes = uniqueDeliveryModesFromQuote(quote);
+  const content = buildQuoteSupportContent(modes);
+  if (headingEl) headingEl.textContent = supportSectionTitle(content);
+  if (ledeEl) ledeEl.textContent = supportSectionLede(content);
+  if (helpHead) helpHead.textContent = supportAgentColumnHeading(content);
+  if (youHead) {
+    youHead.textContent = t("customer.quote.ai.what_you_do", "What you do directly");
   }
-}
+  if (humanHead) {
+    humanHead.textContent = t("customer.quote.ai.when_human", "When to reach the team");
+  }
 
-function formatSurveyAnswerJson(raw) {
-  return formatSurveyAnswerForDisplay(raw, {
-    yes: t("customer.quote.answer.bool_yes", "예"),
-    no: t("customer.quote.answer.bool_no", "아니요"),
-  });
-}
+  renderSupportDeliveryBadges(badgesEl, content.deliveryModeKeys);
 
-function truncateForDisplay(s, max) {
-  const t0 = (s || "").toString().trim();
-  if (!t0) return "";
-  if (t0.length <= max) return t0;
-  return `${t0.slice(0, max - 1)}…`;
-}
-
-function humanizeDetailLabel(answer) {
-  if (!answer || typeof answer !== "object") return "";
-  const lab = (answer.label || "").toString().trim();
-  if (lab) return lab;
-  const fid = (answer.field_id || "").toString().trim();
-  if (!fid) return "";
-  return fid.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  fillBulletList(helpUl, content.agentBulletIds.map(supportBulletText));
+  fillBulletList(youUl, content.youBulletIds.map(supportBulletText));
+  fillBulletList(humanUl, content.humanBulletIds.map(supportBulletText));
 }
 
 function surveySnapshotFromQuote(quote) {
@@ -485,65 +677,12 @@ function surveySnapshotFromQuote(quote) {
 }
 
 /**
- * @returns {{ helpAreas: string[], serviceLines: string[], understood: { label: string, value: string }[] }}
+ * @param {HTMLElement | null} ul
+ * @param {string[]} items
  */
-function collectRequestSummaryContext(quote) {
-  const survey = surveySnapshotFromQuote(quote);
-  const cats = Array.isArray(survey.selected_categories) ? survey.selected_categories : [];
-  let helpAreas = cats
-    .map((c) => {
-      if (!c || typeof c !== "object") return "";
-      return (c.title || "").toString().trim();
-    })
-    .filter(Boolean);
-
-  const selectedServices = Array.isArray(survey.selected_services) ? survey.selected_services : [];
-  const serviceLines = selectedServices
-    .map((s) => {
-      if (!s || typeof s !== "object") return "";
-      const title = (s.title || "").toString().trim();
-      const dm = s.delivery_mode ? String(s.delivery_mode).trim() : "";
-      const lineTitle = title || t("customer.quote.request_section.service_untitled", "Your selected service");
-      if (!dm) return lineTitle;
-      return `${lineTitle} · ${deliveryModeCustomerLabel(dm)}`;
-    })
-    .filter(Boolean);
-
-  const detailed = Array.isArray(survey.detailed_answers) ? survey.detailed_answers : [];
-  const understood = [];
-  const maxLines = 8;
-  const maxVal = 160;
-  for (const a of detailed) {
-    if (!a || typeof a !== "object") continue;
-    const label = humanizeDetailLabel(a);
-    const value = truncateForDisplay(formatSurveyAnswerJson(a.answer_json), maxVal);
-    if (!label || !value) continue;
-    understood.push({ label, value });
-    if (understood.length >= maxLines) break;
-  }
-
-  if (!helpAreas.length) {
-    const sn = (quote?.service_name || "").toString().trim();
-    if (/^survey request:\s*/i.test(sn)) {
-      const rest = sn.replace(/^survey request:\s*/i, "").trim();
-      if (rest) helpAreas = [rest];
-    }
-  }
-
-  return { helpAreas, serviceLines, understood };
-}
-
-function fillTextList(ul, items, emptyKey, emptyDefault) {
+function fillRequestSummaryList(ul, items) {
   if (!ul) return;
   ul.innerHTML = "";
-  const emptyMsg = t(emptyKey, emptyDefault);
-  if (!items || !items.length) {
-    const li = document.createElement("li");
-    li.className = "lhai-quote-request-block__empty";
-    li.textContent = emptyMsg;
-    ul.appendChild(li);
-    return;
-  }
   for (const text of items) {
     const li = document.createElement("li");
     li.textContent = text;
@@ -552,34 +691,93 @@ function fillTextList(ul, items, emptyKey, emptyDefault) {
 }
 
 function renderRequestSummaryBlock(quote) {
+  const titleEl = qs("#quoteRequestBlockTitle");
+  const introEl = qs("#quoteRequestBlockIntro");
+  const emptyEl = qs("#quoteRequestEmpty");
+  const gridEl = qs("#quoteRequestGrid");
+  const helpCard = qs("#quoteRequestHelpCard");
+  const svcCard = qs("#quoteRequestServicesCard");
+  const deliveryCard = qs("#quoteRequestDeliveryCard");
+  const scheduleCard = qs("#quoteRequestScheduleCard");
   const helpUl = qs("#quoteRequestHelpAreas");
   const svcUl = qs("#quoteRequestServicesList");
+  const deliveryUl = qs("#quoteRequestDeliveryList");
+  const scheduleValue = qs("#quoteRequestScheduleValue");
   const understoodWrap = qs("#quoteRequestUnderstoodWrap");
   const understoodUl = qs("#quoteRequestUnderstoodList");
+  const deliveryLabel = qs("#quoteRequestDeliveryLabel");
+  const scheduleLabel = qs("#quoteRequestScheduleLabel");
 
-  const { helpAreas, serviceLines, understood } = collectRequestSummaryContext(quote);
+  if (titleEl) titleEl.textContent = t("customer.quote.request_section.title", "Your request summary");
+  if (introEl) {
+    introEl.textContent = t(
+      "customer.quote.request_section.intro",
+      "Please confirm this quote matches what you requested."
+    );
+  }
+  if (deliveryLabel) {
+    deliveryLabel.textContent = t("customer.quote.request_section.delivery_modes", "Support options you chose");
+  }
+  if (scheduleLabel) {
+    scheduleLabel.textContent = t(
+      "customer.quote.request_section.schedule_region",
+      "Start timing / preferred area"
+    );
+  }
+  const understoodTitle = qs("#quoteRequestUnderstoodTitle");
+  if (understoodTitle) {
+    understoodTitle.textContent = t(
+      "customer.quote.request_section.understood",
+      "Additional answers from your request"
+    );
+  }
 
-  fillTextList(
-    helpUl,
-    helpAreas,
-    "customer.quote.request_section.empty_help",
-    "No help area was saved with this request. If this looks wrong, message the team."
-  );
-  fillTextList(
-    svcUl,
-    serviceLines,
-    "customer.quote.request_section.empty_services",
-    "No services were saved with this request. Message the team if the quote does not match what you chose."
-  );
+  const rows = buildRequestSummaryRows(quote);
+  const hasRows = requestSummaryHasVisibleRows(rows);
+
+  if (emptyEl) {
+    emptyEl.innerHTML = "";
+    if (!hasRows) {
+      emptyEl.hidden = false;
+      const p = document.createElement("p");
+      p.textContent = t(
+        "customer.quote.request_section.empty_all",
+        "No request details were saved to display. If something looks wrong, message the team."
+      );
+      const link = document.createElement("a");
+      link.href = buildQuoteMessagesHref(quote?.id);
+      link.className = "lhai-quote-request-block__empty-link";
+      link.textContent = t("customer.quote.hero.cta.ask", "Ask a question");
+      emptyEl.appendChild(p);
+      emptyEl.appendChild(link);
+    } else {
+      emptyEl.hidden = true;
+    }
+  }
+
+  if (gridEl) gridEl.hidden = !hasRows;
+
+  if (helpCard) helpCard.hidden = !rows.helpAreas.length;
+  fillRequestSummaryList(helpUl, rows.helpAreas);
+
+  if (svcCard) svcCard.hidden = !rows.services.length;
+  fillRequestSummaryList(svcUl, rows.services);
+
+  const deliveryLabels = rows.deliveryModeKeys.map((k) => deliveryModeCustomerLabel(k));
+  if (deliveryCard) deliveryCard.hidden = !deliveryLabels.length;
+  fillRequestSummaryList(deliveryUl, deliveryLabels);
+
+  if (scheduleCard) scheduleCard.hidden = !rows.scheduleRegion;
+  if (scheduleValue) scheduleValue.textContent = rows.scheduleRegion || "";
 
   if (understoodWrap && understoodUl) {
-    if (!understood.length) {
+    if (!rows.understood.length) {
       understoodWrap.hidden = true;
       understoodUl.innerHTML = "";
     } else {
       understoodWrap.hidden = false;
       understoodUl.innerHTML = "";
-      for (const row of understood) {
+      for (const row of rows.understood) {
         const li = document.createElement("li");
         const strong = document.createElement("strong");
         strong.textContent = `${row.label}: `;
@@ -630,32 +828,152 @@ function formatQuoteCostDisplay(quote) {
   return { mainText, pending, breakdown };
 }
 
+function quoteCtaApproveLabel() {
+  return t("customer.quote.hero.cta.approve", "Approve quote");
+}
+
+function quoteCtaRejectLabel() {
+  return t("customer.quote.hero.cta.reject", "Decline quote");
+}
+
+function quoteCtaAskLabel() {
+  return t("customer.quote.hero.cta.ask", "Ask a question");
+}
+
+function footerStatusMessageForQuote(quote) {
+  const st = normalizeQuoteStatus(quote?.status);
+  if (st === "APPROVED") {
+    return t(
+      "customer.quote.footer.status.approved",
+      "This quote is approved. Please check your invoice and payment instructions."
+    );
+  }
+  if (st === "REJECTED" || st === "EXPIRED") {
+    return t("customer.quote.footer.status.rejected", "This quote was declined.");
+  }
+  if (st === "PAID") {
+    return t(
+      "customer.quote.footer.status.paid",
+      "Payment is complete. Please check the next-step guidance."
+    );
+  }
+  return "";
+}
+
+function heroStatusMessageForQuote(quote) {
+  const st = normalizeQuoteStatus(quote?.status);
+  if (st === "APPROVED") {
+    return {
+      show: true,
+      className: "lhai-quote-hero__status-message lhai-quote-hero__status-message--approved",
+      text: t(
+        "customer.quote.footer.status.approved",
+        "This quote is approved. Please check your invoice and payment instructions."
+      ),
+    };
+  }
+  if (st === "REJECTED" || st === "EXPIRED") {
+    return {
+      show: true,
+      className: "lhai-quote-hero__status-message lhai-quote-hero__status-message--rejected",
+      text: t("customer.quote.footer.status.rejected", "This quote was declined."),
+    };
+  }
+  if (st === "PAID") {
+    return {
+      show: true,
+      className: "lhai-quote-hero__status-message lhai-quote-hero__status-message--paid",
+      text: t(
+        "customer.quote.footer.status.paid",
+        "Payment is complete. Please check the next-step guidance."
+      ),
+    };
+  }
+  return { show: false, className: "lhai-quote-hero__status-message", text: "" };
+}
+
+function renderQuoteHeroActions(quote) {
+  const st = normalizeQuoteStatus(quote?.status);
+  const allowDecision = st === "PROPOSED";
+  const actionsWrap = qs("#quoteHeroActions");
+  const footerGroup = qs("#quoteFooterCtaGroup");
+  const footerStatusEl = qs("#quoteFooterStatusMessage");
+  const footerStatusText = footerStatusMessageForQuote(quote);
+  const statusMsgEl = qs("#quoteHeroStatusMessage");
+  const statusMsg = heroStatusMessageForQuote(quote);
+  const messagesHref = buildQuoteMessagesHref(quote?.id);
+
+  if (actionsWrap) {
+    actionsWrap.setAttribute("aria-label", t("customer.quote.hero.actions_group", "Decide on this quote"));
+    actionsWrap.hidden = !allowDecision;
+  }
+  if (footerGroup) {
+    footerGroup.hidden = !allowDecision;
+    footerGroup.setAttribute("aria-label", t("customer.quote.hero.actions_group", "Decide on this quote"));
+  }
+  if (footerStatusEl) {
+    if (allowDecision || !footerStatusText) {
+      footerStatusEl.hidden = true;
+      footerStatusEl.textContent = "";
+    } else {
+      footerStatusEl.hidden = false;
+      footerStatusEl.textContent = footerStatusText;
+    }
+  }
+
+  for (const approveBtn of quoteApproveButtons()) {
+    delete approveBtn.dataset.lhaiLabelSaved;
+    approveBtn.setAttribute("aria-busy", "false");
+    approveBtn.textContent = quoteCtaApproveLabel();
+    approveBtn.disabled = !allowDecision;
+  }
+  for (const rejectBtn of quoteRejectButtons()) {
+    delete rejectBtn.dataset.lhaiLabelSaved;
+    rejectBtn.setAttribute("aria-busy", "false");
+    rejectBtn.textContent = quoteCtaRejectLabel();
+    rejectBtn.disabled = !allowDecision;
+  }
+  for (const askLink of quoteAskLinks()) {
+    askLink.textContent = quoteCtaAskLabel();
+    askLink.href = messagesHref;
+    askLink.hidden = false;
+  }
+  if (statusMsgEl) {
+    if (statusMsg.show) {
+      statusMsgEl.hidden = false;
+      statusMsgEl.className = statusMsg.className;
+      statusMsgEl.textContent = statusMsg.text;
+    } else {
+      statusMsgEl.hidden = true;
+      statusMsgEl.textContent = "";
+      statusMsgEl.className = "lhai-quote-hero__status-message";
+    }
+  }
+}
+
 function renderQuoteHero(quote) {
   const titleEl = qs("#quoteHeroTitle");
   const subEl = qs("#quoteHeroSubtitle");
   const statusEl = qs("#quoteHeroStatus");
-  const reassuranceEl = qs("#quoteHeroReassurance");
+  const scopeNoteEl = qs("#quoteHeroScopeNote");
   const svcLabel = qs("#quoteHeroServiceLabel");
   const svcName = qs("#quoteHeroServiceName");
   const costLabel = qs("#quoteHeroCostLabel");
   const costEl = qs("#quoteHeroEstimatedCost");
-  const costEyebrow = qs("#quoteHeroCostEyebrow");
   const costBreakdown = qs("#quoteHeroCostBreakdown");
   const costNote = qs("#quoteHeroCostNote");
   const costDemoPill = qs("#quoteCostDemoPill");
-  const nextEl = qs("#quoteHeroNextCue");
 
   if (titleEl) titleEl.textContent = t("customer.quote.hero.title", "Your quote is ready");
   if (subEl) subEl.textContent = t("customer.quote.hero.subtitle", "Please review the proposal for your requested service.");
-  if (reassuranceEl) {
-    reassuranceEl.textContent = t(
-      "customer.quote.hero.reassurance",
-      "This is the proposed quote from our team. The PDF and follow-up details are also available in your inbox and email."
+  if (scopeNoteEl) {
+    scopeNoteEl.textContent = t(
+      "customer.quote.hero.scope_note",
+      "This amount includes the quote line items below and guided support from Landing Help AI."
     );
   }
-  if (svcLabel) svcLabel.textContent = t("customer.quote.hero.service_label", "Service / request");
+  if (svcLabel) svcLabel.textContent = t("customer.quote.hero.service_summary_label", "Service summary");
   if (costLabel) costLabel.textContent = t("customer.quote.cost.primary_label", "Proposed total");
-  if (costEyebrow) costEyebrow.textContent = t("customer.quote.cost.eyebrow", "For the scope in this proposal");
   if (svcName) svcName.textContent = heroServiceRequestLabel(quote);
 
   const { mainText, pending, breakdown } = formatQuoteCostDisplay(quote);
@@ -674,20 +992,300 @@ function renderQuoteHero(quote) {
   }
   if (costNote) {
     costNote.textContent = t(
-      "customer.quote.cost.note",
-      "This amount is proposed for the agreed scope. Optional add-ons or work outside this proposal may cost extra and are confirmed with you before any charge. You are not billed until you approve and the team confirms next steps."
+      "customer.quote.hero.cost_note",
+      "Review the line items and what is included or not included below, then approve if you accept this proposal."
     );
   }
   if (costDemoPill) {
     costDemoPill.hidden = quote.mocked !== true;
   }
 
-  if (nextEl) nextEl.textContent = heroNextCue(quote);
-
   if (statusEl) {
     statusEl.textContent = customerFacingStatusLabel(quote.status);
-    statusEl.className = statusBadgeClass(quote.status);
+    statusEl.className = `${statusBadgeClass(quote.status)} lhai-quote-hero__badge`;
   }
+
+}
+
+function pricingServiceShortDescription(deliveryModeKey) {
+  const key = deliveryModeKey || "general";
+  const fallbacks = {
+    ai_guide: "Step-by-step guidance and checklists in the app for this service.",
+    in_person: "Includes coordinated human support where your package requires it.",
+    ai_plus_human: "Starts in the app; a person can step in when needed.",
+    general: "Plain-language guidance through the steps for this service.",
+  };
+  return t(`customer.quote.pricing.service_desc.${key}`, fallbacks[key] || fallbacks.general);
+}
+
+function pricingAdjustmentCopy(adjustmentLine) {
+  if (!adjustmentLine) return { title: "", description: "" };
+  if (adjustmentLine.kind === "discount") {
+    return {
+      title: t("customer.quote.pricing.adjustment.discount_title", "Discount"),
+      description: t(
+        "customer.quote.pricing.adjustment.discount_desc",
+        "A discount was applied to your proposed total."
+      ),
+    };
+  }
+  if (adjustmentLine.matchesAdminFee) {
+    return {
+      title: t("customer.quote.pricing.adjustment.support_title", "Custom progress support fee"),
+      description: t(
+        "customer.quote.pricing.adjustment.support_desc",
+        "Additional guidance and progress management tailored to your request scope."
+      ),
+    };
+  }
+  return {
+    title: t("customer.quote.pricing.adjustment.extra_title", "Custom progress support fee"),
+    description: t(
+      "customer.quote.pricing.adjustment.extra_desc",
+      "Covers extra guidance or scope adjustments beyond the listed service prices."
+    ),
+  };
+}
+
+/**
+ * @param {HTMLElement | null} listEl
+ * @param {string} title
+ * @param {string} deliveryLabel
+ * @param {string} description
+ * @param {string} amountText
+ * @param {string} [rowModifier]
+ */
+function appendQuotePricingRow(listEl, title, deliveryLabel, description, amountText, rowModifier = "") {
+  if (!listEl) return;
+  const article = document.createElement("article");
+  article.className = rowModifier
+    ? `lhai-quote-pricing__row ${rowModifier}`
+    : "lhai-quote-pricing__row";
+
+  const main = document.createElement("div");
+  main.className = "lhai-quote-pricing__row-main";
+
+  const h3 = document.createElement("h3");
+  h3.className = "lhai-quote-pricing__row-title";
+  h3.textContent = title;
+  main.appendChild(h3);
+
+  if (deliveryLabel) {
+    const delivery = document.createElement("p");
+    delivery.className = "lhai-quote-pricing__row-delivery";
+    delivery.textContent = deliveryLabel;
+    main.appendChild(delivery);
+  }
+
+  if (description) {
+    const desc = document.createElement("p");
+    desc.className = "lhai-quote-pricing__row-desc";
+    desc.textContent = description;
+    main.appendChild(desc);
+  }
+
+  const amount = document.createElement("p");
+  amount.className = "lhai-quote-pricing__row-amount";
+  amount.textContent = amountText;
+
+  article.appendChild(main);
+  article.appendChild(amount);
+  listEl.appendChild(article);
+}
+
+function renderQuotePricingSection(quote) {
+  const titleEl = qs("#quotePricingTitle");
+  const ledeEl = qs("#quotePricingLede");
+  const emptyEl = qs("#quotePricingEmpty");
+  const listEl = qs("#quotePricingList");
+  const footerEl = qs("#quotePricingFooter");
+  const subtotalAmount = qs("#quotePricingServiceSubtotalAmount");
+  const finalAmount = qs("#quotePricingFinalTotalAmount");
+  const adjustmentNote = qs("#quotePricingAdjustmentNote");
+  const heroCostBreakdown = qs("#quoteHeroCostBreakdown");
+
+  if (titleEl) titleEl.textContent = t("customer.quote.pricing.title", "Quote line items");
+  if (ledeEl) {
+    ledeEl.textContent = t(
+      "customer.quote.pricing.lede",
+      "Each service in your proposal and how it contributes to the total."
+    );
+  }
+  const subtotalLabel = qs("#quotePricingServiceSubtotalLabel");
+  if (subtotalLabel) {
+    subtotalLabel.textContent = t("customer.quote.pricing.service_subtotal", "Service items subtotal");
+  }
+  const finalLabel = qs("#quotePricingFinalTotalLabel");
+  if (finalLabel) {
+    finalLabel.textContent = t("customer.quote.pricing.final_total", "Proposed total");
+  }
+  const finalHint = qs("#quotePricingFinalHint");
+  if (finalHint) {
+    finalHint.textContent = t(
+      "customer.quote.pricing.final_hint",
+      "This is the final amount the team is asking you to approve."
+    );
+  }
+
+  const breakdown = buildQuotePricingBreakdown(quote);
+  const { currency } = breakdown;
+
+  if (emptyEl) {
+    emptyEl.innerHTML = "";
+    if (breakdown.empty) {
+      emptyEl.hidden = false;
+      const p = document.createElement("p");
+      p.textContent = t(
+        "customer.quote.pricing.empty",
+        "There are no line items to show. Please contact us through your message inbox."
+      );
+      const link = document.createElement("a");
+      link.href = buildQuoteMessagesHref(quote?.id);
+      link.className = "lhai-quote-pricing__empty-link";
+      link.textContent = t("customer.quote.hero.cta.ask", "Ask a question");
+      emptyEl.appendChild(p);
+      emptyEl.appendChild(link);
+    } else {
+      emptyEl.hidden = true;
+    }
+  }
+
+  if (listEl) {
+    listEl.innerHTML = "";
+    if (!breakdown.empty) {
+      listEl.hidden = false;
+      for (const line of breakdown.serviceLines) {
+        appendQuotePricingRow(
+          listEl,
+          line.title,
+          deliveryModeCustomerLabel(line.deliveryModeKey),
+          pricingServiceShortDescription(line.deliveryModeKey),
+          formatMoney(line.amount, currency)
+        );
+      }
+      if (breakdown.adjustmentLine) {
+        const adj = pricingAdjustmentCopy(breakdown.adjustmentLine);
+        const modifier =
+          breakdown.adjustmentLine.kind === "discount"
+            ? "lhai-quote-pricing__row--discount"
+            : "lhai-quote-pricing__row--adjustment";
+        const amountPrefix = breakdown.adjustmentLine.kind === "discount" ? "−" : "";
+        appendQuotePricingRow(
+          listEl,
+          adj.title,
+          "",
+          adj.description,
+          `${amountPrefix}${formatMoney(breakdown.adjustmentLine.amount, currency)}`,
+          modifier
+        );
+      }
+    } else {
+      listEl.hidden = true;
+    }
+  }
+
+  if (footerEl) {
+    footerEl.hidden = breakdown.empty;
+  }
+  if (subtotalAmount && !breakdown.empty) {
+    subtotalAmount.textContent = formatMoney(breakdown.serviceSubtotal, currency);
+  }
+  if (finalAmount && !breakdown.empty) {
+    finalAmount.textContent = formatMoney(breakdown.estimatedTotal, currency);
+  }
+
+  if (adjustmentNote) {
+    if (breakdown.showAdjustmentNote) {
+      adjustmentNote.hidden = false;
+      adjustmentNote.textContent = t(
+        "customer.quote.pricing.adjustment_note",
+        "When the service subtotal and final proposed total differ, the difference is shown as a custom support fee or discount adjustment above."
+      );
+    } else {
+      adjustmentNote.hidden = true;
+      adjustmentNote.textContent = "";
+    }
+  }
+
+  if (heroCostBreakdown && !breakdown.empty) {
+    heroCostBreakdown.hidden = true;
+    heroCostBreakdown.textContent = "";
+  }
+}
+
+const QUOTE_SCOPE_INCLUDED_FALLBACKS = {
+  agent_steps: "Step-by-step guidance from Landing Help AI Agent",
+  checklist: "Checklists and preparation lists for what you need",
+  next_steps: "Clear order of what to do next as your case moves forward",
+  messages: "Question support through your message inbox",
+  info_organization: "Information organized to match your requested scope",
+};
+
+const QUOTE_SCOPE_EXCLUDED_FALLBACKS = {
+  carrier_fees: "Actual carrier plan charges or activation fees",
+  car_purchase_cost: "The actual purchase price of a vehicle",
+  insurance_tax_registration: "Insurance premiums, sales tax, and registration fees",
+  legal_contract: "Signing legal contracts on your behalf",
+  account_payment: "Creating accounts or making payments for you",
+  third_party_outcomes: "Guarantees on government, dealer, or carrier decisions",
+  third_party_fees_general:
+    "Fees paid directly to carriers, dealers, government offices, or other third parties",
+};
+
+function scopeItemLabel(kind, id) {
+  const fallbacks =
+    kind === "included" ? QUOTE_SCOPE_INCLUDED_FALLBACKS : QUOTE_SCOPE_EXCLUDED_FALLBACKS;
+  return t(`customer.quote.scope.${kind}.${id}`, fallbacks[id] || id);
+}
+
+/**
+ * @param {HTMLElement | null} ul
+ * @param {Array<{ id: string, emphasis?: boolean }>} items
+ * @param {"included" | "excluded"} kind
+ */
+function fillQuoteScopeList(ul, items, kind) {
+  if (!ul) return;
+  ul.innerHTML = "";
+  for (const item of items) {
+    const li = document.createElement("li");
+    if (item.emphasis) li.classList.add("lhai-quote-scope__list-item--emphasis");
+    li.textContent = scopeItemLabel(kind, item.id);
+    ul.appendChild(li);
+  }
+}
+
+function renderQuoteScopeSection(quote) {
+  const titleEl = qs("#quoteScopeTitle");
+  const ledeEl = qs("#quoteScopeLede");
+  const asideEl = qs("#quoteScopeAside");
+  const includedTitle = qs("#quoteScopeIncludedTitle");
+  const excludedTitle = qs("#quoteScopeExcludedTitle");
+  const includedList = qs("#quoteScopeIncludedList");
+  const excludedList = qs("#quoteScopeExcludedList");
+
+  if (titleEl) titleEl.textContent = t("customer.quote.scope.title", "What is included");
+  if (ledeEl) {
+    ledeEl.textContent = t(
+      "customer.quote.scope.lede",
+      "A clear view of what this quote covers and what stays with you to decide or pay separately."
+    );
+  }
+  if (asideEl) {
+    asideEl.textContent = t(
+      "customer.quote.scope.aside",
+      "The items on the right are costs you pay or confirm directly—they are not hidden inside your quote total."
+    );
+  }
+  if (includedTitle) {
+    includedTitle.textContent = t("customer.quote.scope.included_title", "Included in this quote");
+  }
+  if (excludedTitle) {
+    excludedTitle.textContent = t("customer.quote.scope.excluded_title", "Not included in this quote");
+  }
+
+  const content = buildQuoteScopeContentFromQuote(quote);
+  fillQuoteScopeList(includedList, content.included, "included");
+  fillQuoteScopeList(excludedList, content.excluded, "excluded");
 }
 
 function renderQuoteSecondaryDetails(quote) {
@@ -713,18 +1311,28 @@ function renderQuoteSecondaryDetails(quote) {
 }
 
 function whatsNextProcessSteps(quote) {
-  const st = (quote?.status || "").toUpperCase();
+  const st = normalizeQuoteStatus(quote?.status);
   if (st === "PROPOSED") {
     return [
-      t("customer.quote.whats_next.step_review", "Review your request summary and the proposed amount on this page."),
-      t("customer.quote.whats_next.step_decide", "Tap Approve if you accept this proposal, or Reject if you do not."),
       t(
-        "customer.quote.whats_next.step_if_approved",
-        "If you approve, an invoice or payment instructions will follow (usually in your messages and email), then your service checklist continues."
+        "customer.quote.whats_next.step_confirm_scope",
+        "Review the quote line items and what is included or not included."
       ),
       t(
-        "customer.quote.whats_next.step_help",
-        "If you have questions before deciding, write to the team in your message thread."
+        "customer.quote.whats_next.step_ask",
+        "If you have questions, tap Ask a question and leave a message."
+      ),
+      t(
+        "customer.quote.whats_next.step_approve",
+        "When everything looks right, tap Approve quote."
+      ),
+      t(
+        "customer.quote.whats_next.step_invoice",
+        "After approval, an invoice is created and payment instructions are sent to your email and message inbox."
+      ),
+      t(
+        "customer.quote.whats_next.step_after_payment",
+        "After payment, Agent guidance and the next steps begin."
       ),
     ];
   }
@@ -732,13 +1340,24 @@ function whatsNextProcessSteps(quote) {
     return [
       t(
         "customer.quote.whats_next.approved_pay",
-        "Check your inbox and in-app messages for the invoice or payment link and any tasks to finish."
+        "Open the invoice link from your messages or email, confirm the amount and due date, then complete payment."
       ),
       t(
         "customer.quote.whats_next.approved_workflow",
-        "After payment is confirmed, the team will guide the next workflow steps from your dashboard."
+        "After payment is confirmed, Agent guidance and your next steps begin from your dashboard and messages."
       ),
-      t("customer.quote.whats_next.approved_help", "Reply in messages if dates, amounts, or documents need clarification."),
+    ];
+  }
+  if (st === "PAID") {
+    return [
+      t(
+        "customer.quote.whats_next.paid_continue",
+        "Check your dashboard and message inbox for Agent guidance and the next tasks."
+      ),
+      t(
+        "customer.quote.whats_next.paid_help",
+        "Reply in messages if anything about the next steps is unclear."
+      ),
     ];
   }
   if (st === "REJECTED" || st === "EXPIRED") {
@@ -758,46 +1377,19 @@ function whatsNextProcessSteps(quote) {
   ];
 }
 
-function renderQuoteActionCopy() {
-  const intro = qs(".lhai-quote-actions__intro");
-  const group = qs("#quoteActionsGroup");
-  const approveBtn = qs("#approveQuoteBtn");
-  const rejectBtn = qs("#rejectQuoteBtn");
-  const approveHint = qs("#approveQuoteHint");
-  const rejectHint = qs("#rejectQuoteHint");
-
-  if (group) {
-    group.setAttribute("aria-label", t("customer.quote.actions.group_label", "Decide on this quote"));
-  }
-  if (intro) {
-    intro.textContent = t("customer.quote.actions.intro", "Choose an action below. Nothing is final until you confirm.");
-  }
-  if (approveBtn) {
-    delete approveBtn.dataset.lhaiLabelSaved;
-    approveBtn.setAttribute("aria-busy", "false");
-    approveBtn.textContent = t("customer.quote.actions.approve", "Approve");
-  }
-  if (rejectBtn) {
-    delete rejectBtn.dataset.lhaiLabelSaved;
-    rejectBtn.setAttribute("aria-busy", "false");
-    rejectBtn.textContent = t("customer.quote.actions.reject", "Reject");
-  }
-  if (approveHint) {
-    approveHint.textContent = t(
-      "customer.quote.actions.approve_hint",
-      "Tells the team you accept this proposal. They will usually send an invoice or payment steps next, then continue your service."
-    );
-  }
-  if (rejectHint) {
-    rejectHint.textContent = t(
-      "customer.quote.actions.reject_hint",
-      "Stops this quote for now. You are not charged. You can message the team later if you want a different option."
-    );
-  }
-}
-
 function renderWhatsNextSection(quote) {
+  const headingEl = qs("#quoteWhatsNextHeading");
+  const ledeEl = qs("#quoteWhatsNextLede");
   const ol = qs("#quoteWhatsNextSteps");
+  if (headingEl) {
+    headingEl.textContent = t("customer.quote.whats_next.title", "Next steps");
+  }
+  if (ledeEl) {
+    ledeEl.textContent = t(
+      "customer.quote.whats_next.lede",
+      "After you review this quote and approve it, an invoice and payment instructions will be sent to you."
+    );
+  }
   if (ol) {
     ol.innerHTML = "";
     for (const line of whatsNextProcessSteps(quote)) {
@@ -809,7 +1401,10 @@ function renderWhatsNextSection(quote) {
 }
 
 function renderQuote(quote) {
+  setQuoteDecisionButtonsBusy(false, "approve");
   renderQuoteHero(quote);
+  renderQuotePricingSection(quote);
+  renderQuoteScopeSection(quote);
   renderRequestSummaryBlock(quote);
   renderAiSupportSection(quote);
 
@@ -826,13 +1421,8 @@ function renderQuote(quote) {
   }
 
   renderWhatsNextSection(quote);
-  renderQuoteActionCopy();
 
-  const allowDecision = quote.status === "PROPOSED";
-  const approveBtnEl = qs("#approveQuoteBtn");
-  const rejectBtnEl = qs("#rejectQuoteBtn");
-  if (approveBtnEl) approveBtnEl.disabled = !allowDecision;
-  if (rejectBtnEl) rejectBtnEl.disabled = !allowDecision;
+  renderQuoteHeroActions(quote);
 
   renderQuoteSecondaryDetails(quote);
   renderDecisionFeedbackPanel(quote);
@@ -953,7 +1543,7 @@ async function initQuoteDetailPage() {
   if (loadEl) loadEl.style.display = "none";
   if (contentEl) contentEl.style.display = "block";
   {
-    const st0 = (quote.status || "").toUpperCase();
+    const st0 = normalizeQuoteStatus(quote.status);
     let stripKey = "customer.quote.status_strip.other";
     let stripFb = "When the team sends a proposal, you can review and respond here.";
     if (st0 === "PROPOSED") {
@@ -969,7 +1559,9 @@ async function initQuoteDetailPage() {
     setStatus(t(stripKey, stripFb), "default");
   }
 
-  qs("#approveQuoteBtn")?.addEventListener("click", async () => {
+  async function runApproveQuoteDecision() {
+    if (!canCustomerDecideOnQuote(quote?.status) || quoteDecisionInFlight) return;
+    closeQuoteDecisionModals();
     try {
       showDecisionFeedbackLoading(
         t("customer.quote.feedback.approve_submitting", "Submitting your approval…")
@@ -1015,11 +1607,18 @@ async function initQuoteDetailPage() {
     } catch (e) {
       const msg = e && typeof e.message === "string" ? e.message : String(e);
       setStatus(msg || t("customer.quote.transition.error", "Could not update the quote. Please try again."), "error");
+      setQuoteDecisionButtonsBusy(false, "approve");
       renderQuote(quote);
     }
-  });
+  }
 
-  qs("#rejectQuoteBtn")?.addEventListener("click", async () => {
+  async function runRejectQuoteDecision(rejectNote = "Rejected by customer") {
+    if (!canCustomerDecideOnQuote(quote?.status) || quoteDecisionInFlight) return;
+    closeQuoteDecisionModals();
+    const transitionNote =
+      typeof rejectNote === "string" && rejectNote.trim()
+        ? rejectNote.trim()
+        : buildRejectTransitionNote("");
     try {
       showDecisionFeedbackLoading(t("customer.quote.feedback.reject_submitting", "Submitting your decision…"));
       setQuoteDecisionButtonsBusy(true, "reject");
@@ -1031,7 +1630,7 @@ async function initQuoteDetailPage() {
         scrollDecisionFeedbackIntoView();
         return;
       }
-      const transition = await quoteApi.transition(quote.id, "REJECTED", "Rejected by customer");
+      const transition = await quoteApi.transition(quote.id, "REJECTED", transitionNote);
       setStatus(transition.message || t("customer.quote.transition.rejected", "Quote declined."), "default");
       try {
         const refreshed = await quoteApi.getDetail(quote.id);
@@ -1048,9 +1647,27 @@ async function initQuoteDetailPage() {
     } catch (e) {
       const msg = e && typeof e.message === "string" ? e.message : String(e);
       setStatus(msg || t("customer.quote.transition.error", "Could not update the quote. Please try again."), "error");
+      setQuoteDecisionButtonsBusy(false, "reject");
       renderQuote(quote);
     }
-  });
+  }
+
+  wireQuoteDecisionModals(
+    () => quote,
+    () => runApproveQuoteDecision(),
+    (note) => runRejectQuoteDecision(note)
+  );
+
+  for (const id of QUOTE_APPROVE_BTN_IDS) {
+    document.getElementById(id)?.addEventListener("click", (ev) => {
+      openApproveConfirmModal(quote, ev.currentTarget);
+    });
+  }
+  for (const id of QUOTE_REJECT_BTN_IDS) {
+    document.getElementById(id)?.addEventListener("click", (ev) => {
+      openRejectConfirmModal(quote, ev.currentTarget);
+    });
+  }
 
 }
 

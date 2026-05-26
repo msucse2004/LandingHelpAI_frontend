@@ -20,12 +20,12 @@ import {
   deliveryModeBadgeFromThreadMeta,
   renderIntakeThreadContentBlockBubble,
 } from "../intake/intake-runtime-view.js";
-import { coerceToIsoDateInputValue, effectiveIntakeInputType, shouldHideIntakeBlockTitle } from "../intake/intake-form-presentation.js";
+import { coerceToIsoDateInputValue, effectiveIntakeInputType, intakeRequiredFieldError, intakeRequiredFieldErrorForInputType, isCurrencyUsdInputType, isEffectivelyEmptyIntakeHelpText, normalizeIntakeFormPromptUiPayload, normalizePrefillInputScalar, prefillCandidateOptionLabel, renderCurrencyUsdInputControlsHtml, resolveIntakeFieldInitialValue, shouldHideIntakeBlockTitle } from "../intake/intake-form-presentation.js";
 import { formatMessageTimestamp, resolveBackendMediaUrl, safeText } from "../core/utils.js";
 import { getRealtimeStatus, subscribeRealtimeEvents } from "../core/realtime-client.js";
 import {
   buildCustomerBidResultsHref,
-  isCarPurchaseBidUpdatedPayload,
+  isBiddingBidUpdatedPayload,
   normalizeBidUpdatedPayload,
   showBidUpdatedToast,
 } from "../core/bid-realtime.js";
@@ -224,15 +224,15 @@ async function loadMeBasicInfoSafe() {
 async function applyQuestionGroupNamePrefillFallback(messages) {
   if (!Array.isArray(messages) || !messages.length || operatorInboxMode || partnerInboxMode) return;
   const me = await loadMeBasicInfoSafe();
-  if (!me || typeof me !== "object") return;
-  const first = String(me.first_name || "").trim();
-  const last = String(me.last_name || "").trim();
-  const full = String(me.full_name || "").trim();
+  const first = me && typeof me === "object" ? String(me.first_name || "").trim() : "";
+  const last = me && typeof me === "object" ? String(me.last_name || "").trim() : "";
+  const full = me && typeof me === "object" ? String(me.full_name || "").trim() : "";
   for (const m of messages) {
     if (!m || typeof m !== "object") continue;
     const up = m.ui_payload && typeof m.ui_payload === "object" ? /** @type {Record<string, unknown>} */ (m.ui_payload) : null;
     if (!up) continue;
     if (String(up.widget_type || "") !== "form_prompt") continue;
+    normalizeIntakeFormPromptUiPayload(up);
     const itRoot = normalizeIntakeInputType(up.input_type);
     if (itRoot !== "question_group" && itRoot !== "intake_multi") continue;
     const stepGroups =
@@ -688,15 +688,191 @@ function intakeChildAnswerLooksEmpty(cit, vj) {
   return v === undefined || v === null || String(v).trim() === "";
 }
 
+const PREFILL_MANUAL_VALUE = "__prefill_manual__";
+
+/** @param {Record<string, unknown>} row */
+function usesPrefillCandidatesDropdown(row) {
+  if (Boolean(row.prefill_blocked)) return false;
+  const mode = String(row.prefill_mode || row.prefill_use_dropdown ? "dropdown_existing_values" : "");
+  if (mode !== "dropdown_existing_values" && !row.prefill_use_dropdown) return false;
+  const list = Array.isArray(row.prefill_candidates) ? row.prefill_candidates : [];
+  return list.length > 0;
+}
+
+/** @param {Record<string, unknown>} row */
+function usesPrefillConfirm(row) {
+  if (Boolean(row.prefill_blocked)) return false;
+  const mode = String(row.prefill_mode || "");
+  if (mode !== "confirm_existing_value" && !row.prefill_use_confirm) return false;
+  const pv = String(row.prefill_value ?? row.prefill_resolved_value ?? row.value ?? "").trim();
+  return Boolean(pv);
+}
+
+/**
+ * @param {Record<string, unknown>} row
+ * @param {string} suffix
+ * @param {string} ariaLabel
+ */
+function renderPrefillCandidatesDropdownHtml(row, suffix, ariaLabel) {
+  const candidates = Array.isArray(row.prefill_candidates)
+    ? /** @type {Array<Record<string, unknown>>} */ (row.prefill_candidates)
+    : [];
+  const allowManual = row.allow_manual_input !== false;
+  const selectedRaw = String(row.prefill_value ?? row.value ?? "").trim();
+  const selected = normalizePrefillInputScalar(selectedRaw, row);
+  const optHtml = candidates
+    .map((c) => {
+      const val = String(c.value ?? "");
+      const lab = prefillCandidateOptionLabel(c);
+      const src = String(c.source || "");
+      const selMark = selected && val === selected ? " selected" : "";
+      return `<option value="${escapeHtml(val)}" data-prefill-source="${escapeHtml(src)}"${selMark}>${escapeHtml(lab)}</option>`;
+    })
+    .join("");
+  const manualOpt = allowManual
+    ? `<option value="${escapeHtml(PREFILL_MANUAL_VALUE)}">${escapeHtml("직접 입력하기")}</option>`
+    : "";
+  const manualHidden = allowManual ? " hidden" : "";
+  return `<div class="lhai-chat-form-prompt__prefill-dropdown" data-lhai-prefill-dropdown>
+    <select class="lhai-chat-form-prompt__input lhai-chat-form-prompt__select lhai-chat-form-prompt__prefill-select" aria-label="${escapeHtml(ariaLabel)}" data-lhai-prefill-select>
+      <option value="">${escapeHtml("선택하세요")}</option>
+      ${optHtml}
+      ${manualOpt}
+    </select>
+    <input type="text" class="lhai-chat-form-prompt__input lhai-chat-form-prompt__text lhai-chat-form-prompt__prefill-manual"${manualHidden} maxlength="4000" placeholder="${escapeHtml("직접 입력")}" aria-label="${escapeHtml(ariaLabel)}" />
+  </div>`;
+}
+
+/**
+ * @param {Record<string, unknown>} row
+ * @param {string} suffix
+ * @param {string} ariaLabel
+ */
+function renderPrefillConfirmHtml(row, suffix, ariaLabel) {
+  const pvRaw = String(row.prefill_value ?? row.prefill_resolved_value ?? "").trim();
+  const pv = normalizePrefillInputScalar(pvRaw, row);
+  const plab = String(row.prefill?.source_label || row.prefill_source || "").trim();
+  const display = plab ? `${pv} (${plab})` : pv;
+  const name = `lhai-intake-pf-confirm-${suffix}`;
+  return `<div class="lhai-chat-form-prompt__prefill-confirm" data-lhai-prefill-confirm data-prefill-value="${escapeHtml(pv)}" data-prefill-source="${escapeHtml(String(row.prefill_source || ""))}">
+    <p class="lhai-chat-form-prompt__prefill-confirm-text">${escapeHtml("저장된 값")}: <strong>${escapeHtml(display)}</strong></p>
+    <div class="lhai-chat-form-prompt__radio-group" role="radiogroup" aria-label="${escapeHtml(ariaLabel)}">
+      <label class="lhai-chat-form-prompt__radio-label" for="${escapeHtml(`${name}-y`)}">
+        <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(`${name}-y`)}" value="yes" class="lhai-chat-form-prompt__radio lhai-chat-form-prompt__prefill-confirm-radio" checked />
+        <span>${escapeHtml("맞습니다")}</span>
+      </label>
+      <label class="lhai-chat-form-prompt__radio-label" for="${escapeHtml(`${name}-n`)}">
+        <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(`${name}-n`)}" value="no" class="lhai-chat-form-prompt__radio lhai-chat-form-prompt__prefill-confirm-radio" />
+        <span>${escapeHtml("다른 값으로 변경")}</span>
+      </label>
+    </div>
+    <div class="lhai-chat-form-prompt__prefill-confirm-alt" hidden>
+      <input type="text" class="lhai-chat-form-prompt__input lhai-chat-form-prompt__text lhai-chat-form-prompt__prefill-confirm-alt-input" maxlength="4000" aria-label="${escapeHtml(ariaLabel)}" />
+    </div>
+  </div>`;
+}
+
+/** @param {HTMLElement} root */
+function togglePrefillManualInput(root) {
+  const wrap = root.querySelector("[data-lhai-prefill-dropdown]");
+  if (!(wrap instanceof HTMLElement)) return;
+  const sel = wrap.querySelector(".lhai-chat-form-prompt__prefill-select");
+  const manual = wrap.querySelector(".lhai-chat-form-prompt__prefill-manual");
+  if (!(sel instanceof HTMLSelectElement) || !(manual instanceof HTMLInputElement)) return;
+  const isManual = String(sel.value || "") === PREFILL_MANUAL_VALUE;
+  manual.hidden = !isManual;
+  manual.required = isManual;
+  if (!isManual) manual.value = "";
+}
+
+/** @param {HTMLElement} root */
+function togglePrefillConfirmAlt(root) {
+  const wrap = root.querySelector("[data-lhai-prefill-confirm]");
+  if (!(wrap instanceof HTMLElement)) return;
+  const alt = wrap.querySelector(".lhai-chat-form-prompt__prefill-confirm-alt");
+  const no = wrap.querySelector('.lhai-chat-form-prompt__prefill-confirm-radio[value="no"]');
+  if (!(alt instanceof HTMLElement) || !(no instanceof HTMLInputElement)) return;
+  alt.hidden = !no.checked;
+}
+
+/**
+ * @param {HTMLElement | null} sec
+ * @param {unknown} [fieldLabel]
+ * @returns {{ ok: boolean, valueJson?: Record<string, unknown>, error?: string }}
+ */
+function collectPrefillCandidatesFromSection(sec, fieldLabel = "") {
+  if (!(sec instanceof HTMLElement)) {
+    return { ok: false, error: "입력란을 찾을 수 없습니다." };
+  }
+  const sel = sec.querySelector(".lhai-chat-form-prompt__prefill-select");
+  if (!(sel instanceof HTMLSelectElement)) {
+    return { ok: false, error: "선택 항목을 찾을 수 없습니다." };
+  }
+  const v = String(sel.value || "").trim();
+  if (!v) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "select") };
+  if (v === PREFILL_MANUAL_VALUE) {
+    const manual = sec.querySelector(".lhai-chat-form-prompt__prefill-manual");
+    if (!(manual instanceof HTMLInputElement)) {
+      return { ok: false, error: "직접 입력란을 찾을 수 없습니다." };
+    }
+    const mv = String(manual.value || "").trim();
+    if (!mv) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "input") };
+    return { ok: true, valueJson: { value: mv } };
+  }
+  const opt = sel.selectedOptions[0];
+  const src = opt ? String(opt.getAttribute("data-prefill-source") || "").trim() : "";
+  const out = { value: v };
+  if (src) out._prefill_source = src;
+  return { ok: true, valueJson: out };
+}
+
+/**
+ * @param {HTMLElement | null} sec
+ * @param {unknown} [fieldLabel]
+ * @returns {{ ok: boolean, valueJson?: Record<string, unknown>, error?: string }}
+ */
+function collectPrefillConfirmFromSection(sec, fieldLabel = "") {
+  if (!(sec instanceof HTMLElement)) {
+    return { ok: false, error: "확인 항목을 찾을 수 없습니다." };
+  }
+  const wrap = sec.querySelector("[data-lhai-prefill-confirm]");
+  if (!(wrap instanceof HTMLElement)) {
+    return { ok: false, error: "확인 항목을 찾을 수 없습니다." };
+  }
+  const yes = wrap.querySelector('.lhai-chat-form-prompt__prefill-confirm-radio[value="yes"]');
+  if (!(yes instanceof HTMLInputElement) || !yes.checked) {
+    const alt = wrap.querySelector(".lhai-chat-form-prompt__prefill-confirm-alt-input");
+    if (!(alt instanceof HTMLInputElement)) {
+      return { ok: false, error: intakeRequiredFieldError(fieldLabel, "input") };
+    }
+    const mv = String(alt.value || "").trim();
+    if (!mv) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "input") };
+    return { ok: true, valueJson: { value: mv } };
+  }
+  const pv = String(wrap.getAttribute("data-prefill-value") || "").trim();
+  const src = String(wrap.getAttribute("data-prefill-source") || "").trim();
+  if (!pv) return { ok: false, error: "저장된 값이 없습니다." };
+  const out = { value: pv };
+  if (src) out._prefill_source = src;
+  return { ok: true, valueJson: out };
+}
+
 /**
  * @param {HTMLElement | null} childEl
  * @param {string} cit normalized type
  * @param {boolean} skipChild
+ * @param {unknown} [fieldLabel]
  * @returns {{ ok: boolean, valueJson?: Record<string, unknown>, error?: string }}
  */
-function collectChildValueJson(childEl, cit, skipChild) {
+function collectChildValueJson(childEl, cit, skipChild, fieldLabel = "") {
   if (!(childEl instanceof HTMLElement)) {
     return { ok: false, error: "항목을 찾을 수 없습니다." };
+  }
+  if (childEl.querySelector("[data-lhai-prefill-dropdown]")) {
+    return collectPrefillCandidatesFromSection(childEl, fieldLabel);
+  }
+  if (childEl.querySelector("[data-lhai-prefill-confirm]")) {
+    return collectPrefillConfirmFromSection(childEl, fieldLabel);
   }
   if (skipChild) {
     if (cit === "multi_select") {
@@ -713,7 +889,7 @@ function collectChildValueJson(childEl, cit, skipChild) {
   if (cit === "radio" || cit === "yes_no") {
     const sel = childEl.querySelector('.lhai-chat-form-prompt__radio-group input[type="radio"]:checked');
     if (!(sel instanceof HTMLInputElement)) {
-      return { ok: false, error: "선택해 주세요." };
+      return { ok: false, error: intakeRequiredFieldError(fieldLabel, "select") };
     }
     return { ok: true, valueJson: { value: sel.value } };
   }
@@ -721,7 +897,7 @@ function collectChildValueJson(childEl, cit, skipChild) {
     const sel = childEl.querySelector("select.lhai-chat-form-prompt__select");
     if (!(sel instanceof HTMLSelectElement)) return { ok: false, error: "항목을 찾을 수 없습니다." };
     const v = String(sel.value || "").trim();
-    if (!v) return { ok: false, error: "선택해 주세요." };
+    if (!v) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "select") };
     return { ok: true, valueJson: { value: v } };
   }
   if (cit === "textarea") {
@@ -734,7 +910,22 @@ function collectChildValueJson(childEl, cit, skipChild) {
     const inp = childEl.querySelector("input.lhai-chat-form-prompt__date");
     if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "날짜 입력을 찾을 수 없습니다." };
     const v = String(inp.value || "").trim();
-    if (!v) return { ok: false, error: "날짜를 선택해 주세요." };
+    if (!v) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "date") };
+    return { ok: true, valueJson: { value: v } };
+  }
+  if (isCurrencyUsdInputType(cit)) {
+    const inp = childEl.querySelector('input[type="number"].lhai-chat-form-prompt__currency-usd, .lhai-intake-currency-usd input[type="number"]');
+    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "금액 입력란을 찾을 수 없습니다." };
+    const v = String(inp.value || "").trim();
+    if (!v) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "input") };
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0) return { ok: false, error: "올바른 금액을 입력해 주세요." };
+    return { ok: true, valueJson: { value: v, currency: "USD" } };
+  }
+  if (cit === "number") {
+    const inp = childEl.querySelector("input.lhai-chat-form-prompt__number");
+    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "입력란을 찾을 수 없습니다." };
+    const v = String(inp.value || "").trim();
     return { ok: true, valueJson: { value: v } };
   }
   const inp = childEl.querySelector("input.lhai-chat-form-prompt__text");
@@ -763,15 +954,17 @@ function renderQuestionGroupControlsHtml(up, messageId) {
         const cit =
           effectiveIntakeInputType(ch) === "date" ? "date" : normalizeIntakeInputType(ch.input_type);
         const options = Array.isArray(ch.options) ? /** @type {Array<Record<string, unknown>>} */ (ch.options) : [];
-        const def = ch.default_value != null && ch.default_value !== undefined ? String(ch.default_value) : "";
-        const rawVal = ch.value != null && String(ch.value).trim() !== "" ? String(ch.value).trim() : "";
-        const ivRaw = rawVal || def;
-        const iv = cit === "date" ? coerceToIsoDateInputValue(ivRaw) || "" : ivRaw;
+        const ivRawBase = resolveIntakeFieldInitialValue(ch);
+        const iv = cit === "date" ? coerceToIsoDateInputValue(ivRawBase) || "" : ivRawBase;
         const readOnlyAttr = "";
         const selectLocked = "";
         const suff = `${mid}-c${idx}`;
         let inner = "";
-        if (cit === "textarea") {
+        if (usesPrefillCandidatesDropdown(ch)) {
+          inner = renderPrefillCandidatesDropdownHtml(ch, suff, lab);
+        } else if (usesPrefillConfirm(ch)) {
+          inner = renderPrefillConfirmHtml(ch, suff, lab);
+        } else if (cit === "textarea") {
           inner = `<textarea class="lhai-chat-form-prompt__input lhai-chat-form-prompt__textarea" rows="2" maxlength="8000" aria-label="${escapeHtml(lab)}"${readOnlyAttr}>${escapeHtml(iv)}</textarea>`;
         } else if (cit === "select") {
           const opts = [...options].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
@@ -833,12 +1026,21 @@ function renderQuestionGroupControlsHtml(up, messageId) {
     </div>`;
         } else if (cit === "date") {
           inner = `<input type="date" class="lhai-chat-form-prompt__input lhai-chat-form-prompt__date" value="${escapeHtml(iv)}" aria-label="${escapeHtml(lab)}"${readOnlyAttr} />`;
+        } else if (isCurrencyUsdInputType(cit)) {
+          inner = renderCurrencyUsdInputControlsHtml({
+            valueEsc: escapeHtml(iv),
+            ariaLabelAttrEsc: ` aria-label="${escapeHtml(lab)}"`,
+            readOnlyAttr,
+            inputClass: "lhai-chat-form-prompt__input lhai-chat-form-prompt__currency-usd",
+          });
+        } else if (cit === "number") {
+          inner = `<input type="number" class="lhai-chat-form-prompt__input lhai-chat-form-prompt__number" inputmode="decimal" step="any" value="${escapeHtml(iv)}" aria-label="${escapeHtml(lab)}"${readOnlyAttr} />`;
         } else {
           inner = `<input type="text" class="lhai-chat-form-prompt__input lhai-chat-form-prompt__text" value="${escapeHtml(iv)}" maxlength="4000" aria-label="${escapeHtml(lab)}"${readOnlyAttr} />`;
         }
         return `<div class="lhai-chat-form-prompt__group-child" data-child-id="${escapeHtml(cid)}" data-child-input-type="${escapeHtml(cit)}">
     <div class="lhai-chat-form-prompt__child-label">${escapeHtml(lab)}${reqHtml}</div>
-    ${help ? `<div class="lhai-chat-form-prompt__child-help u-text-muted">${escapeHtml(help)}</div>` : ""}
+    ${!isEffectivelyEmptyIntakeHelpText(help) ? `<div class="lhai-chat-form-prompt__child-help u-text-muted">${escapeHtml(help)}</div>` : ""}
     <div class="lhai-chat-form-prompt__child-controls">${inner}</div>
   </div>`;
       })
@@ -855,6 +1057,12 @@ function renderFormPromptControlsHtml(up, messageId) {
   const it =
     effectiveIntakeInputType(up) === "date" ? "date" : normalizeIntakeInputType(up.input_type);
   if (it === "question_group") return "";
+  if (usesPrefillCandidatesDropdown(up)) {
+    return renderPrefillCandidatesDropdownHtml(up, mid, String(up.label || ""));
+  }
+  if (usesPrefillConfirm(up)) {
+    return renderPrefillConfirmHtml(up, mid, String(up.label || ""));
+  }
   const options = Array.isArray(up.options) ? /** @type {Array<Record<string, unknown>>} */ (up.options) : [];
   const def = up.default_value != null && up.default_value !== undefined ? String(up.default_value) : "";
   const prefillBlocked = Boolean(up.prefill_blocked);
@@ -862,9 +1070,9 @@ function renderFormPromptControlsHtml(up, messageId) {
   const rawVal = up.value != null && String(up.value).trim() !== "" ? String(up.value).trim() : "";
   const pf = up.prefill && typeof up.prefill === "object" ? up.prefill : null;
   const prefillOn = !prefillBlocked && pf && Boolean(pf.enabled);
-  const prefillScalar = rawVal || rawPv;
-  const usePrefillValue = Boolean(prefillOn && prefillScalar);
-  const ivRaw = usePrefillValue ? prefillScalar : def;
+  const prefillScalar = rawVal || String(up.prefill_value ?? "").trim() || rawPv;
+  const usePrefillValue = Boolean((prefillOn && prefillScalar) || rawVal || rawPv);
+  const ivRaw = usePrefillValue ? resolveIntakeFieldInitialValue(up) : def;
   const ivDate = it === "date" ? coerceToIsoDateInputValue(ivRaw) || "" : "";
   const readOnlyAttr =
     usePrefillValue && up.prefill_editable === false ? ' readonly="readonly" aria-readonly="true"' : "";
@@ -940,6 +1148,18 @@ function renderFormPromptControlsHtml(up, messageId) {
     const v = escapeHtml(ivDate);
     return `<input type="date" class="lhai-chat-form-prompt__input lhai-chat-form-prompt__date" value="${v}" aria-label="${escapeHtml(String(up.label || ""))}"${readOnlyAttr} />`;
   }
+  if (isCurrencyUsdInputType(it)) {
+    return renderCurrencyUsdInputControlsHtml({
+      valueEsc: escapeHtml(ivRaw),
+      ariaLabelAttrEsc: ` aria-label="${escapeHtml(String(up.label || ""))}"`,
+      readOnlyAttr,
+      inputClass: "lhai-chat-form-prompt__input lhai-chat-form-prompt__currency-usd",
+    });
+  }
+  if (it === "number") {
+    const v = escapeHtml(ivRaw);
+    return `<input type="number" class="lhai-chat-form-prompt__input lhai-chat-form-prompt__number" inputmode="decimal" step="any" value="${v}" aria-label="${escapeHtml(String(up.label || ""))}"${readOnlyAttr} />`;
+  }
   const v = escapeHtml(ivRaw);
   return `<input type="text" class="lhai-chat-form-prompt__input lhai-chat-form-prompt__text" value="${v}" maxlength="4000" aria-label="${escapeHtml(String(up.label || ""))}"${readOnlyAttr} />`;
 }
@@ -950,6 +1170,13 @@ function renderFormPromptControlsHtml(up, messageId) {
  * @returns {{ ok: boolean, valueJson?: Record<string, unknown>, error?: string }}
  */
 function collectScalarPromptFromSection(sec, st) {
+  const fieldLabel = st?.label;
+  if (sec instanceof HTMLElement && sec.querySelector("[data-lhai-prefill-dropdown]")) {
+    return collectPrefillCandidatesFromSection(sec, fieldLabel);
+  }
+  if (sec instanceof HTMLElement && sec.querySelector("[data-lhai-prefill-confirm]")) {
+    return collectPrefillConfirmFromSection(sec, fieldLabel);
+  }
   const it =
     effectiveIntakeInputType(st) === "date" ? "date" : normalizeIntakeInputType(st.input_type);
   if (it === "multi_select") {
@@ -961,7 +1188,7 @@ function collectScalarPromptFromSection(sec, st) {
   if (it === "radio" || it === "yes_no") {
     const sel = sec.querySelector('.lhai-chat-form-prompt__radio-group input[type="radio"]:checked');
     if (!(sel instanceof HTMLInputElement)) {
-      return { ok: false, error: "선택해 주세요." };
+      return { ok: false, error: intakeRequiredFieldError(fieldLabel, "select") };
     }
     return { ok: true, valueJson: { value: sel.value } };
   }
@@ -969,7 +1196,7 @@ function collectScalarPromptFromSection(sec, st) {
     const sel = sec.querySelector("select.lhai-chat-form-prompt__select");
     if (!(sel instanceof HTMLSelectElement)) return { ok: false, error: "항목을 찾을 수 없습니다." };
     const v = String(sel.value || "").trim();
-    if (!v) return { ok: false, error: "선택해 주세요." };
+    if (!v) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "select") };
     return { ok: true, valueJson: { value: v } };
   }
   if (it === "textarea") {
@@ -982,7 +1209,22 @@ function collectScalarPromptFromSection(sec, st) {
     const inp = sec.querySelector("input.lhai-chat-form-prompt__date");
     if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "날짜 입력을 찾을 수 없습니다." };
     const v = String(inp.value || "").trim();
-    if (!v) return { ok: false, error: "날짜를 선택해 주세요." };
+    if (!v) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "date") };
+    return { ok: true, valueJson: { value: v } };
+  }
+  if (isCurrencyUsdInputType(it)) {
+    const inp = sec.querySelector('input[type="number"].lhai-chat-form-prompt__currency-usd, .lhai-intake-currency-usd input[type="number"]');
+    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "금액 입력란을 찾을 수 없습니다." };
+    const v = String(inp.value || "").trim();
+    if (!v) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "input") };
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0) return { ok: false, error: "올바른 금액을 입력해 주세요." };
+    return { ok: true, valueJson: { value: v, currency: "USD" } };
+  }
+  if (it === "number") {
+    const inp = sec.querySelector("input.lhai-chat-form-prompt__number");
+    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "입력란을 찾을 수 없습니다." };
+    const v = String(inp.value || "").trim();
     return { ok: true, valueJson: { value: v } };
   }
   const inp = sec.querySelector("input.lhai-chat-form-prompt__text");
@@ -1017,7 +1259,7 @@ function renderIntakeMultiControlsHtml(up, messageId) {
         : `<h4 class="lhai-chat-form-prompt__intake-step-title">${escapeHtml(title)}${escapeHtml(reqMark)}</h4>`;
       return `<section class="lhai-chat-form-prompt__intake-step" data-intake-step-field-id="${escapeHtml(sfid)}" data-intake-step-input-type="${escapeHtml(stIt)}">
     ${titleLine}
-    ${help ? `<div class="lhai-chat-form-prompt__help">${escapeHtml(help)}</div>` : ""}
+    ${!isEffectivelyEmptyIntakeHelpText(help) ? `<div class="lhai-chat-form-prompt__help">${escapeHtml(help)}</div>` : ""}
     <div class="lhai-chat-form-prompt__intake-step-controls">${inner}</div>
   </section>`;
     })
@@ -1029,6 +1271,7 @@ function renderIntakeMultiControlsHtml(up, messageId) {
  * @param {Record<string, unknown>} up
  */
 function renderFormPromptInteractive(m, up) {
+  normalizeIntakeFormPromptUiPayload(up);
   const mid = String(m.id || "");
   const sessionId = String(up.session_id || "");
   const threadId = String(up.thread_id || selectedThreadId || "");
@@ -1062,14 +1305,14 @@ function renderFormPromptInteractive(m, up) {
       "이 단계를 진행하려면 프로필에 필요한 정보가 먼저 채워져 있어야 합니다. 설정에서 입력한 뒤 다시 시도해 주세요.";
     return `${blocksHtml}<div class="lhai-chat-form-prompt lhai-chat-form-prompt--blocked" data-lhai-intake-form data-message-id="${escapeHtml(mid)}" data-session-id="${escapeHtml(sessionId)}" data-thread-id="${escapeHtml(threadId)}" data-field-id="${escapeHtml(fieldId)}" data-input-type="${escapeHtml(domInputType)}">
     ${labelLine}
-    ${helpText ? `<div class="lhai-chat-form-prompt__help">${escapeHtml(helpText)}</div>` : ""}
+    ${!isEffectivelyEmptyIntakeHelpText(helpText) ? `<div class="lhai-chat-form-prompt__help">${escapeHtml(helpText)}</div>` : ""}
     <p class="lhai-chat-form-prompt__error" role="alert">${escapeHtml(msg)}</p>
   </div>`;
   }
 
   return `${blocksHtml}<div class="lhai-chat-form-prompt" data-lhai-intake-form data-message-id="${escapeHtml(mid)}" data-session-id="${escapeHtml(sessionId)}" data-thread-id="${escapeHtml(threadId)}" data-field-id="${escapeHtml(fieldId)}" data-input-type="${escapeHtml(domInputType)}">
     ${labelLine}
-    ${helpText ? `<div class="lhai-chat-form-prompt__help">${escapeHtml(helpText)}</div>` : ""}
+    ${!isEffectivelyEmptyIntakeHelpText(helpText) ? `<div class="lhai-chat-form-prompt__help">${escapeHtml(helpText)}</div>` : ""}
     ${prefillHelper ? `<div class="lhai-chat-form-prompt__help lhai-chat-form-prompt__help--prefill">${escapeHtml(prefillHelper)}</div>` : ""}
     <div class="lhai-chat-form-prompt__controls">${controlsInner}</div>
     <div class="lhai-chat-form-prompt__error" role="alert" hidden></div>
@@ -1098,7 +1341,7 @@ function renderFormPromptOperatorReadonly(up) {
       : "";
   return `${blocksHtml}<div class="lhai-chat-form-prompt lhai-chat-form-prompt--readonly">
     <div class="lhai-chat-form-prompt__label">${escapeHtml(label)}</div>
-    ${helpText ? `<div class="lhai-chat-form-prompt__help">${escapeHtml(helpText)}</div>` : ""}
+    ${!isEffectivelyEmptyIntakeHelpText(helpText) ? `<div class="lhai-chat-form-prompt__help">${escapeHtml(helpText)}</div>` : ""}
     <p class="lhai-chat-form-prompt__readonly-note u-text-muted">${escapeHtml("운영 보기에서는 인테이크 응답을 제출할 수 없습니다.")}</p>
     <p class="u-text-muted lhai-chat-form-prompt__meta">${escapeHtml(`입력 유형: ${it}`)}</p>
     ${groupMeta}
@@ -1173,7 +1416,7 @@ function collectIntakeValueJson(container, inputType, skip) {
           const cel = sec.querySelector(`.lhai-chat-form-prompt__group-child[data-child-id="${cid}"]`);
           const cit =
             effectiveIntakeInputType(ch) === "date" ? "date" : normalizeIntakeInputType(ch.input_type);
-          const sub = collectChildValueJson(cel, cit, false);
+          const sub = collectChildValueJson(cel, cit, false, ch.label);
           if (!sub.ok) return { ok: false, error: sub.error || "입력을 확인해 주세요." };
           group_answers[cid] = /** @type {Record<string, unknown>} */ (sub.valueJson || {});
         }
@@ -1197,12 +1440,22 @@ function collectIntakeValueJson(container, inputType, skip) {
       const cel = container.querySelector(`.lhai-chat-form-prompt__group-child[data-child-id="${cid}"]`);
       const cit =
         effectiveIntakeInputType(ch) === "date" ? "date" : normalizeIntakeInputType(ch.input_type);
-      const sub = collectChildValueJson(cel, cit, false);
+      const sub = collectChildValueJson(cel, cit, false, ch.label);
       if (!sub.ok) return { ok: false, error: sub.error || "입력을 확인해 주세요." };
       group_answers[cid] = /** @type {Record<string, unknown>} */ (sub.valueJson || {});
     }
     return { ok: true, valueJson: { group_answers } };
   }
+  if (container.querySelector("[data-lhai-prefill-dropdown]")) {
+    const upRoot = getUiPayloadForFormRoot(container);
+    return collectPrefillCandidatesFromSection(container, upRoot?.label);
+  }
+  if (container.querySelector("[data-lhai-prefill-confirm]")) {
+    const upRoot = getUiPayloadForFormRoot(container);
+    return collectPrefillConfirmFromSection(container, upRoot?.label);
+  }
+  const upRoot = getUiPayloadForFormRoot(container);
+  const rootLabel = upRoot?.label;
   if (it === "multi_select") {
     const vals = Array.from(container.querySelectorAll(".lhai-chat-form-prompt__cb:checked")).map((c) =>
       String(/** @type {HTMLInputElement} */ (c).value)
@@ -1212,7 +1465,7 @@ function collectIntakeValueJson(container, inputType, skip) {
   if (it === "radio" || it === "yes_no") {
     const sel = container.querySelector('.lhai-chat-form-prompt__radio-group input[type="radio"]:checked');
     if (!(sel instanceof HTMLInputElement)) {
-      return { ok: false, error: "선택해 주세요." };
+      return { ok: false, error: intakeRequiredFieldError(rootLabel, "select") };
     }
     return { ok: true, valueJson: { value: sel.value } };
   }
@@ -1220,7 +1473,7 @@ function collectIntakeValueJson(container, inputType, skip) {
     const sel = container.querySelector("select.lhai-chat-form-prompt__select");
     if (!(sel instanceof HTMLSelectElement)) return { ok: false, error: "항목을 찾을 수 없습니다." };
     const v = String(sel.value || "").trim();
-    if (!v) return { ok: false, error: "선택해 주세요." };
+    if (!v) return { ok: false, error: intakeRequiredFieldError(rootLabel, "select") };
     return { ok: true, valueJson: { value: v } };
   }
   if (it === "textarea") {
@@ -1233,7 +1486,7 @@ function collectIntakeValueJson(container, inputType, skip) {
     const inp = container.querySelector("input.lhai-chat-form-prompt__date");
     if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "날짜 입력을 찾을 수 없습니다." };
     const v = String(inp.value || "").trim();
-    if (!v) return { ok: false, error: "날짜를 선택해 주세요." };
+    if (!v) return { ok: false, error: intakeRequiredFieldError(rootLabel, "date") };
     return { ok: true, valueJson: { value: v } };
   }
   const inp = container.querySelector("input.lhai-chat-form-prompt__text");
@@ -1285,14 +1538,14 @@ async function runIntakePromptSubmit(formRoot, skip) {
           const childEl = sec.querySelector(`.lhai-chat-form-prompt__group-child[data-child-id="${cid}"]`);
           const cit =
             effectiveIntakeInputType(ch) === "date" ? "date" : normalizeIntakeInputType(ch.input_type);
-          const sub = collectChildValueJson(childEl, cit, false);
+          const sub = collectChildValueJson(childEl, cit, false, ch.label);
           if (!sub.ok) {
             setIntakeFormError(formRoot, sub.error || "입력을 확인해 주세요.");
             return;
           }
           const vj = /** @type {Record<string, unknown>} */ (sub.valueJson || {});
           if (intakeChildAnswerLooksEmpty(cit, vj)) {
-            setIntakeFormError(formRoot, "필수 하위 항목을 모두 입력해 주세요.");
+            setIntakeFormError(formRoot, intakeRequiredFieldErrorForInputType(ch.label, cit));
             return;
           }
         }
@@ -1308,13 +1561,13 @@ async function runIntakePromptSubmit(formRoot, skip) {
         if (effStIt === "multi_select") {
           const vals = vj.values;
           if (!Array.isArray(vals) || vals.length === 0) {
-            setIntakeFormError(formRoot, "하나 이상 선택해 주세요.");
+            setIntakeFormError(formRoot, intakeRequiredFieldError(st.label, "multi"));
             return;
           }
         } else if (effStIt !== "radio" && effStIt !== "yes_no" && effStIt !== "select" && effStIt !== "date") {
           const v = vj.value;
           if (v === undefined || v === null || String(v).trim() === "") {
-            setIntakeFormError(formRoot, "필수 항목입니다.");
+            setIntakeFormError(formRoot, intakeRequiredFieldErrorForInputType(st.label, effStIt));
             return;
           }
         }
@@ -1331,30 +1584,32 @@ async function runIntakePromptSubmit(formRoot, skip) {
       const childEl = formRoot.querySelector(`.lhai-chat-form-prompt__group-child[data-child-id="${cid}"]`);
       const cit =
         effectiveIntakeInputType(ch) === "date" ? "date" : normalizeIntakeInputType(ch.input_type);
-      const sub = collectChildValueJson(childEl, cit, false);
+      const sub = collectChildValueJson(childEl, cit, false, ch.label);
       if (!sub.ok) {
         setIntakeFormError(formRoot, sub.error || "입력을 확인해 주세요.");
         return;
       }
       const vj = /** @type {Record<string, unknown>} */ (sub.valueJson || {});
       if (intakeChildAnswerLooksEmpty(cit, vj)) {
-        setIntakeFormError(formRoot, "필수 하위 항목을 모두 입력해 주세요.");
+        setIntakeFormError(formRoot, intakeRequiredFieldErrorForInputType(ch.label, cit));
         return;
       }
     }
   }
   if (requiredAttr && !skip && normalizeIntakeInputType(inputType) !== "intake_multi") {
+    const up = getUiPayloadForFormRoot(formRoot);
+    const rootLabel = up?.label;
     const it = normalizeIntakeInputType(inputType);
     if (it === "multi_select") {
       const vals = /** @type {{ values?: unknown[] }} */ (valueJson || {}).values;
       if (!Array.isArray(vals) || vals.length === 0) {
-        setIntakeFormError(formRoot, "하나 이상 선택해 주세요.");
+        setIntakeFormError(formRoot, intakeRequiredFieldError(rootLabel, "multi"));
         return;
       }
     } else if (it !== "radio" && it !== "yes_no" && it !== "select" && it !== "date" && it !== "question_group") {
       const v = /** @type {{ value?: unknown }} */ (valueJson || {}).value;
       if (v === undefined || v === null || String(v).trim() === "") {
-        setIntakeFormError(formRoot, "필수 항목입니다.");
+        setIntakeFormError(formRoot, intakeRequiredFieldErrorForInputType(rootLabel, it));
         return;
       }
     }
@@ -1922,6 +2177,36 @@ function renderCustomerBidCardHtml(bid, requestStatus) {
 }
 
 /** @param {Record<string, unknown>} snap */
+function renderCustomerSelectedOfferCardHtml(snap) {
+  const sel =
+    snap.selected_offer_summary && typeof snap.selected_offer_summary === "object"
+      ? /** @type {Record<string, unknown>} */ (snap.selected_offer_summary)
+      : null;
+  const title = sel ? String(sel.title || sel.vehicle_title || "Selected offer").trim() : "Selected offer";
+  const total = sel ? formatMoney(sel.estimated_total, String(sel.currency || "USD")) : "—";
+  const partner = sel ? String(sel.partner_name || "").trim() : "";
+  const thumb = sel ? String(sel.thumbnail_url || "").trim() : "";
+  const wid = customerBidServiceRequestId();
+  const href = buildCustomerBidResultsPageHref(wid, selectedThreadId);
+  const thumbHtml = thumb
+    ? `<img class="lhai-messages-selected-offer__thumb" src="${escapeHtml(thumb)}" alt="" loading="lazy" />`
+    : `<div class="lhai-messages-selected-offer__thumb lhai-messages-selected-offer__thumb--empty" aria-hidden="true"></div>`;
+  return `
+    <div class="lhai-messages-selected-offer" role="region" aria-label="Selected offer">
+      ${thumbHtml}
+      <div class="lhai-messages-selected-offer__body">
+        <p class="lhai-messages-selected-offer__title">${escapeHtml(title)}</p>
+        <p class="lhai-messages-selected-offer__meta">${escapeHtml(total)}${partner ? ` · ${escapeHtml(partner)}` : ""}</p>
+        <p class="lhai-messages-selected-offer__hint">Your selected partner has been added to this conversation.</p>
+        <div class="lhai-messages-car-bid-banner__actions">
+          <button type="button" class="lhai-button lhai-button--secondary" data-lhai-focus-composer>Open conversation</button>
+          <a class="lhai-button lhai-button--ghost" href="${escapeHtml(href)}">View offer details</a>
+        </div>
+      </div>
+    </div>`;
+}
+
+/** @param {Record<string, unknown>} snap */
 function renderCustomerCarBidBannerHtml(snap) {
   const wid = customerBidServiceRequestId();
   const href = buildCustomerBidResultsPageHref(wid, selectedThreadId);
@@ -1939,21 +2224,10 @@ function renderCustomerCarBidBannerHtml(snap) {
   const countdown = formatBidDeadlineForUi(snap);
 
   if (phase === "CUSTOMER_SELECTED") {
-    const sel =
-      snap.selected_offer_summary && typeof snap.selected_offer_summary === "object"
-        ? /** @type {Record<string, unknown>} */ (snap.selected_offer_summary)
-        : null;
-    const title = sel ? String(sel.vehicle_title || "선택한 제안") : "선택한 제안";
-    const total = sel ? formatMoney(sel.estimated_total, String(sel.currency || "USD")) : "—";
     return `
-      <div class="lhai-messages-car-bid-banner lhai-messages-car-bid-banner--selected" role="region" aria-label="파트너 선택 완료">
-        <p class="lhai-messages-car-bid-banner__title">파트너 선택 완료</p>
-        <p class="lhai-messages-car-bid-banner__line">선택한 제안: <strong>${escapeHtml(title)}</strong></p>
-        <p class="lhai-messages-car-bid-banner__line">예상 총액: <strong>${escapeHtml(total)}</strong></p>
-        <div class="lhai-messages-car-bid-banner__actions">
-          <button type="button" class="lhai-button lhai-button--secondary" data-lhai-focus-composer>메시지 열기</button>
-          <a class="lhai-button lhai-button--primary" href="${escapeHtml(href)}">선택한 제안 보기</a>
-        </div>
+      <div class="lhai-messages-car-bid-banner lhai-messages-car-bid-banner--selected" role="region" aria-label="Partner selected">
+        <p class="lhai-messages-car-bid-banner__title">Partner selected</p>
+        ${renderCustomerSelectedOfferCardHtml(snap)}
       </div>`;
   }
 
@@ -2074,9 +2348,9 @@ async function refreshCustomerBidPanel() {
   customerBidPanelAwaitingFetch = true;
   syncCustomerComposerBidGate();
 
-  let snap = null;
+  let rawBidSnapshot = null;
   try {
-    snap = await customerBidsApi.listByServiceRequest(wid);
+    rawBidSnapshot = await customerBidsApi.listByServiceRequest(wid);
   } catch (err) {
     const msg = err && typeof err.message === "string" ? err.message : "견적 정보를 불러오지 못했습니다.";
     customerBidPanelSnapshot = null;
@@ -2091,34 +2365,62 @@ async function refreshCustomerBidPanel() {
   }
 
   customerBidPanelSnapshot =
-    snap && typeof snap === "object"
+    rawBidSnapshot && typeof rawBidSnapshot === "object"
       ? {
-          bid_request_id: String(snap.bid_request_id || ""),
-          status: String(snap.status || "OPEN").trim().toUpperCase(),
-          bidding_mode: snap.bidding_mode != null ? String(snap.bidding_mode) : "",
-          bids: Array.isArray(snap.bids) ? snap.bids : [],
-          offers: Array.isArray(snap.offers) ? snap.offers : snap.offers === null ? null : [],
-          expires_at: snap.expires_at != null ? String(snap.expires_at) : "",
-          is_expired: snap.is_expired === true,
-          remaining_label: snap.remaining_label != null ? String(snap.remaining_label) : "",
+          bid_request_id: String(rawBidSnapshot.bid_request_id || ""),
+          status: String(rawBidSnapshot.status || "OPEN").trim().toUpperCase(),
+          bidding_mode: rawBidSnapshot.bidding_mode != null ? String(rawBidSnapshot.bidding_mode) : "",
+          bids: Array.isArray(rawBidSnapshot.bids) ? rawBidSnapshot.bids : [],
+          offers: Array.isArray(rawBidSnapshot.offers)
+            ? rawBidSnapshot.offers
+            : rawBidSnapshot.offers === null
+              ? null
+              : [],
+          expires_at: rawBidSnapshot.expires_at != null ? String(rawBidSnapshot.expires_at) : "",
+          is_expired: rawBidSnapshot.is_expired === true,
+          remaining_label: rawBidSnapshot.remaining_label != null ? String(rawBidSnapshot.remaining_label) : "",
           bid_deadline:
-            snap.bid_deadline && typeof snap.bid_deadline === "object" ? snap.bid_deadline : null,
-          offer_count: snap.offer_count,
-          partner_count: snap.partner_count,
-          recent_updated_at: snap.recent_updated_at != null ? String(snap.recent_updated_at) : "",
-          quote_request_usage: snap.quote_request_usage,
-          customer_vehicle_requests: snap.customer_vehicle_requests,
-          selected_offer_summary: snap.selected_offer_summary,
+            rawBidSnapshot.bid_deadline && typeof rawBidSnapshot.bid_deadline === "object"
+              ? rawBidSnapshot.bid_deadline
+              : null,
+          offer_count: rawBidSnapshot.offer_count,
+          partner_count: rawBidSnapshot.partner_count,
+          recent_updated_at:
+            rawBidSnapshot.recent_updated_at != null ? String(rawBidSnapshot.recent_updated_at) : "",
+          quote_request_usage: rawBidSnapshot.quote_request_usage,
+          customer_vehicle_requests: rawBidSnapshot.customer_vehicle_requests,
+          selected_offer_summary: rawBidSnapshot.selected_offer_summary,
         }
       : null;
   customerBidPanelAwaitingFetch = false;
 
+  const bidSnapshot =
+    customerBidPanelSnapshot && typeof customerBidPanelSnapshot === "object"
+      ? /** @type {Record<string, unknown>} */ (customerBidPanelSnapshot)
+      : null;
+  if (!bidSnapshot) {
+    hideCustomerBiddingUi();
+    syncCustomerComposerBidGate();
+    return;
+  }
+
+  const phase = resolveCustomerBidDisplayPhase(
+    String(bidSnapshot.status || "OPEN"),
+    bidSnapshot.expires_at != null ? String(bidSnapshot.expires_at) : "",
+  );
   const isCar = isCarPurchaseBidListResponse(customerBidPanelSnapshot);
-  if (isCar && banner instanceof HTMLElement) {
+  if (phase === "CUSTOMER_SELECTED" && banner instanceof HTMLElement) {
     banner.hidden = false;
-    banner.innerHTML = renderCustomerCarBidBannerHtml(
-      /** @type {Record<string, unknown>} */ (customerBidPanelSnapshot)
-    );
+    banner.innerHTML = isCar
+      ? renderCustomerCarBidBannerHtml(bidSnapshot)
+      : `<div class="lhai-messages-car-bid-banner lhai-messages-car-bid-banner--selected">${renderCustomerSelectedOfferCardHtml(bidSnapshot)}</div>`;
+    if (panel instanceof HTMLElement) {
+      panel.hidden = true;
+      panel.innerHTML = "";
+    }
+  } else if (isCar && banner instanceof HTMLElement) {
+    banner.hidden = false;
+    banner.innerHTML = renderCustomerCarBidBannerHtml(bidSnapshot);
     startCustomerBidCountdownTimer();
     if (panel instanceof HTMLElement) {
       panel.hidden = true;
@@ -2882,7 +3184,7 @@ async function handleMessagesRealtimeEvent(detail) {
 
   if (type === "bid.updated") {
     const bidPayload = normalizeBidUpdatedPayload({ type, data });
-    if (!isCarPurchaseBidUpdatedPayload(bidPayload)) return;
+    if (!isBiddingBidUpdatedPayload(bidPayload)) return;
     const wfId = String(
       bidPayload.workflow_instance_id || bidPayload.service_request_id || "",
     ).trim();
@@ -2891,12 +3193,12 @@ async function handleMessagesRealtimeEvent(detail) {
     const matchThread = sameThread || Boolean(evtThreadId && selectedThreadId && evtThreadId === selectedThreadId);
     const matchWf = Boolean(wfId && ourWid && wfId === ourWid);
     if (matchThread || matchWf) {
-      messagesRtDebug("bid.updated — refresh car bid banner only (no stream reload)");
+      messagesRtDebug("bid.updated — refresh bid banner only (no stream reload)");
       await refreshCustomerBidPanel();
     } else if (typeof document !== "undefined" && document.visibilityState === "visible") {
       const href = buildCustomerBidResultsHref(wfId, evtThreadId);
       showBidUpdatedToast({
-        title: "자동차 견적이 업데이트되었습니다.",
+        title: "견적이 업데이트되었습니다.",
         cta: "견적 보기",
         href,
       });
@@ -3089,6 +3391,19 @@ async function initMessagesPage() {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       event.target.closest("form")?.requestSubmit();
+    }
+  });
+
+  detail?.addEventListener("change", (event) => {
+    const t = event.target;
+    if (t instanceof HTMLSelectElement && t.classList.contains("lhai-chat-form-prompt__prefill-select")) {
+      const root = t.closest("[data-lhai-prefill-dropdown]");
+      if (root instanceof HTMLElement) togglePrefillManualInput(root);
+      return;
+    }
+    if (t instanceof HTMLInputElement && t.classList.contains("lhai-chat-form-prompt__prefill-confirm-radio")) {
+      const root = t.closest("[data-lhai-prefill-confirm]");
+      if (root instanceof HTMLElement) togglePrefillConfirmAlt(root);
     }
   });
 

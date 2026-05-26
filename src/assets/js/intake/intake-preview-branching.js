@@ -5,7 +5,7 @@
  * stays aligned with the message thread.
  */
 import { escapeHtml } from "./intake-block-render.js";
-import { coerceToIsoDateInputValue, effectiveIntakeInputType } from "./intake-form-presentation.js";
+import { coerceToIsoDateInputValue, effectiveIntakeInputType, isCurrencyUsdInputType, renderCurrencyUsdInputControlsHtml } from "./intake-form-presentation.js";
 
 /** @typedef {Record<string, unknown>} JsonObj */
 
@@ -536,6 +536,14 @@ export function previewControlsHtml(field, prefix, defVal = "") {
   }
   if (it === "number") {
     return `<input type="number" class="admin-intake-preview__input admin-intake-preview__number" value="${escapeHtmlAttr(def)}" aria-label="${escapeHtmlAttr(label)}" />`;
+  }
+  if (isCurrencyUsdInputType(it)) {
+    return renderCurrencyUsdInputControlsHtml({
+      valueEsc: escapeHtmlAttr(def),
+      ariaLabelAttrEsc: ` aria-label="${escapeHtmlAttr(label)}"`,
+      inputClass: "admin-intake-preview__input admin-intake-preview__currency-usd",
+      wrapClass: "admin-intake-preview__currency-usd lhai-intake-currency-usd",
+    });
   }
   if (it === "checkbox" || it === "boolean") {
     return `<label class="admin-intake-preview__check-label"><input type="checkbox" class="admin-intake-preview__single-cb" ${def === "true" || def === "1" ? "checked" : ""} /> <span>${escapeHtml(label || "Yes / No")}</span></label>`;

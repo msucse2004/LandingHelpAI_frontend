@@ -8,6 +8,18 @@ import { initI18nDomains, mergeFallbackStrings, t } from "../core/i18n-client.js
 import { formatMoney } from "../core/utils.js";
 import { resolveAppHeaderShell, refreshHeaderMailUnreadBadge } from "../core/app-header.js";
 import { getInvoiceLocaleBundle, resolveInvoiceUiLang } from "./invoice-detail-locale.js";
+import { buildInvoiceServiceRows } from "./invoice-detail-services-logic.js";
+import { buildInvoiceAmountSummaryDisplay } from "./invoice-detail-amount-summary-logic.js";
+import { buildInvoicePrepayScopeContent } from "./invoice-detail-prepay-scope-logic.js";
+import {
+  buildInvoiceDueDateDisplay,
+  invoiceReferenceMonoText,
+} from "./invoice-detail-details-logic.js";
+import {
+  customerInvoiceStatusLabelKey,
+  getInvoiceActionState,
+  normalizeInvoiceStatus,
+} from "./invoice-detail-action-state-logic.js";
 
 function qs(selector) {
   return document.querySelector(selector);
@@ -16,25 +28,231 @@ function qs(selector) {
 /** 직후 `markSuccess` 응답 — 문서 건수 표시에 한 번만 사용 */
 let lastPaymentSuccessApiResult = null;
 
+/** `renderInvoice` 직후 결제 handler가 참조하는 청구서 */
+let activeInvoiceRef = null;
+
+let invoicePaymentInFlight = false;
+
+const INVOICE_PAY_BTN_SELECTORS = ["#payNowBtn", "#invoiceHeroPayBtn"];
+
+const INVOICE_ASK_LINK_SELECTORS = ["#invoiceHeroAskBtn"];
+
+const INVOICE_MESSAGES_LINK_SELECTORS = ["#invoiceHeroMessagesBtn"];
+
 function setMessage(message) {
   const el = qs("#invoiceStatusMessage");
   if (el) el.textContent = message || "";
 }
 
 function statusClass(status) {
-  if (status === "PAID") return "lhai-badge lhai-badge--risk-low";
-  if (status === "FAILED") return "lhai-badge lhai-badge--risk-high";
-  if (status === "CANCELED") return "lhai-badge lhai-badge--risk-medium";
-  if (status === "SENT") return "lhai-badge lhai-badge--risk-medium";
+  const st = normalizeInvoiceStatus(status);
+  if (st === "PAID") return "lhai-badge lhai-badge--risk-low";
+  if (st === "FAILED") return "lhai-badge lhai-badge--risk-high";
+  if (st === "CANCELED" || st === "VOID" || st === "EXPIRED") return "lhai-badge lhai-badge--risk-medium";
+  if (st === "SENT" || st === "PENDING") return "lhai-badge lhai-badge--risk-medium";
   return "lhai-badge";
 }
 
 function statusLabel(status) {
-  const st = String(status || "").toUpperCase();
-  const key = `customer.invoice.status.${st}`;
+  const st = normalizeInvoiceStatus(status);
+  const key = customerInvoiceStatusLabelKey(st);
   const tr = t(key, "");
   if (tr && tr !== key) return tr;
   return t("customer.invoice.status._fallback", st || "—");
+}
+
+function looksLikeUuid(str) {
+  const s = String(str || "").trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
+}
+
+/** @param {string} invoiceId */
+function buildInvoiceMessagesHref(invoiceId) {
+  const q = new URLSearchParams();
+  const id = String(invoiceId || "").trim();
+  if (id) q.set("invoice_id", id);
+  const qs = q.toString();
+  return qs ? `../pages/messages.html?${qs}` : "../pages/messages.html";
+}
+
+/** @param {unknown} statusOrInvoice status 문자열 또는 `{ status }` invoice */
+function invoiceStatusAllowsPayment(statusOrInvoice) {
+  const invoice =
+    statusOrInvoice && typeof statusOrInvoice === "object" && "status" in statusOrInvoice
+      ? /** @type {Record<string, unknown>} */ (statusOrInvoice)
+      : { status: statusOrInvoice };
+  return getInvoiceActionState(invoice).canPay;
+}
+
+/** @param {unknown} statusOrInvoice */
+function invoiceStatusIsUnpayable(statusOrInvoice) {
+  const invoice =
+    statusOrInvoice && typeof statusOrInvoice === "object" && "status" in statusOrInvoice
+      ? /** @type {Record<string, unknown>} */ (statusOrInvoice)
+      : { status: statusOrInvoice };
+  const action = getInvoiceActionState(invoice);
+  return action.isUnpayable || action.isUnknown;
+}
+
+/** Hero 배지: 결제 대기·재시도는 파란/안내 톤, 결제 완료만 성공(초록) 톤 */
+function heroStatusBadgeClass(st) {
+  const u = normalizeInvoiceStatus(st);
+  const action = getInvoiceActionState({ status: u });
+  if (action.isPaid) return "lhai-badge lhai-badge--risk-low lhai-quote-hero__badge";
+  if (action.isPendingPayment) {
+    return "lhai-badge lhai-invoice-hero__badge--pending lhai-quote-hero__badge";
+  }
+  return "lhai-badge lhai-badge--risk-medium lhai-quote-hero__badge";
+}
+
+/** @param {unknown} quote */
+function customerFacingQuoteTitle(quote) {
+  if (!quote || typeof quote !== "object") return "";
+  const raw = String(quote.title || "").trim();
+  if (!raw) return "";
+  const suffix = " Landing Help AI 견적서";
+  if (raw.endsWith(suffix)) {
+    const base = raw.slice(0, -suffix.length).trim();
+    return base || raw;
+  }
+  return raw;
+}
+
+/**
+ * @param {unknown} quote
+ * @returns {string[]}
+ */
+function billedServiceTitlesFromQuote(quote) {
+  const titles = [];
+  if (!quote || typeof quote !== "object") return titles;
+  const rd = quote.request_details && typeof quote.request_details === "object" ? quote.request_details : {};
+  const survey = rd.survey_submission && typeof rd.survey_submission === "object" ? rd.survey_submission : {};
+  const services = Array.isArray(survey.selected_services) ? survey.selected_services : [];
+  for (const s of services) {
+    if (!s || typeof s !== "object") continue;
+    const tit = String(s.title || "").trim();
+    if (tit) {
+      titles.push(tit);
+      continue;
+    }
+    const id = String(s.id || "").trim();
+    if (id && !looksLikeUuid(id)) titles.push(id);
+  }
+  return titles;
+}
+
+/**
+ * @param {Record<string, unknown>|null} quote
+ * @param {Record<string, unknown>} invoice
+ */
+function heroRequestSummaryText(quote, invoice) {
+  const title = customerFacingQuoteTitle(quote);
+  if (title) {
+    const tpl = t("customer.invoice.hero.request_prefix", "Survey request: %s");
+    return tpl.includes("%s") ? tpl.replace("%s", title) : `${tpl} ${title}`;
+  }
+  const pkg = String(invoice.service_name || "").trim();
+  if (pkg) {
+    const tpl = t("customer.invoice.hero.request_prefix", "Survey request: %s");
+    return tpl.includes("%s") ? tpl.replace("%s", pkg) : `${tpl} ${pkg}`;
+  }
+  return "—";
+}
+
+/**
+ * @param {Record<string, unknown>|null} quote
+ * @param {Record<string, unknown>} invoice
+ */
+function heroBilledServicesText(quote, invoice) {
+  const titles = billedServiceTitlesFromQuote(quote);
+  if (titles.length) return titles.join(", ");
+  const pkg = String(invoice.service_name || "").trim();
+  return pkg || "—";
+}
+
+function setInvoicePayButtonsBusy(busy) {
+  const canPay = invoiceStatusAllowsPayment(activeInvoiceRef);
+  for (const sel of INVOICE_PAY_BTN_SELECTORS) {
+    const btn = qs(sel);
+    if (!btn) continue;
+    btn.disabled = busy || !canPay;
+  }
+}
+
+/** Hero·하단 결제 블록 CTA를 동일 규칙으로 맞춘다. */
+function syncInvoicePageCtas(invoice) {
+  const action = getInvoiceActionState(invoice);
+  const msgHref = buildInvoiceMessagesHref(invoice?.id);
+
+  const payLabel = t("customer.invoice.hero.cta.pay", "Pay now");
+  const askLabel = t("customer.invoice.hero.cta.ask", "Ask a question");
+  const messagesLabel = t("customer.invoice.hero.cta.messages", "Open messages");
+
+  for (const sel of INVOICE_PAY_BTN_SELECTORS) {
+    const btn = qs(sel);
+    if (!btn) continue;
+    btn.textContent = payLabel;
+    btn.hidden = !action.showPay;
+    btn.disabled = !action.showPay || invoicePaymentInFlight;
+  }
+
+  for (const sel of INVOICE_ASK_LINK_SELECTORS) {
+    const link = qs(sel);
+    if (!link) continue;
+    link.textContent = askLabel;
+    link.href = msgHref;
+    link.hidden = !action.showAsk;
+  }
+
+  for (const sel of INVOICE_MESSAGES_LINK_SELECTORS) {
+    const link = qs(sel);
+    if (!link) continue;
+    link.textContent = messagesLabel;
+    link.href = msgHref;
+    link.hidden = !action.showMessages;
+  }
+
+  const helpLink = qs("#invoiceHelpLink");
+  if (helpLink) helpLink.href = msgHref;
+
+  const payBlock = qs("#invoicePayBlock");
+  if (payBlock) payBlock.hidden = !action.showPay;
+}
+
+function syncInvoicePayButtonsVisibility(invoice) {
+  syncInvoicePageCtas(invoice);
+}
+
+/** @param {Record<string, unknown>} invoice */
+async function runInvoiceWebPayment(invoice) {
+  if (!invoice?.id || invoicePaymentInFlight || !invoiceStatusAllowsPayment(invoice)) return;
+  invoicePaymentInFlight = true;
+  setInvoicePayButtonsBusy(true);
+  setMessage(t("customer.invoice.pay_processing", ""));
+  try {
+    const start = await paymentApi.startWebPayment({
+      invoice_id: invoice.id,
+      success_url: `${window.location.origin}/src/pages/invoice-detail.html?invoice_id=${encodeURIComponent(String(invoice.id))}&payment_id={PAYMENT_ID}&result=success`,
+      failure_url: `${window.location.origin}/src/pages/invoice-detail.html?invoice_id=${encodeURIComponent(String(invoice.id))}&payment_id={PAYMENT_ID}&result=failure`,
+      cancel_url: `${window.location.origin}/src/pages/invoice-detail.html?invoice_id=${encodeURIComponent(String(invoice.id))}&payment_id={PAYMENT_ID}&result=cancel`,
+    });
+    const checkout = String(start?.checkout_url || "").trim();
+    if (checkout.startsWith("http://") || checkout.startsWith("https://") || checkout.startsWith("/")) {
+      window.location.assign(checkout);
+      return;
+    }
+    await handlePaymentSuccess(start.payment_id, String(invoice.id));
+    setMessage(t("customer.invoice.pay_success", ""));
+  } catch {
+    setMessage(t("customer.invoice.pay_error", ""));
+  } finally {
+    invoicePaymentInFlight = false;
+    if (activeInvoiceRef) {
+      syncInvoicePayButtonsVisibility(activeInvoiceRef);
+    } else {
+      setInvoicePayButtonsBusy(false);
+    }
+  }
 }
 
 /** @param {unknown} value */
@@ -62,14 +280,56 @@ function formatInvoiceCalendarDate(value, lang) {
  * @param {HTMLDListElement} dl
  * @param {string} label
  * @param {unknown} value
+ * @param {{ muted?: boolean, mono?: boolean }} [opts]
+ */
+function appendInvoiceMetaPlainRow(dl, label, value, opts = {}) {
+  const { muted = false, mono = false } = opts;
+  const dt = document.createElement("dt");
+  dt.className = "lhai-invoice-meta__dt";
+  dt.textContent = label;
+  const dd = document.createElement("dd");
+  dd.className = "lhai-invoice-meta__dd";
+  if (mono) {
+    dd.classList.add("lhai-invoice-meta__dd--mono");
+    const code = document.createElement("code");
+    code.className = "lhai-invoice-meta__mono-value";
+    code.textContent = invoiceReferenceMonoText(value);
+    dd.appendChild(code);
+  } else {
+    dd.textContent = String(value ?? "").trim() || "—";
+    if (muted) dd.classList.add("lhai-invoice-meta__dd--muted-prose");
+  }
+  dl.appendChild(dt);
+  dl.appendChild(dd);
+}
+
+/**
+ * @param {HTMLDListElement} dl
+ * @param {string} label
+ * @param {unknown} value
  */
 function appendInvoiceMetaMonoRow(dl, label, value) {
+  appendInvoiceMetaPlainRow(dl, label, value, { mono: true });
+}
+
+/**
+ * @param {HTMLDListElement} dl
+ * @param {string} label
+ * @param {string} quoteId
+ */
+function appendInvoiceMetaQuoteRefRow(dl, label, quoteId) {
+  const qref = String(quoteId || "").trim();
+  if (!qref) return;
   const dt = document.createElement("dt");
   dt.className = "lhai-invoice-meta__dt";
   dt.textContent = label;
   const dd = document.createElement("dd");
   dd.className = "lhai-invoice-meta__dd lhai-invoice-meta__dd--mono";
-  dd.textContent = String(value ?? "").trim() || "—";
+  const link = document.createElement("a");
+  link.className = "lhai-invoice-meta__mono-value lhai-invoice-meta__ref-link";
+  link.href = `../pages/quote-detail.html?quote_id=${encodeURIComponent(qref)}`;
+  link.textContent = qref;
+  dd.appendChild(link);
   dl.appendChild(dt);
   dl.appendChild(dd);
 }
@@ -99,46 +359,42 @@ function appendInvoiceMetaStatusRow(dl, label, invoice) {
  * @param {Record<string, unknown>|null} quote
  */
 function renderInvoiceMeta(invoice, quote) {
-  const section = qs("#invoiceMetaSection");
-  const issueEl = qs("#invoiceMetaIssueDate");
-  const dueEl = qs("#invoiceMetaDueDate");
   const dl = qs("#invoiceMetaDl");
-  if (!section || !issueEl || !dueEl || !dl) return;
+  if (!dl) return;
 
   const lang = resolveInvoiceUiLang(quote);
-  section.hidden = false;
   dl.innerHTML = "";
 
   const issueFmt = formatInvoiceCalendarDate(invoice.created_at, lang);
-  issueEl.textContent = issueFmt || "—";
-  issueEl.classList.toggle("lhai-invoice-meta__date-value--muted", !issueFmt);
+  appendInvoiceMetaPlainRow(dl, t("customer.invoice.meta.issue_date", ""), issueFmt || "—");
 
-  const dueStr = String(invoice.due_date || "").trim();
-  if (dueStr) {
-    dueEl.textContent = formatInvoiceCalendarDate(dueStr, lang) || dueStr;
-    dueEl.classList.remove("lhai-invoice-meta__date-value--muted");
-  } else {
-    dueEl.textContent = t("customer.invoice.meta.due_not_set", "");
-    dueEl.classList.add("lhai-invoice-meta__date-value--muted");
-  }
+  const dueDisplay = buildInvoiceDueDateDisplay(
+    invoice.due_date,
+    (raw) => formatInvoiceCalendarDate(raw, lang),
+    () => t("customer.invoice.meta.due_not_set", ""),
+  );
+  appendInvoiceMetaPlainRow(dl, t("customer.invoice.meta.due_date", ""), dueDisplay.text, {
+    muted: dueDisplay.muted,
+  });
 
   const invNum = String(invoice.invoice_number || invoice.id || "").trim();
-  appendInvoiceMetaMonoRow(dl, t("customer.invoice.meta.invoice_number", ""), invNum || "—");
+  appendInvoiceMetaMonoRow(dl, t("customer.invoice.meta.invoice_number", ""), invNum);
   const qref = String(invoice.quote_id || "").trim();
   if (qref) {
-    appendInvoiceMetaMonoRow(dl, t("customer.invoice.meta.quote_reference", ""), qref);
+    appendInvoiceMetaQuoteRefRow(dl, t("customer.invoice.meta.quote_reference", ""), qref);
   }
   appendInvoiceMetaStatusRow(dl, t("customer.invoice.meta.payment_status", ""), invoice);
   const cur = String(invoice.currency || "USD").trim().toUpperCase() || "USD";
   appendInvoiceMetaMonoRow(dl, t("customer.invoice.meta.currency", ""), cur);
 }
 
-/** @param {string} st */
-function heroTitleForStatus(st) {
-  const u = String(st || "").toUpperCase();
-  if (u === "PAID") return t("customer.invoice.hero.title_paid", "");
-  if (u === "CANCELED") return t("customer.invoice.hero.title_canceled", "");
-  if (u === "FAILED") return t("customer.invoice.hero.title_failed", "");
+/** @param {ReturnType<typeof getInvoiceActionState>} action */
+function heroTitleForAction(action) {
+  if (action.isPaid) return t("customer.invoice.hero.title_paid", "");
+  if (action.isUnpayable || action.isUnknown) {
+    return t("customer.invoice.hero.title_unpayable", "");
+  }
+  if (action.status === "FAILED") return t("customer.invoice.hero.title_failed", "");
   return t("customer.invoice.hero.title_payment_needed", "");
 }
 
@@ -151,38 +407,73 @@ function heroSubtitleForStatus(st) {
   return t("customer.invoice.hero.subtitle_default", "");
 }
 
-function deliveryKo(mode) {
-  const raw = String(mode || "general").toLowerCase();
-  const map = {
-    ai_guide: t("common.service_flow.delivery.ai_guide.badge", "Landing Help AI Agent"),
-    in_person: t("common.service_flow.delivery.in_person.badge", "대면·현장 지원"),
-    ai_plus_human: t("common.service_flow.delivery.ai_plus_human.badge", "AI + 필요 시 사람 도움"),
-    general: t("common.service_flow.delivery.general.badge", "안내형 서비스"),
-  };
-  return map[raw] || map.general;
+/**
+ * @param {{ type: string, deliveryModeKey: string }} row
+ */
+function invoiceServiceSupportLabel(row) {
+  if (row.type === "admin_fee") {
+    return t("customer.invoice.services.admin_fee_support", "");
+  }
+  const key = `customer.invoice.services.support.${row.deliveryModeKey || "general"}`;
+  const tr = t(key, "");
+  if (tr && tr !== key) return tr;
+  return t("customer.invoice.services.support.general", "");
 }
 
 /**
- * 설문에서 선택된 서비스 줄만 (고객 안내 문단은 별도 블록).
- * @param {unknown} quote
- * @returns {string[]}
+ * @param {string} hintKey
  */
-function scopeServiceLinesFromQuote(quote) {
-  const lines = [];
-  if (!quote || typeof quote !== "object") return lines;
+function invoiceServiceHintLabel(hintKey) {
+  const key = `customer.invoice.services.hint.${hintKey || "default"}`;
+  const tr = t(key, "");
+  if (tr && tr !== key) return tr;
+  return t("customer.invoice.services.hint.default", "");
+}
 
-  const rd = quote.request_details && typeof quote.request_details === "object" ? quote.request_details : {};
-  const survey = rd.survey_submission && typeof rd.survey_submission === "object" ? rd.survey_submission : {};
-  const services = Array.isArray(survey.selected_services) ? survey.selected_services : [];
-  for (const s of services) {
-    if (!s || typeof s !== "object") continue;
-    const title = String(s.title || s.id || "").trim();
-    if (!title) continue;
-    const dm = s.delivery_mode ? String(s.delivery_mode).trim() : "";
-    lines.push(dm ? `${title} (${deliveryKo(dm)})` : title);
+/**
+ * @param {HTMLElement} container
+ * @param {{ type: string, title: string, deliveryModeKey: string, amount: number, hintKey: string }} row
+ * @param {string} currency
+ */
+function appendInvoiceServiceRowCard(container, row, currency) {
+  const card = document.createElement("article");
+  card.className = "lhai-invoice-services__card";
+  card.setAttribute("role", "listitem");
+
+  const head = document.createElement("div");
+  head.className = "lhai-invoice-services__card-head";
+
+  const name = document.createElement("h3");
+  name.className = "lhai-invoice-services__name";
+  name.textContent =
+    row.type === "admin_fee"
+      ? t("customer.invoice.services.admin_fee_title", "Custom support fee")
+      : row.title;
+
+  const amount = document.createElement("p");
+  amount.className = "lhai-invoice-services__amount";
+  if (row.amount > 0.005) {
+    amount.textContent = formatMoney(row.amount, currency);
+  } else {
+    amount.textContent = t("customer.invoice.services.amount_pending", "—");
+    amount.classList.add("lhai-invoice-services__amount--muted");
   }
 
-  return lines;
+  head.appendChild(name);
+  head.appendChild(amount);
+
+  const support = document.createElement("p");
+  support.className = "lhai-invoice-services__support";
+  support.textContent = invoiceServiceSupportLabel(row);
+
+  const hint = document.createElement("p");
+  hint.className = "lhai-invoice-services__hint";
+  hint.textContent = invoiceServiceHintLabel(row.hintKey);
+
+  card.appendChild(head);
+  card.appendChild(support);
+  card.appendChild(hint);
+  container.appendChild(card);
 }
 
 /**
@@ -215,18 +506,17 @@ function shortServiceDescriptionFromQuote(quote, packageName) {
  */
 function renderInvoiceScopeSection(invoice, quote) {
   const section = qs("#invoiceScopeSection");
-  const svcNameEl = qs("#invoiceScopeServiceName");
+  const rowsEl = qs("#invoiceScopeRows");
+  const emptyEl = qs("#invoiceScopeEmpty");
   const descBlock = qs("#invoiceScopeDescriptionBlock");
   const descEl = qs("#invoiceScopeDescription");
   const noteBlock = qs("#invoiceScopeNoteBlock");
   const noteEl = qs("#invoiceScopeCustomerNote");
-  const ul = qs("#invoiceScopeList");
   const quoteNoteEl = qs("#invoiceScopeQuoteNote");
-  if (!section || !svcNameEl || !ul) return;
+  if (!section || !rowsEl) return;
 
   section.hidden = false;
-  const pkg = String(invoice.service_name || "").trim() || "—";
-  svcNameEl.textContent = pkg;
+  const pkg = String(invoice.service_name || "").trim();
 
   let shortDesc = shortServiceDescriptionFromQuote(quote, pkg);
   const facing = quote && typeof quote === "object" ? String(quote.customer_facing_note || "").trim() : "";
@@ -250,17 +540,22 @@ function renderInvoiceScopeSection(invoice, quote) {
     noteEl.textContent = "";
   }
 
-  ul.innerHTML = "";
-  const serviceLines = scopeServiceLinesFromQuote(quote);
-  if (!serviceLines.length) {
-    const li = document.createElement("li");
-    li.textContent = t("customer.invoice.scope.empty", "");
-    ul.appendChild(li);
+  rowsEl.innerHTML = "";
+  const built = buildInvoiceServiceRows(invoice, quote);
+  if (built.empty) {
+    rowsEl.hidden = true;
+    if (emptyEl) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = t("customer.invoice.scope.empty", "");
+    }
   } else {
-    for (const line of serviceLines) {
-      const li = document.createElement("li");
-      li.textContent = line;
-      ul.appendChild(li);
+    rowsEl.hidden = false;
+    if (emptyEl) {
+      emptyEl.hidden = true;
+      emptyEl.textContent = "";
+    }
+    for (const row of built.rows) {
+      appendInvoiceServiceRowCard(rowsEl, row, built.currency);
     }
   }
 
@@ -312,6 +607,13 @@ function buildBillingSummaryClient(invoice, quote) {
 
   const tax = Math.max(roundMoney2(quote.tax_amount), 0);
   const items = Array.isArray(quote.items) ? quote.items : [];
+  const rd = quote.request_details && typeof quote.request_details === "object" ? quote.request_details : {};
+  const qp = rd.quote_pricing && typeof rd.quote_pricing === "object" ? rd.quote_pricing : {};
+  let adminFee = 0;
+  if (qp.admin_fee != null) {
+    const feeN = Number(qp.admin_fee);
+    if (Number.isFinite(feeN) && feeN >= 0) adminFee = roundMoney2(feeN);
+  }
   let subtotalLines;
   let base;
   let addons;
@@ -321,10 +623,11 @@ function buildBillingSummaryClient(invoice, quote) {
     addons = roundMoney2(Math.max(subtotalLines - base, 0));
   } else {
     const est = Math.max(roundMoney2(quote.estimated_cost), 0);
-    subtotalLines = est;
-    base = est;
+    subtotalLines = roundMoney2(Math.max(est - adminFee, 0));
+    base = subtotalLines;
     addons = 0;
   }
+  subtotalLines = roundMoney2(subtotalLines + adminFee);
 
   const nominal = roundMoney2(subtotalLines + tax);
   let discount = 0;
@@ -337,6 +640,7 @@ function buildBillingSummaryClient(invoice, quote) {
     base_service_amount: base,
     add_ons_amount: addons,
     discounts_amount: discount,
+    admin_fee_amount: adminFee,
     surcharges_amount: surcharge,
     taxes_and_fees_amount: tax,
     subtotal_excluding_tax: subtotalLines,
@@ -358,6 +662,7 @@ function normalizeBillingSummaryFromApi(raw, invoice) {
     base_service_amount: roundMoney2(raw.base_service_amount),
     add_ons_amount: roundMoney2(raw.add_ons_amount),
     discounts_amount: roundMoney2(raw.discounts_amount),
+    admin_fee_amount: roundMoney2(raw.admin_fee_amount ?? 0),
     surcharges_amount: roundMoney2(raw.surcharges_amount ?? 0),
     taxes_and_fees_amount: roundMoney2(raw.taxes_and_fees_amount),
     subtotal_excluding_tax: roundMoney2(raw.subtotal_excluding_tax),
@@ -423,6 +728,111 @@ function appendAmountSummaryFootRow(foot, label, amountDisplay, rowClass = "") {
   foot.appendChild(tr);
 }
 
+/** @param {string} labelKey */
+function amountSummaryLabelForKey(labelKey) {
+  const map = {
+    service_subtotal: "customer.invoice.amount.row.service_subtotal",
+    tax_and_fees: "customer.invoice.amount.row.tax_and_fees",
+    discount: "customer.invoice.amount.row.discount",
+    surcharge: "customer.invoice.amount.row.surcharge",
+    invoice_total: "customer.invoice.amount.row.invoice_total",
+    amount_paid: "customer.invoice.amount.row.amount_paid",
+    current_payable: "customer.invoice.amount.row.current_payable",
+    balance_remaining: "customer.invoice.amount.row.balance_remaining",
+  };
+  const i18nKey = map[labelKey] || labelKey;
+  return t(i18nKey, "");
+}
+
+/**
+ * @param {string} currency
+ * @param {number} amount
+ * @param {boolean} [negative]
+ */
+function formatAmountSummaryMoney(currency, amount, negative = false) {
+  const formatted = formatMoney(amount, currency);
+  if (!negative) return formatted;
+  if (formatted.startsWith("-")) return formatted;
+  return `−${formatted}`;
+}
+
+/**
+ * @param {"included" | "excluded"} kind
+ * @param {string} itemId
+ */
+function prepayScopeItemLabel(kind, itemId) {
+  const key = `customer.invoice.prepay_scope.${kind}.${itemId}`;
+  const tr = t(key, "");
+  return tr && tr !== key ? tr : itemId;
+}
+
+/**
+ * @param {HTMLUListElement} ul
+ * @param {Array<{ id: string, emphasis?: boolean }>} items
+ * @param {"included" | "excluded"} kind
+ */
+function fillInvoicePrepayScopeList(ul, items, kind) {
+  if (!ul) return;
+  ul.innerHTML = "";
+  for (const item of items) {
+    const li = document.createElement("li");
+    if (item.emphasis) li.classList.add("lhai-invoice-prepay-scope__list-item--emphasis");
+    li.textContent = prepayScopeItemLabel(kind, item.id);
+    ul.appendChild(li);
+  }
+}
+
+/**
+ * @param {Record<string, unknown>} invoice
+ * @param {Record<string, unknown>|null} quote
+ */
+function renderInvoicePrepayScopeSection(invoice, quote) {
+  const titleEl = qs("#invoicePaymentNoticeTitle");
+  const ledeEl = qs("#invoicePrepayScopeLede");
+  const contextNote = qs("#invoicePrepayScopeContextNote");
+  const includedTitle = qs("#invoicePrepayIncludedTitle");
+  const excludedTitle = qs("#invoicePrepayExcludedTitle");
+  const includedList = qs("#invoicePrepayIncludedList");
+  const excludedList = qs("#invoicePrepayExcludedList");
+
+  if (titleEl) {
+    titleEl.textContent = t("customer.invoice.legal.notice_block_title", "Please review before paying");
+  }
+  if (ledeEl) {
+    ledeEl.textContent = t(
+      "customer.invoice.prepay_scope.lede",
+      "Before you pay, please read the sections below.",
+    );
+  }
+  if (includedTitle) {
+    includedTitle.textContent = t("customer.invoice.prepay_scope.included_title", "Included in this invoice");
+  }
+  if (excludedTitle) {
+    excludedTitle.textContent = t("customer.invoice.prepay_scope.excluded_title", "Not included in this invoice");
+  }
+
+  const content = buildInvoicePrepayScopeContent(quote, invoice);
+  fillInvoicePrepayScopeList(includedList, content.included, "included");
+  fillInvoicePrepayScopeList(excludedList, content.excluded, "excluded");
+
+  if (contextNote) {
+    const { hasCar, hasPhone } = content.context;
+    if (hasCar && hasPhone) {
+      contextNote.hidden = false;
+      contextNote.textContent = t("customer.invoice.prepay_scope.context_note_both", "");
+    } else if (hasPhone) {
+      contextNote.hidden = false;
+      contextNote.textContent = t("customer.invoice.prepay_scope.context_note_phone", "");
+    } else if (hasCar) {
+      contextNote.hidden = false;
+      contextNote.textContent = t("customer.invoice.prepay_scope.context_note_car", "");
+    } else {
+      contextNote.hidden = true;
+      contextNote.textContent = "";
+    }
+  }
+}
+
 /**
  * @param {Record<string, unknown>} invoice
  * @param {Record<string, unknown>|null} quote
@@ -435,91 +845,39 @@ function renderInvoiceAmountSummary(invoice, quote) {
   if (!section || !tbody || !tfoot) return;
 
   const sum = getInvoiceBillingSummary(invoice, quote);
-  const cur = sum.currency;
+  const display = buildInvoiceAmountSummaryDisplay(invoice, quote, sum);
+  const cur = display.currency;
   section.hidden = false;
   tbody.innerHTML = "";
   tfoot.innerHTML = "";
 
-  appendAmountSummaryRow(tbody, t("customer.invoice.amount.row.base", ""), formatMoney(sum.base_service_amount, cur));
-
-  if (sum.add_ons_amount > 0.005) {
-    appendAmountSummaryRow(tbody, t("customer.invoice.amount.row.addons", ""), formatMoney(sum.add_ons_amount, cur));
-  }
-
-  const showPreTaxSubtotal =
-    sum.add_ons_amount > 0.005 ||
-    sum.taxes_and_fees_amount > 0.005 ||
-    sum.discounts_amount > 0.005 ||
-    sum.surcharges_amount > 0.005;
-
-  if (showPreTaxSubtotal) {
+  for (const row of display.bodyRows) {
+    const label =
+      row.label === "__admin_fee__"
+        ? t("customer.invoice.amount.row.admin_fee", "맞춤 진행 지원비")
+        : row.label;
     appendAmountSummaryRow(
       tbody,
-      t("customer.invoice.amount.row.subtotal_pre_tax", ""),
-      formatMoney(sum.subtotal_excluding_tax, cur),
+      label,
+      formatAmountSummaryMoney(cur, row.amount, row.negative),
+      row.rowClass,
     );
   }
 
-  if (sum.taxes_and_fees_amount > 0.005) {
-    appendAmountSummaryRow(
-      tbody,
-      t("customer.invoice.amount.row.tax", ""),
-      formatMoney(sum.taxes_and_fees_amount, cur),
-    );
-  }
-
-  if (sum.discounts_amount > 0.005) {
-    const disc = formatMoney(sum.discounts_amount, cur);
-    appendAmountSummaryRow(
-      tbody,
-      t("customer.invoice.amount.row.discount", ""),
-      disc.startsWith("-") ? disc : `−${disc}`,
-    );
-  }
-
-  if (sum.surcharges_amount > 0.005) {
-    appendAmountSummaryRow(
-      tbody,
-      t("customer.invoice.amount.row.surcharge", ""),
-      formatMoney(sum.surcharges_amount, cur),
-    );
-  }
-
-  appendAmountSummaryRow(
-    tbody,
-    t("customer.invoice.amount.row.invoice_total", ""),
-    formatMoney(sum.invoice_total, cur),
-    "lhai-invoice-amount-summary__row--total",
-  );
-
-  if (sum.amount_already_paid > 0.005) {
+  for (const row of display.footRows) {
     appendAmountSummaryFootRow(
       tfoot,
-      t("customer.invoice.amount.row.amount_paid", ""),
-      formatMoney(sum.amount_already_paid, cur),
-      "lhai-invoice-amount-summary__row--paid",
+      amountSummaryLabelForKey(row.labelKey),
+      formatAmountSummaryMoney(cur, row.amount, row.negative),
+      row.rowClass,
     );
   }
 
-  const st = String(invoice.status || "").toUpperCase();
-  const payableLabel =
-    st === "PAID"
-      ? t("customer.invoice.amount.row.balance_remaining", "")
-      : t("customer.invoice.amount.row.current_payable", "");
-
-  appendAmountSummaryFootRow(
-    tfoot,
-    payableLabel,
-    formatMoney(sum.current_payable_amount, cur),
-    "lhai-invoice-amount-summary__row--payable",
-  );
-
   if (fnEl) {
-    const note = sum.reconciliation_note;
-    if (note) {
+    if (display.footnote) {
       fnEl.hidden = false;
-      fnEl.textContent = note;
-    } else if (sum.surcharges_amount > 0.005) {
+      fnEl.textContent = display.footnote;
+    } else if (display.showSurchargeHint) {
       fnEl.hidden = false;
       fnEl.textContent = t("customer.invoice.amount.surcharge_hint", "");
     } else {
@@ -567,36 +925,37 @@ function syncPostPaymentContinuationPanel(invoice) {
   }
 }
 
+/** 청구서 세부 정보(번호·당사자) wrapper 표시 */
+function renderInvoiceDetailsSection() {
+  const wrap = qs("#invoiceDetailsSection");
+  if (wrap) wrap.hidden = false;
+}
+
 function renderAfterPaymentList(invoice) {
-  const st = String(invoice?.status || "").toUpperCase();
-  const paid = st === "PAID";
+  const action = getInvoiceActionState(invoice);
+  const paid = action.isPaid;
   const mainH = qs("#invoiceAfterMainHeading");
   const intro = qs("#invoiceAfterIntro");
-  const sub = qs("#invoiceAfterSubhead");
+  const ol = qs("#invoiceAfterList");
+
   if (mainH) {
-    mainH.textContent = paid
-      ? t("customer.invoice.after.section_main_title", "")
-      : t("customer.invoice.before_pay.section_main_title", "");
+    mainH.textContent = t("customer.invoice.next_steps.title", "Next steps after payment");
   }
   if (intro) {
     intro.textContent = paid
-      ? t("customer.invoice.after.section_intro", "")
-      : t("customer.invoice.before_pay.section_intro", "");
+      ? t("customer.invoice.next_steps.intro_paid", "")
+      : t("customer.invoice.next_steps.intro", "After payment, Landing Help AI Agent guidance begins.");
   }
-  if (sub) {
-    sub.textContent = paid
-      ? t("customer.invoice.after.subsection_next_steps", "")
-      : t("customer.invoice.before_pay.subsection_next_steps", "");
+  if (ol) {
+    ol.innerHTML = "";
+    for (let i = 1; i <= 4; i += 1) {
+      const li = document.createElement("li");
+      li.textContent = t(`customer.invoice.next_steps.step.${i}`, "");
+      ol.appendChild(li);
+    }
   }
-  const ol = qs("#invoiceAfterList");
-  if (!ol) return;
-  ol.innerHTML = "";
-  const prefix = paid ? "customer.invoice.after" : "customer.invoice.before_pay.after";
-  for (let i = 1; i <= 5; i += 1) {
-    const li = document.createElement("li");
-    li.textContent = t(`${prefix}.${i}`, "");
-    ol.appendChild(li);
-  }
+
+  syncInvoicePageCtas(invoice);
 }
 
 /**
@@ -614,6 +973,29 @@ function appendInvoicePartyRow(dl, label, value) {
   const dd = document.createElement("dd");
   dd.className = "lhai-invoice-parties__dd";
   dd.textContent = v;
+  dl.appendChild(dt);
+  dl.appendChild(dd);
+  return true;
+}
+
+/**
+ * @param {HTMLDListElement} dl
+ * @param {string} label
+ * @param {string} email
+ */
+function appendInvoicePartyCustomerEmailRow(dl, label, email) {
+  const dt = document.createElement("dt");
+  dt.className = "lhai-invoice-parties__dt";
+  dt.textContent = label;
+  const dd = document.createElement("dd");
+  dd.className = "lhai-invoice-parties__dd";
+  const v = String(email || "").trim();
+  if (v) {
+    dd.textContent = v;
+  } else {
+    dd.textContent = "—";
+    dd.classList.add("lhai-invoice-parties__dd--muted");
+  }
   dl.appendChild(dt);
   dl.appendChild(dd);
   return true;
@@ -701,7 +1083,6 @@ function renderInvoiceParties(invoice, quote) {
   const toEmpty = qs("#invoicePartyToEmpty");
   if (!section || !fromDl || !toDl) return;
 
-  section.hidden = false;
   fromDl.innerHTML = "";
   toDl.innerHTML = "";
   if (fromEmpty) fromEmpty.hidden = true;
@@ -720,9 +1101,10 @@ function renderInvoiceParties(invoice, quote) {
 
   const to = effectiveBillingTo(invoice, quote);
   let toRows = 0;
+  appendInvoicePartyCustomerEmailRow(toDl, t("customer.invoice.parties.to.email", ""), to.email);
+  toRows += 1;
   toRows += appendInvoicePartyRow(toDl, t("customer.invoice.parties.to.full_name", ""), to.full_name) ? 1 : 0;
   toRows += appendInvoicePartyRow(toDl, t("customer.invoice.parties.to.company", ""), to.company_name) ? 1 : 0;
-  toRows += appendInvoicePartyRow(toDl, t("customer.invoice.parties.to.email", ""), to.email) ? 1 : 0;
   toRows += appendInvoicePartyRow(toDl, t("customer.invoice.parties.to.phone", ""), to.phone) ? 1 : 0;
   toRows += appendInvoicePartyRow(toDl, t("customer.invoice.parties.to.address", ""), to.address) ? 1 : 0;
   if (toRows === 0 && toEmpty) toEmpty.hidden = false;
@@ -730,66 +1112,147 @@ function renderInvoiceParties(invoice, quote) {
 
 /**
  * @param {Record<string, unknown>} invoice
- * @param {Record<string, unknown>|null} [quote]
+ * @param {Record<string, unknown>|null} quote
+ * @param {ReturnType<typeof getInvoiceBillingSummary>} summary
  */
-function renderInvoice(invoice, quote = null) {
+function renderInvoiceHero(invoice, quote, summary) {
   const hero = qs("#invoiceHero");
   const heroTitle = qs("#invoiceHeroTitle");
   const heroSubtitle = qs("#invoiceHeroSubtitle");
   const heroWeb = qs("#invoiceHeroWebNote");
-  const svcEl = qs("#invoiceHeroServiceName");
+  const heroBadge = qs("#invoiceHeroStatusBadge");
+  const requestLabel = qs("#invoiceHeroRequestLabel");
+  const requestSummary = qs("#invoiceHeroRequestSummary");
+  const billedLabel = qs("#invoiceHeroBilledLabel");
+  const billedServices = qs("#invoiceHeroBilledServices");
+  const reassurance = qs("#invoiceHeroReassurance");
+  const statusMsg = qs("#invoiceHeroStatusMessage");
   const amtEl = qs("#invoiceHeroAmountDue");
   const amtLabel = qs("#invoiceHeroAmountLabel");
   const amtEyebrow = qs("#invoiceHeroAmountEyebrow");
   const costCard = qs("#invoiceHeroCostCard");
 
-  const st = String(invoice.status || "").toUpperCase();
-  const summary = getInvoiceBillingSummary(invoice, quote);
-  const paidOrCanceled = st === "PAID" || st === "CANCELED";
+  const action = getInvoiceActionState(invoice);
+  const st = action.status;
+  const settledAmount = action.isPaid || (action.isUnpayable && st === "CANCELED");
 
-  if (svcEl) svcEl.textContent = invoice.service_name || "-";
-  const heroAmount =
-    st === "PAID" || st === "CANCELED" ? summary.invoice_total : summary.current_payable_amount;
+  const heroAmount = settledAmount ? summary.invoice_total : summary.current_payable_amount;
   if (amtEl) amtEl.textContent = formatMoney(heroAmount, summary.currency);
 
-  if (hero) hero.hidden = false;
-  if (heroTitle) heroTitle.textContent = heroTitleForStatus(st);
-  if (heroSubtitle) heroSubtitle.textContent = heroSubtitleForStatus(st);
+  if (hero) {
+    hero.hidden = false;
+    hero.classList.remove("lhai-invoice-hero--pending", "lhai-invoice-hero--paid", "lhai-invoice-hero--unpayable");
+    if (action.isPaid) hero.classList.add("lhai-invoice-hero--paid");
+    else if (action.isUnpayable || action.isUnknown) hero.classList.add("lhai-invoice-hero--unpayable");
+    else hero.classList.add("lhai-invoice-hero--pending");
+  }
+  if (heroTitle) heroTitle.textContent = heroTitleForAction(action);
+  if (heroBadge) {
+    heroBadge.className = heroStatusBadgeClass(st);
+    heroBadge.textContent = statusLabel(st);
+  }
+  if (requestLabel) {
+    requestLabel.textContent = t("customer.invoice.hero.request_label", "Request summary");
+  }
+  if (requestSummary) requestSummary.textContent = heroRequestSummaryText(quote, invoice);
+  if (billedLabel) {
+    billedLabel.textContent = t("customer.invoice.hero.billed_services_label", "Services on this invoice");
+  }
+  if (billedServices) billedServices.textContent = heroBilledServicesText(quote, invoice);
+
+  if (reassurance) {
+    const showReassurance =
+      action.isPendingPayment && action.status !== "FAILED";
+    if (showReassurance) {
+      reassurance.hidden = false;
+      reassurance.textContent = t("customer.invoice.hero.reassurance", "");
+    } else {
+      reassurance.hidden = true;
+      reassurance.textContent = "";
+    }
+  }
+
+  if (statusMsg) {
+    statusMsg.classList.remove(
+      "lhai-quote-hero__status-message--paid",
+      "lhai-quote-hero__status-message--rejected",
+    );
+    if (action.isPaid) {
+      statusMsg.hidden = false;
+      statusMsg.classList.add("lhai-quote-hero__status-message--paid");
+      statusMsg.textContent = t("customer.invoice.hero.status_paid", "");
+    } else if (action.isUnpayable) {
+      statusMsg.hidden = false;
+      statusMsg.classList.add("lhai-quote-hero__status-message--rejected");
+      statusMsg.textContent = t("customer.invoice.hero.status_unpayable", "");
+    } else if (action.isUnknown) {
+      statusMsg.hidden = false;
+      statusMsg.classList.add("lhai-quote-hero__status-message--rejected");
+      statusMsg.textContent = t("customer.invoice.hero.status_unknown", "");
+    } else {
+      statusMsg.hidden = true;
+      statusMsg.textContent = "";
+    }
+  }
+
+  if (heroSubtitle) {
+    const sub = heroSubtitleForStatus(st);
+    if (action.status === "FAILED" && sub) {
+      heroSubtitle.hidden = false;
+      heroSubtitle.textContent = sub;
+    } else {
+      heroSubtitle.hidden = true;
+      heroSubtitle.textContent = "";
+    }
+  }
+
   if (heroWeb) {
     heroWeb.textContent = t("customer.invoice.hero.web_only", "");
-    heroWeb.hidden = paidOrCanceled;
+    heroWeb.hidden = !action.showPay;
   }
   if (amtLabel) {
-    if (st === "PAID") {
+    if (action.isPaid) {
       amtLabel.textContent = t("customer.invoice.hero.amount_label_paid", "");
-    } else if (st === "CANCELED") {
+    } else if (action.isUnpayable && st === "CANCELED") {
+      amtLabel.textContent = t("customer.invoice.hero.amount_label_canceled", "");
+    } else if (action.isUnpayable || action.isUnknown) {
       amtLabel.textContent = t("customer.invoice.hero.amount_label_canceled", "");
     } else {
       amtLabel.textContent = t("customer.invoice.hero.amount_label", "");
     }
   }
   if (amtEyebrow) {
-    if (st === "PAID") {
+    if (action.isPaid) {
       amtEyebrow.textContent = t("customer.invoice.hero.amount_eyebrow_paid", "");
-    } else if (st === "CANCELED") {
+    } else if (action.isUnpayable && st === "CANCELED") {
+      amtEyebrow.textContent = t("customer.invoice.hero.amount_eyebrow_canceled", "");
+    } else if (action.isUnpayable || action.isUnknown) {
       amtEyebrow.textContent = t("customer.invoice.hero.amount_eyebrow_canceled", "");
     } else {
       amtEyebrow.textContent = t("customer.invoice.hero.amount_eyebrow", "");
     }
   }
   if (costCard) {
-    costCard.classList.toggle("lhai-invoice-hero__cost-card--settled", st === "PAID");
+    costCard.classList.toggle("lhai-invoice-hero__cost-card--settled", action.isPaid);
+    costCard.classList.toggle("lhai-invoice-hero__cost-card--pending", action.showPay);
   }
 
+  syncInvoicePageCtas(invoice);
+}
+
+/**
+ * @param {Record<string, unknown>} invoice
+ * @param {Record<string, unknown>|null} [quote]
+ */
+function renderInvoice(invoice, quote = null) {
+  activeInvoiceRef = invoice;
+  const st = String(invoice.status || "").toUpperCase();
+  const summary = getInvoiceBillingSummary(invoice, quote);
+
+  renderInvoiceHero(invoice, quote, summary);
+
   const payBtn = qs("#payNowBtn");
-  const payBlock = qs("#invoicePayBlock");
-  if (payBtn) {
-    payBtn.disabled = st === "PAID" || st === "CANCELED";
-    payBtn.hidden = st === "PAID" || st === "CANCELED";
-  }
-  if (payBlock) {
-    payBlock.hidden = paidOrCanceled;
-  }
+  if (payBtn) payBtn.textContent = t("customer.invoice.pay_button", "Pay now");
 
   const qid = invoice && String(invoice.quote_id || "").trim();
   const quoteLink = qs("#invoiceViewQuoteLink");
@@ -826,16 +1289,18 @@ function renderInvoice(invoice, quote = null) {
   }
 
   try {
-    document.title = `${heroTitleForStatus(st)} · ${t("customer.invoice.page_title", "청구서")} - Landing Help AI`;
+    document.title = `${heroTitleForAction(getInvoiceActionState(invoice))} · ${t("customer.invoice.page_title", "청구서")} - Landing Help AI`;
   } catch {
     /* non-browser */
   }
 
-  renderInvoiceMeta(invoice, quote);
-  renderInvoiceParties(invoice, quote);
   renderInvoiceScopeSection(invoice, quote);
   renderInvoiceAmountSummary(invoice, quote);
+  renderInvoicePrepayScopeSection(invoice, quote);
   renderAfterPaymentList(invoice);
+  renderInvoiceMeta(invoice, quote);
+  renderInvoiceParties(invoice, quote);
+  renderInvoiceDetailsSection();
   syncPostPaymentContinuationPanel(invoice);
 }
 
@@ -1071,26 +1536,15 @@ async function initInvoiceDetailPage() {
   await resolveAppHeaderShell({ variant: "customer" });
   refreshHeaderMailUnreadBadge().catch(() => {});
 
-  qs("#payNowBtn")?.addEventListener("click", async () => {
-    setMessage(t("customer.invoice.pay_processing", ""));
-    try {
-      const start = await paymentApi.startWebPayment({
-        invoice_id: invoice.id,
-        success_url: `${window.location.origin}/src/pages/invoice-detail.html?invoice_id=${encodeURIComponent(String(invoice.id))}&payment_id={PAYMENT_ID}&result=success`,
-        failure_url: `${window.location.origin}/src/pages/invoice-detail.html?invoice_id=${encodeURIComponent(String(invoice.id))}&payment_id={PAYMENT_ID}&result=failure`,
-        cancel_url: `${window.location.origin}/src/pages/invoice-detail.html?invoice_id=${encodeURIComponent(String(invoice.id))}&payment_id={PAYMENT_ID}&result=cancel`,
-      });
-      const checkout = String(start?.checkout_url || "").trim();
-      if (checkout.startsWith("http://") || checkout.startsWith("https://") || checkout.startsWith("/")) {
-        window.location.assign(checkout);
-        return;
-      }
-      await handlePaymentSuccess(start.payment_id, String(invoice.id));
-      setMessage(t("customer.invoice.pay_success", ""));
-    } catch {
-      setMessage(t("customer.invoice.pay_error", ""));
-    }
-  });
+  const onPayClick = () => {
+    if (activeInvoiceRef) runInvoiceWebPayment(activeInvoiceRef);
+  };
+  for (const sel of INVOICE_PAY_BTN_SELECTORS) {
+    const btn = qs(sel);
+    if (!btn || btn.dataset.invoicePayBound === "1") continue;
+    btn.dataset.invoicePayBound = "1";
+    btn.addEventListener("click", onPayClick);
+  }
 }
 
 initInvoiceDetailPage();

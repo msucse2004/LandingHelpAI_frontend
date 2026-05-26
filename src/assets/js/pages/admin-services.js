@@ -17,6 +17,7 @@ import {
   workflowGetPayload,
   workflowHydrateFromService,
   workflowSetIntakeFieldKeysProvider,
+  workflowSetCatalogWorkflowTypeProvider,
   workflowValidateForSave,
 } from "./admin-service-workflow-tab.js";
 import { getSinglePartnerMatchingRuleOptions } from "./workflow-matching-rule-registry.js";
@@ -4268,8 +4269,8 @@ async function ucdApplyServiceSelectionToForm(serviceId) {
   qs("#manageServiceActive").checked = Boolean(svc.active);
   qs("#manageServiceVisible").checked = Boolean(svc.visible);
   ucdSyncDeliveryCopyFromTypeSupport();
-  await msiRefresh();
   workflowHydrateFromService(svc);
+  await msiRefresh();
   void workflowRefreshDbStatusPanel();
   msiOnServiceContextChanged();
 }
@@ -5044,6 +5045,12 @@ async function initAdminServicesUcdPage() {
   initManageServiceIntakeTab();
   initManageServiceWorkflowTab();
   workflowSetIntakeFieldKeysProvider(() => intakeActiveQuestionFieldKeys());
+  workflowSetCatalogWorkflowTypeProvider(() => {
+    const id = (qs("#manageServiceId")?.value || "").trim();
+    if (!id) return null;
+    const svc = ucdServices.find((s) => String(s.id) === String(id));
+    return svc?.workflow_type ?? null;
+  });
   workflowSetIntakeBuilderOptionsProvider(() => intakeBuilderOptionsForCurrentService());
   // Current source is local registry; can be replaced with API-backed provider later.
   workflowSetMatchingRuleOptionsProvider(() => getSinglePartnerMatchingRuleOptions());

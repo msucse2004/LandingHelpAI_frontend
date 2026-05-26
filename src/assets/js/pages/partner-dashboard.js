@@ -719,8 +719,11 @@ function renderBiddingDashboard(data) {
         const subAt = formatMessageTimestamp(r.submitted_at);
         const expAt = formatMessageTimestamp(r.expires_at);
         const bidSt = escHtml(biddingBidStatusLabelKo(String(r.bid_status || "")));
+        const newBadge = r.is_new_request
+          ? '<span class="lhai-badge lhai-badge--accent" style="margin-left:0.35rem">새 견적 요청</span>'
+          : "";
         return `<tr class="lhai-bidding-request-card">
-          <td>${svc}</td>
+          <td>${svc}${newBadge}</td>
           <td>${cust}</td>
           <td>${loc}</td>
           <td>${escHtml(subAt)}</td>

@@ -1,143 +1,584 @@
 <!doctype html>
+
 <html lang="ko">
+
 <head>
+
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
   <!-- Quote actions: approve + reject only (no in-page "request help" button). Bump ?v= when this page changes to bust caches. -->
+
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml" />
+
   <title>견적 확인 - Landing Help AI</title>
+
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
-  <link rel="stylesheet" href="../assets/css/pages/quote-detail.css" />
+
+  <link rel="stylesheet" href="../assets/css/pages/quote-detail.css?v=20260519h" />
+
 </head>
+
 <body>
+
     <div id="lhai-app-header-root"></div>
+
   <div class="lhai-layout">
+
     <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
+
     <main class="lhai-main">
+
       <section class="lhai-page-header lhai-quote-page-header">
+
         <h1 class="lhai-title lhai-quote-page-header__title" id="quotePageTitle" data-i18n="customer.quote.page_title">Review your quote</h1>
+
       </section>
+
+
 
       <section class="lhai-card lhai-quote-view">
+
         <div id="quoteLoadingState" class="lhai-state lhai-state--loading">Loading your quote…</div>
+
         <div id="quoteEmptyState" class="lhai-state lhai-state--empty" style="display:none;">
+
           No quote is available here yet. When the team sends a proposal, it will appear on this page.
+
         </div>
+
+
 
         <div id="quoteContent" style="display:none;">
+
           <header class="lhai-quote-hero" aria-labelledby="quoteHeroTitle">
-            <h2 class="lhai-quote-hero__title" id="quoteHeroTitle"></h2>
-            <p class="lhai-quote-hero__subtitle" id="quoteHeroSubtitle"></p>
-            <div class="lhai-quote-hero__status-row">
-              <span id="quoteHeroStatus" class="lhai-badge" role="status"></span>
-            </div>
-            <p class="lhai-quote-hero__reassurance" id="quoteHeroReassurance"></p>
-            <div class="lhai-quote-hero__focus">
-              <div class="lhai-quote-hero__block lhai-quote-hero__block--service">
-                <span class="lhai-quote-hero__label" id="quoteHeroServiceLabel"></span>
-                <p class="lhai-quote-hero__value lhai-quote-hero__value--service" id="quoteHeroServiceName"></p>
-              </div>
-              <div class="lhai-quote-hero__block lhai-quote-hero__block--cost">
-                <div class="lhai-quote-hero__cost-card" id="quoteHeroCostCard">
-                  <span class="lhai-quote-hero__label" id="quoteHeroCostLabel"></span>
-                  <p class="lhai-quote-hero__cost-eyebrow" id="quoteHeroCostEyebrow" data-i18n="customer.quote.cost.eyebrow">For the scope in this proposal</p>
-                  <p class="lhai-quote-hero__value lhai-quote-hero__value--cost" id="quoteHeroEstimatedCost"></p>
-                  <p class="lhai-quote-hero__cost-breakdown" id="quoteHeroCostBreakdown" hidden></p>
-                  <p class="lhai-quote-hero__cost-note" id="quoteHeroCostNote"></p>
-                  <div class="lhai-quote-hero__cost-footer">
-                    <span class="lhai-quote-hero__demo-pill" id="quoteCostDemoPill" hidden data-i18n="customer.quote.cost.demo_pill">Sample quote</span>
-                  </div>
+
+            <div class="lhai-quote-hero__layout">
+
+              <div class="lhai-quote-hero__col-main">
+
+                <div class="lhai-quote-hero__head">
+
+                  <h2 class="lhai-quote-hero__title" id="quoteHeroTitle"></h2>
+
+                  <span id="quoteHeroStatus" class="lhai-badge lhai-quote-hero__badge" role="status"></span>
+
                 </div>
+
+                <p class="lhai-quote-hero__subtitle" id="quoteHeroSubtitle"></p>
+
+                <div class="lhai-quote-hero__service">
+
+                  <span class="lhai-quote-hero__label" id="quoteHeroServiceLabel"></span>
+
+                  <p class="lhai-quote-hero__value lhai-quote-hero__value--service" id="quoteHeroServiceName"></p>
+
+                </div>
+
+                <p class="lhai-quote-hero__scope-note" id="quoteHeroScopeNote"></p>
+
+                <p class="lhai-quote-hero__status-message" id="quoteHeroStatusMessage" hidden role="status"></p>
+
+                <div
+
+                  class="lhai-quote-hero__actions"
+
+                  id="quoteHeroActions"
+
+                  role="group"
+
+                  aria-label="Quote decision"
+
+                  data-i18n-aria="customer.quote.hero.actions_group"
+
+                >
+
+                  <button
+
+                    type="button"
+
+                    class="lhai-button lhai-button--primary lhai-quote-hero__btn-approve"
+
+                    id="quoteHeroApproveBtn"
+
+                    data-i18n="customer.quote.hero.cta.approve"
+
+                  >
+
+                    Approve quote
+
+                  </button>
+
+                  <a
+
+                    class="lhai-button lhai-button--secondary lhai-quote-hero__btn-ask"
+
+                    id="quoteHeroAskBtn"
+
+                    href="messages.html"
+
+                    data-i18n="customer.quote.hero.cta.ask"
+
+                  >
+
+                    Ask a question
+
+                  </a>
+
+                  <button
+
+                    type="button"
+
+                    class="lhai-button lhai-quote-hero__btn-reject"
+
+                    id="quoteHeroRejectBtn"
+
+                    data-i18n="customer.quote.hero.cta.reject"
+
+                  >
+
+                    Decline quote
+
+                  </button>
+
+                </div>
+
               </div>
+
+              <aside class="lhai-quote-hero__col-cost" aria-labelledby="quoteHeroCostLabel">
+
+                <div class="lhai-quote-hero__cost-card" id="quoteHeroCostCard">
+
+                  <span class="lhai-quote-hero__label" id="quoteHeroCostLabel"></span>
+
+                  <p class="lhai-quote-hero__value lhai-quote-hero__value--cost" id="quoteHeroEstimatedCost"></p>
+
+                  <p class="lhai-quote-hero__cost-breakdown" id="quoteHeroCostBreakdown" hidden></p>
+
+                  <p class="lhai-quote-hero__cost-note" id="quoteHeroCostNote"></p>
+
+                  <div class="lhai-quote-hero__cost-footer">
+
+                    <span class="lhai-quote-hero__demo-pill" id="quoteCostDemoPill" hidden data-i18n="customer.quote.cost.demo_pill">Sample quote</span>
+
+                  </div>
+
+                </div>
+
+              </aside>
+
             </div>
-            <p class="lhai-quote-hero__next" id="quoteHeroNextCue"></p>
+
+            <p class="lhai-quote-hero__reassurance" id="quoteHeroReassurance" hidden></p>
+
+            <p class="lhai-quote-hero__next" id="quoteHeroNextCue" hidden></p>
+
           </header>
 
-          <section class="lhai-quote-request-block" id="quoteRequestBlock" aria-labelledby="quoteRequestBlockTitle">
-            <h2 class="lhai-quote-request-block__title" id="quoteRequestBlockTitle" data-i18n="customer.quote.request_section.title">Your request</h2>
-            <p class="lhai-quote-request-block__intro" data-i18n="customer.quote.request_section.intro">Please confirm this quote matches what you asked for.</p>
-            <div class="lhai-quote-request-block__grid">
-              <div class="lhai-quote-request-block__cell">
-                <h3 class="lhai-quote-request-block__subhead" id="quoteRequestHelpLabel" data-i18n="customer.quote.request_section.help_areas">Requested help</h3>
-                <ul class="lhai-quote-request-block__list" id="quoteRequestHelpAreas"></ul>
-              </div>
-              <div class="lhai-quote-request-block__cell">
-                <h3 class="lhai-quote-request-block__subhead" id="quoteRequestServicesLabel" data-i18n="customer.quote.request_section.services_in_quote">Services in this quote</h3>
-                <ul class="lhai-quote-request-block__list" id="quoteRequestServicesList"></ul>
-              </div>
+
+
+          <section class="lhai-quote-pricing" id="quotePricingSection" aria-labelledby="quotePricingTitle">
+
+            <h2 class="lhai-quote-pricing__title" id="quotePricingTitle" data-i18n="customer.quote.pricing.title">Quote line items</h2>
+
+            <p class="lhai-quote-pricing__lede" id="quotePricingLede" data-i18n="customer.quote.pricing.lede">
+
+              Each service in your proposal and how it contributes to the total.
+
+            </p>
+
+            <div id="quotePricingEmpty" class="lhai-quote-pricing__empty" hidden role="status"></div>
+
+            <div id="quotePricingList" class="lhai-quote-pricing__list" hidden></div>
+
+            <div id="quotePricingFooter" class="lhai-quote-pricing__footer" hidden>
+
+              <dl class="lhai-quote-pricing__totals">
+
+                <div class="lhai-quote-pricing__total-row" id="quotePricingServiceSubtotalRow">
+
+                  <dt id="quotePricingServiceSubtotalLabel" data-i18n="customer.quote.pricing.service_subtotal">Service items subtotal</dt>
+
+                  <dd id="quotePricingServiceSubtotalAmount">—</dd>
+
+                </div>
+
+                <div class="lhai-quote-pricing__total-row lhai-quote-pricing__total-row--final" id="quotePricingFinalTotalRow">
+
+                  <dt id="quotePricingFinalTotalLabel" data-i18n="customer.quote.pricing.final_total">Proposed total</dt>
+
+                  <dd id="quotePricingFinalTotalAmount">—</dd>
+
+                </div>
+
+              </dl>
+
+              <p class="lhai-quote-pricing__final-hint" id="quotePricingFinalHint" data-i18n="customer.quote.pricing.final_hint">
+
+                This is the final amount the team is asking you to approve.
+
+              </p>
+
+              <p class="lhai-quote-pricing__adjustment-note" id="quotePricingAdjustmentNote" hidden></p>
+
             </div>
-            <div class="lhai-quote-request-block__understood" id="quoteRequestUnderstoodWrap" hidden>
-              <h3 class="lhai-quote-request-block__subhead" id="quoteRequestUnderstoodTitle" data-i18n="customer.quote.request_section.understood">What we understood</h3>
-              <ul class="lhai-quote-request-block__list lhai-quote-request-block__list--qa" id="quoteRequestUnderstoodList"></ul>
-            </div>
+
           </section>
 
-          <section class="lhai-quote-ai" aria-labelledby="quoteAiHeading">
-            <h2 class="lhai-card__title" id="quoteAiHeading" data-i18n="customer.quote.ai.section_title">How AI and support work for you</h2>
-            <p class="lhai-quote-ai__lede" data-i18n="customer.quote.ai.lede">Practical roles—what the assistant does, what you do, and when a person steps in.</p>
-            <p class="lhai-quote-ai__delivery" id="quoteAiDeliverySummary" hidden></p>
-            <div class="lhai-quote-ai__grid">
-              <div class="lhai-quote-ai__block">
-                <h3 class="lhai-quote-ai__subhead" id="quoteAiHelpSubhead" data-i18n="customer.quote.ai.what_ai_helps">What AI will help with</h3>
-                <ul class="lhai-quote-ai__list" id="quoteAiHelpList"></ul>
-              </div>
-              <div class="lhai-quote-ai__block">
-                <h3 class="lhai-quote-ai__subhead" id="quoteAiYouSubhead" data-i18n="customer.quote.ai.what_you_do">What you may need to do directly</h3>
-                <ul class="lhai-quote-ai__list" id="quoteAiYouList"></ul>
-              </div>
-              <div class="lhai-quote-ai__block">
-                <h3 class="lhai-quote-ai__subhead" id="quoteAiHumanSubhead" data-i18n="customer.quote.ai.when_human">When human help may be needed</h3>
-                <ul class="lhai-quote-ai__list" id="quoteAiHumanList"></ul>
-              </div>
+
+
+          <section class="lhai-quote-scope" id="quoteScopeSection" aria-labelledby="quoteScopeTitle">
+
+            <h2 class="lhai-quote-scope__title" id="quoteScopeTitle" data-i18n="customer.quote.scope.title">What is included</h2>
+
+            <p class="lhai-quote-scope__lede" id="quoteScopeLede" data-i18n="customer.quote.scope.lede">
+
+              A clear view of what this quote covers and what stays with you to decide or pay separately.
+
+            </p>
+
+            <p class="lhai-quote-scope__aside" id="quoteScopeAside" data-i18n="customer.quote.scope.aside">
+
+              The items below are costs you pay or confirm directly—they are not hidden inside your quote total.
+
+            </p>
+
+            <div class="lhai-quote-scope__grid">
+
+              <article class="lhai-quote-scope__card lhai-quote-scope__card--included" aria-labelledby="quoteScopeIncludedTitle">
+
+                <h3 class="lhai-quote-scope__card-title" id="quoteScopeIncludedTitle" data-i18n="customer.quote.scope.included_title">Included in this quote</h3>
+
+                <ul class="lhai-quote-scope__list" id="quoteScopeIncludedList"></ul>
+
+              </article>
+
+              <article class="lhai-quote-scope__card lhai-quote-scope__card--excluded" aria-labelledby="quoteScopeExcludedTitle">
+
+                <h3 class="lhai-quote-scope__card-title" id="quoteScopeExcludedTitle" data-i18n="customer.quote.scope.excluded_title">Not included in this quote</h3>
+
+                <ul class="lhai-quote-scope__list" id="quoteScopeExcludedList"></ul>
+
+              </article>
+
             </div>
+
           </section>
+
+
+
+          <section class="lhai-quote-request-block lhai-quote-request-block--confirm" id="quoteRequestBlock" aria-labelledby="quoteRequestBlockTitle">
+
+            <h2 class="lhai-quote-request-block__title" id="quoteRequestBlockTitle" data-i18n="customer.quote.request_section.title">Your request</h2>
+
+            <p class="lhai-quote-request-block__intro" id="quoteRequestBlockIntro" data-i18n="customer.quote.request_section.intro">Please confirm this quote matches what you asked for.</p>
+
+            <div id="quoteRequestEmpty" class="lhai-quote-request-block__empty" hidden role="status"></div>
+
+            <div class="lhai-quote-request-block__grid" id="quoteRequestGrid">
+
+              <article class="lhai-quote-request-block__card" id="quoteRequestHelpCard">
+
+                <h3 class="lhai-quote-request-block__subhead" id="quoteRequestHelpLabel" data-i18n="customer.quote.request_section.help_areas">Requested help</h3>
+
+                <ul class="lhai-quote-request-block__list" id="quoteRequestHelpAreas"></ul>
+
+              </article>
+
+              <article class="lhai-quote-request-block__card" id="quoteRequestServicesCard">
+
+                <h3 class="lhai-quote-request-block__subhead" id="quoteRequestServicesLabel" data-i18n="customer.quote.request_section.services_in_quote">Services in this quote</h3>
+
+                <ul class="lhai-quote-request-block__list" id="quoteRequestServicesList"></ul>
+
+              </article>
+
+              <article class="lhai-quote-request-block__card" id="quoteRequestDeliveryCard">
+
+                <h3 class="lhai-quote-request-block__subhead" id="quoteRequestDeliveryLabel" data-i18n="customer.quote.request_section.delivery_modes">Support options you chose</h3>
+
+                <ul class="lhai-quote-request-block__list" id="quoteRequestDeliveryList"></ul>
+
+              </article>
+
+              <article class="lhai-quote-request-block__card" id="quoteRequestScheduleCard">
+
+                <h3 class="lhai-quote-request-block__subhead" id="quoteRequestScheduleLabel" data-i18n="customer.quote.request_section.schedule_region">Start timing / preferred area</h3>
+
+                <p class="lhai-quote-request-block__value" id="quoteRequestScheduleValue"></p>
+
+              </article>
+
+            </div>
+
+            <details class="lhai-quote-request-block__details" id="quoteRequestUnderstoodWrap" hidden>
+
+              <summary class="lhai-quote-request-block__details-summary" id="quoteRequestUnderstoodTitle" data-i18n="customer.quote.request_section.understood">Additional answers from your request</summary>
+
+              <ul class="lhai-quote-request-block__list lhai-quote-request-block__list--qa" id="quoteRequestUnderstoodList"></ul>
+
+            </details>
+
+          </section>
+
+
+
+          <section class="lhai-quote-ai lhai-quote-ai--support" aria-labelledby="quoteAiHeading">
+
+            <h2 class="lhai-quote-ai__title" id="quoteAiHeading" data-i18n="customer.quote.ai.section_title">How support works for this quote</h2>
+
+            <p class="lhai-quote-ai__lede" id="quoteAiLede" data-i18n="customer.quote.ai.lede">Support roles at a glance.</p>
+
+            <div class="lhai-quote-ai__badges" id="quoteAiDeliveryBadges" hidden aria-label="Delivery modes"></div>
+
+            <div class="lhai-quote-ai__grid">
+
+              <article class="lhai-quote-ai__card">
+
+                <h3 class="lhai-quote-ai__subhead" id="quoteAiHelpSubhead" data-i18n="customer.quote.ai.what_ai_helps">What the agent helps with</h3>
+
+                <ul class="lhai-quote-ai__list" id="quoteAiHelpList"></ul>
+
+              </article>
+
+              <article class="lhai-quote-ai__card">
+
+                <h3 class="lhai-quote-ai__subhead" id="quoteAiYouSubhead" data-i18n="customer.quote.ai.what_you_do">What you do directly</h3>
+
+                <ul class="lhai-quote-ai__list" id="quoteAiYouList"></ul>
+
+              </article>
+
+              <article class="lhai-quote-ai__card">
+
+                <h3 class="lhai-quote-ai__subhead" id="quoteAiHumanSubhead" data-i18n="customer.quote.ai.when_human">When to reach the team</h3>
+
+                <ul class="lhai-quote-ai__list" id="quoteAiHumanList"></ul>
+
+              </article>
+
+            </div>
+
+          </section>
+
+
 
           <section class="lhai-quote-customer-note" id="quoteCustomerNoteSection" hidden>
+
             <h2 class="lhai-card__title" id="quoteCustomerNoteTitle">Note from your team</h2>
+
             <p id="quoteCustomerNote" class="u-text-muted"></p>
+
           </section>
+
+
 
           <section class="lhai-quote-whats-next" id="quoteWhatsNextSection" aria-labelledby="quoteWhatsNextHeading">
-            <h2 class="lhai-quote-whats-next__title lhai-card__title" id="quoteWhatsNextHeading" data-i18n="customer.quote.whats_next.title">What happens next</h2>
-            <p class="lhai-quote-whats-next__lede" data-i18n="customer.quote.whats_next.lede">A simple path from reading this quote to moving forward.</p>
+
+            <h2 class="lhai-quote-whats-next__title lhai-card__title" id="quoteWhatsNextHeading" data-i18n="customer.quote.whats_next.title">Next steps</h2>
+
+            <p class="lhai-quote-whats-next__lede" id="quoteWhatsNextLede" data-i18n="customer.quote.whats_next.lede">
+
+              After you review this quote and approve it, an invoice and payment instructions will be sent to you.
+
+            </p>
+
             <ol class="lhai-quote-whats-next__steps" id="quoteWhatsNextSteps"></ol>
+
+
+
+            <div class="lhai-quote-whats-next__cta">
+
+              <div id="quoteDecisionFeedback" class="lhai-quote-decision-feedback" hidden role="status" aria-live="polite"></div>
+
+              <p class="lhai-quote-whats-next__status" id="quoteFooterStatusMessage" hidden role="status"></p>
+
+              <div
+
+                class="lhai-quote-whats-next__actions"
+
+                id="quoteFooterCtaGroup"
+
+                role="group"
+
+                aria-label="Quote decision"
+
+                data-i18n-aria="customer.quote.hero.actions_group"
+
+              >
+
+                <button
+
+                  type="button"
+
+                  class="lhai-button lhai-button--primary lhai-quote-whats-next__btn-approve"
+
+                  id="quoteFooterApproveBtn"
+
+                  data-i18n="customer.quote.hero.cta.approve"
+
+                >
+
+                  Approve quote
+
+                </button>
+
+                <a
+
+                  class="lhai-button lhai-button--secondary lhai-quote-whats-next__btn-ask"
+
+                  id="quoteFooterAskBtn"
+
+                  href="messages.html"
+
+                  data-i18n="customer.quote.hero.cta.ask"
+
+                >
+
+                  Ask a question
+
+                </a>
+
+                <button
+
+                  type="button"
+
+                  class="lhai-button lhai-quote-whats-next__btn-reject"
+
+                  id="quoteFooterRejectBtn"
+
+                  data-i18n="customer.quote.hero.cta.reject"
+
+                >
+
+                  Decline quote
+
+                </button>
+
+              </div>
+
+              <p class="lhai-help lhai-quote-whats-next__action-status" id="quoteActionStatus"></p>
+
+            </div>
+
           </section>
 
-          <div class="lhai-quote-actions-wrap" id="quoteActionsWrap">
-            <p class="lhai-quote-actions__intro" data-i18n="customer.quote.actions.intro">Choose an action below. Nothing is final until you confirm.</p>
-            <div id="quoteDecisionFeedback" class="lhai-quote-decision-feedback" hidden role="status" aria-live="polite"></div>
-            <div class="lhai-quote-actions" role="group" id="quoteActionsGroup" aria-label="Quote decision">
-              <div class="lhai-quote-actions__col lhai-quote-actions__col--primary">
-                <button type="button" class="lhai-button lhai-button--primary lhai-quote-actions__btn-approve" id="approveQuoteBtn">Approve</button>
-                <p class="lhai-quote-actions__hint" id="approveQuoteHint"></p>
-              </div>
-              <div class="lhai-quote-actions__col lhai-quote-actions__col--reject">
-                <button type="button" class="lhai-button lhai-button--secondary lhai-quote-actions__btn-reject" id="rejectQuoteBtn">Reject</button>
-                <p class="lhai-quote-actions__hint lhai-quote-actions__hint--reject" id="rejectQuoteHint"></p>
-              </div>
-            </div>
-            <p class="lhai-help lhai-quote-actions__status" id="quoteActionStatus"></p>
-          </div>
+
 
           <details class="lhai-quote-secondary lhai-quote-secondary--footer">
+
             <summary class="lhai-quote-secondary__summary" data-i18n="customer.quote.secondary.summary">Quote details (reference only)</summary>
+
             <p class="lhai-quote-secondary__hint" data-i18n="customer.quote.secondary.hint">
+
               Use these when you contact support. You do not need them to understand your proposal.
+
             </p>
+
             <dl class="lhai-quote-secondary__dl">
+
               <dt data-i18n="customer.quote.secondary.ref_id">Reference ID</dt>
+
               <dd id="quoteId" class="lhai-quote-secondary__mono">—</dd>
+
               <dt data-i18n="customer.quote.secondary.doc_label">Document title on file</dt>
+
               <dd id="quoteSecondaryTitle" class="lhai-quote-secondary__doc">—</dd>
+
             </dl>
+
           </details>
+
         </div>
+
       </section>
+
     </main>
+
   </div>
+
+  <dialog
+    class="lhai-dialog lhai-quote-decision-modal"
+    id="quoteApproveConfirmDialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="quoteApproveModalTitle"
+  >
+    <div class="lhai-dialog__inner">
+      <h3 class="lhai-dialog__title" id="quoteApproveModalTitle" data-i18n="customer.quote.modal.approve.title">
+        Approve this quote?
+      </h3>
+      <div class="lhai-dialog__body lhai-quote-decision-modal__body">
+        <dl class="lhai-quote-decision-modal__summary">
+          <dt id="quoteApproveModalServiceLabel" data-i18n="customer.quote.modal.approve.service_label">Service summary</dt>
+          <dd id="quoteApproveModalService">—</dd>
+          <dt id="quoteApproveModalTotalLabel" data-i18n="customer.quote.modal.approve.total_label">Proposed total</dt>
+          <dd id="quoteApproveModalTotal" class="lhai-quote-decision-modal__total">—</dd>
+        </dl>
+        <ul class="lhai-quote-decision-modal__bullets" id="quoteApproveModalBullets"></ul>
+      </div>
+      <div class="lhai-dialog__actions">
+        <button type="button" class="lhai-button lhai-button--secondary" id="quoteApproveModalCancel" data-i18n="customer.quote.modal.cancel">
+          Cancel
+        </button>
+        <button type="button" class="lhai-button lhai-button--primary" id="quoteApproveModalConfirm" data-i18n="customer.quote.hero.cta.approve">
+          Approve quote
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog
+    class="lhai-dialog lhai-quote-decision-modal lhai-quote-decision-modal--reject"
+    id="quoteRejectConfirmDialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="quoteRejectModalTitle"
+  >
+    <div class="lhai-dialog__inner">
+      <h3 class="lhai-dialog__title" id="quoteRejectModalTitle" data-i18n="customer.quote.modal.reject.title">
+        Decline this quote?
+      </h3>
+      <div class="lhai-dialog__body lhai-quote-decision-modal__body">
+        <p id="quoteRejectModalIntro" data-i18n="customer.quote.modal.reject.intro">
+          If you decline, this quote will not move forward.
+        </p>
+        <p class="lhai-quote-decision-modal__hint" id="quoteRejectModalHint" data-i18n="customer.quote.modal.reject.reason_hint">
+          If you can, please leave a short reason so the team can help.
+        </p>
+        <label class="lhai-quote-decision-modal__label" for="quoteRejectModalReason" id="quoteRejectModalReasonLabel" data-i18n="customer.quote.modal.reject.reason_label">
+          Reason for declining (optional)
+        </label>
+        <textarea
+          class="lhai-quote-decision-modal__textarea"
+          id="quoteRejectModalReason"
+          rows="3"
+          maxlength="500"
+          data-i18n-placeholder="customer.quote.modal.reject.reason_placeholder"
+          placeholder="Optional — e.g. timing, budget, or scope"
+        ></textarea>
+      </div>
+      <div class="lhai-dialog__actions">
+        <button type="button" class="lhai-button lhai-button--secondary" id="quoteRejectModalCancel" data-i18n="customer.quote.modal.cancel">
+          Cancel
+        </button>
+        <button type="button" class="lhai-button lhai-quote-decision-modal__confirm-reject" id="quoteRejectModalConfirm" data-i18n="customer.quote.hero.cta.reject">
+          Decline quote
+        </button>
+      </div>
+    </div>
+  </dialog>
+
   <script type="module" src="../assets/js/core/app-header.js?v=20260403"></script>
+
   <script type="module" src="../assets/js/core/logout-button.js?v=20260403"></script>
+
   <script type="module" src="../assets/js/core/admin-user-menu.js?v=20260403"></script>
-  <script type="module" src="../assets/js/pages/quote-detail.js?v=20260403"></script>
+
+  <script type="module" src="../assets/js/pages/quote-detail.js?v=20260519g"></script>
+
 </body>
+
 </html>
+

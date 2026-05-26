@@ -22,92 +22,84 @@
         <p class="lhai-help lhai-state lhai-state--error" id="invoiceLoadError" hidden role="alert"></p>
 
         <header class="lhai-quote-hero lhai-invoice-hero" id="invoiceHero" aria-labelledby="invoiceHeroTitle" hidden>
-          <h1 class="lhai-quote-hero__title" id="invoiceHeroTitle"></h1>
-          <p class="lhai-quote-hero__subtitle" id="invoiceHeroSubtitle"></p>
-          <div class="lhai-quote-hero__focus">
-            <div class="lhai-quote-hero__block lhai-quote-hero__block--service">
-              <span class="lhai-quote-hero__label" id="invoiceHeroServiceLabel" data-i18n="customer.invoice.hero.service_label"></span>
-              <p class="lhai-quote-hero__value lhai-quote-hero__value--service" id="invoiceHeroServiceName">—</p>
+          <div class="lhai-quote-hero__layout lhai-invoice-hero__layout">
+            <div class="lhai-quote-hero__col-main">
+              <div class="lhai-quote-hero__head">
+                <h1 class="lhai-quote-hero__title" id="invoiceHeroTitle"></h1>
+                <span id="invoiceHeroStatusBadge" class="lhai-badge lhai-quote-hero__badge" role="status"></span>
+              </div>
+              <p class="lhai-quote-hero__subtitle" id="invoiceHeroSubtitle" hidden></p>
+              <div class="lhai-quote-hero__service">
+                <span class="lhai-quote-hero__label" id="invoiceHeroRequestLabel" data-i18n="customer.invoice.hero.request_label"></span>
+                <p class="lhai-quote-hero__value lhai-quote-hero__value--service" id="invoiceHeroRequestSummary">—</p>
+              </div>
+              <div class="lhai-quote-hero__service lhai-invoice-hero__billed">
+                <span class="lhai-quote-hero__label" id="invoiceHeroBilledLabel" data-i18n="customer.invoice.hero.billed_services_label"></span>
+                <p class="lhai-quote-hero__value lhai-quote-hero__value--service" id="invoiceHeroBilledServices">—</p>
+              </div>
+              <p class="lhai-quote-hero__reassurance" id="invoiceHeroReassurance"></p>
+              <p class="lhai-quote-hero__status-message" id="invoiceHeroStatusMessage" hidden role="status"></p>
+              <div
+                class="lhai-quote-hero__actions"
+                id="invoiceHeroActions"
+                role="group"
+                aria-label="Invoice payment actions"
+                data-i18n-aria-label="customer.invoice.hero.actions_aria"
+              >
+                <button
+                  type="button"
+                  class="lhai-button lhai-button--primary lhai-quote-hero__btn-approve lhai-invoice-hero__btn-pay"
+                  id="invoiceHeroPayBtn"
+                  data-i18n="customer.invoice.hero.cta.pay"
+                >
+                  지금 결제하기
+                </button>
+                <a
+                  class="lhai-button lhai-button--secondary lhai-quote-hero__btn-ask"
+                  id="invoiceHeroAskBtn"
+                  href="../pages/messages.html"
+                  data-i18n="customer.invoice.hero.cta.ask"
+                >
+                  질문하기
+                </a>
+                <a
+                  class="lhai-button lhai-button--secondary lhai-quote-hero__btn-ask"
+                  id="invoiceHeroMessagesBtn"
+                  href="../pages/messages.html"
+                  hidden
+                  data-i18n="customer.invoice.hero.cta.messages"
+                >
+                  메시지함 보기
+                </a>
+              </div>
+              <p class="lhai-invoice-hero__web-note" id="invoiceHeroWebNote"></p>
             </div>
-            <div class="lhai-quote-hero__block lhai-quote-hero__block--cost">
+            <aside class="lhai-quote-hero__col-cost" aria-labelledby="invoiceHeroAmountLabel">
               <div class="lhai-quote-hero__cost-card" id="invoiceHeroCostCard">
                 <span class="lhai-quote-hero__label" id="invoiceHeroAmountLabel" data-i18n="customer.invoice.hero.amount_label"></span>
                 <p class="lhai-quote-hero__cost-eyebrow" id="invoiceHeroAmountEyebrow"></p>
                 <p class="lhai-quote-hero__value lhai-quote-hero__value--cost" id="invoiceHeroAmountDue">—</p>
               </div>
-            </div>
+            </aside>
           </div>
-          <p class="lhai-invoice-hero__web-note" id="invoiceHeroWebNote"></p>
         </header>
-
-        <section class="lhai-invoice-meta" id="invoiceMetaSection" aria-labelledby="invoiceMetaHeading" hidden>
-          <h2 class="lhai-card__title" id="invoiceMetaHeading" data-i18n="customer.invoice.meta.section_title">청구서 정보</h2>
-          <p class="lhai-help u-mt-1" data-i18n="customer.invoice.meta.section_intro"></p>
-          <div class="lhai-invoice-meta__dates u-mt-2">
-            <div class="lhai-invoice-meta__date-cell">
-              <div class="lhai-invoice-meta__date-label" data-i18n="customer.invoice.meta.issue_date">발행일</div>
-              <div class="lhai-invoice-meta__date-value" id="invoiceMetaIssueDate">—</div>
-            </div>
-            <div class="lhai-invoice-meta__date-cell">
-              <div class="lhai-invoice-meta__date-label" data-i18n="customer.invoice.meta.due_date">납기일</div>
-              <div class="lhai-invoice-meta__date-value" id="invoiceMetaDueDate">—</div>
-            </div>
-          </div>
-          <dl class="lhai-invoice-meta__dl u-mt-2" id="invoiceMetaDl"></dl>
-          <p class="lhai-help u-mt-2 lhai-invoice-meta__support-hint" data-i18n="customer.invoice.meta.support_hint">
-            문의·고객지원 시 청구서 번호와 견적 참조를 함께 알려 주시면 빠르게 확인할 수 있습니다.
-          </p>
-        </section>
-
-        <section class="lhai-invoice-parties" id="invoicePartiesSection" aria-labelledby="invoicePartiesHeading" hidden>
-          <h2 class="lhai-card__title" id="invoicePartiesHeading" data-i18n="customer.invoice.parties.section_title">
-            청구 주체 및 고객
-          </h2>
-          <p class="lhai-help u-mt-1" data-i18n="customer.invoice.parties.section_intro">
-            아래는 본 청구서의 발행 주체와 청구 대상(고객) 정보입니다.
-          </p>
-          <div class="lhai-invoice-parties__grid u-mt-2">
-            <div class="lhai-invoice-parties__party" aria-labelledby="invoicePartyFromTitle">
-              <h3 class="lhai-invoice-parties__party-title" id="invoicePartyFromTitle" data-i18n="customer.invoice.parties.from_title">
-                청구 발행 (Billing from)
-              </h3>
-              <dl class="lhai-invoice-parties__dl" id="invoicePartyFromDl"></dl>
-              <p class="lhai-invoice-parties__empty lhai-help" id="invoicePartyFromEmpty" hidden data-i18n="customer.invoice.parties.from_empty"></p>
-            </div>
-            <div class="lhai-invoice-parties__party" aria-labelledby="invoicePartyToTitle">
-              <h3 class="lhai-invoice-parties__party-title" id="invoicePartyToTitle" data-i18n="customer.invoice.parties.to_title">
-                청구 대상 (Billing to)
-              </h3>
-              <dl class="lhai-invoice-parties__dl" id="invoicePartyToDl"></dl>
-              <p class="lhai-invoice-parties__empty lhai-help" id="invoicePartyToEmpty" hidden data-i18n="customer.invoice.parties.to_empty"></p>
-            </div>
-          </div>
-        </section>
 
         <section class="lhai-invoice-scope" id="invoiceScopeSection" aria-labelledby="invoiceScopeMainHeading" hidden>
           <h2 class="lhai-card__title" id="invoiceScopeMainHeading" data-i18n="customer.invoice.scope.main_title">
-            본 청구서가 포함하는 내용
+            청구 대상 서비스
           </h2>
           <p class="lhai-help u-mt-1" data-i18n="customer.invoice.scope.main_intro"></p>
+          <div class="lhai-invoice-services__rows" id="invoiceScopeRows" role="list"></div>
+          <p class="lhai-invoice-services__empty lhai-help" id="invoiceScopeEmpty" hidden role="status"></p>
 
-          <h3 class="lhai-invoice-scope__subhead u-mt-3" data-i18n="customer.invoice.scope.billed_title">
-            청구 대상 서비스 및 범위
-          </h3>
-          <p class="lhai-invoice-scope__service-name" id="invoiceScopeServiceName">—</p>
-
-          <div class="lhai-invoice-scope__block u-mt-2" id="invoiceScopeDescriptionBlock" hidden>
-            <h4 class="lhai-invoice-scope__label" data-i18n="customer.invoice.scope.description_label">요약 설명</h4>
+          <div class="lhai-invoice-scope__block u-mt-3" id="invoiceScopeDescriptionBlock" hidden>
+            <h3 class="lhai-invoice-scope__label" data-i18n="customer.invoice.scope.description_label">요약 설명</h3>
             <p class="lhai-invoice-scope__prose" id="invoiceScopeDescription"></p>
           </div>
 
           <div class="lhai-invoice-scope__block u-mt-2" id="invoiceScopeNoteBlock" hidden>
-            <h4 class="lhai-invoice-scope__label" data-i18n="customer.invoice.scope.note_label">팀 안내</h4>
+            <h3 class="lhai-invoice-scope__label" data-i18n="customer.invoice.scope.note_label">팀 안내</h3>
             <p class="lhai-invoice-scope__prose" id="invoiceScopeCustomerNote"></p>
-          </div>
-
-          <div class="lhai-invoice-scope__block u-mt-2">
-            <h4 class="lhai-invoice-scope__label" data-i18n="customer.invoice.scope.summary_label">포함 범위 요약</h4>
-            <ul class="lhai-invoice-customer__scope-list lhai-invoice-scope__list" id="invoiceScopeList"></ul>
           </div>
 
           <p class="lhai-invoice-scope__quote-note lhai-help u-mt-2" id="invoiceScopeQuoteNote" hidden></p>
@@ -134,21 +126,31 @@
           <p class="lhai-help u-mt-2" id="invoiceAmountSummaryFootnote" hidden></p>
         </section>
 
-        <aside class="lhai-invoice-payment-notice" id="invoicePaymentNotice" aria-labelledby="invoicePaymentNoticeTitle">
-          <h3 class="lhai-invoice-payment-notice__title" id="invoicePaymentNoticeTitle" data-i18n="customer.invoice.legal.notice_block_title"></h3>
-          <p class="lhai-invoice-payment-notice__lead" data-i18n="customer.invoice.legal.statement"></p>
-          <ul class="lhai-invoice-payment-notice__list">
-            <li data-i18n="customer.invoice.legal.support_scope"></li>
-            <li data-i18n="customer.invoice.legal.support_changes"></li>
-            <li data-i18n="customer.invoice.legal.support_separate_services"></li>
-            <li data-i18n="customer.invoice.legal.support_cancellation"></li>
-          </ul>
-        </aside>
+        <section class="lhai-invoice-prepay-scope" id="invoicePaymentNotice" aria-labelledby="invoicePaymentNoticeTitle">
+          <h2 class="lhai-card__title lhai-invoice-prepay-scope__title" id="invoicePaymentNoticeTitle" data-i18n="customer.invoice.legal.notice_block_title"></h2>
+          <p class="lhai-invoice-prepay-scope__lede" id="invoicePrepayScopeLede" data-i18n="customer.invoice.prepay_scope.lede"></p>
+          <p class="lhai-invoice-prepay-scope__context-note" id="invoicePrepayScopeContextNote" hidden role="note"></p>
+          <div class="lhai-invoice-prepay-scope__grid">
+            <article
+              class="lhai-invoice-prepay-scope__card lhai-invoice-prepay-scope__card--included"
+              aria-labelledby="invoicePrepayIncludedTitle"
+            >
+              <h3 class="lhai-invoice-prepay-scope__card-title" id="invoicePrepayIncludedTitle" data-i18n="customer.invoice.prepay_scope.included_title"></h3>
+              <ul class="lhai-invoice-prepay-scope__list" id="invoicePrepayIncludedList"></ul>
+            </article>
+            <article
+              class="lhai-invoice-prepay-scope__card lhai-invoice-prepay-scope__card--excluded"
+              aria-labelledby="invoicePrepayExcludedTitle"
+            >
+              <h3 class="lhai-invoice-prepay-scope__card-title" id="invoicePrepayExcludedTitle" data-i18n="customer.invoice.prepay_scope.excluded_title"></h3>
+              <ul class="lhai-invoice-prepay-scope__list" id="invoicePrepayExcludedList"></ul>
+            </article>
+          </div>
+        </section>
 
         <section class="lhai-invoice-after-payment" id="invoiceAfterPaymentSection" aria-labelledby="invoiceAfterMainHeading">
-          <h2 class="lhai-card__title" id="invoiceAfterMainHeading" data-i18n="customer.invoice.after.section_main_title"></h2>
-          <p class="lhai-help u-mt-1" id="invoiceAfterIntro" data-i18n="customer.invoice.after.section_intro"></p>
-          <h3 class="lhai-invoice-after-payment__subhead u-mt-3" id="invoiceAfterSubhead" data-i18n="customer.invoice.after.subsection_next_steps"></h3>
+          <h2 class="lhai-card__title" id="invoiceAfterMainHeading" data-i18n="customer.invoice.next_steps.title">결제 후 다음 단계</h2>
+          <p class="lhai-invoice-after-payment__intro" id="invoiceAfterIntro" data-i18n="customer.invoice.next_steps.intro"></p>
           <ol class="lhai-invoice-customer__after-list lhai-invoice-after-payment__list" id="invoiceAfterList"></ol>
         </section>
 
@@ -166,7 +168,7 @@
             aria-label="청구서 관련 추가 작업"
             data-i18n-aria-label="customer.invoice.action.secondary_nav_aria"
           >
-            <a class="lhai-button lhai-button--secondary" href="../pages/messages.html" data-i18n="customer.invoice.action.help">도움 요청</a>
+            <a class="lhai-button lhai-button--secondary" id="invoiceHelpLink" href="../pages/messages.html" data-i18n="customer.invoice.action.help">도움 요청</a>
             <a class="lhai-button lhai-button--secondary" id="invoiceViewQuoteLink" href="../pages/quote-detail.html" data-i18n="customer.invoice.action.view_quote" hidden>관련 견적 보기</a>
             <a class="lhai-button lhai-button--secondary" id="invoicePdfLink" href="#" data-i18n="customer.invoice.action.view_pdf" target="_blank" rel="noopener noreferrer" hidden>청구서 PDF</a>
           </nav>
@@ -224,6 +226,41 @@
           </nav>
           <p class="lhai-help u-mt-3 lhai-invoice-postpay__legal-hint" data-i18n="customer.invoice.postpay.legal_align"></p>
         </section>
+
+        <details
+          class="lhai-invoice-details lhai-quote-secondary lhai-quote-secondary--footer lhai-invoice-details--reference"
+          id="invoiceDetailsSection"
+          open
+          hidden
+        >
+          <summary class="lhai-invoice-details__summary lhai-quote-secondary__summary" id="invoiceDetailsHeading" data-i18n="customer.invoice.details.section_title">
+            청구서 세부 정보
+          </summary>
+          <p class="lhai-quote-secondary__hint" data-i18n="customer.invoice.details.section_intro"></p>
+          <dl class="lhai-invoice-meta__dl lhai-invoice-details__meta-dl" id="invoiceMetaDl"></dl>
+          <p class="lhai-quote-secondary__hint lhai-invoice-meta__support-hint" data-i18n="customer.invoice.meta.support_hint">
+            문의·고객지원 시 청구서 번호와 견적 참조를 함께 알려 주시면 빠르게 확인할 수 있습니다.
+          </p>
+
+          <div class="lhai-invoice-details__block lhai-invoice-parties" id="invoicePartiesSection">
+            <div class="lhai-invoice-parties__grid u-mt-2">
+              <div class="lhai-invoice-parties__party" aria-labelledby="invoicePartyFromTitle">
+                <h4 class="lhai-invoice-parties__party-title" id="invoicePartyFromTitle" data-i18n="customer.invoice.parties.from_title">
+                  청구 발행 (Billing from)
+                </h4>
+                <dl class="lhai-invoice-parties__dl" id="invoicePartyFromDl"></dl>
+                <p class="lhai-invoice-parties__empty lhai-help" id="invoicePartyFromEmpty" hidden data-i18n="customer.invoice.parties.from_empty"></p>
+              </div>
+              <div class="lhai-invoice-parties__party" aria-labelledby="invoicePartyToTitle">
+                <h4 class="lhai-invoice-parties__party-title" id="invoicePartyToTitle" data-i18n="customer.invoice.parties.to_title">
+                  청구 대상 (Billing to)
+                </h4>
+                <dl class="lhai-invoice-parties__dl" id="invoicePartyToDl"></dl>
+                <p class="lhai-invoice-parties__empty lhai-help" id="invoicePartyToEmpty" hidden data-i18n="customer.invoice.parties.to_empty"></p>
+              </div>
+            </div>
+          </div>
+        </details>
 
         <p class="lhai-help u-mt-2" id="invoiceStatusMessage" role="status" aria-live="polite"></p>
       </section>

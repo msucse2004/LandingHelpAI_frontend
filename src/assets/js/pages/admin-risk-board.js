@@ -26,7 +26,7 @@ function renderRiskList(customers = []) {
       return `
         <article class="lhai-risk-item">
           <div class="lhai-risk-item__header">
-            <strong>${safeText(customer.customer_profile_id)}</strong>
+            <a href="admin-customer-detail.html?customer_profile_id=${encodeURIComponent(String(customer.customer_profile_id || ""))}"><strong>${safeText(customer.customer_profile_id)}</strong></a>
             <span class="lhai-badge">${safeText(customer.risk_level || "unknown")}</span>
           </div>
           <ul class="lhai-list">

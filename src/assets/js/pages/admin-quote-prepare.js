@@ -5,6 +5,22 @@ import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
 import { formatSurveyAnswerForDisplay } from "../core/survey-answer-display.js";
 import { formatDate, formatMoney, safeText } from "../core/utils.js";
+import {
+  ADMIN_FEE_LINE_TITLE,
+  buildCustomerPreviewStateFromEditor,
+  buildQuoteEditorPayloadFromEditor,
+  computeQuoteTotal,
+  customerDisplayNameFromQuote,
+  formatQuoteStatusLabel,
+  getQuoteReadonlyWarnMessage,
+  getQuoteStatusBadgeModifier,
+  isQuoteDraft,
+  normalizeAdminFee,
+  normalizeQuoteStatus,
+  proposeQuoteToCustomer,
+  readAdminFeeFromQuote,
+  validateProposeFields,
+} from "./admin-quote-prepare-logic.js";
 
 const DELIVERY_KO = {
   ai_guide: "Landing Help AI Agent",
@@ -80,6 +96,200 @@ function qs(sel) {
   return document.querySelector(sel);
 }
 
+function renderQuoteStatusBadge(badgeEl, status) {
+  if (!badgeEl) return;
+  const key = normalizeQuoteStatus(status);
+  const label = formatQuoteStatusLabel(status);
+  badgeEl.textContent = label;
+  badgeEl.title = key && label !== key ? key : "";
+  badgeEl.className = `lhai-quote-prep__badge lhai-quote-prep__badge--${getQuoteStatusBadgeModifier(status)}`;
+}
+
+/** @param {Record<string, unknown>} quote @returns {boolean} isDraft */
+function applyQuoteEditorReadonlyState(quote) {
+  const isDraft = normalizeQuoteStatus(quote?.status) === "DRAFT";
+  const form = qs("#qpForm");
+  const warn = qs("#qpEditorWarn");
+  const badge = qs("#qpStatusBadge");
+  const saveBtn = qs("#qpSaveBtn");
+  const proposeBtn = qs("#qpProposeBtn");
+  const headingLabel = qs("#qpEditorHeadingLabel");
+  const kicker = qs("#qpEditorKicker");
+
+  renderQuoteStatusBadge(badge, quote?.status);
+
+  if (headingLabel) {
+    headingLabel.textContent = isDraft ? "견적 초안" : "견적 내용";
+  }
+
+  if (kicker) {
+    if (isDraft) {
+      kicker.innerHTML =
+        '저장하면 초안만 갱신됩니다. 내용을 확인한 뒤 <strong>고객에게 견적 보내기</strong>로 검토용 견적을 전달하세요.';
+    } else {
+      kicker.textContent =
+        "고객에게 전달된 견적 내용을 확인할 수 있습니다. 변경이 필요하면 견적 목록에서 상태와 후속 절차를 확인하세요.";
+    }
+  }
+
+  if (warn) {
+    if (!isDraft) {
+      warn.hidden = false;
+      warn.textContent = getQuoteReadonlyWarnMessage(quote?.status);
+    } else {
+      warn.hidden = true;
+      warn.textContent = "";
+    }
+  }
+
+  if (form) {
+    form.classList.toggle("lhai-quote-prep__form--readonly", !isDraft);
+    form.querySelectorAll("input, textarea").forEach((el) => {
+      if (isDraft) el.removeAttribute("disabled");
+      else el.setAttribute("disabled", "disabled");
+    });
+    form.querySelectorAll("button").forEach((el) => {
+      if (isDraft) el.removeAttribute("disabled");
+      else el.setAttribute("disabled", "disabled");
+    });
+  }
+
+  if (saveBtn instanceof HTMLButtonElement) saveBtn.disabled = !isDraft;
+  if (proposeBtn instanceof HTMLButtonElement) proposeBtn.disabled = !isDraft;
+
+  return isDraft;
+}
+
+/** @type {Record<string, unknown> | null} */
+let previewQuoteRef = null;
+/** @type {Array<Record<string, unknown>>} */
+let previewSelectedServicesRef = [];
+
+/**
+ * @param {Record<string, unknown>} quote
+ * @param {Array<Record<string, unknown>>} selectedServices
+ */
+function buildCustomerPreviewState(quote, selectedServices) {
+  return buildCustomerPreviewStateFromEditor({
+    quote,
+    selectedServices,
+    unitPriceMap: getServiceUnitPriceMapFromInputs(),
+    adminFee: getAdminFeeFromInput(),
+    customerNote: (qs("#qpCustomerNote")?.value || "").trim(),
+  });
+}
+
+/**
+ * @param {Record<string, unknown>} quote
+ * @param {Array<Record<string, unknown>>} selectedServices
+ */
+function renderCustomerPreview(quote, selectedServices) {
+  const el = qs("#qpCustomerPreview");
+  if (!el) return;
+  const state = buildCustomerPreviewState(quote, selectedServices);
+
+  const itemsHtml = state.items.length
+    ? state.items
+        .map(
+          (item) => `
+        <li class="lhai-quote-prep__preview-row">
+          <span class="lhai-quote-prep__preview-row-name">${safeText(item.title)}</span>
+          <span class="lhai-quote-prep__preview-row-price">${safeText(item.priceText)}</span>
+        </li>
+      `,
+        )
+        .join("")
+    : `<li class="lhai-quote-prep__preview-row lhai-quote-prep__preview-row--empty"><span class="lhai-help">표시할 서비스 항목이 없습니다.</span></li>`;
+
+  const noteHtml = state.noteEmpty
+    ? `<p class="lhai-quote-prep__preview-note lhai-quote-prep__preview-note--empty">추가 안내 메모가 없습니다.</p>`
+    : `<p class="lhai-quote-prep__preview-note">${safeText(state.note)}</p>`;
+
+  el.innerHTML = `
+    <div class="lhai-quote-prep__preview-header">
+      <h3 class="lhai-quote-prep__preview-title">고객 견적 미리보기</h3>
+      <p class="lhai-quote-prep__preview-subtitle">${safeText(state.subtitle)}</p>
+    </div>
+    <ul class="lhai-quote-prep__preview-list">${itemsHtml}</ul>
+    <p class="lhai-quote-prep__preview-total">
+      <span class="lhai-quote-prep__preview-total-label">고객에게 제안할 총액</span>
+      <span class="lhai-quote-prep__preview-total-amount">${safeText(state.totalText)}</span>
+    </p>
+    ${noteHtml}
+  `;
+}
+
+function refreshCustomerPreview() {
+  if (!previewQuoteRef) return;
+  renderCustomerPreview(previewQuoteRef, previewSelectedServicesRef);
+}
+
+function validateProposeClientFields() {
+  const total = computeQuoteTotal(getServiceUnitPriceMapFromInputs(), getAdminFeeFromInput());
+  return validateProposeFields((qs("#qpServiceName")?.value || "").trim(), total);
+}
+
+/**
+ * @param {Record<string, unknown>} quote
+ * @param {Array<Record<string, unknown>>} selectedServices
+ */
+function populateProposeConfirmModal(quote, selectedServices) {
+  const summaryEl = qs("#qpProposeConfirmSummary");
+  if (!summaryEl) return;
+  const displayName = customerDisplayNameFromQuote(quote);
+  const customerLabel = displayName ? `${displayName}님` : "고객님";
+  const state = buildCustomerPreviewState(quote, selectedServices);
+  const servicesHtml = state.items.length
+    ? `<ul class="lhai-quote-prep__modal-service-list">${state.items
+        .map(
+          (item) =>
+            `<li><span>${safeText(item.title)}</span><span>${safeText(item.priceText)}</span></li>`,
+        )
+        .join("")}</ul>`
+    : `<p class="lhai-help">표시할 서비스 항목이 없습니다.</p>`;
+  const noteHtml = state.noteEmpty
+    ? `<p class="lhai-help">추가 안내 메모 없음</p>`
+    : `<p class="lhai-quote-prep__modal-note">${safeText(state.note)}</p>`;
+
+  summaryEl.innerHTML = `
+    <dl class="lhai-quote-prep__modal-summary-grid">
+      <dt>고객</dt><dd>${safeText(customerLabel)}</dd>
+      <dt>서비스</dt><dd>${servicesHtml}</dd>
+      <dt>고객에게 제안할 총액</dt><dd class="lhai-quote-prep__modal-total">${safeText(state.totalText)}</dd>
+      <dt>고객에게 보여줄 메모</dt><dd>${noteHtml}</dd>
+    </dl>
+  `;
+}
+
+function openProposeConfirmModal(quote, selectedServices) {
+  const dialog = qs("#qpProposeConfirmDialog");
+  if (!(dialog instanceof HTMLDialogElement)) return;
+  populateProposeConfirmModal(quote, selectedServices);
+  dialog.showModal();
+  const cancelBtn = qs("#qpProposeConfirmCancel");
+  if (cancelBtn instanceof HTMLButtonElement) cancelBtn.focus();
+}
+
+function closeProposeConfirmModal() {
+  const dialog = qs("#qpProposeConfirmDialog");
+  if (dialog instanceof HTMLDialogElement && dialog.open) dialog.close();
+}
+
+/** @param {boolean} busy */
+function setProposeModalBusy(busy) {
+  const cancelBtn = qs("#qpProposeConfirmCancel");
+  const confirmBtn = qs("#qpProposeConfirmSubmit");
+  const proposeBtn = qs("#qpProposeBtn");
+  const saveBtn = qs("#qpSaveBtn");
+  if (cancelBtn instanceof HTMLButtonElement) cancelBtn.disabled = busy;
+  if (confirmBtn instanceof HTMLButtonElement) {
+    confirmBtn.disabled = busy;
+    confirmBtn.textContent = busy ? "보내는 중…" : "고객에게 보내기";
+  }
+  if (proposeBtn instanceof HTMLButtonElement && busy) proposeBtn.disabled = true;
+  if (saveBtn instanceof HTMLButtonElement) saveBtn.disabled = busy;
+}
+
 function getServiceUnitPriceMapFromInputs() {
   const out = {};
   document.querySelectorAll("[data-service-price-id]").forEach((el) => {
@@ -96,99 +306,130 @@ function getServiceUnitPriceMapFromInputs() {
   return out;
 }
 
-/** 고객 제안 총액 = 선택 서비스 단가 합계(서버도 동일 규칙으로 저장). */
-function getServiceUnitPricesSum() {
-  const vals = Object.values(getServiceUnitPriceMapFromInputs());
-  const sum = vals.reduce((s, v) => s + Number(v || 0), 0);
-  return Math.round(sum * 100) / 100;
+/** 고객 제안 총액 = 선택 서비스 단가 합계 + Admin Fee(서버도 동일 규칙으로 저장). */
+function getQuoteTotalFromInputs() {
+  return computeQuoteTotal(getServiceUnitPriceMapFromInputs(), getAdminFeeFromInput());
+}
+
+function getAdminFeeFromInput() {
+  const el = qs("#qpAdminFee");
+  if (!(el instanceof HTMLInputElement)) {
+    return normalizeAdminFee(null, APP_CONFIG.defaultAdminFeeUsd);
+  }
+  return normalizeAdminFee(el.value, APP_CONFIG.defaultAdminFeeUsd);
 }
 
 function buildQuoteEditorPayload() {
-  const unitPriceMap = getServiceUnitPriceMapFromInputs();
-  return {
-    service_name: (qs("#qpServiceName")?.value || "").trim(),
-    estimated_cost: getServiceUnitPricesSum(),
-    service_unit_prices: unitPriceMap,
-    internal_notes: qs("#qpInternalNotes")?.value || "",
-    customer_facing_note: qs("#qpCustomerNote")?.value || "",
-  };
+  return buildQuoteEditorPayloadFromEditor({
+    serviceName: (qs("#qpServiceName")?.value || "").trim(),
+    unitPriceMap: getServiceUnitPriceMapFromInputs(),
+    adminFee: getAdminFeeFromInput(),
+    customerNote: qs("#qpCustomerNote")?.value || "",
+    internalNotes: qs("#qpInternalNotes")?.value || "",
+  });
+}
+
+function deliverySummaryShort(s) {
+  const { headline } = describeCustomerDeliveryPick(s);
+  return headline || "—";
 }
 
 function syncSelectedServiceTotal() {
   const totalEl = qs("#qpSelectedServiceTotal");
-  if (!totalEl) return;
-  const vals = Object.values(getServiceUnitPriceMapFromInputs());
-  const total = vals.reduce((sum, v) => sum + Number(v || 0), 0);
-  totalEl.textContent = formatMoney(total, "USD");
+  const heroEl = qs("#qpCustomerTotalHero");
+  const total = getQuoteTotalFromInputs();
+  const formatted = formatMoney(total, "USD");
+  if (totalEl) totalEl.textContent = formatted;
+  if (heroEl instanceof HTMLElement) {
+    heroEl.hidden = false;
+    heroEl.classList.toggle("lhai-quote-prep__total-card--zero", !(total > 0));
+  }
+  refreshCustomerPreview();
 }
 
-function renderSelectedServicePriceSummary(selectedServices, priceByServiceId) {
+function renderSelectedServicePriceSummary(selectedServices, priceByServiceId, adminFeeAmount) {
   const listEl = qs("#qpSelectedServicePriceEditor");
   const emptyEl = qs("#qpSelectedServicePriceEmpty");
   const totalEl = qs("#qpSelectedServiceTotal");
   if (!listEl || !totalEl) return;
 
   const rows = Array.isArray(selectedServices) ? selectedServices : [];
-  if (!rows.length) {
-    listEl.innerHTML = "";
-    if (emptyEl) emptyEl.hidden = false;
-    totalEl.textContent = "—";
-    return;
-  }
+  const adminFee = normalizeAdminFee(adminFeeAmount, APP_CONFIG.defaultAdminFeeUsd);
 
-  if (emptyEl) emptyEl.hidden = true;
+  if (emptyEl) emptyEl.hidden = rows.length > 0;
 
-  const deliverySummaryHtml = rows
+  const rowHtml = rows
     .map((s) => {
       if (!s || typeof s !== "object") return "";
+      const sid = String(s.id || "").trim();
       const title = safeText(s.title || s.id || "서비스");
-      const { headline, detail } = describeCustomerDeliveryPick(s);
+      const delivery = safeText(deliverySummaryShort(s));
+      const unit = priceByServiceId[sid];
+      const value = unit && unit.amount != null ? Number(unit.amount || 0) : 0;
+      const inputId = `qpSvcPrice_${safeText(sid)}`;
       return `
-        <div class="lhai-quote-prep__delivery-item">
-          <p class="lhai-quote-prep__delivery-item-title">${title}</p>
-          <p class="lhai-quote-prep__delivery-item-pick"><strong>${safeText(headline)}</strong></p>
-          ${detail ? `<p class="lhai-help lhai-quote-prep__delivery-item-detail">${safeText(detail)}</p>` : ""}
+        <div class="lhai-quote-prep__price-row">
+          <div class="lhai-quote-prep__price-main">
+            <p class="lhai-quote-prep__price-title">${title}</p>
+          </div>
+          <p class="lhai-quote-prep__price-subtitle">${delivery}</p>
+          <div class="lhai-quote-prep__price-input-wrap">
+            <label class="lhai-label lhai-quote-prep__price-input-label" for="${inputId}">단가 (USD)</label>
+            <input
+              class="lhai-input lhai-quote-prep__price-input"
+              id="${inputId}"
+              data-service-price-id="${safeText(sid)}"
+              type="number"
+              min="0"
+              step="0.01"
+              value="${Number.isFinite(value) ? value : 0}"
+            />
+          </div>
         </div>
       `;
     })
     .filter(Boolean)
     .join("");
 
-  const priceInputsHtml = rows
-    .map((s) => {
-      if (!s || typeof s !== "object") return "";
-      const sid = String(s.id || "").trim();
-      const title = safeText(s.title || s.id || "서비스");
-      const unit = priceByServiceId[sid];
-      const value = unit && unit.amount != null ? Number(unit.amount || 0) : 0;
-      return `
-        <div class="u-mb-2">
-          <label class="lhai-label" for="qpSvcPrice_${safeText(sid)}">${title}</label>
+  const adminFeeValue = Number.isFinite(adminFee) ? adminFee : APP_CONFIG.defaultAdminFeeUsd;
+
+  listEl.innerHTML = `
+    <div class="lhai-quote-prep__price-card" role="region" aria-label="견적 항목">
+      <div class="lhai-quote-prep__price-row lhai-quote-prep__price-row--head" aria-hidden="true">
+        <span class="lhai-quote-prep__price-col lhai-quote-prep__price-col--service">서비스</span>
+        <span class="lhai-quote-prep__price-col lhai-quote-prep__price-col--delivery">전달 방식</span>
+        <span class="lhai-quote-prep__price-col lhai-quote-prep__price-col--amount">단가</span>
+      </div>
+      ${rowHtml}
+      <div class="lhai-quote-prep__price-row lhai-quote-prep__price-row--admin-fee">
+        <div class="lhai-quote-prep__price-main">
+          <p class="lhai-quote-prep__price-title">${safeText(ADMIN_FEE_LINE_TITLE)}</p>
+          <p class="lhai-help lhai-quote-prep__price-admin-note">플랫폼 관리 수수료 · 견적·청구 총액에 포함</p>
+        </div>
+        <p class="lhai-quote-prep__price-subtitle" aria-hidden="true">—</p>
+        <div class="lhai-quote-prep__price-input-wrap">
+          <label class="lhai-label lhai-quote-prep__price-input-label" for="qpAdminFee">단가 (USD)</label>
           <input
-            class="lhai-input"
-            id="qpSvcPrice_${safeText(sid)}"
-            data-service-price-id="${safeText(sid)}"
+            class="lhai-input lhai-quote-prep__price-input"
+            id="qpAdminFee"
             type="number"
             min="0"
             step="0.01"
-            value="${Number.isFinite(value) ? value : 0}"
+            value="${adminFeeValue}"
           />
         </div>
-      `;
-    })
-    .join("");
-
-  listEl.innerHTML = `
-    <div class="lhai-quote-prep__delivery-box" role="region" aria-label="고객이 선택한 전달 방식">
-      <p class="lhai-quote-prep__delivery-box-title">고객이 선택한 전달 방식</p>
-      ${deliverySummaryHtml || `<p class="lhai-help">전달 방식 정보가 없습니다.</p>`}
+      </div>
     </div>
-    ${priceInputsHtml}
   `;
   listEl.querySelectorAll("[data-service-price-id]").forEach((el) => {
     el.addEventListener("input", () => syncSelectedServiceTotal());
   });
+  const adminFeeEl = qs("#qpAdminFee");
+  if (adminFeeEl instanceof HTMLInputElement) {
+    adminFeeEl.addEventListener("input", () => syncSelectedServiceTotal());
+  }
   syncSelectedServiceTotal();
+  refreshCustomerPreview();
 }
 
 function parseAnswerDisplay(aj) {
@@ -208,6 +449,68 @@ function formatHousehold(common) {
   return s;
 }
 
+function formatPreferredLanguage(code) {
+  const raw = String(code || "").trim();
+  if (!raw) return "—";
+  return PREF_LANG[raw] || raw;
+}
+
+function formatLocationSummary(state, city) {
+  const st = String(state || "").trim();
+  const ct = String(city || "").trim();
+  if (st && ct) return `${st} · ${ct}`;
+  if (st) return st;
+  if (ct) return ct;
+  return "—";
+}
+
+function serviceUnitPriceText(sid, priceByServiceId) {
+  const unit = priceByServiceId[String(sid || "").trim()];
+  if (unit && unit.amount != null) {
+    return formatMoney(Number(unit.amount || 0), unit.currency || "USD");
+  }
+  return "—";
+}
+
+function renderRequestSummaryCard({ name, location, entryDate, household, categories, serviceCount, preferredLanguage }) {
+  const catChips =
+    categories.length > 0
+      ? categories.map((t) => `<span class="lhai-quote-prep__summary-chip">${safeText(t)}</span>`).join("")
+      : `<span class="lhai-quote-prep__summary-chip lhai-quote-prep__summary-chip--muted">—</span>`;
+
+  return `
+    <div class="lhai-quote-prep__summary-card" role="region" aria-label="핵심 요약">
+      <h3 class="lhai-quote-prep__summary-title">${safeText(name)}</h3>
+      <dl class="lhai-quote-prep__summary-grid">
+        <div class="lhai-quote-prep__summary-item">
+          <dt>희망 지역</dt>
+          <dd>${safeText(location)}</dd>
+        </div>
+        <div class="lhai-quote-prep__summary-item">
+          <dt>입국·시작 예정</dt>
+          <dd>${safeText(entryDate)}</dd>
+        </div>
+        <div class="lhai-quote-prep__summary-item">
+          <dt>이동 인원</dt>
+          <dd>${safeText(household)}</dd>
+        </div>
+        <div class="lhai-quote-prep__summary-item">
+          <dt>선택 서비스</dt>
+          <dd>${safeText(String(serviceCount))}개</dd>
+        </div>
+        <div class="lhai-quote-prep__summary-item lhai-quote-prep__summary-item--wide">
+          <dt>도움 영역</dt>
+          <dd class="lhai-quote-prep__summary-chips">${catChips}</dd>
+        </div>
+        <div class="lhai-quote-prep__summary-item">
+          <dt>선호 언어</dt>
+          <dd>${safeText(preferredLanguage)}</dd>
+        </div>
+      </dl>
+    </div>
+  `;
+}
+
 function renderRequest(quote, priceByServiceId = {}) {
   const body = qs("#qpRequestBody");
   if (!body) return;
@@ -223,54 +526,69 @@ function renderRequest(quote, priceByServiceId = {}) {
   const customerUsername = common.customer_username ? String(common.customer_username).trim() : "";
   const name = [common.profile_first_name, common.profile_last_name].filter(Boolean).join(" ").trim() || "—";
   const email = common.profile_email ? String(common.profile_email) : "—";
+  const entryDate = common.entry_date ? String(common.entry_date) : "—";
+  const household = formatHousehold(common);
+  const location = formatLocationSummary(common.target_state, common.target_city);
+  const preferredLanguage = formatPreferredLanguage(common.preferred_language);
   const cats = (survey.selected_categories || [])
-    .map((c) => (c && typeof c === "object" ? c.title || c.id : ""))
+    .map((c) => {
+      if (!c || typeof c !== "object") return "";
+      return String(c.title || c.customer_title || c.name || c.id || "").trim();
+    })
     .filter(Boolean);
   const services = Array.isArray(survey.selected_services) ? survey.selected_services : [];
   const answers = Array.isArray(survey.detailed_answers) ? survey.detailed_answers : [];
 
-  let html = `<h3 class="lhai-quote-prep__subhead">기본 정보</h3><dl class="lhai-quote-prep__dl">`;
-  html += `<dt>아이디</dt><dd>${safeText(customerUsername || "—")}</dd>`;
+  let html = renderRequestSummaryCard({
+    name,
+    location,
+    entryDate,
+    household,
+    categories: cats,
+    serviceCount: services.length,
+    preferredLanguage,
+  });
+
+  html += `<section class="lhai-quote-prep__section" aria-labelledby="qpSectionCustomer">`;
+  html += `<h3 class="lhai-quote-prep__section-title" id="qpSectionCustomer">고객 정보</h3>`;
+  html += `<dl class="lhai-quote-prep__dl">`;
   html += `<dt>이름</dt><dd>${safeText(name)}</dd>`;
   html += `<dt>이메일</dt><dd>${safeText(email)}</dd>`;
   html += `<dt>생년월일</dt><dd>${safeText(common.profile_birth_date || "—")}</dd>`;
-  html += `<dt>입국·시작 예정</dt><dd>${safeText(common.entry_date || "—")}</dd>`;
-  html += `<dt>이동 인원</dt><dd>${safeText(formatHousehold(common))}</dd>`;
+  html += `<dt>입국·시작 예정</dt><dd>${safeText(entryDate)}</dd>`;
+  html += `<dt>이동 인원</dt><dd>${safeText(household)}</dd>`;
   html += `<dt>희망 주</dt><dd>${safeText(common.target_state || "—")}</dd>`;
   html += `<dt>희망 도시</dt><dd>${safeText(common.target_city || "—")}</dd>`;
-  html += `<dt>선호 언어</dt><dd>${safeText(PREF_LANG[common.preferred_language] || common.preferred_language || "—")}</dd>`;
-  html += `</dl>`;
+  html += `<dt>선호 언어</dt><dd>${safeText(preferredLanguage)}</dd>`;
+  html += `</dl></section>`;
 
-  html += `<h3 class="lhai-quote-prep__subhead">도움 영역</h3><ul class="lhai-quote-prep__list">`;
-  html += (cats.length ? cats : ["—"]).map((t) => `<li>${safeText(t)}</li>`).join("");
-  html += `</ul>`;
-
-  html += `<h3 class="lhai-quote-prep__subhead">선택 서비스 · 전달 방식</h3><ul class="lhai-quote-prep__list lhai-quote-prep__list--services">`;
+  html += `<section class="lhai-quote-prep__section" aria-labelledby="qpSectionServices">`;
+  html += `<h3 class="lhai-quote-prep__section-title" id="qpSectionServices">요청 서비스</h3>`;
   if (!services.length) {
-    html += `<li>—</li>`;
+    html += `<p class="lhai-help">선택된 서비스가 없습니다.</p>`;
   } else {
+    html += `<ul class="lhai-quote-prep__service-cards">`;
     for (const s of services) {
       if (!s || typeof s !== "object") continue;
-      const { headline, detail, catalogLabel } = describeCustomerDeliveryPick(s);
+      const { headline, detail } = describeCustomerDeliveryPick(s);
       const sid = String(s.id || "").trim();
-      const unit = priceByServiceId[sid];
-      const unitText =
-        unit && unit.amount != null
-          ? `${formatMoney(Number(unit.amount || 0), unit.currency || "USD")}`
-          : `—`;
-      html += `<li class="lhai-quote-prep__svc-li">`;
-      html += `<div class="lhai-quote-prep__svc-li-title">${safeText(s.title || s.id || "")}</div>`;
-      html += `<p class="lhai-quote-prep__svc-li-pick"><strong>${safeText(headline)}</strong></p>`;
+      const unitText = serviceUnitPriceText(sid, priceByServiceId);
+      html += `<li class="lhai-quote-prep__service-card">`;
+      html += `<p class="lhai-quote-prep__service-card-name">${safeText(s.title || s.id || "서비스")}</p>`;
+      html += `<p class="lhai-quote-prep__service-card-pick"><strong>${safeText(headline)}</strong></p>`;
       if (detail) {
-        html += `<p class="lhai-help lhai-quote-prep__svc-li-detail">${safeText(detail)}</p>`;
+        html += `<p class="lhai-help lhai-quote-prep__service-card-detail">${safeText(detail)}</p>`;
       }
-      html += `<p class="lhai-help lhai-quote-prep__svc-li-meta">카탈로그 범위: ${safeText(catalogLabel)} · 제안 단가: ${unitText}</p>`;
+      html += `<p class="lhai-quote-prep__service-card-price"><span class="lhai-quote-prep__service-card-price-label">제안 단가</span> ${safeText(unitText)}</p>`;
       html += `</li>`;
     }
+    html += `</ul>`;
   }
-  html += `</ul>`;
+  html += `</section>`;
 
-  html += `<h3 class="lhai-quote-prep__subhead">추가 응답</h3><dl class="lhai-quote-prep__dl">`;
+  html += `<section class="lhai-quote-prep__section" aria-labelledby="qpSectionAnswers">`;
+  html += `<h3 class="lhai-quote-prep__section-title" id="qpSectionAnswers">추가 응답</h3>`;
+  html += `<dl class="lhai-quote-prep__dl">`;
   if (!answers.length) {
     html += `<dt>—</dt><dd>없음</dd>`;
   } else {
@@ -282,14 +600,18 @@ function renderRequest(quote, priceByServiceId = {}) {
       html += `<dt>${lab || "항목"}</dt><dd>${val}</dd>`;
     }
   }
-  html += `</dl>`;
+  html += `</dl></section>`;
 
-  html += `<h3 class="lhai-quote-prep__subhead">접수 메타</h3><dl class="lhai-quote-prep__dl">`;
+  html += `<section class="lhai-quote-prep__section lhai-quote-prep__section--meta" aria-labelledby="qpSectionAdmin">`;
+  html += `<h3 class="lhai-quote-prep__section-title" id="qpSectionAdmin">관리 정보</h3>`;
+  html += `<div class="lhai-quote-prep__meta-box">`;
+  html += `<dl class="lhai-quote-prep__dl lhai-quote-prep__dl--meta">`;
+  html += `<dt>아이디</dt><dd>${safeText(customerUsername || "—")}</dd>`;
   html += `<dt>견적 ID</dt><dd>${safeText(quote.id)}</dd>`;
   html += `<dt>고객 프로필</dt><dd>${safeText(quote.customer_profile_id || "—")}</dd>`;
-  html += `<dt>제출 시각</dt><dd>${safeText(formatDate(quote.created_at))}</dd>`;
   html += `<dt>검토 상태</dt><dd>${safeText(survey.review_state || rd.workflow_state || "—")}</dd>`;
-  html += `</dl>`;
+  html += `<dt>제출 시각</dt><dd>${safeText(formatDate(quote.created_at))}</dd>`;
+  html += `</dl></div></section>`;
 
   body.innerHTML = html;
 }
@@ -394,130 +716,140 @@ async function main() {
     }
   });
   renderRequest(quote, priceByServiceId);
-  renderSelectedServicePriceSummary(selectedServices, priceByServiceId);
+  previewQuoteRef = quote;
+  previewSelectedServicesRef = selectedServices;
+  renderSelectedServicePriceSummary(selectedServices, priceByServiceId, readAdminFeeFromQuote(quote, APP_CONFIG.defaultAdminFeeUsd));
   fillEditor(quote);
+  renderCustomerPreview(quote, selectedServices);
 
-  const isDraft = String(quote.status || "").toUpperCase() === "DRAFT";
-  const warn = qs("#qpEditorWarn");
-  const badge = qs("#qpStatusBadge");
-  if (badge) {
-    badge.textContent = String(quote.status || "");
-    badge.className = `lhai-quote-prep__badge ${isDraft ? "lhai-quote-prep__badge--draft" : "lhai-quote-prep__badge--locked"}`;
+  const customerNoteEl = qs("#qpCustomerNote");
+  if (customerNoteEl instanceof HTMLTextAreaElement) {
+    customerNoteEl.addEventListener("input", () => refreshCustomerPreview());
   }
-  if (warn) {
-    if (!isDraft) {
-      warn.hidden = false;
-      warn.textContent =
-        "이 견적은 초안이 아닙니다. 저장은 서버 정책에 따라 거부되거나 반영되지 않을 수 있습니다. 필요하면 견적 목록에서 상태를 확인하세요.";
-    } else {
-      warn.hidden = true;
-      warn.textContent = "";
-    }
-  }
+
+  applyQuoteEditorReadonlyState(quote);
 
   const form = qs("#qpForm");
-  if (!isDraft && form) {
-    form.querySelectorAll("input, textarea, button").forEach((el) => {
-      if (el.id === "qpProposeLink") return;
-      if (el.tagName === "A") return;
-      el.setAttribute("disabled", "disabled");
-    });
-  }
   const saveBtn = qs("#qpSaveBtn");
   const statusEl = qs("#qpSaveStatus");
   const proposeBtn = qs("#qpProposeBtn");
-  if (proposeBtn instanceof HTMLButtonElement) proposeBtn.disabled = !isDraft;
+  const proposeDialog = qs("#qpProposeConfirmDialog");
+  const proposeConfirmCancel = qs("#qpProposeConfirmCancel");
+  const proposeConfirmSubmit = qs("#qpProposeConfirmSubmit");
 
-  proposeBtn?.addEventListener("click", async () => {
-    if (String(quote?.status || "").toUpperCase() !== "DRAFT") {
-      if (statusEl) statusEl.textContent = "초안 상태에서만 견적 제안을 할 수 있습니다.";
+  async function executeProposeToCustomer() {
+    if (!isQuoteDraft(quote)) {
+      if (statusEl) {
+        statusEl.textContent =
+          "이미 고객에게 보낸 견적이거나 초안이 아니므로 다시 보낼 수 없습니다.";
+      }
       return;
     }
 
-    const serviceName = (qs("#qpServiceName")?.value || "").trim();
-    const lineSum = getServiceUnitPricesSum();
-
-    const clientErrors = [];
-    if (!serviceName) clientErrors.push("서비스/패키지 표시명");
-    if (!(lineSum > 0)) clientErrors.push("서비스 단가 합계(0 초과)");
-    if (clientErrors.length) {
-      if (statusEl) statusEl.textContent = `견적 제안 전 필수 항목을 채워 주세요: ${clientErrors.join(", ")}`;
-      return;
-    }
-
-    if (statusEl) statusEl.textContent = "견적 제안 처리 중…";
-    if (proposeBtn instanceof HTMLButtonElement) proposeBtn.disabled = true;
-    if (saveBtn instanceof HTMLButtonElement) saveBtn.disabled = true;
+    if (statusEl) statusEl.textContent = "고객에게 견적을 보내는 중…";
+    setProposeModalBusy(true);
 
     try {
-      // Propose 직전에 현재 단가/합계를 서버 Draft에 먼저 저장해
-      // 서버 전환 검증(estimated_cost > 0)과 화면 상태를 일치시킵니다.
-      await quoteApi.update(qid, buildQuoteEditorPayload());
-      await quoteApi.transition(qid, "PROPOSED", "Proposed by admin panel");
-      const refreshed = await quoteApi.getDetail(qid);
+      const refreshed = await proposeQuoteToCustomer({
+        qid,
+        buildPayload: buildQuoteEditorPayload,
+        quoteApi,
+      });
+      quote = refreshed;
+      previewQuoteRef = refreshed;
       renderRequest(refreshed, priceByServiceId);
-      renderSelectedServicePriceSummary(selectedServices, priceByServiceId);
+      renderSelectedServicePriceSummary(selectedServices, priceByServiceId, readAdminFeeFromQuote(quote, APP_CONFIG.defaultAdminFeeUsd));
       fillEditor(refreshed);
+      renderCustomerPreview(refreshed, selectedServices);
+      applyQuoteEditorReadonlyState(refreshed);
 
-      const nowIsDraft = String(refreshed.status || "").toUpperCase() === "DRAFT";
-      const badge = qs("#qpStatusBadge");
-      const warn = qs("#qpEditorWarn");
-      if (badge) {
-        badge.textContent = String(refreshed.status || "");
-        badge.className = `lhai-quote-prep__badge ${nowIsDraft ? "lhai-quote-prep__badge--draft" : "lhai-quote-prep__badge--locked"}`;
-      }
-      if (warn) {
-        if (!nowIsDraft) {
-          warn.hidden = false;
-          warn.textContent =
-            "이 견적은 초안이 아닙니다. 고객에게 제안된 상태이므로 이 화면에서는 더 이상 수정되지 않습니다.";
-        } else {
-          warn.hidden = true;
-          warn.textContent = "";
-        }
-      }
+      closeProposeConfirmModal();
 
-      if (form && !nowIsDraft) {
-        form.querySelectorAll("input, textarea, button").forEach((el) => {
-          if (el.id === "qpProposeLink") return;
-          if (el.tagName === "A") return;
-          el.setAttribute("disabled", "disabled");
-        });
-      }
-
-      if (proposeBtn instanceof HTMLButtonElement) proposeBtn.disabled = !nowIsDraft;
+      const nowIsDraft = isQuoteDraft(refreshed);
       if (statusEl) {
         if (nowIsDraft) {
-          statusEl.textContent = "견적 제안에 실패했습니다. 필수 항목을 다시 확인해 주세요.";
+          statusEl.textContent = "고객에게 견적을 보내지 못했습니다. 필수 항목을 다시 확인해 주세요.";
         } else {
-          statusEl.textContent = "견적이 제안 상태로 전환되었고, 고객에게 검토용 알림이 발송되었습니다.";
+          statusEl.textContent = "고객에게 견적을 보냈습니다. 검토용 알림이 발송되었을 수 있습니다.";
         }
       }
     } catch (e) {
       const msg = e && typeof e.message === "string" ? e.message : String(e);
-      if (statusEl) statusEl.textContent = `견적 제안 실패: ${msg}`;
+      if (statusEl) statusEl.textContent = `고객에게 견적 보내기 실패: ${msg}`;
     } finally {
-      if (saveBtn instanceof HTMLButtonElement) saveBtn.disabled = false;
+      setProposeModalBusy(false);
+      if (proposeBtn instanceof HTMLButtonElement) {
+        proposeBtn.disabled = !isQuoteDraft(quote);
+      }
+      if (saveBtn instanceof HTMLButtonElement) {
+        saveBtn.disabled = !isQuoteDraft(quote);
+      }
     }
+  }
+
+  proposeBtn?.addEventListener("click", () => {
+    if (!isQuoteDraft(quote)) {
+      if (statusEl) {
+        statusEl.textContent =
+          "이미 고객에게 보낸 견적이거나 초안이 아니므로 다시 보낼 수 없습니다.";
+      }
+      return;
+    }
+
+    const { clientErrors } = validateProposeClientFields();
+    if (clientErrors.length) {
+      if (statusEl) {
+        statusEl.textContent = `보내기 전 필수 항목을 채워 주세요: ${clientErrors.join(", ")}`;
+      }
+      return;
+    }
+
+    openProposeConfirmModal(quote, selectedServices);
   });
+
+  proposeConfirmCancel?.addEventListener("click", () => closeProposeConfirmModal());
+  proposeConfirmSubmit?.addEventListener("click", () => void executeProposeToCustomer());
+
+  if (proposeDialog instanceof HTMLDialogElement) {
+    proposeDialog.addEventListener("cancel", (ev) => {
+      if (proposeConfirmSubmit instanceof HTMLButtonElement && proposeConfirmSubmit.disabled) {
+        ev.preventDefault();
+        return;
+      }
+      ev.preventDefault();
+      closeProposeConfirmModal();
+    });
+    proposeDialog.addEventListener("close", () => {
+      setProposeModalBusy(false);
+      if (proposeConfirmSubmit instanceof HTMLButtonElement) {
+        proposeConfirmSubmit.textContent = "고객에게 보내기";
+      }
+    });
+  }
 
   form?.addEventListener("submit", async (ev) => {
     ev.preventDefault();
-    if (!isDraft) {
-      if (statusEl) statusEl.textContent = "초안 상태에서만 초안을 저장할 수 있습니다.";
+    if (!isQuoteDraft(quote)) {
+      if (statusEl) {
+        statusEl.textContent =
+          "이 견적은 더 이상 초안이 아니므로 저장할 수 없습니다. 견적 목록에서 현재 상태를 확인하세요.";
+      }
       return;
     }
     if (saveBtn instanceof HTMLButtonElement) saveBtn.disabled = true;
-    if (statusEl) statusEl.textContent = "저장 중…";
+    if (statusEl) statusEl.textContent = "초안 저장 중…";
     try {
       const payload = buildQuoteEditorPayload();
       await quoteApi.update(qid, payload);
-      if (statusEl) statusEl.textContent = "초안이 저장되었습니다. 고객에게 전달하려면 견적 제안을 진행하세요.";
+      if (statusEl) {
+        statusEl.textContent =
+          "초안이 저장되었습니다. 고객에게 보내려면 「고객에게 견적 보내기」를 진행하세요.";
+      }
     } catch (e) {
       const msg = e && typeof e.message === "string" ? e.message : String(e);
-      if (statusEl) statusEl.textContent = `저장 실패: ${msg}`;
+      if (statusEl) statusEl.textContent = `초안 저장 실패: ${msg}`;
     } finally {
-      if (saveBtn instanceof HTMLButtonElement) saveBtn.disabled = false;
+      if (saveBtn instanceof HTMLButtonElement) saveBtn.disabled = !isQuoteDraft(quote);
     }
   });
 }

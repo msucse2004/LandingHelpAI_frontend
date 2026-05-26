@@ -1702,6 +1702,22 @@ const adminApi = {
     await mockDelay();
     return [{ id: "c-1", name: "Acme Corp", riskLevel: "medium", owner: "Operator A" }];
   },
+  /** Customer Profile Field Registry (Intake Builder prefill / write-back). */
+  async listCustomerProfileFields(params = {}) {
+    const q = new URLSearchParams();
+    if (params.service_type != null && String(params.service_type).trim() !== "") {
+      q.set("service_type", String(params.service_type).trim());
+    }
+    if (params.scope != null && String(params.scope).trim() !== "") {
+      q.set("scope", String(params.scope).trim());
+    }
+    if (params.allowed_as_prefill === true) q.set("allowed_as_prefill", "true");
+    if (params.allowed_as_prefill === false) q.set("allowed_as_prefill", "false");
+    if (params.allowed_as_write_back === true) q.set("allowed_as_write_back", "true");
+    if (params.allowed_as_write_back === false) q.set("allowed_as_write_back", "false");
+    const qs = q.toString();
+    return await tryBackendGet(`/api/admin/customer-profile-fields${qs ? `?${qs}` : ""}`);
+  },
   /** @param {string} [statusFilter] DRAFT|PROPOSED|APPROVED|… 빈 문자열이면 전체 */
   async listQuotes(statusFilter = "") {
     return quoteApi.list(statusFilter);
@@ -1747,6 +1763,54 @@ const adminApi = {
       await mockDelay();
       return { total_customers: 1, blocked_customers: 1, high_risk_customers: 1, customers: await this.listRiskCards() };
     }
+  },
+  /**
+   * Admin Customer 360 aggregate.
+   * @param {string} customerProfileId
+   * @param {{ limit?: number, activity_type?: string, service_type?: string }} [params]
+   */
+  /**
+   * Admin PATCH customer_profiles fields.
+   * @param {string} customerProfileId
+   * @param {Record<string, unknown>} patch
+   */
+  async patchCustomerProfile(customerProfileId, patch) {
+    const id = String(customerProfileId || "").trim();
+    if (!id) throw new Error("customer_profile_id is required");
+    return await tryBackendPatch(`/api/admin/customers/${encodeURIComponent(id)}`, patch);
+  },
+  /**
+   * Admin PATCH one customer_service_profiles row.
+   * @param {string} customerProfileId
+   * @param {string} serviceType
+   * @param {Record<string, unknown>} patch
+   */
+  async patchCustomerServiceProfile(customerProfileId, serviceType, patch) {
+    const id = String(customerProfileId || "").trim();
+    const st = String(serviceType || "").trim();
+    if (!id || !st) throw new Error("customer_profile_id and service_type are required");
+    return await tryBackendPatch(
+      `/api/admin/customers/${encodeURIComponent(id)}/service-profiles/${encodeURIComponent(st)}`,
+      patch
+    );
+  },
+  async getCustomer360(customerProfileId, params = {}) {
+    const id = String(customerProfileId || "").trim();
+    if (!id) {
+      throw new Error("customer_profile_id is required");
+    }
+    const q = new URLSearchParams();
+    if (params.limit != null) q.set("limit", String(params.limit));
+    if (params.activity_type != null && String(params.activity_type).trim() !== "") {
+      q.set("activity_type", String(params.activity_type).trim());
+    }
+    if (params.service_type != null && String(params.service_type).trim() !== "") {
+      q.set("service_type", String(params.service_type).trim());
+    }
+    const qs = q.toString();
+    return await tryBackendGet(
+      `/api/admin/customers/${encodeURIComponent(id)}/360${qs ? `?${qs}` : ""}`
+    );
   },
   async getCustomerOperationsSummary(customerProfileId = "profile::demo@customer.com") {
     try {
@@ -3640,19 +3704,8 @@ const serviceDocumentsAdminApi = {
 /** Customer: browse categories & services (no prices). GET /api/service-catalog/browse/... */
 const serviceCatalogBrowseApi = {
   async listCategories() {
-    // Backend exposes flat ``/service-items`` only; stable synthetic bucket for legacy call sites.
-    return [
-      {
-        id: "__lhai_flat_catalog__",
-        name: "Services",
-        description: "",
-        problem_group: "",
-        customer_title: "Services",
-        customer_subtitle: "",
-        customer_help_text: "",
-        sort_order: 0,
-      },
-    ];
+    const rows = await tryBackendGet("/api/service-catalog/browse/categories");
+    return Array.isArray(rows) ? rows : [];
   },
 
   /** Flat catalog (``rec_service_items``); non-UUID rows are dropped client-side. */
@@ -3661,9 +3714,11 @@ const serviceCatalogBrowseApi = {
     return filterBrowseCatalogServiceItems(rows);
   },
 
-  /** @param {string} _categoryId kept for call sites; server returns the same flat list for every id. */
-  async listServiceItems(_categoryId) {
-    const rows = await tryBackendGet("/api/service-catalog/browse/service-items");
+  /** @param {string} categoryId from GET /api/service-catalog/browse/categories */
+  async listServiceItems(categoryId) {
+    const cid = String(categoryId ?? "").trim();
+    const q = cid ? `?category_id=${encodeURIComponent(cid)}` : "";
+    const rows = await tryBackendGet(`/api/service-catalog/browse/service-items${q}`);
     return filterBrowseCatalogServiceItems(rows);
   },
 };
@@ -3854,6 +3909,7 @@ function normalizeCustomerBidListResponse(raw) {
       o.selected_offer_summary && typeof o.selected_offer_summary === "object"
         ? o.selected_offer_summary
         : null,
+    default_sort: o.default_sort != null ? String(o.default_sort) : null,
   };
 }
 
@@ -3911,9 +3967,30 @@ const customerBidsApi = {
     const id = String(bidId || "").trim();
     if (!id) throw new Error("bid_id required");
     const body = {};
-    const offerId = String(options.selectedOfferId || options.selected_offer_id || "").trim();
-    if (offerId) body.selected_offer_id = offerId;
+    const offerId = String(
+      options.selectedOfferId || options.selected_offer_id || options.offer_id || ""
+    ).trim();
+    if (offerId) {
+      body.selected_offer_id = offerId;
+      body.offer_id = offerId;
+    }
     return await tryBackendPost(`/api/customer/bids/${encodeURIComponent(id)}/select`, body);
+  },
+
+  /**
+   * @param {string} bidRequestId
+   * @param {{ reason?: string }} [options]
+   */
+  async requestNewRound(bidRequestId, options = {}) {
+    const id = String(bidRequestId || "").trim();
+    if (!id) throw new Error("bid_request_id required");
+    const body = {};
+    const reason = String(options.reason || "").trim();
+    if (reason) body.reason = reason;
+    return await tryBackendPost(
+      `/api/customer/bid-requests/${encodeURIComponent(id)}/request-new-round`,
+      body,
+    );
   },
 };
 

@@ -1,5 +1,5 @@
 /**
- * Step 12 — ``bid.updated`` SSE helpers (CAR_PURCHASE only).
+ * Step 12 — ``bid.updated`` SSE helpers (partner bidding).
  */
 
 /**
@@ -26,6 +26,9 @@ export function normalizeBidUpdatedPayload(ev) {
     workflow_instance_id: workflowInstanceId,
     service_request_id: workflowInstanceId,
     update_kind: String(nested.update_kind || "").trim().toUpperCase(),
+    bid_request_status: String(nested.bid_request_status || "").trim().toUpperCase(),
+    cancelled_bid_request_id: String(nested.cancelled_bid_request_id || "").trim(),
+    new_bid_request_id: String(nested.new_bid_request_id || "").trim(),
   };
 }
 
@@ -35,6 +38,35 @@ export function isCarPurchaseBidUpdatedPayload(payload) {
     .trim()
     .toUpperCase();
   return st === "CAR_PURCHASE";
+}
+
+/** @param {Record<string, unknown>} payload */
+export function isBiddingBidUpdatedPayload(payload) {
+  const br = String(payload?.bid_request_id || "").trim();
+  const tid = String(payload?.thread_id || "").trim();
+  return Boolean(br || tid);
+}
+
+/**
+ * @param {Record<string, unknown>} payload
+ * @param {{ threadId?: string, serviceRequestId?: string, bidRequestId?: string }} scope
+ */
+export function bidUpdatedMatchesScope(payload, scope) {
+  const tid = String(payload.thread_id || "").trim();
+  const wid = String(payload.workflow_instance_id || payload.service_request_id || "").trim();
+  const evtBr = String(payload.bid_request_id || "").trim();
+  const cancelled = String(payload.cancelled_bid_request_id || "").trim();
+  const pageBr = String(scope.bidRequestId || "").trim();
+  const pageTid = String(scope.threadId || "").trim();
+  const pageWid = String(scope.serviceRequestId || "").trim();
+
+  if (pageBr) {
+    const brMatch = evtBr === pageBr || cancelled === pageBr;
+    if (!brMatch && (evtBr || cancelled)) return false;
+  }
+  if (pageTid && tid && tid !== pageTid) return false;
+  if (pageWid && wid && wid !== pageWid) return false;
+  return true;
 }
 
 export function isCustomerBidResultsHtmlPage() {

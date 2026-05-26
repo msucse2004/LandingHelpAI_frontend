@@ -1,35 +1,53 @@
 /**
- * 고객 자동차 구매 견적 비교 전용 페이지.
- * customer-bid-results.html?service_request_id=...&thread_id=...
+ * 고객 견적 제안 비교 — PRODUCT_OFFER 카드 리스트.
  */
 import { customerBidsApi } from "../core/api.js";
 import { ensureCustomerAccess } from "../core/guards.js";
 import { loadSidebar } from "../components/sidebar.js";
 import { subscribeRealtimeEvents } from "../core/realtime-client.js";
-import { isCarPurchaseBidUpdatedPayload, normalizeBidUpdatedPayload } from "../core/bid-realtime.js";
+import {
+  bidUpdatedMatchesScope,
+  isBiddingBidUpdatedPayload,
+  normalizeBidUpdatedPayload,
+} from "../core/bid-realtime.js";
 import {
   buildCustomerBidRequestTabs,
   buildCustomerBidsApiQuery,
   buildCustomerBidResultsPageHref,
-  collectDistinctMakes,
+  buildMessagesThreadHref,
+  renderSelectionConversationBannerHtml,
+  collectDistinctLocations,
+  collectDistinctPartners,
+  collectDistinctProductCategories,
   CUSTOMER_BID_SORT_OPTIONS,
+  emptyOffersMessage,
   filterOffersByTab,
-  formatBudgetDelta,
+  formatAttributesList,
+  formatBidRequestStatusLabel,
+  customerBidStatusBannerMessage,
+  canSelectCustomerBid,
   formatCountdownToExpiry,
   formatMoney,
-  formatOfferRelationLabel,
-  formatOfferVehicleStatusLine,
-  formatOfferVehicleTitle,
+  formatOfferPartnerName,
+  formatOfferPriceBreakdownLines,
+  formatOfferRankBadge,
+  formatOfferTitle,
   formatQuoteRequestUsage,
-  isCarPurchaseBidListResponse,
-  offerMatchScoreLabel,
-  offerPricingSummaryLines,
+  canRequestNewBidRound,
+  quoteRequestRemaining,
+  isProductOfferListResponse,
   offerShowsUpdatedBadge,
+  offerThumbnailUrl,
   resolveCustomerBidDisplayPhase,
+  isCustomerBidListPollingPhase,
+  snapshotHasBudgetHint,
 } from "./customer-bid-results-logic.js";
-import { formatBidDeadlineForUi } from "../core/bid-deadline-display.js";
-
-/** @typedef {import('./customer-bid-results-logic.js').CustomerOfferSort} CustomerOfferSort */
+import {
+  createBidCountdownTicker,
+  formatBidDeadlineForUi,
+  formatCustomerCountdownBanner,
+  normalizeDeadlineSnapshot,
+} from "../core/bid-deadline-display.js";
 
 function escapeHtml(s) {
   return String(s ?? "")
@@ -50,25 +68,29 @@ function readPageParams() {
 /** @type {Record<string, unknown> | null} */
 let listSnapshot = null;
 let activeTabKey = "all";
-/** @type {CustomerOfferSort} */
 let activeSort = "recommended";
 /** @type {Record<string, unknown>} */
 let activeFilters = {
+  hasPhotos: false,
   budgetOnly: false,
-  condition: "",
-  cleanTitle: false,
-  noAccident: false,
+  productCategory: "",
+  partner: "",
+  location: "",
   includeAlternatives: true,
   updatedOnly: false,
-  make: "",
 };
 let selectedBidId = "";
-let countdownTimer = null;
+let selectedOfferId = "";
+let countdownStop = null;
 let listPollTimer = null;
 let realtimeUnsub = null;
-const CBR_LIST_POLL_MS = 30_000;
+let deadlineExpireReloadPending = false;
+const CBR_LIST_POLL_MS = 20_000;
 /** @type {{ bidId: string, offer: Record<string, unknown> } | null} */
 let pendingSelect = null;
+/** @type {Record<string, unknown> | null} */
+let detailOffer = null;
+let newRoundInFlight = false;
 
 const { serviceRequestId: initialServiceRequestId, threadId: initialThreadId } = readPageParams();
 let serviceRequestId = initialServiceRequestId;
@@ -77,42 +99,38 @@ let threadId = initialThreadId;
 function buildApiQuery() {
   const q = buildCustomerBidsApiQuery({
     sort: activeSort,
+    hasPhotos: activeFilters.hasPhotos,
     budgetOnly: activeFilters.budgetOnly,
-    condition: activeFilters.condition,
-    cleanTitle: activeFilters.cleanTitle,
-    noAccident: activeFilters.noAccident,
+    productCategory: activeFilters.productCategory,
+    partner: activeFilters.partner,
+    location: activeFilters.location,
     includeAlternatives: activeFilters.includeAlternatives,
     updatedOnly: activeFilters.updatedOnly,
-    make: activeFilters.make,
   });
   const tab = buildCustomerBidRequestTabs(listSnapshot?.customer_vehicle_requests || []);
   const tabRow = tab.find((t) => t.key === activeTabKey);
   if (tabRow?.requestIndex != null && activeTabKey.startsWith("req-")) {
     q.request_index = tabRow.requestIndex;
   }
-  if (activeTabKey === "alternatives") {
-    q.include_alternatives = true;
-  }
+  if (activeTabKey === "alternatives") q.include_alternatives = true;
   return q;
 }
 
 async function fetchList() {
   const query = buildApiQuery();
-  if (serviceRequestId) {
-    return await customerBidsApi.listByServiceRequest(serviceRequestId, query);
-  }
-  if (threadId) {
-    const snap = await customerBidsApi.listByThread(threadId, query);
-    if (!serviceRequestId && snap?.bid_request_id) {
-      /* thread-only: service_request_id는 스냅샷에 없을 수 있음 */
-    }
-    return snap;
-  }
+  if (serviceRequestId) return await customerBidsApi.listByServiceRequest(serviceRequestId, query);
+  if (threadId) return await customerBidsApi.listByThread(threadId, query);
   throw new Error("service_request_id 또는 thread_id가 필요합니다.");
 }
 
+function deadlineSnapshot() {
+  return normalizeDeadlineSnapshot(listSnapshot);
+}
+
 function displayPhase() {
-  return resolveCustomerBidDisplayPhase(listSnapshot?.status, listSnapshot?.expires_at);
+  const snap = listSnapshot;
+  const status = snap?.bid_request_status ?? snap?.status;
+  return resolveCustomerBidDisplayPhase(status, snap?.expires_at);
 }
 
 function visibleOffers() {
@@ -120,59 +138,135 @@ function visibleOffers() {
   return filterOffersByTab(offers, activeTabKey);
 }
 
-function formatDateTime(iso) {
-  const s = String(iso || "").trim();
-  if (!s) return "—";
-  try {
-    return new Date(s).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-  } catch {
-    return s;
+function totalOfferCount() {
+  return Array.isArray(listSnapshot?.offers) ? listSnapshot.offers.length : 0;
+}
+
+function renderSelectedBanner(phase) {
+  const el = document.querySelector("#cbrSelectedBanner");
+  if (!(el instanceof HTMLElement)) return;
+  const summary = listSnapshot?.selected_offer_summary;
+  if (phase !== "CUSTOMER_SELECTED" || !summary || typeof summary !== "object") {
+    el.hidden = true;
+    el.textContent = "";
+    return;
   }
+  const title = String(summary.vehicle_title || summary.title || "선택한 제안").trim();
+  const total = summary.estimated_total;
+  const cur = String(summary.currency || "USD");
+  const partner = String(summary.partner_name || "").trim();
+  el.hidden = false;
+  const price =
+    total != null ? ` · ${formatMoney(total, cur)}` : "";
+  const partnerBit = partner ? ` · ${partner}` : "";
+  el.textContent = `선택한 제안: ${title}${price}${partnerBit}`;
+}
+
+function renderConversationBanner(phase) {
+  const el = document.querySelector("#cbrConversationBanner");
+  if (!(el instanceof HTMLElement)) return;
+  if (phase !== "CUSTOMER_SELECTED" || !threadId) {
+    el.hidden = true;
+    el.innerHTML = "";
+    return;
+  }
+  const summary = listSnapshot?.selected_offer_summary;
+  const partner =
+    summary && typeof summary === "object"
+      ? { partner_name: summary.partner_name }
+      : null;
+  const offer =
+    summary && typeof summary === "object"
+      ? {
+          title: summary.title || summary.vehicle_title,
+          estimated_total: summary.estimated_total,
+          currency: summary.currency,
+        }
+      : null;
+  el.hidden = false;
+  el.innerHTML = renderSelectionConversationBannerHtml(threadId, offer, partner);
 }
 
 function renderStatusBanner(phase) {
   const el = document.querySelector("#cbrStatusBanner");
   if (!(el instanceof HTMLElement)) return;
+  const msg = customerBidStatusBannerMessage(phase);
+  if (!msg) {
+    el.hidden = true;
+    el.textContent = "";
+    return;
+  }
+  el.hidden = false;
+  el.className =
+    phase === "CUSTOMER_SELECTED"
+      ? "lhai-cbr-banner lhai-cbr-banner--success"
+      : "lhai-cbr-banner lhai-cbr-banner--warn";
+  el.textContent = msg;
+}
+
+function renderCountdownBanner(phase) {
+  const el = document.querySelector("#cbrCountdownBanner");
+  if (!(el instanceof HTMLElement)) return;
   if (phase === "CUSTOMER_SELECTED") {
-    el.hidden = false;
-    el.className = "lhai-cbr-banner lhai-cbr-banner--success";
-    el.textContent = "파트너 선택이 완료되었습니다. 메시지함에서 다음 단계를 진행해 주세요.";
+    el.hidden = true;
+    el.textContent = "";
     return;
   }
-  if (phase === "EXPIRED") {
-    el.hidden = false;
-    el.className = "lhai-cbr-banner lhai-cbr-banner--warn";
-    el.textContent = "비딩이 종료되었습니다. 현재 제안 중 하나를 선택해 주세요.";
-    return;
-  }
-  el.hidden = true;
-  el.textContent = "";
+  const snap = deadlineSnapshot();
+  const text = formatCustomerCountdownBanner(snap);
+  const expired = phase === "EXPIRED" || text === "비딩 종료";
+  el.hidden = false;
+  el.textContent = text;
+  el.className = expired ? "lhai-cbr-countdown lhai-cbr-countdown--expired" : "lhai-cbr-countdown";
 }
 
 function renderHeader() {
   const phase = displayPhase();
   const snap = listSnapshot;
+  const status = snap?.bid_request_status ?? snap?.status;
+  setText("#cbrBidStatus", formatBidRequestStatusLabel(String(status || "")));
   setText("#cbrOfferCount", snap?.offer_count != null ? String(snap.offer_count) : "0");
-  setText("#cbrPartnerCount", snap?.partner_count != null ? String(snap.partner_count) : "0");
-  setText("#cbrRecentUpdate", formatDateTime(snap?.recent_updated_at));
   setText("#cbrQuoteUsage", formatQuoteRequestUsage(snap?.quote_request_usage));
   const countdownEl = document.querySelector("#cbrCountdown");
   if (countdownEl) {
-    if (phase === "OPEN" || phase === "EXPIRED") {
-      countdownEl.textContent = formatBidDeadlineForUi(
-        snap
-          ? {
-              expires_at: snap.expires_at,
-              is_expired: phase === "EXPIRED" || snap.is_expired === true,
-              remaining_label: snap.remaining_label,
-            }
-          : null,
-      );
+    countdownEl.textContent =
+      phase === "OPEN" || phase === "EXPIRED" ? formatBidDeadlineForUi(deadlineSnapshot()) : "—";
+  }
+  renderCountdownBanner(phase);
+  renderSelectedBanner(phase);
+  renderConversationBanner(phase);
+  renderStatusBanner(phase);
+  renderNewRoundCta(phase);
+}
+
+function renderNewRoundCta(phase) {
+  const btn = document.querySelector("#cbrNewRoundBtn");
+  const hint = document.querySelector("#cbrNewRoundHint");
+  if (!(btn instanceof HTMLButtonElement)) return;
+  const snap = listSnapshot;
+  const can = canRequestNewBidRound(snap) && !newRoundInFlight;
+  const show = phase === "OPEN" || phase === "EXPIRED";
+  btn.hidden = !show;
+  if (!show) {
+    if (hint instanceof HTMLElement) hint.hidden = true;
+    return;
+  }
+  btn.disabled = !can;
+  if (hint instanceof HTMLElement) {
+    if (phase === "CUSTOMER_SELECTED") {
+      hint.hidden = false;
+      hint.textContent = "이미 파트너를 선택했습니다.";
+    } else if (quoteRequestRemaining(snap?.quote_request_usage) === 0) {
+      hint.hidden = false;
+      hint.textContent = "새 비딩 요청 횟수를 모두 사용했습니다.";
+    } else if (newRoundInFlight) {
+      hint.hidden = false;
+      hint.textContent = "새 라운드를 요청하는 중…";
     } else {
-      countdownEl.textContent = "—";
+      hint.hidden = true;
+      hint.textContent = "";
     }
   }
-  renderStatusBanner(phase);
 }
 
 function setText(sel, text) {
@@ -183,7 +277,11 @@ function setText(sel, text) {
 function renderTabs() {
   const nav = document.querySelector("#cbrTabs");
   if (!(nav instanceof HTMLElement)) return;
-  const tabs = buildCustomerBidRequestTabs(listSnapshot?.customer_vehicle_requests || []);
+  const vehicleReqs = listSnapshot?.customer_vehicle_requests;
+  const tabs = buildCustomerBidRequestTabs(vehicleReqs || []);
+  const showTabs = Array.isArray(vehicleReqs) && vehicleReqs.length > 0;
+  nav.hidden = !showTabs;
+  if (!showTabs) return;
   nav.innerHTML = tabs
     .map((t) => {
       const active = t.key === activeTabKey ? " is-active" : "";
@@ -196,80 +294,112 @@ function renderToolbar() {
   const sortSel = document.querySelector("#cbrSort");
   if (sortSel instanceof HTMLSelectElement) {
     sortSel.innerHTML = CUSTOMER_BID_SORT_OPTIONS.map(
-      (o) => `<option value="${escapeHtml(o.value)}"${o.value === activeSort ? " selected" : ""}>${escapeHtml(o.label)}</option>`
+      (o) =>
+        `<option value="${escapeHtml(o.value)}"${o.value === activeSort ? " selected" : ""}>${escapeHtml(o.label)}</option>`
     ).join("");
   }
-  const makeSel = document.querySelector("#cbrFilterMake");
-  if (makeSel instanceof HTMLSelectElement) {
-    const makes = collectDistinctMakes(listSnapshot?.customer_vehicle_requests, listSnapshot?.offers);
-    const cur = String(activeFilters.make || "");
-    makeSel.innerHTML =
-      `<option value="">브랜드 전체</option>` +
-      makes.map((m) => `<option value="${escapeHtml(m)}"${m === cur ? " selected" : ""}>${escapeHtml(m)}</option>`).join("");
+
+  const budgetWrap = document.querySelector("#cbrFilterBudgetWrap");
+  if (budgetWrap instanceof HTMLElement) {
+    budgetWrap.hidden = !snapshotHasBudgetHint(listSnapshot);
   }
-  const map = {
-    cbrFilterBudget: "budgetOnly",
-    cbrFilterNew: "conditionNew",
-    cbrFilterUsed: "conditionUsed",
-    cbrFilterCleanTitle: "cleanTitle",
-    cbrFilterNoAccident: "noAccident",
-    cbrFilterAlt: "includeAlternatives",
-    cbrFilterUpdated: "updatedOnly",
-  };
-  for (const [id, key] of Object.entries(map)) {
-    const el = document.querySelector(`#${id}`);
-    if (!(el instanceof HTMLInputElement)) continue;
-    if (key === "conditionNew") el.checked = activeFilters.condition === "NEW";
-    else if (key === "conditionUsed") el.checked = activeFilters.condition === "USED";
-    else if (key === "includeAlternatives") el.checked = activeFilters.includeAlternatives !== false;
-    else el.checked = Boolean(activeFilters[key]);
+
+  const offers = Array.isArray(listSnapshot?.offers) ? listSnapshot.offers : [];
+  const catSel = document.querySelector("#cbrFilterCategory");
+  if (catSel instanceof HTMLSelectElement) {
+    const cats = collectDistinctProductCategories(offers);
+    const cur = String(activeFilters.productCategory || "");
+    catSel.innerHTML =
+      `<option value="">전체</option>` +
+      cats.map((c) => `<option value="${escapeHtml(c)}"${c === cur ? " selected" : ""}>${escapeHtml(c)}</option>`).join("");
   }
+  const partnerSel = document.querySelector("#cbrFilterPartner");
+  if (partnerSel instanceof HTMLSelectElement) {
+    const partners = collectDistinctPartners(offers);
+    const cur = String(activeFilters.partner || "");
+    partnerSel.innerHTML =
+      `<option value="">전체</option>` +
+      partners
+        .map(
+          (p) =>
+            `<option value="${escapeHtml(p.id)}"${p.id === cur ? " selected" : ""}>${escapeHtml(p.name)}</option>`
+        )
+        .join("");
+  }
+  const locSel = document.querySelector("#cbrFilterLocation");
+  if (locSel instanceof HTMLSelectElement) {
+    const locs = collectDistinctLocations(offers);
+    const cur = String(activeFilters.location || "");
+    locSel.innerHTML =
+      `<option value="">전체</option>` +
+      locs.map((l) => `<option value="${escapeHtml(l)}"${l === cur ? " selected" : ""}>${escapeHtml(l)}</option>`).join("");
+  }
+
+  const photos = document.querySelector("#cbrFilterPhotos");
+  if (photos instanceof HTMLInputElement) photos.checked = Boolean(activeFilters.hasPhotos);
+  const budget = document.querySelector("#cbrFilterBudget");
+  if (budget instanceof HTMLInputElement) budget.checked = Boolean(activeFilters.budgetOnly);
+  const alt = document.querySelector("#cbrFilterAlt");
+  if (alt instanceof HTMLInputElement) alt.checked = activeFilters.includeAlternatives !== false;
+  const updated = document.querySelector("#cbrFilterUpdated");
+  if (updated instanceof HTMLInputElement) updated.checked = Boolean(activeFilters.updatedOnly);
 }
 
 function renderOfferCard(offer) {
   const phase = displayPhase();
   const bidId = String(offer.bid_id || "").trim();
   const offerId = String(offer.offer_id || "").trim();
-  const pricing = offer.pricing && typeof offer.pricing === "object" ? offer.pricing : {};
-  const service = offer.service && typeof offer.service === "object" ? offer.service : {};
-  const total = pricing.estimated_total;
-  const cur = String(pricing.currency || "USD");
-  const budgetLine = formatBudgetDelta(pricing.budget_delta);
+  const cur = String(offer.currency || "USD");
+  const thumb = offerThumbnailUrl(offer);
+  const rankBadge = formatOfferRankBadge(offer, activeSort);
+  const partner = escapeHtml(formatOfferPartnerName(offer));
+  const desc = String(offer.description || "").trim();
+  const descShort = desc ? escapeHtml(desc.slice(0, 120)) + (desc.length > 120 ? "…" : "") : "";
+  const msg = String(offer.message_to_customer || "").trim();
+  const msgPreview = msg ? escapeHtml(msg.slice(0, 140)).replace(/\n/g, "<br />") : "—";
+  const breakdown = formatOfferPriceBreakdownLines(offer);
+  const breakdownHtml = breakdown
+    .map((line) => {
+      const cls = line.strong ? " lhai-cbr-card__price-line--strong" : "";
+      const label = line.label ? `<span>${escapeHtml(line.label)}</span> ` : "";
+      return `<li class="lhai-cbr-card__price-line${cls}">${label}${escapeHtml(line.value)}</li>`;
+    })
+    .join("");
   const updatedBadge = offerShowsUpdatedBadge(offer.updated_at, listSnapshot?.recent_updated_at)
     ? `<span class="lhai-cbr-badge lhai-cbr-badge--updated">업데이트됨</span>`
     : "";
-  const relBadge = offer.is_alternative
-    ? `<span class="lhai-cbr-badge lhai-cbr-badge--alt">대안 제안</span>`
-    : `<span class="lhai-cbr-badge lhai-cbr-badge--match">요청 차량과 일치</span>`;
-  const partner = escapeHtml(String(offer.partner_display_name || "파트너"));
-  const msg = String(service.message || "").trim();
-  const msgPreview = msg ? escapeHtml(msg.slice(0, 160)).replace(/\n/g, "<br />") : "—";
-  const priceLines = offerPricingSummaryLines(offer)
-    .map((line) => `<li>${escapeHtml(line)}</li>`)
-    .join("");
-  const canSelect = phase === "OPEN" || phase === "EXPIRED";
-  const isSelected = phase === "CUSTOMER_SELECTED" && selectedBidId && bidId === selectedBidId;
-  const selectDisabled = !canSelect || (phase === "CUSTOMER_SELECTED" && !isSelected);
+  const canSelect = canSelectCustomerBid(phase);
+  const isSelected =
+    phase === "CUSTOMER_SELECTED" &&
+    selectedBidId &&
+    bidId === selectedBidId &&
+    (!selectedOfferId || !offerId || offerId === selectedOfferId);
+  const selectDisabled = !canSelect || phase === "CUSTOMER_SELECTED";
   const selectLabel = isSelected ? "선택한 제안" : "이 제안 선택";
+  const thumbHtml = thumb
+    ? `<img class="lhai-cbr-card__thumb-img" src="${escapeHtml(thumb)}" alt="" loading="lazy" />`
+    : `<div class="lhai-cbr-card__thumb-placeholder" aria-hidden="true">📷</div>`;
+
   return `
     <article class="lhai-cbr-card${isSelected ? " lhai-cbr-card--selected" : ""}" data-offer-id="${escapeHtml(offerId)}" data-bid-id="${escapeHtml(bidId)}">
-      <div class="lhai-cbr-card__badges">${updatedBadge}${relBadge}</div>
-      <h3 class="lhai-cbr-card__title">${escapeHtml(formatOfferVehicleTitle(offer))}</h3>
-      <p class="lhai-cbr-card__meta">${escapeHtml(formatOfferVehicleStatusLine(offer))}</p>
-      <p class="lhai-cbr-card__relation u-text-muted">${escapeHtml(formatOfferRelationLabel(offer))} · ${partner}</p>
-      <p class="lhai-cbr-card__total">${escapeHtml(formatMoney(total, cur))}</p>
-      ${budgetLine ? `<p class="lhai-cbr-card__budget">${escapeHtml(budgetLine)}</p>` : ""}
-      <ul class="lhai-cbr-card__prices">${priceLines || "<li>—</li>"}</ul>
-      <p class="lhai-cbr-card__timeline"><span>진행 가능</span> ${escapeHtml(String(service.available_timeline || "—"))}</p>
-      <p class="lhai-cbr-card__match">${escapeHtml(offerMatchScoreLabel(offer))}</p>
-      <div class="lhai-cbr-card__preview">
-        <span class="lhai-cbr-card__preview-label">파트너 메시지</span>
-        <p>${msgPreview}</p>
-      </div>
-      <p class="lhai-cbr-card__updated u-text-muted">마지막 업데이트 ${escapeHtml(formatDateTime(offer.updated_at))}</p>
-      <div class="lhai-cbr-card__actions">
-        <button type="button" class="lhai-button lhai-button--secondary" data-cbr-detail="${escapeHtml(offerId)}">자세히 보기</button>
-        <button type="button" class="lhai-button lhai-button--primary" data-cbr-select="${escapeHtml(bidId)}" data-cbr-offer="${escapeHtml(offerId)}"${selectDisabled ? " disabled" : ""}>${escapeHtml(selectLabel)}</button>
+      <div class="lhai-cbr-card__thumb">${thumbHtml}</div>
+      <div class="lhai-cbr-card__body">
+        <div class="lhai-cbr-card__badges">${rankBadge ? `<span class="lhai-cbr-badge lhai-cbr-badge--rank">${escapeHtml(rankBadge)}</span>` : ""}${updatedBadge}</div>
+        <h3 class="lhai-cbr-card__title">${escapeHtml(formatOfferTitle(offer))}</h3>
+        <p class="lhai-cbr-card__partner">${partner}</p>
+        <p class="lhai-cbr-card__total">${escapeHtml(formatMoney(offer.estimated_total, cur))}</p>
+        <ul class="lhai-cbr-card__prices">${breakdownHtml || `<li>—</li>`}</ul>
+        <p class="lhai-cbr-card__timeline"><span>가능 시점</span> ${escapeHtml(String(offer.available_timeline || "—"))}</p>
+        <p class="lhai-cbr-card__location"><span>위치</span> ${escapeHtml(String(offer.location || "—"))}</p>
+        ${descShort ? `<p class="lhai-cbr-card__desc">${descShort}</p>` : ""}
+        <div class="lhai-cbr-card__preview">
+          <span class="lhai-cbr-card__preview-label">파트너 메시지</span>
+          <p>${msgPreview}</p>
+        </div>
+        <div class="lhai-cbr-card__actions">
+          <button type="button" class="lhai-button lhai-button--secondary" data-cbr-detail="${escapeHtml(offerId)}">자세히 보기</button>
+          <button type="button" class="lhai-button lhai-button--primary" data-cbr-select="${escapeHtml(bidId)}" data-cbr-offer="${escapeHtml(offerId)}"${selectDisabled ? " disabled" : ""}>${escapeHtml(selectLabel)}</button>
+        </div>
       </div>
     </article>`;
 }
@@ -279,28 +409,30 @@ function renderCards() {
   const empty = document.querySelector("#cbrEmpty");
   if (!(grid instanceof HTMLElement)) return;
   const offers = visibleOffers();
+  const phase = displayPhase();
   if (!offers.length) {
     grid.innerHTML = "";
     if (empty instanceof HTMLElement) {
       empty.hidden = false;
-      empty.textContent = "조건에 맞는 제안이 없습니다. 필터를 조정해 보세요.";
+      empty.textContent = emptyOffersMessage(phase, totalOfferCount());
     }
     return;
   }
   if (empty instanceof HTMLElement) empty.hidden = true;
-  grid.innerHTML = offers.map((o) => renderOfferCard(/** @type {Record<string, unknown>} */ (o))).join("");
+  grid.innerHTML = offers
+    .map((o) => renderOfferCard(/** @type {Record<string, unknown>} */ (o)))
+    .join("");
 }
 
 function renderMessagesCta() {
   const el = document.querySelector("#cbrMessagesCta");
   if (!(el instanceof HTMLElement)) return;
-  const phase = displayPhase();
-  if (phase !== "CUSTOMER_SELECTED" || !threadId) {
+  if (displayPhase() !== "CUSTOMER_SELECTED" || !threadId) {
     el.hidden = true;
     return;
   }
   el.hidden = false;
-  el.innerHTML = `<a class="lhai-button lhai-button--primary" href="messages.html?thread_id=${encodeURIComponent(threadId)}">메시지 열기</a>`;
+  el.innerHTML = `<a class="lhai-button lhai-button--primary" href="${buildMessagesThreadHref(threadId)}">Open conversation</a>`;
 }
 
 function renderAll() {
@@ -309,6 +441,7 @@ function renderAll() {
   renderToolbar();
   renderCards();
   renderMessagesCta();
+  renderNewRoundCta(displayPhase());
 }
 
 async function reloadList() {
@@ -320,17 +453,26 @@ async function reloadList() {
   if (err instanceof HTMLElement) err.hidden = true;
   try {
     listSnapshot = await fetchList();
-    if (!isCarPurchaseBidListResponse(listSnapshot)) {
-      throw new Error("이 서비스는 자동차 견적 비교 화면을 지원하지 않습니다.");
+    if (!isProductOfferListResponse(listSnapshot)) {
+      throw new Error("제안 목록을 불러올 수 없습니다.");
     }
+    const serverSort = String(listSnapshot.default_sort || "").trim();
+    if (serverSort) activeSort = serverSort;
     if (displayPhase() === "CUSTOMER_SELECTED" && !selectedBidId) {
-      const bids = Array.isArray(listSnapshot.bids) ? listSnapshot.bids : [];
-      if (bids.length === 1) selectedBidId = String(bids[0].bid_id || "").trim();
+      const summary = listSnapshot.selected_offer_summary;
+      if (summary && typeof summary === "object" && summary.bid_id) {
+        selectedBidId = String(summary.bid_id).trim();
+        if (summary.offer_id) selectedOfferId = String(summary.offer_id).trim();
+      } else {
+        const bids = Array.isArray(listSnapshot.bids) ? listSnapshot.bids : [];
+        if (bids.length === 1) selectedBidId = String(bids[0].bid_id || "").trim();
+      }
     }
     renderAll();
+    syncListPolling();
     if (main instanceof HTMLElement) main.hidden = false;
   } catch (e) {
-    const msg = e && typeof e.message === "string" ? e.message : "견적을 불러오지 못했습니다.";
+    const msg = e && typeof e.message === "string" ? e.message : "제안을 불러오지 못했습니다.";
     if (err instanceof HTMLElement) {
       err.hidden = false;
       err.textContent = msg;
@@ -348,42 +490,55 @@ function findOfferById(offerId) {
 function openDetailModal(offerId) {
   const offer = findOfferById(offerId);
   if (!offer) return;
+  detailOffer = offer;
   const body = document.querySelector("#cbrDetailBody");
   const dlg = document.querySelector("#cbrDetailModal");
+  const selectBtn = document.querySelector("#cbrDetailSelect");
   if (!(body instanceof HTMLElement) || !(dlg instanceof HTMLDialogElement)) return;
-  const v = offer.vehicle && typeof offer.vehicle === "object" ? offer.vehicle : {};
-  const p = offer.pricing && typeof offer.pricing === "object" ? offer.pricing : {};
-  const s = offer.service && typeof offer.service === "object" ? offer.service : {};
-  const services = Array.isArray(s.included_services) ? s.included_services : [];
-  const cur = String(p.currency || "USD");
-  const altReason = offer.is_alternative ? String(offer.alternative_reason || "").trim() : "";
+  const cur = String(offer.currency || "USD");
+  const photos = Array.isArray(offer.photos) ? offer.photos : [];
+  const photosHtml = photos.length
+    ? `<div class="lhai-cbr-modal__photos">${photos
+        .map((p) => {
+          const row = p && typeof p === "object" ? p : {};
+          const url = String(row.url || row.thumbnail_url || "").trim();
+          if (!url) return "";
+          return `<img src="${escapeHtml(url)}" alt="${escapeHtml(String(row.caption || ""))}" loading="lazy" />`;
+        })
+        .filter(Boolean)
+        .join("")}</div>`
+    : "";
+  const attrs = formatAttributesList(offer.attributes);
+  const attrsHtml = attrs.length
+    ? `<dl class="lhai-cbr-dl">${attrs.map((a) => `<div><dt>${escapeHtml(a.key)}</dt><dd>${escapeHtml(a.value)}</dd></div>`).join("")}</dl>`
+    : `<p class="u-text-muted">—</p>`;
+  const breakdown = formatOfferPriceBreakdownLines(offer);
   body.innerHTML = `
-    <h3 class="lhai-cbr-modal__title">${escapeHtml(formatOfferVehicleTitle(offer))}</h3>
+    <h3 class="lhai-cbr-modal__title">${escapeHtml(formatOfferTitle(offer))}</h3>
+    <p class="lhai-cbr-modal__partner">${escapeHtml(formatOfferPartnerName(offer))}</p>
+    ${photosHtml}
     <section class="lhai-cbr-modal__section">
-      <h4>차량 정보</h4>
-      <dl class="lhai-cbr-dl">
-        <div><dt>상태</dt><dd>${escapeHtml(formatOfferVehicleStatusLine(offer))}</dd></div>
-        <div><dt>색상</dt><dd>${escapeHtml(String(v.color || "—"))}</dd></div>
-        <div><dt>위치</dt><dd>${escapeHtml(String(v.location || "—"))}</dd></div>
-        ${v.masked_vin ? `<div><dt>VIN</dt><dd>${escapeHtml(String(v.masked_vin))}</dd></div>` : ""}
-      </dl>
+      <h4>설명</h4>
+      <p>${escapeHtml(String(offer.description || "—")).replace(/\n/g, "<br />")}</p>
     </section>
     <section class="lhai-cbr-modal__section">
-      <h4>가격 상세</h4>
-      <ul>${offerPricingSummaryLines(offer).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>
-      <p class="lhai-cbr-modal__total">예상 총액 <strong>${escapeHtml(formatMoney(p.estimated_total, cur))}</strong></p>
+      <h4>상세 속성</h4>
+      ${attrsHtml}
     </section>
     <section class="lhai-cbr-modal__section">
-      <h4>포함 서비스</h4>
-      ${services.length ? `<ul>${services.map((x) => `<li>${escapeHtml(String(x))}</li>`).join("")}</ul>` : "<p class=\"u-text-muted\">—</p>"}
+      <h4>가격</h4>
+      <ul>${breakdown.map((line) => `<li>${line.label ? `${escapeHtml(line.label)}: ` : ""}${escapeHtml(line.value)}</li>`).join("")}</ul>
     </section>
     <section class="lhai-cbr-modal__section">
       <h4>파트너 메시지</h4>
-      <p>${escapeHtml(String(s.message || "—")).replace(/\n/g, "<br />")}</p>
+      <p>${escapeHtml(String(offer.message_to_customer || "—")).replace(/\n/g, "<br />")}</p>
     </section>
-    ${altReason ? `<section class="lhai-cbr-modal__section"><h4>대안 사유</h4><p>${escapeHtml(altReason).replace(/\n/g, "<br />")}</p></section>` : ""}
-    <p class="lhai-cbr-modal__notice u-text-muted">선택 전에는 파트너 연락처·정확한 재고 위치 등 일부 정보가 제한될 수 있습니다. 선택 후 메시지함에서 상세 협의를 진행합니다.</p>
+    <p class="lhai-cbr-modal__notice u-text-muted">선택 전에는 일부 정보가 제한될 수 있습니다. 선택 후 메시지함에서 상세 협의를 진행합니다.</p>
   `;
+  if (selectBtn instanceof HTMLButtonElement) {
+    const phase = displayPhase();
+    selectBtn.hidden = !canSelectCustomerBid(phase);
+  }
   dlg.showModal();
 }
 
@@ -393,14 +548,11 @@ function openConfirmModal(bidId, offer) {
   const body = document.querySelector("#cbrConfirmBody");
   const warn = document.querySelector("#cbrConfirmWarn");
   if (!(dlg instanceof HTMLDialogElement) || !(body instanceof HTMLElement)) return;
-  const phase = displayPhase();
-  const name = formatOfferVehicleTitle(offer);
-  const pricing = offer.pricing && typeof offer.pricing === "object" ? offer.pricing : {};
-  body.innerHTML = `<p><strong>${escapeHtml(name)}</strong> 제안을 선택하시겠습니까?</p>
-    <p>예상 총액 ${escapeHtml(formatMoney(pricing.estimated_total, pricing.currency || "USD"))}</p>
+  body.innerHTML = `<p><strong>${escapeHtml(formatOfferTitle(offer))}</strong> 제안을 선택하시겠습니까?</p>
+    <p>예상 총액 ${escapeHtml(formatMoney(offer.estimated_total, offer.currency || "USD"))}</p>
     <p class="u-text-muted">선택 후에는 해당 파트너와 메시지로 협의가 진행됩니다.</p>`;
   if (warn instanceof HTMLElement) {
-    if (phase === "OPEN") {
+    if (displayPhase() === "OPEN") {
       warn.hidden = false;
       warn.textContent = `비딩 마감까지 ${formatCountdownToExpiry(listSnapshot?.expires_at)} 남았습니다. 지금 선택하면 다른 파트너의 추가 제안을 받기 어려울 수 있습니다.`;
     } else {
@@ -409,6 +561,50 @@ function openConfirmModal(bidId, offer) {
     }
   }
   dlg.showModal();
+}
+
+function openNewRoundModal() {
+  const dlg = document.querySelector("#cbrNewRoundModal");
+  const remainingEl = document.querySelector("#cbrNewRoundRemaining");
+  const reasonEl = document.querySelector("#cbrNewRoundReason");
+  if (!(dlg instanceof HTMLDialogElement)) return;
+  const remaining = quoteRequestRemaining(listSnapshot?.quote_request_usage);
+  if (remainingEl instanceof HTMLElement) {
+    remainingEl.textContent =
+      remaining != null
+        ? `새 요청 가능 횟수: ${remaining}회 남음`
+        : "";
+  }
+  if (reasonEl instanceof HTMLTextAreaElement) reasonEl.value = "";
+  dlg.showModal();
+}
+
+async function confirmNewRound() {
+  const bidRequestId = String(listSnapshot?.bid_request_id || "").trim();
+  if (!bidRequestId || newRoundInFlight) return;
+  const dlg = document.querySelector("#cbrNewRoundModal");
+  const submitBtn = document.querySelector("#cbrNewRoundSubmit");
+  const reasonEl = document.querySelector("#cbrNewRoundReason");
+  newRoundInFlight = true;
+  renderNewRoundCta(displayPhase());
+  if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = true;
+  try {
+    const reason =
+      reasonEl instanceof HTMLTextAreaElement ? String(reasonEl.value || "").trim() : "";
+    await customerBidsApi.requestNewRound(bidRequestId, { reason: reason || undefined });
+    if (dlg instanceof HTMLDialogElement) dlg.close();
+    selectedBidId = "";
+    selectedOfferId = "";
+    await reloadList();
+    window.dispatchEvent(new CustomEvent("lhai:customer-bid-updated"));
+    window.alert("새 비딩 라운드가 시작되었습니다. 파트너의 새 제안을 기다려 주세요.");
+  } catch (e) {
+    window.alert(e && typeof e.message === "string" ? e.message : "새 라운드 요청에 실패했습니다.");
+  } finally {
+    newRoundInFlight = false;
+    if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = false;
+    renderNewRoundCta(displayPhase());
+  }
 }
 
 async function confirmSelection() {
@@ -421,12 +617,23 @@ async function confirmSelection() {
   try {
     const res = await customerBidsApi.selectBid(bidId, { selectedOfferId: offerId });
     selectedBidId = String(res?.selected_bid_id || bidId).trim();
-    const confirmDlg = dlg instanceof HTMLDialogElement ? dlg : null;
-    confirmDlg?.close();
+    selectedOfferId = String(res?.selected_offer_id || offerId).trim();
+    const tid = String(res?.message_thread_id || res?.thread_id || threadId || "").trim();
+    if (tid) threadId = tid;
+    if (dlg instanceof HTMLDialogElement) dlg.close();
     await reloadList();
+    window.dispatchEvent(new CustomEvent("lhai:customer-bid-updated"));
+    const conv = document.querySelector("#cbrConversationBanner");
+    if (conv instanceof HTMLElement && tid) {
+      conv.hidden = false;
+      conv.innerHTML = renderSelectionConversationBannerHtml(
+        tid,
+        res?.selected_offer && typeof res.selected_offer === "object" ? res.selected_offer : offer,
+        res?.partner && typeof res.partner === "object" ? res.partner : null,
+      );
+    }
   } catch (e) {
-    const msg = e && typeof e.message === "string" ? e.message : "선택에 실패했습니다.";
-    window.alert(msg);
+    window.alert(e && typeof e.message === "string" ? e.message : "선택에 실패했습니다.");
   } finally {
     if (btn instanceof HTMLButtonElement) btn.disabled = false;
     pendingSelect = null;
@@ -442,37 +649,102 @@ function wireRealtime() {
     }
   }
   realtimeUnsub = subscribeRealtimeEvents((ev) => {
-    const type = String(ev?.type || "").trim();
-    if (type !== "bid.updated") return;
+    if (String(ev?.type || "").trim() !== "bid.updated") return;
     const payload = normalizeBidUpdatedPayload(ev);
-    if (!isCarPurchaseBidUpdatedPayload(payload)) return;
-    const tid = String(payload.thread_id || "").trim();
-    const wid = String(payload.workflow_instance_id || payload.service_request_id || "").trim();
-    if (threadId && tid && tid !== threadId) return;
-    if (serviceRequestId && wid && wid !== serviceRequestId) return;
+    if (!isBiddingBidUpdatedPayload(payload)) return;
+    if (!bidUpdatedMatchesScope(payload, { threadId, serviceRequestId })) return;
     void reloadList();
   });
-  window.addEventListener("lhai:customer-bid-updated", () => {
-    void reloadList();
-  });
+  window.addEventListener("lhai:customer-bid-updated", () => void reloadList());
+}
+
+function stopListPolling() {
+  if (listPollTimer) {
+    window.clearInterval(listPollTimer);
+    listPollTimer = null;
+  }
+}
+
+function syncListPolling() {
+  const phase = displayPhase();
+  if (!isCustomerBidListPollingPhase(phase)) {
+    stopListPolling();
+    return;
+  }
+  if (!listPollTimer) startListPolling();
 }
 
 function startCountdownTicker() {
-  if (countdownTimer) window.clearInterval(countdownTimer);
-  countdownTimer = window.setInterval(() => {
-    const phase = displayPhase();
-    if (phase === "OPEN" || phase === "EXPIRED") renderHeader();
-  }, 60_000);
+  if (countdownStop) {
+    countdownStop();
+    countdownStop = null;
+  }
+  countdownStop = createBidCountdownTicker({
+    getDeadline: () => deadlineSnapshot(),
+    formatBanner: formatCustomerCountdownBanner,
+    onTick: (text, expired) => {
+      const phase = displayPhase();
+      if (phase !== "OPEN" && phase !== "EXPIRED") return;
+      const el = document.querySelector("#cbrCountdownBanner");
+      if (el instanceof HTMLElement) {
+        el.hidden = false;
+        el.textContent = text;
+        el.className = expired
+          ? "lhai-cbr-countdown lhai-cbr-countdown--expired"
+          : "lhai-cbr-countdown";
+      }
+      const countdownEl = document.querySelector("#cbrCountdown");
+      if (countdownEl) countdownEl.textContent = formatBidDeadlineForUi(deadlineSnapshot());
+      if (expired && phase === "OPEN" && !deadlineExpireReloadPending) {
+        deadlineExpireReloadPending = true;
+        void reloadList().finally(() => {
+          deadlineExpireReloadPending = false;
+        });
+      }
+    },
+    intervalMs: 1000,
+  });
 }
 
-/** SSE ``bid.updated`` 고객 fan-out 전 안전망: OPEN·EXPIRED 중 탭이 보일 때만 목록 갱신. */
 function startListPolling() {
-  if (listPollTimer) window.clearInterval(listPollTimer);
+  stopListPolling();
+  if (!isCustomerBidListPollingPhase(displayPhase())) return;
   listPollTimer = window.setInterval(() => {
-    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    if (document.visibilityState !== "visible") return;
     const phase = displayPhase();
-    if (phase === "OPEN" || phase === "EXPIRED") void reloadList();
+    if (!isCustomerBidListPollingPhase(phase)) {
+      stopListPolling();
+      return;
+    }
+    void reloadList();
   }, CBR_LIST_POLL_MS);
+}
+
+function readFiltersFromDom() {
+  activeFilters.hasPhotos =
+    document.querySelector("#cbrFilterPhotos") instanceof HTMLInputElement &&
+    document.querySelector("#cbrFilterPhotos").checked;
+  activeFilters.budgetOnly =
+    document.querySelector("#cbrFilterBudget") instanceof HTMLInputElement &&
+    document.querySelector("#cbrFilterBudget").checked;
+  activeFilters.productCategory =
+    document.querySelector("#cbrFilterCategory") instanceof HTMLSelectElement
+      ? document.querySelector("#cbrFilterCategory").value
+      : "";
+  activeFilters.partner =
+    document.querySelector("#cbrFilterPartner") instanceof HTMLSelectElement
+      ? document.querySelector("#cbrFilterPartner").value
+      : "";
+  activeFilters.location =
+    document.querySelector("#cbrFilterLocation") instanceof HTMLSelectElement
+      ? document.querySelector("#cbrFilterLocation").value
+      : "";
+  activeFilters.includeAlternatives =
+    document.querySelector("#cbrFilterAlt") instanceof HTMLInputElement &&
+    document.querySelector("#cbrFilterAlt").checked;
+  activeFilters.updatedOnly =
+    document.querySelector("#cbrFilterUpdated") instanceof HTMLInputElement &&
+    document.querySelector("#cbrFilterUpdated").checked;
 }
 
 function wireUi() {
@@ -486,27 +758,14 @@ function wireUi() {
 
   document.querySelector("#cbrSort")?.addEventListener("change", (ev) => {
     if (!(ev.target instanceof HTMLSelectElement)) return;
-    activeSort = /** @type {CustomerOfferSort} */ (ev.target.value || "recommended");
+    activeSort = ev.target.value || "recommended";
     void reloadList();
   });
 
-  const onFilterChange = () => {
-    const budget = document.querySelector("#cbrFilterBudget");
-    const newC = document.querySelector("#cbrFilterNew");
-    const used = document.querySelector("#cbrFilterUsed");
-    activeFilters.budgetOnly = budget instanceof HTMLInputElement && budget.checked;
-    if (newC instanceof HTMLInputElement && newC.checked) activeFilters.condition = "NEW";
-    else if (used instanceof HTMLInputElement && used.checked) activeFilters.condition = "USED";
-    else activeFilters.condition = "";
-    activeFilters.cleanTitle = document.querySelector("#cbrFilterCleanTitle") instanceof HTMLInputElement && document.querySelector("#cbrFilterCleanTitle").checked;
-    activeFilters.noAccident = document.querySelector("#cbrFilterNoAccident") instanceof HTMLInputElement && document.querySelector("#cbrFilterNoAccident").checked;
-    activeFilters.includeAlternatives = document.querySelector("#cbrFilterAlt") instanceof HTMLInputElement && document.querySelector("#cbrFilterAlt").checked;
-    activeFilters.updatedOnly = document.querySelector("#cbrFilterUpdated") instanceof HTMLInputElement && document.querySelector("#cbrFilterUpdated").checked;
-    const makeSel = document.querySelector("#cbrFilterMake");
-    activeFilters.make = makeSel instanceof HTMLSelectElement ? makeSel.value : "";
+  document.querySelector("#cbrFilters")?.addEventListener("change", () => {
+    readFiltersFromDom();
     void reloadList();
-  };
-  document.querySelector("#cbrFilters")?.addEventListener("change", onFilterChange);
+  });
 
   document.querySelector("#cbrCards")?.addEventListener("click", (ev) => {
     const t = ev.target instanceof Element ? ev.target : null;
@@ -525,23 +784,34 @@ function wireUi() {
   });
 
   document.querySelector("#cbrDetailClose")?.addEventListener("click", () => {
-    document.querySelector("#cbrDetailModal")?.closest("dialog")?.close?.();
     const dlg = document.querySelector("#cbrDetailModal");
     if (dlg instanceof HTMLDialogElement) dlg.close();
+    detailOffer = null;
+  });
+  document.querySelector("#cbrDetailSelect")?.addEventListener("click", () => {
+    if (!detailOffer) return;
+    const bidId = String(detailOffer.bid_id || "").trim();
+    const dlg = document.querySelector("#cbrDetailModal");
+    if (dlg instanceof HTMLDialogElement) dlg.close();
+    if (bidId) openConfirmModal(bidId, detailOffer);
   });
   document.querySelector("#cbrConfirmCancel")?.addEventListener("click", () => {
     const dlg = document.querySelector("#cbrConfirmModal");
     if (dlg instanceof HTMLDialogElement) dlg.close();
     pendingSelect = null;
   });
-  document.querySelector("#cbrConfirmSubmit")?.addEventListener("click", () => {
-    void confirmSelection();
+  document.querySelector("#cbrConfirmSubmit")?.addEventListener("click", () => void confirmSelection());
+
+  document.querySelector("#cbrNewRoundBtn")?.addEventListener("click", () => openNewRoundModal());
+  document.querySelector("#cbrNewRoundCancel")?.addEventListener("click", () => {
+    const dlg = document.querySelector("#cbrNewRoundModal");
+    if (dlg instanceof HTMLDialogElement) dlg.close();
   });
+  document.querySelector("#cbrNewRoundSubmit")?.addEventListener("click", () => void confirmNewRound());
 
   const back = document.querySelector("#cbrBackLink");
   if (back instanceof HTMLAnchorElement) {
-    if (threadId) back.href = `messages.html?thread_id=${encodeURIComponent(threadId)}`;
-    else back.href = "messages.html";
+    back.href = threadId ? `messages.html?thread_id=${encodeURIComponent(threadId)}` : "messages.html";
   }
 }
 

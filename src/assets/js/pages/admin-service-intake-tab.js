@@ -3,9 +3,20 @@
  * Overview: `LandingHelpAI_backend/docs/customer_intake_builder.md`.
  */
 import { initAdminIntakePreview } from "../intake/admin-intake-preview.js";
-import { serviceIntakeAdminApi } from "../core/api.js";
+import {
+  VP_UI_MARKER,
+  applyDynamicYearMinOptionsToChildren,
+  buildAllVehiclePreferenceChildren,
+  buildVehiclePreferenceChildrenForCount,
+  isVehiclePreferenceBiddingGroup,
+  vehiclePreferenceSlotCountFromChildren,
+} from "../intake/vehicle-preference-intake.js";
+import { adminApi, serviceIntakeAdminApi } from "../core/api.js";
 import { msdOnServiceContextChanged, msdRefresh } from "./admin-service-documents-tab.js";
-import { workflowHydrateForCreate, workflowTabActivated } from "./admin-service-workflow-tab.js";
+import {
+  workflowHydrateForCreate,
+  workflowTabActivated,
+} from "./admin-service-workflow-tab.js";
 import { t } from "../core/i18n-client.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
 import { qs, qsa, safeText } from "../core/utils.js";
@@ -27,6 +38,11 @@ function msiPlainTextPreview(v) {
 const MSI_INPUT_TYPES = [
   { value: "text", i18nKey: "common.admin_services.intake.type_text", fallback: "Text" },
   { value: "number", i18nKey: "common.admin_services.intake.type_number", fallback: "Number" },
+  {
+    value: "currency_usd",
+    i18nKey: "common.admin_services.intake.type_currency_usd",
+    fallback: "Currency USD",
+  },
   { value: "date", i18nKey: "common.admin_services.intake.type_date", fallback: "Date" },
   { value: "textarea", i18nKey: "common.admin_services.intake.type_textarea", fallback: "Textarea" },
   { value: "select", i18nKey: "common.admin_services.intake.type_select", fallback: "Select" },
@@ -35,120 +51,304 @@ const MSI_INPUT_TYPES = [
   { value: "multi_select", i18nKey: "common.admin_services.intake.type_multi_select", fallback: "Multi-select" },
 ];
 
-const MSI_PREFILL_SOURCE_VALUES = [
-  "user.email",
-  "user.phone",
-  "user.display_name",
-  "user.date_of_birth",
-  "customer_profile.full_name",
-  "customer_profile.full_name_local",
-  "customer_profile.first_name",
-  "customer_profile.last_name",
-  "customer_profile.email",
-  "customer_profile.phone_number",
-  "customer_profile.address_line1",
-  "customer_profile.address_line2",
-  "customer_profile.city",
-  "customer_profile.state",
-  "customer_profile.zip_code",
-  "customer_profile.preferred_language",
+/** @type {{ key: string, label: string, category: string }[]} */
+let msiRegistryPrefillFields = [];
+/** @type {{ key: string, label: string, category: string }[]} */
+let msiRegistryWriteBackFields = [];
+let msiRegistryLoadPromise = null;
+
+const MSI_LEGACY_USER_PREFILL_SOURCES = [
+  { key: "user.email", label: "user.email" },
+  { key: "user.phone", label: "user.phone" },
+  { key: "user.display_name", label: "user.display_name" },
+  { key: "user.date_of_birth", label: "user.date_of_birth" },
 ];
 
-function msiPrefillSourceOptionsHtml(selectedValue = "", selectLabel = false) {
-  const selected = String(selectedValue || "").trim();
-  const mk = (value, label) =>
-    `<option value="${esc(value)}"${selected === value ? " selected" : ""}>${esc(label)}</option>`;
-  return [
-    selectLabel ? mk("", t("common.admin_services.intake.prefill_placeholder", "— Choose a field —")) : "",
-    `<optgroup label="${esc(t("common.admin_services.intake.prefill_group_user", "User account"))}">`,
-    mk("user.email", "user.email"),
-    mk("user.phone", "user.phone"),
-    mk("user.display_name", "user.display_name"),
-    mk("user.date_of_birth", "user.date_of_birth"),
-    `</optgroup>`,
-    `<optgroup label="${esc(t("common.admin_services.intake.prefill_group_profile", "Customer profile"))}">`,
-    mk("customer_profile.full_name", "customer_profile.full_name"),
-    mk("customer_profile.full_name_local", "customer_profile.full_name_local"),
-    mk("customer_profile.first_name", "customer_profile.first_name"),
-    mk("customer_profile.last_name", "customer_profile.last_name"),
-    mk("customer_profile.email", "customer_profile.email"),
-    mk("customer_profile.phone_number", "customer_profile.phone_number"),
-    mk("customer_profile.address_line1", "customer_profile.address_line1"),
-    mk("customer_profile.address_line2", "customer_profile.address_line2"),
-    mk("customer_profile.city", "customer_profile.city"),
-    mk("customer_profile.state", "customer_profile.state"),
-    mk("customer_profile.zip_code", "customer_profile.zip_code"),
-    mk("customer_profile.preferred_language", "customer_profile.preferred_language"),
-    `</optgroup>`,
-  ].join("");
+const MSI_PREFILL_MODES = ["auto_fill", "dropdown_existing_values", "hide_if_exists", "confirm_existing_value"];
+
+function msiAdaptPrefillFromStored(raw) {
+  const p = raw && typeof raw === "object" ? /** @type {Record<string, unknown>} */ (raw) : {};
+  const legacySource = String(p.source || "").trim();
+  /** @type {string[]} */
+  let sources = [];
+  if (Array.isArray(p.sources)) {
+    sources = p.sources.map((x) => String(x || "").trim()).filter(Boolean);
+  } else if (legacySource) {
+    sources = [legacySource];
+  }
+  let mode = String(p.mode || "").trim();
+  if (!MSI_PREFILL_MODES.includes(mode)) {
+    const ex = String(p.existing_value_behavior || "prefill_and_show");
+    const map = {
+      prefill_and_show: "dropdown_existing_values",
+      prefill_and_skip: "hide_if_exists",
+      confirm_only: "confirm_existing_value",
+      ask_always: "auto_fill",
+    };
+    mode = map[ex] || "dropdown_existing_values";
+  }
+  const enabled = Boolean(p.enabled) && sources.length > 0;
+  return {
+    enabled,
+    mode: enabled ? mode : "dropdown_existing_values",
+    sources: enabled ? sources : [],
+    source: sources[0] || "",
+    editable: p.editable !== false,
+    hide_empty_values: p.hide_empty_values !== false,
+    allow_manual_input: p.allow_manual_input !== false,
+    existing_value_behavior: String(p.existing_value_behavior || "prefill_and_show"),
+    missing_value_behavior: String(p.missing_value_behavior || "ask"),
+    write_back: Boolean(p.write_back),
+  };
 }
 
-function msiInitPrefillSourceSelectOptions() {
-  const sel = qs("#manageServiceIntakePrefillSource");
-  if (!sel || !(sel instanceof HTMLSelectElement) || sel.dataset.msiPrefillBuilt === "1") return;
-  sel.dataset.msiPrefillBuilt = "1";
-  sel.innerHTML = msiPrefillSourceOptionsHtml("", true);
+function msiAdaptWriteBackFromStored(raw, legacyPrefill) {
+  const wb = raw && typeof raw === "object" ? /** @type {Record<string, unknown>} */ (raw) : null;
+  const pf = legacyPrefill && typeof legacyPrefill === "object" ? legacyPrefill : {};
+  if (wb && ("enabled" in wb || "target" in wb)) {
+    return {
+      enabled: Boolean(wb.enabled),
+      target: String(wb.target || "").trim(),
+      overwrite_policy: String(wb.overwrite_policy || "confirm_if_existing").trim() || "confirm_if_existing",
+    };
+  }
+  if (pf.write_back && pf.source) {
+    return { enabled: true, target: String(pf.source), overwrite_policy: "confirm_if_existing" };
+  }
+  return { enabled: false, target: "", overwrite_policy: "confirm_if_existing" };
+}
+
+function msiRegistryFieldOptionsHtml(fields, { selected = [], selectLabel = true, multiple = false } = {}) {
+  const selSet = new Set((selected || []).map((x) => String(x).trim()).filter(Boolean));
+  const mk = (value, label) => {
+    const v = String(value || "").trim();
+    const selectedAttr = selSet.has(v) ? " selected" : "";
+    return `<option value="${esc(v)}"${selectedAttr}>${esc(label || v)}</option>`;
+  };
+  const parts = [];
+  if (selectLabel && !multiple) {
+    parts.push(mk("", t("common.admin_services.intake.prefill_placeholder", "— Choose a field —")));
+  }
+  const legacy = MSI_LEGACY_USER_PREFILL_SOURCES.filter((f) => !fields.some((r) => r.key === f.key));
+  if (legacy.length) {
+    parts.push(`<optgroup label="${esc(t("common.admin_services.intake.prefill_group_user", "User account"))}">`);
+    for (const f of legacy) parts.push(mk(f.key, f.label));
+    parts.push("</optgroup>");
+  }
+  const byCat = new Map();
+  for (const f of fields) {
+    const cat = f.category || "other";
+    if (!byCat.has(cat)) byCat.set(cat, []);
+    byCat.get(cat).push(f);
+  }
+  for (const [cat, rows] of byCat) {
+    parts.push(`<optgroup label="${esc(cat)}">`);
+    for (const f of rows) parts.push(mk(f.key, `${f.label} (${f.key})`));
+    parts.push("</optgroup>");
+  }
+  return parts.join("");
+}
+
+/** Fallback for question-group child rows (single select). */
+function msiPrefillSourceOptionsHtml(selectedValue = "", selectLabel = false) {
+  const fields = msiRegistryPrefillFields.length ? msiRegistryPrefillFields : [];
+  const selected = String(selectedValue || "").trim();
+  return msiRegistryFieldOptionsHtml(fields, {
+    selected: selected ? [selected] : [],
+    selectLabel,
+    multiple: false,
+  });
+}
+
+async function msiLoadCustomerProfileFieldRegistry() {
+  if (msiRegistryLoadPromise) return msiRegistryLoadPromise;
+  msiRegistryLoadPromise = (async () => {
+    const statusEl = qs("#manageServiceIntakePrefillRegistryStatus");
+    try {
+      const [prefillRes, writeRes] = await Promise.all([
+        adminApi.listCustomerProfileFields({ allowed_as_prefill: true }),
+        adminApi.listCustomerProfileFields({ allowed_as_write_back: true }),
+      ]);
+      msiRegistryPrefillFields = (prefillRes?.fields || []).map((f) => ({
+        key: f.key,
+        label: f.label,
+        category: f.category || "other",
+      }));
+      msiRegistryWriteBackFields = (writeRes?.fields || []).map((f) => ({
+        key: f.key,
+        label: f.label,
+        category: f.category || "other",
+      }));
+      if (statusEl) {
+        statusEl.hidden = true;
+        statusEl.textContent = "";
+      }
+    } catch (err) {
+      msiRegistryPrefillFields = [];
+      msiRegistryWriteBackFields = [];
+      if (statusEl) {
+        statusEl.hidden = false;
+        statusEl.textContent =
+          err && typeof err.message === "string"
+            ? err.message
+            : t("common.admin_services.intake.prefill_registry_error", "Could not load profile fields; using legacy list.");
+      }
+    }
+    msiRebuildPrefillRegistrySelects();
+  })();
+  return msiRegistryLoadPromise;
+}
+
+function msiRebuildPrefillRegistrySelects() {
+  const sourcesSel = qs("#manageServiceIntakePrefillSources");
+  const targetSel = qs("#manageServiceIntakeWriteBackTarget");
+  const selectedSources = sourcesSel instanceof HTMLSelectElement
+    ? Array.from(sourcesSel.selectedOptions).map((o) => o.value)
+    : [];
+  const selectedTarget = targetSel instanceof HTMLSelectElement ? targetSel.value : "";
+  if (sourcesSel instanceof HTMLSelectElement) {
+    sourcesSel.innerHTML = msiRegistryFieldOptionsHtml(msiRegistryPrefillFields, {
+      selected: selectedSources,
+      selectLabel: false,
+      multiple: true,
+    });
+  }
+  if (targetSel instanceof HTMLSelectElement) {
+    targetSel.innerHTML = msiRegistryFieldOptionsHtml(msiRegistryWriteBackFields, {
+      selected: selectedTarget ? [selectedTarget] : [],
+      selectLabel: true,
+      multiple: false,
+    });
+  }
 }
 
 function msiSyncPrefillSubcontrolsDisabled() {
   const want = qs("#manageServiceIntakePrefillEnabled") instanceof HTMLInputElement && qs("#manageServiceIntakePrefillEnabled").checked;
+  const wbWant =
+    qs("#manageServiceIntakeWriteBackEnabled") instanceof HTMLInputElement &&
+    qs("#manageServiceIntakeWriteBackEnabled").checked;
   for (const id of [
-    "manageServiceIntakePrefillSource",
+    "manageServiceIntakePrefillMode",
+    "manageServiceIntakePrefillSources",
+    "manageServiceIntakePrefillHideEmpty",
+    "manageServiceIntakePrefillAllowManual",
     "manageServiceIntakePrefillEditable",
-    "manageServiceIntakePrefillWriteBack",
-    "manageServiceIntakePrefillExistingBehavior",
     "manageServiceIntakePrefillMissingBehavior",
+    "manageServiceIntakeWriteBackEnabled",
+    "manageServiceIntakeWriteBackTarget",
+    "manageServiceIntakeWriteBackPolicy",
   ]) {
     const el = qs(`#${id}`);
-    if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.disabled = !want;
+    if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement)) continue;
+    if (id.startsWith("manageServiceIntakeWriteBack") && id !== "manageServiceIntakeWriteBackEnabled") {
+      el.disabled = !wbWant;
+    } else if (id === "manageServiceIntakeWriteBackEnabled") {
+      el.disabled = false;
+    } else {
+      el.disabled = !want;
+    }
   }
 }
 
-function msiApplyPrefillToDialog(prefill) {
-  const p = prefill && typeof prefill === "object" ? prefill : {};
-  const src = String(p.source || "").trim();
+function msiApplyPrefillToDialog(prefill, writeBack) {
+  const p = msiAdaptPrefillFromStored(prefill);
+  const wb = msiAdaptWriteBackFromStored(writeBack, p);
   const eb = qs("#manageServiceIntakePrefillEnabled");
   if (eb instanceof HTMLInputElement) eb.checked = Boolean(p.enabled);
-  const sel = qs("#manageServiceIntakePrefillSource");
-  if (sel instanceof HTMLSelectElement) sel.value = MSI_PREFILL_SOURCE_VALUES.includes(src) ? src : "";
+  const modeEl = qs("#manageServiceIntakePrefillMode");
+  if (modeEl instanceof HTMLSelectElement) {
+    modeEl.value = MSI_PREFILL_MODES.includes(p.mode) ? p.mode : "dropdown_existing_values";
+  }
+  const sourcesSel = qs("#manageServiceIntakePrefillSources");
+  if (sourcesSel instanceof HTMLSelectElement) {
+    sourcesSel.innerHTML = msiRegistryFieldOptionsHtml(msiRegistryPrefillFields, {
+      selected: p.sources,
+      selectLabel: false,
+      multiple: true,
+    });
+  }
+  const hideEl = qs("#manageServiceIntakePrefillHideEmpty");
+  if (hideEl instanceof HTMLInputElement) hideEl.checked = p.hide_empty_values !== false;
+  const manualEl = qs("#manageServiceIntakePrefillAllowManual");
+  if (manualEl instanceof HTMLInputElement) manualEl.checked = p.allow_manual_input !== false;
   const ed = qs("#manageServiceIntakePrefillEditable");
   if (ed instanceof HTMLInputElement) ed.checked = p.editable !== false;
-  const wb = qs("#manageServiceIntakePrefillWriteBack");
-  if (wb instanceof HTMLInputElement) wb.checked = Boolean(p.write_back);
-  const ex = qs("#manageServiceIntakePrefillExistingBehavior");
-  if (ex instanceof HTMLSelectElement) {
-    const v = String(p.existing_value_behavior || "prefill_and_show");
-    ex.value = ["prefill_and_show", "prefill_and_skip", "confirm_only", "ask_always"].includes(v) ? v : "prefill_and_show";
-  }
   const miss = qs("#manageServiceIntakePrefillMissingBehavior");
   if (miss instanceof HTMLSelectElement) {
     const v = String(p.missing_value_behavior || "ask");
     miss.value = ["ask", "skip", "block_until_available"].includes(v) ? v : "ask";
+  }
+  const wbEn = qs("#manageServiceIntakeWriteBackEnabled");
+  if (wbEn instanceof HTMLInputElement) wbEn.checked = Boolean(wb.enabled);
+  const wbTarget = qs("#manageServiceIntakeWriteBackTarget");
+  if (wbTarget instanceof HTMLSelectElement) {
+    wbTarget.innerHTML = msiRegistryFieldOptionsHtml(msiRegistryWriteBackFields, {
+      selected: wb.target ? [wb.target] : [],
+      selectLabel: true,
+      multiple: false,
+    });
+  }
+  const wbPol = qs("#manageServiceIntakeWriteBackPolicy");
+  if (wbPol instanceof HTMLSelectElement) {
+    const pol = String(wb.overwrite_policy || "confirm_if_existing");
+    wbPol.value = ["empty_only", "overwrite", "confirm_if_existing", "admin_only_overwrite"].includes(pol)
+      ? pol
+      : "confirm_if_existing";
   }
   msiSyncPrefillSubcontrolsDisabled();
 }
 
 function msiReadPrefillFromDialog() {
   const want = qs("#manageServiceIntakePrefillEnabled") instanceof HTMLInputElement && qs("#manageServiceIntakePrefillEnabled").checked;
-  const sel = qs("#manageServiceIntakePrefillSource");
-  const source = sel instanceof HTMLSelectElement ? String(sel.value || "").trim() : "";
-  const enabled = Boolean(want && source);
+  const sourcesSel = qs("#manageServiceIntakePrefillSources");
+  /** @type {string[]} */
+  const sources =
+    sourcesSel instanceof HTMLSelectElement
+      ? Array.from(sourcesSel.selectedOptions)
+          .map((o) => String(o.value || "").trim())
+          .filter(Boolean)
+      : [];
+  const enabled = Boolean(want && sources.length);
+  const modeEl = qs("#manageServiceIntakePrefillMode");
+  const mode =
+    modeEl instanceof HTMLSelectElement && MSI_PREFILL_MODES.includes(modeEl.value)
+      ? modeEl.value
+      : "dropdown_existing_values";
+  const modeToExisting = {
+    auto_fill: "prefill_and_show",
+    dropdown_existing_values: "prefill_and_show",
+    hide_if_exists: "prefill_and_skip",
+    confirm_existing_value: "confirm_only",
+  };
   const edEl = qs("#manageServiceIntakePrefillEditable");
   const editable = !(edEl instanceof HTMLInputElement) || edEl.checked;
-  return {
+  const prefill = {
     enabled,
-    source: enabled ? source : "",
+    mode: enabled ? mode : "dropdown_existing_values",
+    sources: enabled ? sources : [],
+    source: sources[0] || "",
     editable,
-    write_back: qs("#manageServiceIntakePrefillWriteBack") instanceof HTMLInputElement && qs("#manageServiceIntakePrefillWriteBack").checked,
-    existing_value_behavior:
-      qs("#manageServiceIntakePrefillExistingBehavior") instanceof HTMLSelectElement
-        ? qs("#manageServiceIntakePrefillExistingBehavior").value || "prefill_and_show"
-        : "prefill_and_show",
+    hide_empty_values: !(qs("#manageServiceIntakePrefillHideEmpty") instanceof HTMLInputElement) || qs("#manageServiceIntakePrefillHideEmpty").checked,
+    allow_manual_input: !(qs("#manageServiceIntakePrefillAllowManual") instanceof HTMLInputElement) || qs("#manageServiceIntakePrefillAllowManual").checked,
+    existing_value_behavior: modeToExisting[mode] || "prefill_and_show",
     missing_value_behavior:
       qs("#manageServiceIntakePrefillMissingBehavior") instanceof HTMLSelectElement
         ? qs("#manageServiceIntakePrefillMissingBehavior").value || "ask"
         : "ask",
+    write_back: false,
   };
+  const wbEn = qs("#manageServiceIntakeWriteBackEnabled") instanceof HTMLInputElement && qs("#manageServiceIntakeWriteBackEnabled").checked;
+  const wbTargetEl = qs("#manageServiceIntakeWriteBackTarget");
+  const target = wbTargetEl instanceof HTMLSelectElement ? String(wbTargetEl.value || "").trim() : "";
+  const write_back = {
+    enabled: Boolean(wbEn && target),
+    target: wbEn && target ? target : "",
+    overwrite_policy:
+      qs("#manageServiceIntakeWriteBackPolicy") instanceof HTMLSelectElement
+        ? qs("#manageServiceIntakeWriteBackPolicy").value || "confirm_if_existing"
+        : "confirm_if_existing",
+  };
+  return { prefill, write_back };
 }
 
 let msiTemplate = null;
@@ -156,6 +356,12 @@ let msiFields = [];
 /** @type {Array<Record<string, unknown>>} Full template block list (question + content); aligns with API `blocks`. */
 let msiBlocks = [];
 let msiLastOpenedContentBlockId = "";
+/** Deep copy of the open content block when the side editor opens; restored on Cancel / backdrop / ×. */
+let msiSideEditorSnapshot = null;
+/** Suppress intake list clicks right after dismiss (avoids ghost clicks on Save / Edit under the cursor). */
+let msiSideDismissGuardUntil = 0;
+/** Deep copy of the legacy field dialog field when it opens; restored on Cancel / Escape / backdrop. */
+let msiFieldDialogSnapshot = null;
 /** @type {Set<string>} */
 let msiDeletedOptionIds = new Set();
 /** @type {{ id: string, label: string, active: boolean }[]} */
@@ -279,7 +485,7 @@ function msiBlockTypeLabel(bt) {
   const k = `common.admin_services.intake.block_type_${String(bt || "").replace(/-/g, "_")}`;
   const fallbacks = {
     question: "Question",
-    question_group: "Question group",
+    question_group: "Questions",
     notice: "Notice",
     image: "Image",
     rich_text: "Rich text",
@@ -295,7 +501,9 @@ function msiBlockTypeHelp(bt) {
     question:
       "Interactive step: collects an answer (text, choices, date, etc.). Use visibility on later blocks to branch on this answer.",
     question_group:
-      "Groups multiple related inputs into one step (for example: first name + last name + Korean name). Child questions are edited inside this block.",
+      "Customer questions in one step. Use one field for a single question, or several fields together (e.g. first + last name). Edit all fields inside this block.",
+    bidding_question_group:
+      "Partner bidding questions for CAR bid requests. Choose vehicle (make, model, …) or global (budget, timeline) scope in the editor.",
     notice:
       "Short message or callout—good for intros, tips, warnings, or text that should show only when a previous answer matches (Visibility).",
     image:
@@ -382,32 +590,36 @@ async function msiApplyPhoneStylePreset() {
       visibility_rule_json: {},
     });
 
-    const branchField = await serviceIntakeAdminApi.createField(tmpl.id, {
-      label: T("common.admin_services.intake.preset_phone_q_branch", "Does this situation apply to you?"),
-      help_text: T(
-        "common.admin_services.intake.preset_phone_q_branch_help",
-        "The next notice appears only if the customer chooses Yes—edit Visibility on that block if needed."
-      ),
-      input_type: "radio",
-      placeholder: "",
-      required: true,
+    const branchChildId = msiNewLocalId();
+    await serviceIntakeAdminApi.createBlock(tmpl.id, {
+      block_type: "question_group",
       sort_order: order++,
+      payload: msiDefaultStandardQuestionGroupPayload({
+        title: T("common.admin_services.intake.preset_phone_q_branch", "Does this situation apply to you?"),
+        help_text: T(
+          "common.admin_services.intake.preset_phone_q_branch_help",
+          "The next notice appears only if the customer chooses Yes—edit Visibility on that block if needed."
+        ),
+        input_type: "radio",
+        required: true,
+        children: [
+          {
+            id: branchChildId,
+            label: T("common.admin_services.intake.preset_phone_q_branch", "Does this situation apply to you?"),
+            help_text: T(
+              "common.admin_services.intake.preset_phone_q_branch_help",
+              "The next notice appears only if the customer chooses Yes—edit Visibility on that block if needed."
+            ),
+            input_type: "radio",
+            required: true,
+            options: [
+              { value: "yes", label: T("common.admin_services.intake.preset_phone_opt_yes", "Yes"), active: true },
+              { value: "no", label: T("common.admin_services.intake.preset_phone_opt_no", "No"), active: true },
+            ],
+          },
+        ],
+      }),
       visibility_rule_json: {},
-      default_value: null,
-      active: true,
-    });
-
-    await serviceIntakeAdminApi.createOption(branchField.id, {
-      label: T("common.admin_services.intake.preset_phone_opt_yes", "Yes"),
-      value: "yes",
-      sort_order: 0,
-      active: true,
-    });
-    await serviceIntakeAdminApi.createOption(branchField.id, {
-      label: T("common.admin_services.intake.preset_phone_opt_no", "No"),
-      value: "no",
-      sort_order: 1,
-      active: true,
     });
 
     await serviceIntakeAdminApi.createBlock(tmpl.id, {
@@ -429,24 +641,25 @@ async function msiApplyPhoneStylePreset() {
       },
       visibility_rule_json: {
         mode: "when_answer_equals",
-        source_field_id: branchField.id,
+        source_field_id: branchChildId,
         match_value: "yes",
       },
     });
 
-    await serviceIntakeAdminApi.createField(tmpl.id, {
-      label: T("common.admin_services.intake.preset_phone_q_followup", "Tell us more (optional)"),
-      help_text: T(
-        "common.admin_services.intake.preset_phone_q_followup_help",
-        "A follow-up text question—set Visibility if it should depend on an earlier answer."
-      ),
-      input_type: "textarea",
-      placeholder: "",
-      required: false,
+    await serviceIntakeAdminApi.createBlock(tmpl.id, {
+      block_type: "question_group",
       sort_order: order++,
+      payload: msiDefaultStandardQuestionGroupPayload({
+        title: T("common.admin_services.intake.preset_phone_q_followup", "Tell us more (optional)"),
+        help_text: T(
+          "common.admin_services.intake.preset_phone_q_followup_help",
+          "A follow-up text question—set Visibility if it should depend on an earlier answer."
+        ),
+        childLabel: T("common.admin_services.intake.preset_phone_q_followup", "Tell us more (optional)"),
+        input_type: "textarea",
+        required: false,
+      }),
       visibility_rule_json: {},
-      default_value: null,
-      active: true,
     });
 
     await serviceIntakeAdminApi.createBlock(tmpl.id, {
@@ -503,9 +716,17 @@ async function msiApplyPhoneStylePreset() {
   }
 }
 
+const MSI_BIDDING_ADD_BTN_IDS = [];
+
+function msiSyncBiddingAddButtonsVisibility() {
+  for (const id of MSI_BIDDING_ADD_BTN_IDS) {
+    const el = qs(`#${id}`);
+    if (el instanceof HTMLElement) el.hidden = true;
+  }
+}
+
 function msiWireIntakeBuilderHints() {
   const map = [
-    ["#manageServiceIntakeAddQuestionBtn", "question"],
     ["#manageServiceIntakeAddNoticeBtn", "notice"],
     ["#manageServiceIntakeAddImageBtn", "image"],
     ["#manageServiceIntakeAddRichTextBtn", "rich_text"],
@@ -632,11 +853,442 @@ function msiResolveVisibilitySourceField(sourceId) {
   return null;
 }
 
+const MSI_QG_CAR_VEHICLE_KEYS = [
+  { value: "detail_level", fallback: "Detail level (simple / detailed)" },
+  { value: "preference_type", fallback: "Preference type" },
+  { value: "vehicle_type", fallback: "Vehicle type" },
+  { value: "top_priorities", fallback: "Top priorities" },
+  { value: "make", fallback: "Make (brand)" },
+  { value: "model", fallback: "Model" },
+  { value: "trim", fallback: "Trim" },
+  { value: "vehicle_condition", fallback: "Vehicle condition" },
+  { value: "year_min", fallback: "Year (min)" },
+  { value: "mileage_max", fallback: "Mileage (max)" },
+  { value: "budget_max", fallback: "Budget (this vehicle)" },
+  { value: "must_have_features", fallback: "Must-have features" },
+  { value: "required_options", fallback: "Required options" },
+  { value: "color_preference", fallback: "Color preference" },
+  { value: "notes", fallback: "Notes" },
+];
+
+const MSI_QG_CAR_GLOBAL_KEYS = [
+  { value: "budget_max", fallback: "Overall budget max" },
+  { value: "cash_purchase", fallback: "Cash purchase" },
+  { value: "currency", fallback: "Currency" },
+  { value: "desired_timeline", fallback: "Desired timeline" },
+  { value: "allow_alternative_offers", fallback: "Allow alternative offers" },
+  { value: "location", fallback: "Location" },
+];
+
+/** @param {Record<string, unknown>} payload */
+function msiQgIsBiddingGroup(payload) {
+  return String(payload.group_kind || "").trim().toLowerCase() === "bidding";
+}
+
+/** @param {string} scope */
+function msiQgCarKeyOptionsHtml(scope, selected) {
+  const keys = scope === "global" ? MSI_QG_CAR_GLOBAL_KEYS : MSI_QG_CAR_VEHICLE_KEYS;
+  const sel = String(selected || "").trim();
+  return keys
+    .map((k) => {
+      const label = t(`common.admin_services.intake.qgroup_car_key_${k.value}`, k.fallback);
+      return `<option value="${esc(k.value)}"${k.value === sel ? " selected" : ""}>${esc(label)}</option>`;
+    })
+    .join("");
+}
+
+/**
+ * @param {Record<string, unknown>} child
+ * @param {string} bidScope
+ */
+function msiQgResolveCarKeyFromChild(child, bidScope) {
+  const ck = String(child.car_answer_key || "").trim();
+  if (ck) return ck;
+  const vis = child.visibility_rule_json && typeof child.visibility_rule_json === "object" ? child.visibility_rule_json : {};
+  const fromVis = String(/** @type {Record<string, unknown>} */ (vis).car_answer_key || "").trim();
+  if (fromVis) return fromVis;
+  const keys = bidScope === "global" ? MSI_QG_CAR_GLOBAL_KEYS : MSI_QG_CAR_VEHICLE_KEYS;
+  return keys[0]?.value || "make";
+}
+
+/**
+ * @param {string} bidScope
+ * @param {string} carKey
+ * @param {number} vehicleIndex
+ */
+function msiQgBuildBiddingChildVisibility(bidScope, carKey, vehicleIndex) {
+  const key = String(carKey || "").trim() || (bidScope === "global" ? "budget_max" : "make");
+  if (bidScope === "global") {
+    return {
+      partner_visibility: "BIDDING_PUBLIC",
+      bid_role: "CAR_GLOBAL",
+      car_answer_key: key,
+    };
+  }
+  const vIdx = Math.max(1, Math.min(9, vehicleIndex || 1));
+  return {
+    partner_visibility: "BIDDING_PUBLIC",
+    bid_role: "CAR_REQUIREMENT",
+    vehicle_request_index: vIdx,
+    car_answer_key: key,
+  };
+}
+
+/** @param {Record<string, unknown>} payload */
+/** @param {Record<string, unknown>} payload */
+function msiQgNormalizeVehiclePreferencePayload(payload) {
+  if (!isVehiclePreferenceBiddingGroup(payload)) return payload;
+  const kids = Array.isArray(payload.children) ? payload.children : [];
+  const fromKids = vehiclePreferenceSlotCountFromChildren(kids);
+  const fromMeta = parseInt(String(payload.vehicle_request_index ?? ""), 10);
+  const want = Math.max(1, Math.min(9, Number.isFinite(fromMeta) && fromMeta > 0 ? fromMeta : fromKids || 3));
+  const hasVpIds = kids.some((ch) => /^vp[1-9]_/.test(String(ch?.id || "")));
+  const hasDetailLevel = kids.some((ch) => {
+    const ck = String(ch?.car_answer_key || "").trim();
+    const id = String(ch?.id || "");
+    return ck === "detail_level" || /^vp\d+_detail_level$/.test(id);
+  });
+  if (fromKids === want && hasVpIds && hasDetailLevel) {
+    return {
+      ...payload,
+      vehicle_request_index: want,
+      vehicle_preference_ui: true,
+      children: applyDynamicYearMinOptionsToChildren(kids),
+    };
+  }
+  return {
+    ...payload,
+    vehicle_request_index: want,
+    vehicle_preference_ui: true,
+    children: applyDynamicYearMinOptionsToChildren(buildVehiclePreferenceChildrenForCount(want)),
+  };
+}
+
+function msiQgBiddingGroupSettingsHtml(payload) {
+  const bidScope = String(payload.bid_scope || "vehicle").trim() === "global" ? "global" : "vehicle";
+  const vIdxRaw = payload.vehicle_request_index;
+  let vIdx =
+    vIdxRaw === null || vIdxRaw === undefined || vIdxRaw === ""
+      ? 1
+      : Math.max(1, Math.min(9, parseInt(String(vIdxRaw), 10) || 1));
+  if (isVehiclePreferenceBiddingGroup(payload)) {
+    const fromKids = vehiclePreferenceSlotCountFromChildren(
+      Array.isArray(payload.children) ? payload.children : []
+    );
+    if (fromKids > 0) vIdx = fromKids;
+  }
+  return `
+    <input type="hidden" id="msiQgGroupKind" value="bidding" />
+    <section class="msi-qg-bidding-settings u-mt-2 lhai-card u-p-2">
+      <p class="lhai-label u-m-0">${esc(
+        t("common.admin_services.intake.qgroup_bidding_settings_title", "Partner bidding (CAR)")
+      )}</p>
+      <p class="lhai-help u-mt-1">${esc(
+        t(
+          "common.admin_services.intake.qgroup_bidding_settings_help",
+          "All questions in this group are shown together to customers and included in partner bid requests. Map each row to a bid spec field below."
+        )
+      )}</p>
+      <label class="lhai-label u-mt-2" for="msiQgBidScope">${esc(
+        t("common.admin_services.intake.qgroup_bid_scope", "Bidding scope")
+      )}</label>
+      <select class="lhai-select" id="msiQgBidScope">
+        <option value="vehicle"${bidScope === "vehicle" ? " selected" : ""}>${esc(
+          t("common.admin_services.intake.qgroup_bid_scope_vehicle", "Per vehicle (make, model, mileage, …)")
+        )}</option>
+        <option value="global"${bidScope === "global" ? " selected" : ""}>${esc(
+          t("common.admin_services.intake.qgroup_bid_scope_global", "Global (budget, timeline, …)")
+        )}</option>
+      </select>
+      <div class="msi-qg-vehicle-index-wrap u-mt-2"${bidScope !== "vehicle" ? " hidden" : ""}>
+        <label class="lhai-label" for="msiQgVehicleIndex">${esc(
+          t("common.admin_services.intake.qgroup_vehicle_index", "Vehicle # (multiple cars)")
+        )}</label>
+        <p class="lhai-help u-mt-1">${esc(
+          t(
+            "common.admin_services.intake.qgroup_vehicle_index_vp_help",
+            "Number of vehicle preference slots (1–9). The first question in each slot is labeled 첫번째 선호 차량, 두번째 선호차량, …"
+          )
+        )}</p>
+        <input class="lhai-input" id="msiQgVehicleIndex" type="number" min="1" max="9" step="1" value="${esc(String(vIdx))}" />
+      </div>
+    </section>`;
+}
+
+/** @param {string} bidScope */
+function msiQgChildCarKeyFieldHtml(bidScope, carKey) {
+  return `
+              <label class="lhai-label u-mt-2">${esc(
+                t("common.admin_services.intake.qgroup_child_car_answer_key", "Maps to bid spec field")
+              )}</label>
+              <select class="lhai-select msi-qg-child-car-key">${msiQgCarKeyOptionsHtml(bidScope, carKey)}</select>`;
+}
+
+/** @param {"vehicle"|"global"} scope */
+function msiQgBiddingTemplateSpecs(scope) {
+  const pl = scope === "global" ? msiDefaultBiddingGlobalGroupPayload() : msiDefaultBiddingVehicleGroupPayload();
+  return (Array.isArray(pl.children) ? pl.children : []).map((ch) => {
+    const c = ch && typeof ch === "object" ? /** @type {Record<string, unknown>} */ (ch) : {};
+    return {
+      label: String(c.label || "").trim(),
+      input_type: String(c.input_type || "text"),
+      required: Boolean(c.required),
+      car_answer_key: String(c.car_answer_key || "").trim(),
+    };
+  });
+}
+
+/** @param {Record<string, unknown>} row */
+function msiQgChildRowMatchesTemplateSpec(row, spec) {
+  return (
+    String(row.label || "").trim() === spec.label &&
+    String(row.input_type || "text") === spec.input_type &&
+    Boolean(row.required) === spec.required &&
+    String(row.car_answer_key || "").trim() === spec.car_answer_key
+  );
+}
+
+/** @param {Array<Record<string, unknown>>} rows @param {"vehicle"|"global"} scope */
+function msiQgChildrenRowsMatchTemplate(rows, scope) {
+  const specs = msiQgBiddingTemplateSpecs(scope);
+  if (rows.length !== specs.length) return false;
+  return rows.every((r, i) => msiQgChildRowMatchesTemplateSpec(r, specs[i]));
+}
+
+/** @returns {Array<Record<string, unknown>>} */
+function msiQgReadChildrenRowsFromDom() {
+  const wrap = qs("#msiQgChildren");
+  if (!wrap) return [];
+  const meta = msiQgReadBiddingGroupMetaFromDom();
+  const bidScope = meta.bid_scope === "global" ? "global" : "vehicle";
+  /** @type {Array<Record<string, unknown>>} */
+  const out = [];
+  for (const row of wrap.querySelectorAll("[data-qg-child-row]")) {
+    const labEl = row.querySelector(".msi-qg-child-label");
+    const typeEl = row.querySelector(".msi-qg-child-type");
+    const reqEl = row.querySelector(".msi-qg-child-req");
+    const carKeySel = row.querySelector(".msi-qg-child-car-key");
+    const label = labEl instanceof HTMLInputElement ? labEl.value.trim() : "";
+    const input_type = typeEl instanceof HTMLSelectElement ? typeEl.value : "text";
+    const required = reqEl instanceof HTMLInputElement ? reqEl.checked : false;
+    const car_answer_key =
+      carKeySel instanceof HTMLSelectElement
+        ? String(carKeySel.value || "").trim()
+        : "";
+    out.push({
+      label,
+      input_type,
+      required,
+      car_answer_key: car_answer_key || msiQgResolveCarKeyFromChild({ car_answer_key }, bidScope),
+    });
+  }
+  return out;
+}
+
+/** @param {Array<Record<string, unknown>>} rows */
+function msiQgShouldApplyTemplateOnScopeChange(rows) {
+  if (!rows.length) return true;
+  if (msiQgChildrenRowsMatchTemplate(rows, "vehicle")) return true;
+  if (msiQgChildrenRowsMatchTemplate(rows, "global")) return true;
+  return false;
+}
+
+function msiQgSyncBiddingChildCarKeySelects(mount, scope) {
+  mount.querySelectorAll("[data-qg-child-row]").forEach((row) => {
+    const carKeySel = row.querySelector(".msi-qg-child-car-key");
+    if (!(carKeySel instanceof HTMLSelectElement)) return;
+    const prev = carKeySel.value;
+    carKeySel.innerHTML = msiQgCarKeyOptionsHtml(scope, prev);
+    if (prev && Array.from(carKeySel.options).some((o) => o.value === prev)) {
+      carKeySel.value = prev;
+    }
+  });
+}
+
+function msiQgBindBiddingGroupSettingsHandlers(mount) {
+  const scopeSel = mount.querySelector("#msiQgBidScope");
+  const syncCarKeysAndVehicleWrap = () => {
+    const scope = scopeSel instanceof HTMLSelectElement && scopeSel.value === "global" ? "global" : "vehicle";
+    mount.querySelectorAll(".msi-qg-vehicle-index-wrap").forEach((el) => {
+      if (el instanceof HTMLElement) el.hidden = scope !== "vehicle";
+    });
+    msiQgSyncBiddingChildCarKeySelects(mount, scope);
+  };
+  scopeSel?.addEventListener("change", () => {
+    const newScope = scopeSel instanceof HTMLSelectElement && scopeSel.value === "global" ? "global" : "vehicle";
+    const rows = msiQgReadChildrenRowsFromDom();
+    if (msiQgShouldApplyTemplateOnScopeChange(rows)) {
+      const cur = msiReadQuestionGroupPayloadFromSideDom();
+      const tpl = newScope === "global" ? msiDefaultBiddingGlobalGroupPayload() : msiDefaultBiddingVehicleGroupPayload();
+      /** @type {Record<string, unknown>} */
+      const merged = {
+        title: cur.title,
+        description: cur.description,
+        layout: cur.layout,
+        group_kind: "bidding",
+        bid_scope: newScope,
+        children: msiDeepCloneJson(tpl.children),
+      };
+      if (newScope === "vehicle") {
+        merged.vehicle_request_index =
+          typeof cur.vehicle_request_index === "number" ? cur.vehicle_request_index : 1;
+      }
+      msiRenderQuestionGroupSideEditor(merged);
+      return;
+    }
+    syncCarKeysAndVehicleWrap();
+  });
+  const vEl = mount.querySelector("#msiQgVehicleIndex");
+  vEl?.addEventListener("change", () => {
+    if (!(vEl instanceof HTMLInputElement)) return;
+    const cur = msiReadQuestionGroupPayloadFromSideDom();
+    if (!isVehiclePreferenceBiddingGroup(cur)) return;
+    const n = Math.max(1, Math.min(9, parseInt(String(vEl.value || "1"), 10) || 1));
+    /** @type {Record<string, unknown>} */
+    const merged = {
+      ...cur,
+      vehicle_preference_ui: true,
+      vehicle_request_index: n,
+      children: buildVehiclePreferenceChildrenForCount(n),
+    };
+    msiRenderQuestionGroupSideEditor(merged);
+  });
+  syncCarKeysAndVehicleWrap();
+}
+
+function msiQgReadBiddingGroupMetaFromDom() {
+  const kindEl = qs("#msiQgGroupKind");
+  const group_kind =
+    kindEl instanceof HTMLInputElement && kindEl.value.trim().toLowerCase() === "bidding" ? "bidding" : "standard";
+  if (group_kind !== "bidding") {
+    return { group_kind: "standard" };
+  }
+  const scopeEl = qs("#msiQgBidScope");
+  const bid_scope = scopeEl instanceof HTMLSelectElement && scopeEl.value === "global" ? "global" : "vehicle";
+  let vehicle_request_index = 1;
+  if (bid_scope === "vehicle") {
+    const vEl = qs("#msiQgVehicleIndex");
+    if (vEl instanceof HTMLInputElement) {
+      vehicle_request_index = Math.max(1, Math.min(9, parseInt(String(vEl.value || "1"), 10) || 1));
+    }
+  }
+  return { group_kind, bid_scope, vehicle_request_index };
+}
+
+/** Block-level visibility for bidding vehicle groups (parser group labels). */
+function msiQgBlockVisibilityForBiddingGroup(meta) {
+  if (meta.group_kind !== "bidding" || meta.bid_scope !== "vehicle") {
+    return {};
+  }
+  return {
+    partner_visibility: "BIDDING_PUBLIC",
+    vehicle_request_index: meta.vehicle_request_index ?? 1,
+  };
+}
+
+/** Standard (non-bidding) questions block; one child = single question step. */
+function msiDefaultStandardQuestionGroupPayload(overrides = {}) {
+  const title =
+    typeof overrides.title === "string" && overrides.title.trim()
+      ? overrides.title.trim()
+      : t("common.admin_services.intake.qgroup_default_title", "New questions");
+  const childLabel = typeof overrides.childLabel === "string" ? overrides.childLabel : "";
+  const input_type = typeof overrides.input_type === "string" ? overrides.input_type : "text";
+  const required = overrides.required !== undefined ? Boolean(overrides.required) : true;
+  /** @type {Array<Record<string, unknown>>} */
+  const children = Array.isArray(overrides.children) ? overrides.children : [];
+  const baseChild = {
+    id: msiNewLocalId(),
+    label: childLabel,
+    help_text: typeof overrides.help_text === "string" ? overrides.help_text : "",
+    input_type,
+    placeholder: "",
+    required,
+    default_value: null,
+    validation: {},
+    options: Array.isArray(overrides.options) ? overrides.options : [],
+    prefill: {},
+    visibility_rule_json: {},
+  };
+  return {
+    title,
+    description: typeof overrides.description === "string" ? overrides.description : "",
+    layout: "stack",
+    children: children.length ? children : [baseChild],
+  };
+}
+
+function msiDefaultBiddingVehicleGroupPayload() {
+  const slotCount = 3;
+  return {
+    title: t("common.admin_services.intake.qgroup_bidding_vehicle_title", "Vehicle preferences (bidding)"),
+    description: `${VP_UI_MARKER} Add up to 3 vehicle preferences. Simple or detailed mode; selection-based fields with optional notes.`,
+    group_kind: "bidding",
+    bid_scope: "vehicle",
+    vehicle_request_index: slotCount,
+    vehicle_preference_ui: true,
+    layout: "stack",
+    children: buildVehiclePreferenceChildrenForCount(slotCount),
+  };
+}
+
+function msiDefaultBiddingGlobalGroupPayload() {
+  const mk = () => ({
+    id: msiNewLocalId(),
+    help_text: "",
+    placeholder: "",
+    default_value: null,
+    validation: {},
+    options: [],
+    prefill: {},
+    visibility_rule_json: {},
+  });
+  return {
+    title: t("common.admin_services.intake.qgroup_bidding_global_title", "Purchase preferences (bidding)"),
+    description: t(
+      "common.admin_services.intake.qgroup_bidding_global_desc",
+      "Overall budget and timeline—included in partner CAR bid requests."
+    ),
+    group_kind: "bidding",
+    bid_scope: "global",
+    layout: "stack",
+    children: [
+      {
+        ...mk(),
+        label: t("common.admin_services.intake.qgroup_bid_child_budget", "Max budget"),
+        input_type: "number",
+        required: false,
+        car_answer_key: "budget_max",
+      },
+      {
+        ...mk(),
+        label: t("common.admin_services.intake.qgroup_bid_child_timeline", "Desired timeline"),
+        input_type: "text",
+        required: false,
+        car_answer_key: "desired_timeline",
+      },
+    ],
+  };
+}
+
+function msiQgSyncLayoutSectionVisibility() {
+  const layoutWrap = qs("#msiQgLayoutWrap");
+  const childrenWrap = qs("#msiQgChildren");
+  if (!(layoutWrap instanceof HTMLElement) || !childrenWrap) return;
+  const count = childrenWrap.querySelectorAll("[data-qg-child-row]").length;
+  layoutWrap.hidden = count < 2;
+}
+
 function msiRenderQuestionGroupSideEditor(payload) {
   const mount = qs("#manageServiceIntakeSideQuestionGroupMount");
   if (!(mount instanceof HTMLElement)) return;
   mount.hidden = false;
-  const p = payload && typeof payload === "object" ? payload : {};
+  let p = payload && typeof payload === "object" ? payload : {};
+  if (msiQgIsBiddingGroup(p) && String(p.bid_scope || "vehicle") !== "global") {
+    p = msiQgNormalizeVehiclePreferencePayload(p);
+  }
+  const isBidding = msiQgIsBiddingGroup(p);
+  const bidScope = String(p.bid_scope || "vehicle").trim() === "global" ? "global" : "vehicle";
   const title = String(p.title || "").trim();
   const desc = String(p.description || "");
   const layout = String(p.layout || "stack") === "inline_2" ? "inline_2" : "stack";
@@ -644,13 +1296,29 @@ function msiRenderQuestionGroupSideEditor(payload) {
   const typeOpts = MSI_INPUT_TYPES.map(
     (o) => `<option value="${esc(o.value)}">${esc(t(o.i18nKey, o.fallback))}</option>`
   ).join("");
+  const childrenHelp = isBidding
+    ? t(
+        "common.admin_services.intake.qgroup_bidding_children_help",
+        "Each row is one field in the bundle (e.g. make, model, mileage). Pick which bid spec field it maps to."
+      )
+    : t(
+        "common.admin_services.intake.qgroup_children_help",
+        "Each row is a customer-facing input. For choice fields, add one option per line as value|label."
+      );
   mount.innerHTML = `
+    ${isBidding ? msiQgBiddingGroupSettingsHtml(p) : ""}
     <div class="u-mt-2">
       <label class="lhai-label" for="msiQgDescription">${esc(t("common.admin_services.intake.qgroup_description", "Group description (optional)"))}</label>
       <textarea class="lhai-textarea" id="msiQgDescription" rows="3" maxlength="4000">${esc(desc)}</textarea>
     </div>
-    <div class="u-mt-2">
+    <div class="u-mt-2" id="msiQgLayoutWrap"${children.length < 2 ? " hidden" : ""}>
       <label class="lhai-label" for="msiQgLayout">${esc(t("common.admin_services.intake.qgroup_layout", "Layout"))}</label>
+      <p class="lhai-help u-mt-1">${esc(
+        t(
+          "common.admin_services.intake.qgroup_layout_help",
+          "Choose how multiple questions appear on one screen. Shown when this group has two or more questions."
+        )
+      )}</p>
       <select class="lhai-select" id="msiQgLayout">
         <option value="stack"${layout === "stack" ? " selected" : ""}>${esc(t("common.admin_services.intake.qgroup_layout_stack", "Stack (one column)"))}</option>
         <option value="inline_2"${layout === "inline_2" ? " selected" : ""}>${esc(t("common.admin_services.intake.qgroup_layout_inline2", "Inline (2 columns)"))}</option>
@@ -663,12 +1331,7 @@ function msiRenderQuestionGroupSideEditor(payload) {
           t("common.admin_services.intake.qgroup_add_child", "+ Add question")
         )}</button>
       </div>
-      <p class="lhai-help u-mt-1">${esc(
-        t(
-          "common.admin_services.intake.qgroup_children_help",
-          "Each row is a customer-facing input. For choice fields, add one option per line as value|label."
-        )
-      )}</p>
+      <p class="lhai-help u-mt-1">${esc(childrenHelp)}</p>
       <div id="msiQgChildren" class="u-mt-2">${children
         .map((ch, idx) => {
           const c = ch && typeof ch === "object" ? /** @type {Record<string, unknown>} */ (ch) : {};
@@ -677,6 +1340,7 @@ function msiRenderQuestionGroupSideEditor(payload) {
           const ht = String(c.help_text || "");
           const it = String(c.input_type || "text");
           const req = Boolean(c.required);
+          const carKey = msiQgResolveCarKeyFromChild(c, bidScope);
           const prefill = c.prefill && typeof c.prefill === "object" ? /** @type {Record<string, unknown>} */ (c.prefill) : {};
           const prefillSource = String(prefill.source || "").trim();
           const opts = Array.isArray(c.options) ? c.options : [];
@@ -688,6 +1352,16 @@ function msiRenderQuestionGroupSideEditor(payload) {
               return `${esc(v)}|${esc(l)}`;
             })
             .join("\n");
+          const prefillBlock = isBidding
+            ? ""
+            : `
+              <label class="lhai-label u-mt-2">${esc(
+                t("common.admin_services.intake.qgroup_child_prefill_source", "Prefill from saved custom data (optional)")
+              )}</label>
+              <select class="lhai-select msi-qg-child-prefill-source">
+                ${msiPrefillSourceOptionsHtml(prefillSource, true)}
+              </select>`;
+          const carKeyBlock = isBidding ? msiQgChildCarKeyFieldHtml(bidScope, carKey) : "";
           return `
             <div class="lhai-card u-p-2 u-mb-2" data-qg-child-row="${idx}">
               <input type="hidden" class="msi-qg-child-id" value="${esc(id)}" />
@@ -707,12 +1381,8 @@ function msiRenderQuestionGroupSideEditor(payload) {
               </label>
               <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_help", "Help text (optional)"))}</label>
               <textarea class="lhai-textarea msi-qg-child-help" rows="2" maxlength="2000">${esc(ht)}</textarea>
-              <label class="lhai-label u-mt-2">${esc(
-                t("common.admin_services.intake.qgroup_child_prefill_source", "Prefill from saved custom data (optional)")
-              )}</label>
-              <select class="lhai-select msi-qg-child-prefill-source">
-                ${msiPrefillSourceOptionsHtml(prefillSource, true)}
-              </select>
+              ${carKeyBlock}
+              ${prefillBlock}
               <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_options", "Options (choice fields only)"))}</label>
               <textarea class="lhai-textarea msi-qg-child-options" rows="3" maxlength="8000" placeholder="value|label">${esc(optLines)}</textarea>
             </div>`;
@@ -745,6 +1415,7 @@ function msiRenderQuestionGroupSideEditor(payload) {
       row.remove();
       Array.from(wrap.querySelectorAll("[data-qg-child-row]")).forEach((r, i) => r.setAttribute("data-qg-child-row", String(i)));
       msiRerenderQuestionGroupChildRowControls();
+      msiQgSyncLayoutSectionVisibility();
       return;
     }
     if (up && idx > 0) {
@@ -757,6 +1428,8 @@ function msiRenderQuestionGroupSideEditor(payload) {
     }
     msiRerenderQuestionGroupChildRowControls();
   });
+  if (isBidding) msiQgBindBiddingGroupSettingsHandlers(mount);
+  msiQgSyncLayoutSectionVisibility();
 }
 
 function msiRerenderQuestionGroupChildRowControls() {
@@ -775,10 +1448,23 @@ function msiRerenderQuestionGroupChildRowControls() {
 function msiAppendQuestionGroupChildRow() {
   const wrap = qs("#msiQgChildren");
   if (!wrap) return;
+  const isBidding = qs("#msiQgGroupKind") instanceof HTMLInputElement;
+  const bidScope =
+    qs("#msiQgBidScope") instanceof HTMLSelectElement && qs("#msiQgBidScope").value === "global" ? "global" : "vehicle";
   const idx = wrap.querySelectorAll("[data-qg-child-row]").length;
   const typeOpts = MSI_INPUT_TYPES.map(
     (o) => `<option value="${esc(o.value)}">${esc(t(o.i18nKey, o.fallback))}</option>`
   ).join("");
+  const prefillBlock = isBidding
+    ? ""
+    : `
+      <label class="lhai-label u-mt-2">${esc(
+        t("common.admin_services.intake.qgroup_child_prefill_source", "Prefill from saved custom data (optional)")
+      )}</label>
+      <select class="lhai-select msi-qg-child-prefill-source">
+        ${msiPrefillSourceOptionsHtml("", true)}
+      </select>`;
+  const carKeyBlock = isBidding ? msiQgChildCarKeyFieldHtml(bidScope, bidScope === "global" ? "budget_max" : "make") : "";
   wrap.insertAdjacentHTML(
     "beforeend",
     `
@@ -800,17 +1486,14 @@ function msiAppendQuestionGroupChildRow() {
       </label>
       <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_help", "Help text (optional)"))}</label>
       <textarea class="lhai-textarea msi-qg-child-help" rows="2" maxlength="2000"></textarea>
-      <label class="lhai-label u-mt-2">${esc(
-        t("common.admin_services.intake.qgroup_child_prefill_source", "Prefill from saved custom data (optional)")
-      )}</label>
-      <select class="lhai-select msi-qg-child-prefill-source">
-        ${msiPrefillSourceOptionsHtml("", true)}
-      </select>
+      ${carKeyBlock}
+      ${prefillBlock}
       <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_options", "Options (choice fields only)"))}</label>
       <textarea class="lhai-textarea msi-qg-child-options" rows="3" maxlength="8000" placeholder="value|label"></textarea>
     </div>`
   );
   msiRerenderQuestionGroupChildRowControls();
+  msiQgSyncLayoutSectionVisibility();
 }
 
 function msiHideQuestionGroupSideEditor() {
@@ -826,8 +1509,10 @@ function msiReadQuestionGroupPayloadFromSideDom() {
   const descEl = qs("#msiQgDescription");
   const layoutEl = qs("#msiQgLayout");
   const description = descEl instanceof HTMLTextAreaElement ? descEl.value.trim() : "";
-  const layout = layoutEl instanceof HTMLSelectElement && layoutEl.value === "inline_2" ? "inline_2" : "stack";
   const wrap = qs("#msiQgChildren");
+  const childCount = wrap ? wrap.querySelectorAll("[data-qg-child-row]").length : 0;
+  const layout =
+    childCount >= 2 && layoutEl instanceof HTMLSelectElement && layoutEl.value === "inline_2" ? "inline_2" : "stack";
   /** @type {Array<Record<string, unknown>>} */
   const children = [];
   if (wrap) {
@@ -859,13 +1544,28 @@ function msiReadQuestionGroupPayloadFromSideDom() {
         if (!value) continue;
         options.push({ value, label: lab || value, active: true });
       }
-      children.push({
+      const groupMeta = msiQgReadBiddingGroupMetaFromDom();
+      const carKeySel = row.querySelector(".msi-qg-child-car-key");
+      const car_answer_key =
+        carKeySel instanceof HTMLSelectElement ? String(carKeySel.value || "").trim() : "";
+      let visibility_rule_json = {};
+      if (groupMeta.group_kind === "bidding") {
+        const vpIdx = /^vp([1-9])_/.exec(id);
+        const childVehicleIndex = vpIdx ? parseInt(vpIdx[1], 10) : null;
+        visibility_rule_json = msiQgBuildBiddingChildVisibility(
+          groupMeta.bid_scope || "vehicle",
+          car_answer_key,
+          childVehicleIndex ?? groupMeta.vehicle_request_index ?? 1
+        );
+      }
+      const childRow = {
         id,
         label: label || t("common.admin_services.intake.qgroup_untitled_child", "Untitled question"),
         help_text,
         input_type,
         placeholder: "",
         required,
+        visibility_rule_json,
         prefill: prefillSource
           ? {
               enabled: true,
@@ -879,10 +1579,34 @@ function msiReadQuestionGroupPayloadFromSideDom() {
         default_value: null,
         validation: {},
         options,
-      });
+      };
+      if (groupMeta.group_kind === "bidding" && car_answer_key) {
+        childRow.car_answer_key = car_answer_key;
+      }
+      children.push(childRow);
     }
   }
-  return { title, description, layout, children };
+  const base = { title, description, layout, children };
+  const groupMeta = msiQgReadBiddingGroupMetaFromDom();
+  if (groupMeta.group_kind === "bidding") {
+    const out = {
+      ...base,
+      group_kind: "bidding",
+      bid_scope: groupMeta.bid_scope || "vehicle",
+      ...(groupMeta.bid_scope === "vehicle" ? { vehicle_request_index: groupMeta.vehicle_request_index ?? 1 } : {}),
+    };
+    if (isVehiclePreferenceBiddingGroup(out)) {
+      out.vehicle_preference_ui = true;
+      if (groupMeta.bid_scope === "vehicle") {
+        out.vehicle_request_index = Math.max(
+          1,
+          Math.min(9, parseInt(String(groupMeta.vehicle_request_index ?? ""), 10) || vehiclePreferenceSlotCountFromChildren(out.children) || 3)
+        );
+      }
+    }
+    return out;
+  }
+  return base;
 }
 
 function msiRegenerateQuestionGroupChildIds(payload) {
@@ -981,7 +1705,12 @@ export function setServiceEditorTab(which) {
   if (docsPanel) docsPanel.hidden = !showDocs;
   if (workflowPanel) workflowPanel.hidden = !showWorkflow;
 
-  if (showIntake) void msiRefresh();
+  if (!showIntake) msiCancelSidePanel();
+
+  if (showIntake) {
+    msiSyncBiddingAddButtonsVisibility();
+    void msiRefresh();
+  }
   if (showDocs) void msdRefresh();
   if (showWorkflow) workflowTabActivated();
 }
@@ -1211,6 +1940,91 @@ function msiResolveVisibilityRuleForSave() {
   return msiBuildSimpleVisibilityForSave();
 }
 
+function msiDeepCloneJson(value) {
+  if (value == null) return value;
+  try {
+    return structuredClone(value);
+  } catch {
+    return JSON.parse(JSON.stringify(value));
+  }
+}
+
+function msiCaptureSideEditorSnapshot(block) {
+  if (!block?.id) {
+    msiSideEditorSnapshot = null;
+    return;
+  }
+  msiSideEditorSnapshot = {
+    blockId: String(block.id),
+    payload: msiDeepCloneJson(block.payload && typeof block.payload === "object" ? block.payload : {}),
+    visibility_rule_json: msiDeepCloneJson(
+      block.visibility_rule_json && typeof block.visibility_rule_json === "object" ? block.visibility_rule_json : {}
+    ),
+  };
+}
+
+function msiRestoreSideEditorFromSnapshot() {
+  if (!msiSideEditorSnapshot) return;
+  const { blockId, payload, visibility_rule_json } = msiSideEditorSnapshot;
+  const block = msiBlocks.find((b) => String(b.id) === blockId);
+  if (block) {
+    block.payload = msiDeepCloneJson(payload);
+    block.visibility_rule_json = msiDeepCloneJson(visibility_rule_json);
+    msiRenderFieldCards();
+  }
+  msiSideEditorSnapshot = null;
+}
+
+function msiClearSideEditorSnapshot() {
+  msiSideEditorSnapshot = null;
+}
+
+/** Revert in-memory block state from the open-editor snapshot (no API). */
+function msiDiscardSideEditorChanges() {
+  msiRestoreSideEditorFromSnapshot();
+}
+
+function msiArmSideDismissGuard() {
+  msiSideDismissGuardUntil = Date.now() + 500;
+}
+
+/** Close side editor without persisting edits (Cancel, ×, backdrop). */
+function msiCancelSidePanel() {
+  msiArmSideDismissGuard();
+  msiDiscardSideEditorChanges();
+  msiCloseSidePanel();
+}
+
+function msiCaptureFieldDialogSnapshot(field) {
+  if (!field?.id) {
+    msiFieldDialogSnapshot = null;
+    return;
+  }
+  msiFieldDialogSnapshot = {
+    fieldId: String(field.id),
+    field: msiDeepCloneJson(field),
+  };
+}
+
+function msiRestoreFieldDialogFromSnapshot() {
+  if (!msiFieldDialogSnapshot) return;
+  const { fieldId, field } = msiFieldDialogSnapshot;
+  const idx = msiFields.findIndex((f) => String(f.id) === fieldId);
+  if (idx >= 0 && field && typeof field === "object") {
+    msiFields[idx] = msiDeepCloneJson(field);
+    msiRenderFieldCards();
+  }
+  msiFieldDialogSnapshot = null;
+}
+
+function msiCancelFieldDialog() {
+  msiRestoreFieldDialogFromSnapshot();
+  msiDeletedOptionIds = new Set();
+  const dlg = qs("#manageServiceIntakeFieldDialog");
+  if (dlg instanceof HTMLDialogElement) dlg.close();
+  msiResetSidePanelEmpty();
+}
+
 function msiCloseSidePanel() {
   msiHideQuestionGroupSideEditor();
   const form = qs("#manageServiceIntakeSideForm");
@@ -1221,6 +2035,7 @@ function msiCloseSidePanel() {
   if (empty) empty.hidden = false;
   if (th) th.hidden = true;
   if (p) p.hidden = true;
+  msiClearSideEditorSnapshot();
   msiSyncIntakeEditorFocusLayout(false);
 }
 
@@ -1379,7 +2194,14 @@ function msiOpenSideEditor(block) {
   const h = qs("#manageServiceIntakeSideHeading");
   const typeHelp = qs("#manageServiceIntakeSideTypeHelp");
   if (!p || !form || !block) return;
+  const formWasOpen = form instanceof HTMLElement && !form.hidden;
+  const prevBlockId = qs("#manageServiceIntakeSideBlockId")?.value?.trim() || "";
+  if (formWasOpen && prevBlockId && prevBlockId !== String(block.id || "").trim()) {
+    msiDiscardSideEditorChanges();
+    msiCloseSidePanel();
+  }
   msiHideQuestionGroupSideEditor();
+  msiCaptureSideEditorSnapshot(block);
   msiLastOpenedContentBlockId = String(block.id || "").trim();
   p.hidden = false;
   form.hidden = false;
@@ -1393,7 +2215,7 @@ function msiOpenSideEditor(block) {
   }
   const bid = qs("#manageServiceIntakeSideBlockId");
   if (bid instanceof HTMLInputElement) bid.value = block.id;
-  const pl = { ...(block.payload || {}) };
+  const pl = msiDeepCloneJson(block.payload && typeof block.payload === "object" ? block.payload : {});
   const titleIn = qs("#manageServiceIntakeSideTitleInput");
   const bodySection = qs("#manageServiceIntakeSideBodySection");
   const media = qs("#manageServiceIntakeSideMediaUrl");
@@ -1427,7 +2249,9 @@ function msiOpenSideEditor(block) {
     titleLbl.hidden = bt === "divider";
     if (isQuestionGroup) {
       titleLbl.hidden = false;
-      titleLbl.textContent = t("common.admin_services.intake.qgroup_side_title_label", "Group title");
+      titleLbl.textContent = msiQgIsBiddingGroup(pl)
+        ? t("common.admin_services.intake.qgroup_bidding_side_title", "Bidding group title")
+        : t("common.admin_services.intake.qgroup_side_title_label", "Group title");
     } else {
       titleLbl.textContent = t("common.admin_services.intake.side_title", "Title (optional)");
     }
@@ -1490,10 +2314,25 @@ async function msiSaveSideEditor() {
   }
   const bt = String(block.block_type);
   if (bt === "question_group") {
-    const pl = msiReadQuestionGroupPayloadFromSideDom();
     const statusEl = qs("#manageServiceIntakeStatus");
+    let pl;
+    try {
+      pl = msiReadQuestionGroupPayloadFromSideDom();
+    } catch (e) {
+      window.alert(e && typeof e.message === "string" ? e.message : String(e));
+      return;
+    }
+    if (msiQgIsBiddingGroup(pl)) {
+      const bidBlockVis = msiQgBlockVisibilityForBiddingGroup({
+        group_kind: "bidding",
+        bid_scope: pl.bid_scope,
+        vehicle_request_index: pl.vehicle_request_index,
+      });
+      visibility_rule_json = { ...bidBlockVis, ...visibility_rule_json };
+    }
     try {
       await serviceIntakeAdminApi.updateBlock(blockId, { payload: pl, visibility_rule_json });
+      msiClearSideEditorSnapshot();
       await msiRefresh();
       msiCloseSidePanel();
     } catch (err) {
@@ -1547,6 +2386,7 @@ async function msiSaveSideEditor() {
   const statusEl = qs("#manageServiceIntakeStatus");
   try {
     await serviceIntakeAdminApi.updateBlock(blockId, { payload: pl, visibility_rule_json });
+    msiClearSideEditorSnapshot();
     await msiRefresh();
     msiCloseSidePanel();
   } catch (err) {
@@ -1556,7 +2396,7 @@ async function msiSaveSideEditor() {
   }
 }
 
-async function msiAddContentBlock(blockType) {
+async function msiAddContentBlock(blockType, options = {}) {
   const serviceItemId = qs("#manageServiceId")?.value?.trim();
   if (!serviceItemId) {
     const statusEl = qs("#manageServiceIntakeStatus");
@@ -1608,42 +2448,26 @@ async function msiAddContentBlock(blockType) {
         style_variant: "default",
       },
       divider: { style_variant: "default" },
-      question_group: {
-        title: t("common.admin_services.intake.qgroup_default_title", "New question group"),
-        description: "",
-        layout: "stack",
-        children: [
-          {
-            id: msiNewLocalId(),
-            label: t("common.admin_services.intake.qgroup_default_child1", "First name"),
-            help_text: "",
-            input_type: "text",
-            placeholder: "",
-            required: true,
-            default_value: null,
-            validation: {},
-            options: [],
-          },
-          {
-            id: msiNewLocalId(),
-            label: t("common.admin_services.intake.qgroup_default_child2", "Last name"),
-            help_text: "",
-            input_type: "text",
-            placeholder: "",
-            required: true,
-            default_value: null,
-            validation: {},
-            options: [],
-          },
-        ],
-      },
+      question_group: msiDefaultStandardQuestionGroupPayload(),
     };
+    let payload = defaults[blockType] || {};
+    if (blockType === "question_group" && options.biddingPayload && typeof options.biddingPayload === "object") {
+      payload = options.biddingPayload;
+    }
+    let visibility_rule_json = {};
+    if (msiQgIsBiddingGroup(payload)) {
+      visibility_rule_json = msiQgBlockVisibilityForBiddingGroup({
+        group_kind: "bidding",
+        bid_scope: payload.bid_scope,
+        vehicle_request_index: payload.vehicle_request_index,
+      });
+    }
     const created = await serviceIntakeAdminApi.createBlock(tmpl.id, {
       block_type: blockType,
       // Keep global block order deterministic across all block types.
       sort_order: msiIntakeMaxSortOrder() + 1,
-      payload: defaults[blockType] || {},
-      visibility_rule_json: {},
+      payload,
+      visibility_rule_json,
     });
     await msiRefresh();
     const b = msiBlocks.find((x) => x.id === created.id);
@@ -1706,7 +2530,9 @@ function msiRenderFieldCards() {
           : t("common.admin_services.intake.req_no", "Optional");
         const ht = f.help_text || "";
         const helpPrev = ht.length > 140 ? `${ht.slice(0, 140)}…` : ht;
-        const badges = [];
+        const badges = [
+          `<span class="lhai-badge">${esc(t("common.admin_services.intake.badge_legacy_question", "Legacy — convert"))}</span>`,
+        ];
         if (f.archived_at) badges.push(`<span class="lhai-badge">${esc(t("common.admin_services.intake.badge_archived", "Archived"))}</span>`);
         if (!f.active) badges.push(`<span class="lhai-badge">${esc(t("common.admin_services.intake.badge_inactive", "Inactive"))}</span>`);
         const archAction = f.archived_at ? "unarchive" : "archive";
@@ -1719,7 +2545,12 @@ function msiRenderFieldCards() {
           <div class="admin-services__intake-card-head">
             <div class="admin-services__intake-card-head-text">
               <div class="admin-services__intake-card-type">${esc(typeBadge)}</div>
-              <p class="lhai-help admin-services__intake-card-type-help">${esc(msiBlockTypeHelp("question"))}</p>
+              <p class="lhai-help admin-services__intake-card-type-help">${esc(
+                t(
+                  "common.admin_services.intake.legacy_question_help",
+                  "Older single-question block. Convert to a Questions block to match the current builder (recommended)."
+                )
+              )}</p>
               <div class="admin-services__intake-card-title">${esc(f.label || "—")}</div>
               <div class="lhai-help admin-services__intake-card-meta">${esc(typeLabel)} · ${esc(reqLabel)}</div>
             </div>
@@ -1727,6 +2558,9 @@ function msiRenderFieldCards() {
           </div>
           <p class="lhai-help admin-services__intake-card-help">${esc(helpPrev || "—")}</p>
           <div class="admin-services__row-actions admin-services__intake-card-actions">
+            <button type="button" class="lhai-button lhai-button--primary lhai-button--compact" data-msi-action="convert_to_group">${esc(
+              t("common.admin_services.intake.convert_to_questions_block", "Convert to Questions")
+            )}</button>
             <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-msi-action="edit">${esc(t("common.admin_services.actions.edit", "Edit"))}</button>
             <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-msi-action="duplicate">${esc(t("common.admin_services.intake.duplicate", "Duplicate"))}</button>
             <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" data-msi-action="up" aria-label="${esc(upLabel)}" ${idx === 0 ? "disabled" : ""}>↑</button>
@@ -1738,6 +2572,7 @@ function msiRenderFieldCards() {
       }
       if (bt === "question_group") {
         const pl = block.payload && typeof block.payload === "object" ? /** @type {Record<string, unknown>} */ (block.payload) : {};
+        const isBidding = msiQgIsBiddingGroup(pl);
         const kids = Array.isArray(pl.children) ? pl.children : [];
         const labels = kids
           .map((ch) => (ch && typeof ch === "object" ? String(/** @type {Record<string, unknown>} */ (ch).label || "").trim() : ""))
@@ -1752,14 +2587,36 @@ function msiRenderFieldCards() {
         const inactive = block.active === false;
         const badges = [];
         if (inactive) badges.push(`<span class="lhai-badge">${esc(t("common.admin_services.intake.badge_inactive", "Inactive"))}</span>`);
+        if (isBidding) {
+          badges.push(
+            `<span class="lhai-badge">${esc(t("common.admin_services.intake.badge_bidding_group", "Partner bidding"))}</span>`
+          );
+        }
+        const typeBadgeQg = isBidding
+          ? t("common.admin_services.intake.block_type_bidding_question_group", "Bidding question group")
+          : typeBadge;
+        const typeHelpQg = isBidding
+          ? t(
+              "common.admin_services.intake.block_type_bidding_question_group_help",
+              "A bundle of related questions (e.g. make, model, mileage) sent together to partners in CAR bid requests. Add one group per vehicle or a global preferences group."
+            )
+          : msiBlockTypeHelp("question_group");
+        const metaExtra = isBidding
+          ? String(pl.bid_scope || "vehicle") === "global"
+            ? t("common.admin_services.intake.qgroup_bid_meta_global", "global bidding")
+            : t("common.admin_services.intake.qgroup_bid_meta_vehicle", "vehicle #{n}").replace(
+                "{n}",
+                String(pl.vehicle_request_index ?? 1)
+              )
+          : layout;
         return `
-        <article class="admin-services__intake-card lhai-card admin-services__intake-card--block" data-block-id="${esc(block.id)}" data-block-type="question_group">
+        <article class="admin-services__intake-card lhai-card admin-services__intake-card--block${isBidding ? " admin-services__intake-card--bidding-group" : ""}" data-block-id="${esc(block.id)}" data-block-type="question_group">
           <div class="admin-services__intake-card-head">
             <div class="admin-services__intake-card-head-text">
-              <div class="admin-services__intake-card-type">${esc(typeBadge)}</div>
-              <p class="lhai-help admin-services__intake-card-type-help">${esc(msiBlockTypeHelp("question_group"))}</p>
+              <div class="admin-services__intake-card-type">${esc(typeBadgeQg)}</div>
+              <p class="lhai-help admin-services__intake-card-type-help">${esc(typeHelpQg)}</p>
               <div class="admin-services__intake-card-title">${esc(msiBlockCardTitle(block))}</div>
-              <div class="lhai-help admin-services__intake-card-meta">${esc(layout)} · ${esc(
+              <div class="lhai-help admin-services__intake-card-meta">${esc(metaExtra)} · ${esc(
                 t("common.admin_services.intake.qgroup_child_count", "{n} questions").replace("{n}", String(kids.length))
               )}</div>
             </div>
@@ -1818,6 +2675,17 @@ export function intakeActiveQuestionFieldKeys() {
     if (f.archived_at) continue;
     const fk = String(f.field_key || "").trim();
     if (fk) keys.add(fk);
+  }
+  for (const b of msiSortedBlocks()) {
+    if (String(b.block_type || "") !== "question_group" || b.archived_at || b.active === false) continue;
+    const pl = b.payload && typeof b.payload === "object" ? /** @type {Record<string, unknown>} */ (b.payload) : {};
+    const kids = Array.isArray(pl.children) ? pl.children : [];
+    for (const ch of kids) {
+      if (!ch || typeof ch !== "object") continue;
+      const row = /** @type {Record<string, unknown>} */ (ch);
+      const fk = String(row.field_key || row.id || "").trim();
+      if (fk) keys.add(fk);
+    }
   }
   return keys;
 }
@@ -1891,6 +2759,7 @@ export async function msiRefresh() {
     msiRenderFieldCards();
     msiRenderTechnical();
     msiResetSidePanelEmpty();
+    msiSyncBiddingAddButtonsVisibility();
     if (statusEl) statusEl.textContent = "";
   } catch (err) {
     msiTemplate = null;
@@ -1910,6 +2779,7 @@ export function msiOnServiceContextChanged() {
   const id = qs("#manageServiceId")?.value?.trim() || "";
   if (intakeBtn) intakeBtn.disabled = !id;
   if (docsBtn) docsBtn.disabled = !id;
+  msiSyncBiddingAddButtonsVisibility();
   msdOnServiceContextChanged();
   msiUpdateIntakeHint();
   if (!id) {
@@ -2010,7 +2880,7 @@ function msiReadChoicesFromDomOrdered() {
 }
 
 function msiOpenDialog(mode, field) {
-  msiCloseSidePanel();
+  msiCancelSidePanel();
   const dlg = qs("#manageServiceIntakeFieldDialog");
   if (!dlg || !(dlg instanceof HTMLDialogElement)) return;
   msiDeletedOptionIds = new Set();
@@ -2055,7 +2925,10 @@ function msiOpenDialog(mode, field) {
   msiToggleOptionsBlockVisibility();
   msiUpdateBehaviorSubfieldsVisibility();
   msiRenderChoiceEditors();
-  msiApplyPrefillToDialog(field?.prefill);
+  msiApplyPrefillToDialog(field?.prefill, field?.write_back);
+  void msiLoadCustomerProfileFieldRegistry().then(() => {
+    msiApplyPrefillToDialog(field?.prefill, field?.write_back);
+  });
 
   const titleEl = qs("#manageServiceIntakeDialogTitle");
   const subEl = qs("#manageServiceIntakeDialogSubtitle");
@@ -2076,10 +2949,12 @@ function msiOpenDialog(mode, field) {
         );
   }
 
+  msiCaptureFieldDialogSnapshot(isEdit ? field : null);
   dlg.showModal();
 }
 
 function msiCloseDialog() {
+  msiFieldDialogSnapshot = null;
   const dlg = qs("#manageServiceIntakeFieldDialog");
   if (dlg instanceof HTMLDialogElement) dlg.close();
   msiResetSidePanelEmpty();
@@ -2131,7 +3006,10 @@ async function msiSaveDialogField() {
     visibility_rule_json,
     default_value: qs("#manageServiceIntakeFieldDefault")?.value?.trim() || null,
     active: Boolean(qs("#manageServiceIntakeFieldActive")?.checked),
-    prefill: msiReadPrefillFromDialog(),
+    ...(() => {
+      const { prefill, write_back } = msiReadPrefillFromDialog();
+      return { prefill, write_back };
+    })(),
   };
   const editId = qs("#manageServiceIntakeFieldEditId")?.value?.trim() || "";
   const statusEl = qs("#manageServiceIntakeStatus");
@@ -2190,6 +3068,7 @@ async function msiSaveDialogField() {
         await serviceIntakeAdminApi.reorderOptions(fieldId, idOrder);
       }
     }
+    msiFieldDialogSnapshot = null;
     msiCloseDialog();
     await msiRefresh();
   } catch (err) {
@@ -2212,26 +3091,101 @@ async function msiDuplicateField(fieldId) {
     const maxOrder = msiIntakeMaxSortOrder();
     const copySuffix = t("common.admin_services.intake.copy_suffix", "copy");
     const copyLabel = `${f.label || ""} (${copySuffix})`.trim();
-    const created = await serviceIntakeAdminApi.createField(msiTemplate.id, {
-      label: copyLabel,
-      help_text: f.help_text || "",
-      input_type: f.input_type || "text",
-      placeholder: f.placeholder || "",
-      required: Boolean(f.required),
+    const options = (f.options || []).map((o) => ({
+      value: String(o.value ?? o.id ?? "").trim() || String(o.label || "").trim(),
+      label: String(o.label || o.value || "").trim(),
+      active: o.active !== false,
+    }));
+    await serviceIntakeAdminApi.createBlock(msiTemplate.id, {
+      block_type: "question_group",
       sort_order: maxOrder + 1,
-      visibility_rule_json: f.visibility_rule_json && typeof f.visibility_rule_json === "object" ? { ...f.visibility_rule_json } : {},
-      default_value: f.default_value ?? null,
-      active: true,
-      prefill: f.prefill && typeof f.prefill === "object" ? { ...f.prefill } : {},
+      payload: msiDefaultStandardQuestionGroupPayload({
+        title: copyLabel,
+        help_text: f.help_text || "",
+        childLabel: copyLabel,
+        input_type: f.input_type || "text",
+        required: Boolean(f.required),
+        options,
+        children: [
+          {
+            id: msiNewLocalId(),
+            label: copyLabel,
+            help_text: f.help_text || "",
+            input_type: f.input_type || "text",
+            placeholder: f.placeholder || "",
+            required: Boolean(f.required),
+            default_value: f.default_value ?? null,
+            validation: f.validation && typeof f.validation === "object" ? { ...f.validation } : {},
+            options,
+            prefill: f.prefill && typeof f.prefill === "object" ? { ...f.prefill } : {},
+            visibility_rule_json: {},
+          },
+        ],
+      }),
+      visibility_rule_json:
+        f.visibility_rule_json && typeof f.visibility_rule_json === "object" ? { ...f.visibility_rule_json } : {},
     });
-    if (msiIsChoiceType(f.input_type) && Array.isArray(f.options)) {
-      for (const o of f.options) {
-        if (o.label) await serviceIntakeAdminApi.createOption(created.id, { label: o.label, active: o.active !== false });
-      }
-    }
     await msiRefresh();
   } catch (err) {
     if (statusEl) statusEl.textContent = err?.message || "Duplicate failed";
+  }
+}
+
+/** Legacy ``question`` block → ``question_group`` (preserves child id for existing answers). */
+async function msiConvertLegacyQuestionToGroup(blockId) {
+  const f = msiFieldForQuestionBlock(blockId);
+  const block = msiBlocks.find((b) => b.id === blockId);
+  const tmplId = msiTemplate?.id;
+  if (!f || !block || String(block.block_type) !== "question" || !tmplId) return;
+  const statusEl = qs("#manageServiceIntakeStatus");
+  const options = (f.options || []).map((o, i) => ({
+    value: String(o.value ?? "").trim() || String(o.label ?? "").trim() || `opt_${i + 1}`,
+    label: String(o.label || o.value || "").trim(),
+    active: o.active !== false,
+  }));
+  try {
+    const created = await serviceIntakeAdminApi.createBlock(tmplId, {
+      block_type: "question_group",
+      sort_order: block.sort_order ?? msiIntakeMaxSortOrder() + 1,
+      payload: msiDefaultStandardQuestionGroupPayload({
+        title: f.label || t("common.admin_services.intake.qgroup_default_title", "New questions"),
+        description: f.help_text || "",
+        children: [
+          {
+            id: f.id,
+            label: f.label || "",
+            help_text: f.help_text || "",
+            input_type: f.input_type || "text",
+            placeholder: f.placeholder || "",
+            required: Boolean(f.required),
+            default_value: f.default_value ?? null,
+            validation: f.validation && typeof f.validation === "object" ? { ...f.validation } : {},
+            options,
+            prefill: f.prefill && typeof f.prefill === "object" ? { ...f.prefill } : {},
+            write_back: f.write_back && typeof f.write_back === "object" ? { ...f.write_back } : {},
+            visibility_rule_json: {},
+          },
+        ],
+      }),
+      visibility_rule_json:
+        block.visibility_rule_json && typeof block.visibility_rule_json === "object"
+          ? { ...block.visibility_rule_json }
+          : {},
+    });
+    await serviceIntakeAdminApi.deleteBlock(blockId);
+    await msiRefresh();
+    const b = msiBlocks.find((x) => x.id === created.id);
+    if (b) msiOpenSideEditor(b);
+    if (statusEl) {
+      statusEl.textContent = t(
+        "common.admin_services.intake.legacy_question_converted",
+        "Converted to a Questions block. You can add more fields in the group if needed."
+      );
+    }
+  } catch (err) {
+    const msg = err && typeof err.message === "string" ? err.message : String(err);
+    if (statusEl) statusEl.textContent = msg;
+    window.alert(msg);
   }
 }
 
@@ -2243,8 +3197,9 @@ export function initManageServiceIntakeTab() {
   msiWireIntakeBuilderHints();
 
   msiPopulateInputTypeSelect();
-  msiInitPrefillSourceSelectOptions();
+  void msiLoadCustomerProfileFieldRegistry();
   qs("#manageServiceIntakePrefillEnabled")?.addEventListener("change", () => msiSyncPrefillSubcontrolsDisabled());
+  qs("#manageServiceIntakeWriteBackEnabled")?.addEventListener("change", () => msiSyncPrefillSubcontrolsDisabled());
 
   qsa("#manageServiceEditorTabs [data-service-editor-tab]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -2258,27 +3213,6 @@ export function initManageServiceIntakeTab() {
     });
   });
 
-  qs("#manageServiceIntakeAddQuestionBtn")?.addEventListener("click", async () => {
-    const id = qs("#manageServiceId")?.value?.trim();
-    if (!id) {
-      const statusEl = qs("#manageServiceIntakeStatus");
-      if (statusEl) {
-        statusEl.textContent = t(
-          "common.admin_services.intake.hint_need_saved_service",
-          "Save the service first, then you can define the customer intake (fields and options) for this service item in Customer Intake Builder."
-        );
-      }
-      return;
-    }
-    try {
-      await msiEnsureTemplate(id);
-      msiOpenDialog("new", null);
-    } catch (err) {
-      const statusEl = qs("#manageServiceIntakeStatus");
-      if (statusEl) statusEl.textContent = err?.message || "";
-    }
-  });
-
   qs("#manageServiceIntakeAddNoticeBtn")?.addEventListener("click", () => void msiAddContentBlock("notice"));
   qs("#manageServiceIntakeAddImageBtn")?.addEventListener("click", () => void msiAddContentBlock("image"));
   qs("#manageServiceIntakeAddRichTextBtn")?.addEventListener("click", () => void msiAddContentBlock("rich_text"));
@@ -2286,10 +3220,32 @@ export function initManageServiceIntakeTab() {
   qs("#manageServiceIntakeAddQuestionGroupBtn")?.addEventListener("click", () => void msiAddContentBlock("question_group"));
   qs("#manageServiceIntakePresetPhoneBtn")?.addEventListener("click", () => void msiApplyPhoneStylePreset());
 
-  qs("#manageServiceIntakeSideCloseBtn")?.addEventListener("click", () => msiCloseSidePanel());
-  qs("#manageServiceIntakeSideBackdrop")?.addEventListener("click", () => msiCloseSidePanel());
-  qs("#manageServiceIntakeSideSaveBtn")?.addEventListener("click", () => void msiSaveSideEditor());
-  qs("#manageServiceIntakeSideDeleteBtn")?.addEventListener("click", () => msiCloseSidePanel());
+  qs("#manageServiceIntakeSideCloseBtn")?.addEventListener("click", () => msiCancelSidePanel());
+  qs("#manageServiceIntakeSideBackdrop")?.addEventListener("mousedown", (ev) => {
+    ev.preventDefault();
+    msiArmSideDismissGuard();
+  });
+  qs("#manageServiceIntakeSideBackdrop")?.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    msiCancelSidePanel();
+  });
+  qs("#manageServiceIntakeSideSaveBtn")?.addEventListener("click", (ev) => {
+    if (Date.now() < msiSideDismissGuardUntil) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      return;
+    }
+    ev.stopPropagation();
+    void msiSaveSideEditor();
+  });
+  qs("#manageServiceIntakeSideForm")?.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    if (e.target instanceof HTMLTextAreaElement) return;
+    e.preventDefault();
+  });
+  qs("#manageServiceIntakeSideDeleteBtn")?.addEventListener("click", () => msiCancelSidePanel());
+  qs("#manageServiceIntakeSidePanel")?.addEventListener("click", (ev) => ev.stopPropagation());
 
   qsa('input[name="msiSideVisibilityMode"]').forEach((el) => {
     el.addEventListener("change", () => msiSideSyncVisibilityConditionalBlock());
@@ -2297,6 +3253,7 @@ export function initManageServiceIntakeTab() {
   qs("#manageServiceIntakeSideVisibilitySourceField")?.addEventListener("change", () => msiSideRefreshVisibilityMatchControl());
 
   qs("#manageServiceIntakeFields")?.addEventListener("click", async (e) => {
+    if (Date.now() < msiSideDismissGuardUntil) return;
     const btn = e.target.closest("[data-msi-action]");
     const card = e.target.closest("[data-block-id]");
     if (!btn || !card) return;
@@ -2308,6 +3265,10 @@ export function initManageServiceIntakeTab() {
     if (bt === "question") {
       const f = msiFieldForQuestionBlock(blockId);
       if (!f) return;
+      if (action === "convert_to_group") {
+        await msiConvertLegacyQuestionToGroup(blockId);
+        return;
+      }
       if (action === "edit") {
         msiOpenDialog("edit", f);
         return;
@@ -2462,8 +3423,22 @@ export function initManageServiceIntakeTab() {
     msiPopulateVisibilitySourceSelect(editId, !editId, "");
   });
 
-  qs("#manageServiceIntakeDialogCancelBtn")?.addEventListener("click", () => msiCloseDialog());
+  const fieldDlg = qs("#manageServiceIntakeFieldDialog");
+  if (fieldDlg instanceof HTMLDialogElement && fieldDlg.dataset.msiCancelWired !== "1") {
+    fieldDlg.dataset.msiCancelWired = "1";
+    fieldDlg.addEventListener("cancel", (e) => {
+      e.preventDefault();
+      msiCancelFieldDialog();
+    });
+  }
+  qs("#manageServiceIntakeDialogCancelBtn")?.addEventListener("click", () => msiCancelFieldDialog());
   qs("#manageServiceIntakeDialogSaveBtn")?.addEventListener("click", () => void msiSaveDialogField());
+  qs("#manageServiceIntakeFieldForm")?.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    if (e.target instanceof HTMLTextAreaElement) return;
+    if (e.target instanceof HTMLSelectElement) return;
+    e.preventDefault();
+  });
 
   qs("#manageServiceIntakeSideMediaFile")?.addEventListener("change", (ev) => {
     const input = ev.target;
@@ -2509,11 +3484,9 @@ export function initManageServiceIntakeTab() {
     templateId: msiTemplate?.id ?? null,
   }));
 
-  qs("#manageServiceIntakeFieldForm")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    void msiSaveDialogField();
-  });
+  document.addEventListener("lhai:admin-workflow-type-changed", () => msiSyncBiddingAddButtonsVisibility());
 
   msiOnServiceContextChanged();
+  msiSyncBiddingAddButtonsVisibility();
   msiSyncIntakeEditorFocusLayout(false);
 }

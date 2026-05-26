@@ -5,16 +5,36 @@
   <title>Admin Customers - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/admin-customer-detail.css" />
 </head>
 <body>
-    <div id="lhai-app-header-root"></div>
+  <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial admin-sidebar.html --></aside>
+    <aside class="lhai-sidebar" id="sidebar"></aside>
     <main class="lhai-main">
-      <section class="lhai-page-header"><div><h1 class="lhai-title">Customers</h1><p class="lhai-subtitle">List/detail pattern for customer operations.</p></div></section>
-      <section class="lhai-grid lhai-grid--2">
-        <article class="lhai-card"><h2 class="lhai-card__title">Customer List</h2><ul class="lhai-list"><li class="lhai-list__item">Acme Corp</li><li class="lhai-list__item">Blue Studio</li></ul></article>
-        <article class="lhai-card"><h2 class="lhai-card__title">Selected Customer Detail</h2><div class="lhai-state lhai-state--empty">Select a customer to inspect status.</div></article>
+      <section class="lhai-page-header">
+        <div>
+          <h1 class="lhai-title">Customers</h1>
+          <p class="lhai-subtitle">고객을 선택하면 Customer 360 상세 화면으로 이동합니다.</p>
+        </div>
+      </section>
+      <section class="lhai-card">
+        <h2 class="lhai-card__title">Customer list</h2>
+        <p class="lhai-help u-mb-2">분석 API에 등록된 고객 프로필입니다. 위험 보드와 동일한 소스를 사용합니다.</p>
+        <div id="adminCustomersList">
+          <div class="lhai-state">목록을 불러오는 중…</div>
+        </div>
+      </section>
+      <section class="lhai-card u-mt-3">
+        <h2 class="lhai-card__title">직접 열기</h2>
+        <p class="lhai-help u-mb-2">프로필 ID(UUID 또는 legacy <code>profile::email</code>)를 입력하세요.</p>
+        <form id="adminCustomersOpenForm" class="ac360-open-form">
+          <label class="lhai-label" for="adminCustomersProfileId">customer_profile_id</label>
+          <div class="ac360-open-form__row">
+            <input class="lhai-input" type="text" id="adminCustomersProfileId" name="customer_profile_id" placeholder="uuid 또는 profile::user@example.com" autocomplete="off" />
+            <button type="submit" class="lhai-button lhai-button--primary">Customer 360 열기</button>
+          </div>
+        </form>
       </section>
     </main>
   </div>

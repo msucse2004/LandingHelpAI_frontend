@@ -41,3 +41,35 @@ test("buildCustomerBidResultsHref encodes query", async () => {
   assert.match(href, /service_request_id=wid/);
   assert.match(href, /thread_id=tid/);
 });
+
+test("bidUpdatedMatchesScope filters partner bid_request_id", async () => {
+  const m = await importFresh(logicPath);
+  assert.equal(
+    m.bidUpdatedMatchesScope(
+      { bid_request_id: "br-1", thread_id: "t1" },
+      { bidRequestId: "br-1" },
+    ),
+    true,
+  );
+  assert.equal(
+    m.bidUpdatedMatchesScope(
+      { bid_request_id: "br-2", cancelled_bid_request_id: "br-1", thread_id: "t1" },
+      { bidRequestId: "br-1" },
+    ),
+    true,
+  );
+  assert.equal(
+    m.bidUpdatedMatchesScope(
+      { bid_request_id: "br-2", thread_id: "t1" },
+      { bidRequestId: "br-1" },
+    ),
+    false,
+  );
+});
+
+test("isBiddingBidUpdatedPayload requires bid or thread id", async () => {
+  const m = await importFresh(logicPath);
+  assert.equal(m.isBiddingBidUpdatedPayload({ bid_request_id: "x" }), true);
+  assert.equal(m.isBiddingBidUpdatedPayload({ thread_id: "t" }), true);
+  assert.equal(m.isBiddingBidUpdatedPayload({ update_kind: "X" }), false);
+});

@@ -20,8 +20,23 @@ const MSW_WORKFLOW_TYPES = [
   "MULTI_PARTNER_QUOTE_AND_SELECT",
 ];
 
+/**
+ * Workflow types that use partner bidding intake blocks (+ Bidding vehicle/global).
+ * Product rule: admin picks 「여러 파트너에게 견적 요청 후 고객이 선택합니다」 (= MULTI_PARTNER_QUOTE_AND_SELECT).
+ */
+const MSW_BIDDING_WORKFLOW_TYPES = new Set(["MULTI_PARTNER_QUOTE_AND_SELECT"]);
+
 /** Product default when service has no workflow yet (human-managed; admin opts in to AI-only). */
 const MSW_DEFAULT_WORKFLOW_TYPE = "HUMAN_AGENT_MANAGED";
+
+/** Last ``workflow_type`` loaded from the service row (may be outside ``MSW_WORKFLOW_TYPES``). */
+let mswLoadedWorkflowTypeRaw = null;
+/** True after the admin changes workflow type radios in this editor session. */
+let mswWorkflowTypeTouchedInEditor = false;
+/** @type {(() => void) | null} */
+let mswOnWorkflowTypeChangeCallback = null;
+/** @type {(() => string | null | undefined) | null} */
+let mswCatalogWorkflowTypeProvider = null;
 
 /** 고정 파트너: 이메일(비회원) vs 카탈로그 내 계정 연결 파트너. */
 const MSW_FIXED_TARGET_EMAIL = "email";
@@ -440,6 +455,110 @@ let mswRetainedMessageTemplates = {};
 /** ``email_interpretation`` (excluding threshold field filled from DOM on save). */
 let mswRetainedEmailInterpretation = {};
 let mswPassthroughExtras = {};
+/** Full server ``bidding`` object (preserves mode / CAR keys) merged on save. */
+let mswLastServerBidding = {};
+
+const MSW_BIDDING_DEFAULTS = {
+  enabled: true,
+  bid_window_hours: 72,
+  max_quote_requests_per_customer: 3,
+  max_partner_offers_per_bid: 3,
+  allow_partner_bid_updates: true,
+  requires_offer_photos: false,
+  default_sort: "recommended",
+};
+
+const MSW_BIDDING_POLICY_KEYS = new Set(Object.keys(MSW_BIDDING_DEFAULTS));
+
+const MSW_BIDDING_SORT_OPTIONS = [
+  { value: "recommended", label: "Recommended" },
+  { value: "lowest_total", label: "Lowest total" },
+  { value: "recently_updated", label: "Recently updated" },
+  { value: "photo_first", label: "Photos first" },
+  { value: "lowest_fees", label: "Lowest fees" },
+  { value: "fastest_timeline", label: "Fastest timeline" },
+  { value: "newest_year", label: "Newest year (CAR)" },
+  { value: "lowest_mileage", label: "Lowest mileage (CAR)" },
+];
+
+function mswNormalizeBiddingPolicy(raw) {
+  const out = { ...MSW_BIDDING_DEFAULTS };
+  if (!raw || typeof raw !== "object") return out;
+  if (raw.enabled != null) out.enabled = Boolean(raw.enabled);
+  if (raw.allow_partner_bid_updates != null) out.allow_partner_bid_updates = Boolean(raw.allow_partner_bid_updates);
+  if (raw.requires_offer_photos != null) out.requires_offer_photos = Boolean(raw.requires_offer_photos);
+  const intKeys = ["bid_window_hours", "max_quote_requests_per_customer", "max_partner_offers_per_bid"];
+  for (const key of intKeys) {
+    if (raw[key] == null) continue;
+    const n = Number(raw[key]);
+    if (Number.isFinite(n) && n >= 1) out[key] = Math.floor(n);
+  }
+  if (raw.max_offers != null) {
+    const n = Number(raw.max_offers);
+    if (Number.isFinite(n) && n >= 1) out.max_partner_offers_per_bid = Math.floor(n);
+  }
+  const sort = String(raw.default_sort || "").trim();
+  if (MSW_BIDDING_SORT_OPTIONS.some((o) => o.value === sort)) out.default_sort = sort;
+  return out;
+}
+
+function mswApplyBiddingPolicyToDom(policy) {
+  const cfg = mswNormalizeBiddingPolicy(policy);
+  const enabled = qs("#mswBiddingEnabled");
+  if (enabled instanceof HTMLInputElement) enabled.checked = cfg.enabled !== false;
+  const hours = qs("#mswBiddingWindowHours");
+  if (hours instanceof HTMLInputElement) hours.value = String(cfg.bid_window_hours);
+  const rounds = qs("#mswBiddingMaxRounds");
+  if (rounds instanceof HTMLInputElement) rounds.value = String(cfg.max_quote_requests_per_customer);
+  const offers = qs("#mswBiddingMaxOffers");
+  if (offers instanceof HTMLInputElement) offers.value = String(cfg.max_partner_offers_per_bid);
+  const updates = qs("#mswBiddingAllowUpdates");
+  if (updates instanceof HTMLInputElement) updates.checked = cfg.allow_partner_bid_updates !== false;
+  const photos = qs("#mswBiddingRequirePhotos");
+  if (photos instanceof HTMLInputElement) photos.checked = cfg.requires_offer_photos === true;
+  const sortEl = qs("#mswBiddingDefaultSort");
+  if (sortEl instanceof HTMLSelectElement) sortEl.value = cfg.default_sort;
+}
+
+function mswExtractBiddingPolicyFromDom() {
+  const enabled = qs("#mswBiddingEnabled");
+  const hours = qs("#mswBiddingWindowHours");
+  const rounds = qs("#mswBiddingMaxRounds");
+  const offers = qs("#mswBiddingMaxOffers");
+  const updates = qs("#mswBiddingAllowUpdates");
+  const photos = qs("#mswBiddingRequirePhotos");
+  const sortEl = qs("#mswBiddingDefaultSort");
+  return mswNormalizeBiddingPolicy({
+    enabled: enabled instanceof HTMLInputElement ? enabled.checked : true,
+    bid_window_hours: hours instanceof HTMLInputElement ? hours.value : 72,
+    max_quote_requests_per_customer: rounds instanceof HTMLInputElement ? rounds.value : 3,
+    max_partner_offers_per_bid: offers instanceof HTMLInputElement ? offers.value : 3,
+    allow_partner_bid_updates: updates instanceof HTMLInputElement ? updates.checked : true,
+    requires_offer_photos: photos instanceof HTMLInputElement ? photos.checked : false,
+    default_sort: sortEl instanceof HTMLSelectElement ? sortEl.value : "recommended",
+  });
+}
+
+function mswBuildBiddingForPayload() {
+  const policy = mswExtractBiddingPolicyFromDom();
+  const base =
+    mswLastServerBidding && typeof mswLastServerBidding === "object"
+      ? mswDeepClone(mswLastServerBidding)
+      : {};
+  for (const key of MSW_BIDDING_POLICY_KEYS) {
+    base[key] = policy[key];
+  }
+  return base;
+}
+
+function mswHydrateBiddingFromConfig(cfg) {
+  const bidding = cfg && typeof cfg.bidding === "object" && !Array.isArray(cfg.bidding) ? cfg.bidding : {};
+  mswLastServerBidding = mswDeepClone(bidding);
+  mswApplyBiddingPolicyToDom(bidding);
+  if (cfg && typeof cfg === "object" && "bidding" in cfg) {
+    delete mswPassthroughExtras.bidding;
+  }
+}
 /** Intake 질문 ``field_key`` 목록 — Customer Intake Builder와 workflow 검증 연동. */
 let mswIntakeFieldKeysProvider = () => new Set();
 /** Service-aware Customer Intake Builder options provider for SINGLE partner workflow. */
@@ -682,6 +801,11 @@ function mswDefaultSlice(type) {
         min_responses: 1,
         timeout_hours: 48,
         ranking_rule: "low_price_first",
+        required_customer_fields: ["customer_profile.target_state"],
+        customer_location_sources: [
+          "customer_profile.target_state",
+          "customer_profile.state",
+        ],
       };
     default:
       return {};
@@ -728,6 +852,62 @@ function mswSetRadio(name, value) {
 function mswSelectedWorkflowType() {
   const el = qs('input[name="mswWorkflowType"]:checked');
   return el?.value || MSW_DEFAULT_WORKFLOW_TYPE;
+}
+
+function mswNotifyWorkflowTypeDependents() {
+  try {
+    mswOnWorkflowTypeChangeCallback?.();
+  } catch {
+    /* ignore */
+  }
+  if (typeof document !== "undefined") {
+    document.dispatchEvent(new CustomEvent("lhai:admin-workflow-type-changed"));
+  }
+}
+
+/** Whether this catalog workflow uses bidding question-group blocks in Customer Intake Builder. */
+export function workflowTypeUsesBiddingIntakeBlocks(workflowType) {
+  return MSW_BIDDING_WORKFLOW_TYPES.has(String(workflowType || "").trim().toUpperCase());
+}
+
+function mswCatalogWorkflowTypeForCurrentEditor() {
+  try {
+    const v = mswCatalogWorkflowTypeProvider?.();
+    if (v == null || v === "") return null;
+    return String(v).trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Effective workflow for the service open in the editor (intake toolbar, etc.).
+ * Prefers catalog ``workflow_type`` for ``#manageServiceId`` so switching services cannot leave a stale radio checked.
+ * After the admin changes workflow radios (unsaved), uses the radio until workflow is saved or another service is loaded.
+ */
+export function workflowEffectiveWorkflowTypeForIntake() {
+  const selected = String(mswSelectedWorkflowType() || "").trim().toUpperCase();
+  if (mswWorkflowTypeTouchedInEditor) {
+    return selected;
+  }
+  const catalogRaw = mswCatalogWorkflowTypeForCurrentEditor();
+  const declared = mswNormalizeWorkflowType(catalogRaw ?? mswLoadedWorkflowTypeRaw);
+  return declared || MSW_DEFAULT_WORKFLOW_TYPE;
+}
+
+/** Show all intake answers to partners; bidding-specific intake blocks are deprecated. */
+export function workflowIntakeBiddingAddBlocksEnabled() {
+  return false;
+}
+
+/** @param {(() => void) | null} fn */
+export function workflowSetOnWorkflowTypeChange(fn) {
+  mswOnWorkflowTypeChangeCallback = typeof fn === "function" ? fn : null;
+}
+
+/** @param {() => string | null | undefined} fn Returns ``workflow_type`` for ``#manageServiceId`` from the catalog list. */
+export function workflowSetCatalogWorkflowTypeProvider(fn) {
+  mswCatalogWorkflowTypeProvider = typeof fn === "function" ? fn : null;
 }
 
 function mswSingleStrategySelected() {
@@ -986,6 +1166,13 @@ function mswExtractSliceFromDom(type) {
       const maxR = Number(mswVal("mswMultiMaxRequests", "1000"));
       const minR = Number(mswVal("mswMultiMinResponses", "1"));
       const hrs = Number(mswVal("mswMultiTimeoutHours", "48"));
+      const mpSlice = mswPerTypeConfig.MULTI_PARTNER_QUOTE_AND_SELECT || {};
+      const reqFields = Array.isArray(mpSlice.required_customer_fields)
+        ? mpSlice.required_customer_fields.map(String)
+        : ["customer_profile.target_state"];
+      const locSources = Array.isArray(mpSlice.customer_location_sources)
+        ? mpSlice.customer_location_sources.map(String)
+        : ["customer_profile.target_state", "customer_profile.state"];
       return {
         partner_type: mswVal("mswMultiPartnerType", ""),
         matching_strategy: mswVal("mswMultiMatchingStrategy", ""),
@@ -993,6 +1180,8 @@ function mswExtractSliceFromDom(type) {
         min_responses: Number.isFinite(minR) ? Math.max(0, Math.min(99, minR)) : 1,
         timeout_hours: Number.isFinite(hrs) ? Math.max(1, Math.min(720, hrs)) : 48,
         ranking_rule: mswVal("mswMultiRankingRule", "low_price_first") || "low_price_first",
+        required_customer_fields: reqFields,
+        customer_location_sources: locSources,
       };
     }
     default:
@@ -1155,6 +1344,10 @@ function mswToggleSections() {
     const sec = qs(`#${id}`);
     if (sec) sec.hidden = map[type] !== id;
   }
+  const biddingBlock = qs("#mswBiddingSettings");
+  if (biddingBlock instanceof HTMLElement) {
+    biddingBlock.hidden = !workflowTypeUsesBiddingIntakeBlocks(type);
+  }
   mswSyncSinglePartnerTargetUi();
 }
 
@@ -1202,12 +1395,11 @@ function workflowComputeValidation(intakeFieldKeys) {
     }
     const matchStr = String(mp.matching_strategy || "").trim();
     if (mswMultiStrategyUsesCustomerState(matchStr)) {
-      const ok = hasIntakeKey("customer_state") || hasIntakeKey("shipping_state") || hasIntakeKey("home_state");
-      if (!ok) {
-        warnings.push(
-          "이 workflow는 파트너 매칭에 고객의 주(State)가 필요합니다. Customer Intake Builder에 거주 주를 묻는 질문을 추가해 주세요."
-        );
-      }
+      warnings.push(
+        "이 workflow는 고객의 State 정보가 필요합니다. " +
+          "State 정보는 Customer Profile DB의 target_state 또는 state 값을 우선 사용합니다. " +
+          "회원가입, 설문, 인테이크, 관리자 입력 중 하나에서 해당 값을 수집하도록 설정해 주세요."
+      );
     }
     if (matchStr && !mswIsKnownMultiMatchingStrategy(matchStr)) {
       warnings.push(
@@ -1925,6 +2117,7 @@ function mswResetFormToDefaults() {
 }
 
 function mswOnWorkflowTypeRadioChange() {
+  mswWorkflowTypeTouchedInEditor = true;
   const oldType = mswTrackedType;
   const newType = mswSelectedWorkflowType();
   if (oldType && MSW_WORKFLOW_TYPES.includes(oldType)) {
@@ -1935,6 +2128,7 @@ function mswOnWorkflowTypeRadioChange() {
   mswTrackedType = newType;
   mswToggleSections();
   mswRefreshPreview();
+  mswNotifyWorkflowTypeDependents();
 }
 
 function mswBindPanel() {
@@ -2017,6 +2211,8 @@ function mswBindPanel() {
  */
 export function workflowHydrateFromService(svc) {
   if (!svc || typeof svc !== "object") return;
+  mswLoadedWorkflowTypeRaw = String(svc.workflow_type || "").trim().toUpperCase() || null;
+  mswWorkflowTypeTouchedInEditor = false;
   const cfg = mswParseCfg(svc.workflow_config_json);
   const knownRoots = new Set([
     "message_templates",
@@ -2047,6 +2243,8 @@ export function workflowHydrateFromService(svc) {
       ? mswDeepClone(cfg.message_templates)
       : {};
 
+  mswHydrateBiddingFromConfig(cfg);
+
   for (const wt of MSW_WORKFLOW_TYPES) {
     const serverSlice = mswExtractServerSliceForType(wt, cfg);
     mswPerTypeConfig[wt] = mswMergeDefaults(wt, serverSlice);
@@ -2062,13 +2260,18 @@ export function workflowHydrateFromService(svc) {
 
   mswToggleSections();
   mswRefreshPreview();
+  mswNotifyWorkflowTypeDependents();
 }
 
 /** New service / cleared selection — defaults + empty stash. */
 export function workflowHydrateForCreate() {
+  mswLoadedWorkflowTypeRaw = null;
+  mswWorkflowTypeTouchedInEditor = false;
   mswPassthroughExtras = {};
+  mswLastServerBidding = {};
   mswRetainedEmailInterpretation = {};
   mswRetainedMessageTemplates = {};
+  mswApplyBiddingPolicyToDom(MSW_BIDDING_DEFAULTS);
   const thrIn = qs("#mswEmailAutoPublishThreshold");
   if (thrIn instanceof HTMLInputElement) thrIn.value = "";
   for (const wt of MSW_WORKFLOW_TYPES) {
@@ -2079,6 +2282,7 @@ export function workflowHydrateForCreate() {
   for (const wt of MSW_WORKFLOW_TYPES) {
     mswPerTypeConfig[wt] = mswMergeDefaults(wt, mswExtractSliceFromDom(wt));
   }
+  mswNotifyWorkflowTypeDependents();
 }
 
 /**
@@ -2150,6 +2354,9 @@ export function workflowGetPayload() {
   }
   if (Object.keys(ei).length) {
     out.email_interpretation = ei;
+  }
+  if (workflowTypeUsesBiddingIntakeBlocks(workflow_type)) {
+    out.bidding = mswBuildBiddingForPayload();
   }
   return { workflow_type, workflow_config_json: out };
 }

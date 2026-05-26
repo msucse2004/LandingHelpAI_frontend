@@ -25,6 +25,7 @@ test("resolveCustomerBidDisplayPhase OPEN vs EXPIRED vs SELECTED", async () => {
   assert.equal(m.resolveCustomerBidDisplayPhase("CUSTOMER_SELECTED", future), "CUSTOMER_SELECTED");
   assert.equal(m.resolveCustomerBidDisplayPhase("OPEN", future), "OPEN");
   assert.equal(m.resolveCustomerBidDisplayPhase("OPEN", past), "EXPIRED");
+  assert.equal(m.resolveCustomerBidDisplayPhase("EXPIRED", future), "EXPIRED");
 });
 
 test("buildCustomerBidRequestTabs includes alternatives", async () => {
@@ -46,20 +47,46 @@ test("filterOffersByTab alternatives only", async () => {
   assert.equal(alt[0].offer_id, "b");
 });
 
-test("buildCustomerBidsApiQuery maps filters", async () => {
+test("buildCustomerBidsApiQuery maps product filters", async () => {
   const m = await importFresh(logicPath);
   const q = m.buildCustomerBidsApiQuery({
-    sort: "lowest_total",
+    sort: "photo_first",
+    hasPhotos: true,
     budgetOnly: true,
-    condition: "USED",
-    cleanTitle: true,
-    make: "Honda",
+    productCategory: "vehicle",
+    partner: "uuid-1",
+    location: "Raleigh",
   });
-  assert.equal(q.sort, "lowest_total");
+  assert.equal(q.sort, "photo_first");
+  assert.equal(q.has_photos, true);
   assert.equal(q.budget_only, true);
-  assert.equal(q.condition, "USED");
-  assert.equal(q.clean_title, true);
-  assert.equal(q.make, "Honda");
+  assert.equal(q.product_category, "vehicle");
+  assert.equal(q.partner, "uuid-1");
+  assert.equal(q.location, "Raleigh");
+});
+
+test("formatOfferRankBadge shows rank total", async () => {
+  const m = await importFresh(logicPath);
+  const badge = m.formatOfferRankBadge(
+    { rank: 1, rank_total: 12, rank_basis: "recommended" },
+    "recommended",
+  );
+  assert.match(badge, /추천순 기준 1위 \/ 12개/);
+});
+
+test("offerThumbnailUrl prefers thumbnail_url", async () => {
+  const m = await importFresh(logicPath);
+  assert.equal(m.offerThumbnailUrl({ thumbnail_url: "https://x/t.jpg" }), "https://x/t.jpg");
+  assert.equal(
+    m.offerThumbnailUrl({ photos: [{ url: "https://x/p.jpg" }] }),
+    "https://x/p.jpg",
+  );
+});
+
+test("emptyOffersMessage OPEN vs EXPIRED", async () => {
+  const m = await importFresh(logicPath);
+  assert.match(m.emptyOffersMessage("OPEN", 0), /준비 중/);
+  assert.match(m.emptyOffersMessage("EXPIRED", 0), /새 비딩/);
 });
 
 test("formatOfferVehicleTitle joins year make model", async () => {
@@ -90,4 +117,55 @@ test("buildCustomerBidResultsPageHref encodes params", async () => {
   const href = m.buildCustomerBidResultsPageHref("wid-1", "tid-2");
   assert.match(href, /service_request_id=wid-1/);
   assert.match(href, /thread_id=tid-2/);
+});
+
+test("renderSelectionConversationBannerHtml includes Open conversation", async () => {
+  const m = await importFresh(logicPath);
+  const html = m.renderSelectionConversationBannerHtml(
+    "thread-uuid",
+    { title: "Widget Pro", estimated_total: "99" },
+    { partner_name: "Acme" },
+  );
+  assert.match(html, /added to the conversation/i);
+  assert.match(html, /Open conversation/);
+  assert.match(html, /thread_id=/);
+});
+
+test("customerBidStatusBannerMessage for EXPIRED and CLOSED", async () => {
+  const m = await importFresh(logicPath);
+  assert.match(m.customerBidStatusBannerMessage("EXPIRED"), /새 라운드/);
+  assert.match(m.customerBidStatusBannerMessage("CLOSED"), /종료/);
+  assert.equal(m.canSelectCustomerBid("OPEN"), true);
+  assert.equal(m.canSelectCustomerBid("EXPIRED"), false);
+});
+
+test("quoteRequestRemaining and canRequestNewBidRound", async () => {
+  const m = await importFresh(logicPath);
+  const usage = { max_quote_requests: 3, used_quote_requests: 2, remaining_quote_requests: 1 };
+  assert.equal(m.quoteRequestRemaining(usage), 1);
+  const future = new Date(Date.now() + 3600_000).toISOString();
+  assert.equal(
+    m.canRequestNewBidRound({
+      status: "OPEN",
+      expires_at: future,
+      quote_request_usage: usage,
+    }),
+    true,
+  );
+  assert.equal(
+    m.canRequestNewBidRound({
+      status: "CUSTOMER_SELECTED",
+      expires_at: future,
+      quote_request_usage: usage,
+    }),
+    false,
+  );
+  assert.equal(
+    m.canRequestNewBidRound({
+      status: "OPEN",
+      expires_at: future,
+      quote_request_usage: { max_quote_requests: 3, used_quote_requests: 3, remaining_quote_requests: 0 },
+    }),
+    false,
+  );
 });

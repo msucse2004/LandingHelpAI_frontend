@@ -280,14 +280,173 @@ export function formatMoney(n, currency = "USD") {
   }
 }
 
+const VP_VEHICLE_TYPE_LABELS = {
+  any: "Any",
+  sedan: "Sedan",
+  suv: "SUV",
+  minivan: "Minivan",
+  truck: "Truck",
+  hatchback: "Hatchback",
+  hybrid: "Hybrid",
+  electric: "Electric",
+};
+
+const VP_PRIORITY_LABELS = {
+  reliability: "Reliability",
+  good_mpg: "Good gas mileage",
+  family_friendly: "Family friendly",
+  low_maintenance: "Low maintenance cost",
+  safety: "Safety",
+  value: "Best value",
+  comfort: "Comfort",
+  cargo: "Cargo space",
+};
+
+const VP_FEATURE_LABELS = {
+  clean_title: "Clean title",
+  no_accident: "No accident history",
+  backup_camera: "Backup camera",
+  carplay: "Apple CarPlay",
+  android_auto: "Android Auto",
+  bluetooth: "Bluetooth",
+  good_mpg: "Good gas mileage",
+  low_maintenance: "Low maintenance cost",
+  leather: "Leather seats",
+  sunroof: "Sunroof",
+  awd: "AWD / 4WD",
+  hybrid: "Hybrid",
+  family_friendly: "Family friendly",
+};
+
+const VP_TIMELINE_LABELS = {
+  asap: "As soon as possible",
+  "1_week": "Within 1 week",
+  "2_weeks": "Within 2 weeks",
+  "1_month": "Within 1 month",
+  flexible: "Flexible",
+};
+
+const VP_COLOR_LABELS = {
+  white: "White",
+  black: "Black",
+  silver: "Silver",
+  gray: "Gray",
+  blue: "Blue",
+  red: "Red",
+};
+
+/** @param {unknown} raw */
+function formatVehicleType(raw) {
+  const s = String(raw ?? "").trim().toLowerCase();
+  if (!s || s === "any") return "Any";
+  return VP_VEHICLE_TYPE_LABELS[s] || String(raw).trim();
+}
+
+/** @param {unknown} raw */
+function formatVpEnumList(raw, labels) {
+  const list = Array.isArray(raw) ? raw : [];
+  return list
+    .map((v) => labels[String(v).trim().toLowerCase()] || String(v).trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+/** @param {unknown} n */
+function formatBudgetCap(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v <= 0) return "";
+  return `Under $${v.toLocaleString("en-US")}`;
+}
+
+/** @param {unknown} year */
+function formatYearMin(year) {
+  if (year == null || year === "") return "";
+  const n = Number(year);
+  if (Number.isFinite(n) && n >= 1980) return `${n} or newer`;
+  const s = String(year).trim();
+  return s || "";
+}
+
+/** @param {unknown} miles */
+function formatMileageMax(miles) {
+  if (miles == null || miles === "") return "";
+  const n = Number(miles);
+  if (Number.isFinite(n) && n > 0) return `Under ${n.toLocaleString("en-US")} miles`;
+  const s = String(miles).trim();
+  return s || "";
+}
+
+/** @param {Record<string, unknown>} vr */
+export function vehicleRequestDetailLevel(vr) {
+  const explicit = String(vr.detail_level || "").trim().toLowerCase();
+  if (explicit === "simple" || explicit === "detailed") return explicit;
+  const make = String(vr.make || "").trim();
+  const model = String(vr.model || "").trim();
+  const pref = String(vr.preference_type || "").trim();
+  if (make || model || pref) return "detailed";
+  return "simple";
+}
+
+/** @param {Record<string, unknown>} vr */
+export function vehicleRequestModeLine(vr) {
+  if (vehicleRequestDetailLevel(vr) === "simple") {
+    return "Customer provided simple preferences and is open to recommendations.";
+  }
+  return "Customer provided detailed requirements.";
+}
+
+/** @param {Record<string, unknown>} vr */
+export function vehicleRequestHeadline(vr) {
+  const make = String(vr.make || "").trim();
+  const model = String(vr.model || "").trim();
+  const idx = vr.request_index ?? "";
+  const level = vehicleRequestDetailLevel(vr);
+
+  if (level === "simple") {
+    const vt = formatVehicleType(vr.vehicle_type);
+    const budget = formatBudgetCap(vr.budget_max) || "No strict budget";
+    const vtPart = vt && vt !== "Any" ? vt : "Any vehicle";
+    return `${vtPart} under ${budget}`;
+  }
+
+  const pref = String(vr.preference_type || "").trim().toLowerCase();
+  if (pref === "open_to_suggestions") {
+    const vt = formatVehicleType(vr.vehicle_type);
+    return vt && vt !== "Any" ? `${vt} (open to suggestions)` : "Open to suggestions";
+  }
+  if (!make && !model) return String(vr.label || `Request #${idx}`).trim() || `Request #${idx}`;
+  const mm = [make, model].filter(Boolean).join(" ");
+  if (pref === "similar_vehicle") return `${mm} or similar`;
+  return mm;
+}
+
 /** @param {Record<string, unknown>} vr */
 export function vehicleRequestSummaryLines(vr) {
-  const cond = String(vr.vehicle_condition || "").trim();
-  const condLabel =
-    cond === "NEW" ? "신차" : cond === "USED" ? "중고차" : cond || "";
+  const level = vehicleRequestDetailLevel(vr);
   const parts = [];
+
+  if (level === "simple") {
+    const priorities = formatVpEnumList(vr.top_priorities, VP_PRIORITY_LABELS);
+    if (priorities) parts.push(`Priorities: ${priorities}`);
+    const timeline = VP_TIMELINE_LABELS[String(vr.desired_timeline || "").trim().toLowerCase()];
+    if (timeline) parts.push(`Timeline: ${timeline}`);
+    return parts.join(" · ");
+  }
+
+  const cond = String(vr.vehicle_condition || "").trim();
+  const condLabel = cond === "NEW" ? "신차" : cond === "USED" ? "중고차" : cond || "";
   if (condLabel) parts.push(condLabel);
-  if (vr.year_min != null) parts.push(`${vr.year_min}년 이후`);
-  if (vr.mileage_max != null) parts.push(`${Number(vr.mileage_max).toLocaleString()} miles 이하`);
+  const year = formatYearMin(vr.year_min);
+  if (year) parts.push(`Year: ${year}`);
+  const miles = formatMileageMax(vr.mileage_max);
+  if (miles) parts.push(`Mileage: ${miles}`);
+  const budget = formatBudgetCap(vr.budget_max);
+  if (budget) parts.push(`Budget: ${budget}`);
+  const mustHave = formatVpEnumList(vr.must_have_features, VP_FEATURE_LABELS);
+  const legacyOpts = Array.isArray(vr.required_options) ? vr.required_options : [];
+  const featText = mustHave || legacyOpts.join(", ");
+  if (featText) parts.push(`Must-have: ${featText}`);
+  const color = VP_COLOR_LABELS[String(vr.color_preference || "").trim().toLowerCase()];
+  if (color) parts.push(`Color: ${color}`);
   return parts.join(" · ");
 }

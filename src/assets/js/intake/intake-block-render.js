@@ -5,6 +5,7 @@
  * present), and `intake_content_block` thread messages via `intake-runtime-view.js`.
  */
 import DOMPurify from "https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.es.mjs";
+import { isEffectivelyEmptyIntakeHelpText, shouldHideIntakeBlockTitle } from "./intake-form-presentation.js";
 import { resolveBackendMediaUrl } from "../core/utils.js";
 
 /** Quill-style HTML from admin body editor; strip scripts/on* handlers while keeping lists/colors/links. */
@@ -110,14 +111,18 @@ export function renderIntakeContentBlocksArray(contentBlocks, opts = {}) {
       mediaHtml = `<div class="lhai-intake-block__asset-placeholder u-text-muted">${escapeHtml(`자료 참조 ID: ${assetId}`)}</div>`;
     }
 
-    const titleHtml = title ? `<h4 class="lhai-intake-block__title">${escapeHtml(title)}</h4>` : "";
-    const bodySafe = sanitizeIntakeBodyHtml(body);
+    const titleHtml =
+      title && !shouldHideIntakeBlockTitle(title)
+        ? `<h4 class="lhai-intake-block__title">${escapeHtml(title)}</h4>`
+        : "";
+    const bodySafe = isEffectivelyEmptyIntakeHelpText(body) ? "" : sanitizeIntakeBodyHtml(body);
     const richCls = bt === "rich_text" ? "lhai-intake-block__body--rich" : "";
     const bodyHtml = bodySafe
       ? `<div class="lhai-intake-block__body lhai-intake-block__body--html ${richCls}">${bodySafe}</div>`
       : "";
 
     if (bt === "notice" || bt === "image" || bt === "rich_text") {
+      if (!titleHtml && !mediaHtml && !bodyHtml) continue;
       parts.push(`<section class="${baseCls}">${titleHtml}${mediaHtml}${bodyHtml}</section>`);
     }
   }

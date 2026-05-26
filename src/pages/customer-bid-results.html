@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>자동차 구매 견적 비교 — Landing Help AI</title>
+  <title>견적 제안 비교 — Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" />
   <link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" />
@@ -20,28 +20,36 @@
 
       <section class="lhai-page-header">
         <div>
-          <h1 class="lhai-title">자동차 구매 견적 결과</h1>
-          <p class="lhai-subtitle">도착한 차량 제안을 한곳에서 비교하고 선택할 수 있습니다.</p>
+          <h1 class="lhai-title">견적 제안 비교</h1>
+          <p class="lhai-subtitle">파트너가 제출한 제안을 한곳에서 비교하고 선택할 수 있습니다.</p>
         </div>
       </section>
 
       <p id="cbrError" class="lhai-state lhai-state--error" role="alert" hidden></p>
-      <p id="cbrLoading" class="lhai-cbr-loading">견적을 불러오는 중…</p>
+      <p id="cbrLoading" class="lhai-cbr-loading">제안을 불러오는 중…</p>
 
       <div id="cbrMain" hidden>
+        <div id="cbrCountdownBanner" class="lhai-cbr-countdown" hidden role="status"></div>
+        <div id="cbrSelectedBanner" class="lhai-cbr-banner lhai-cbr-banner--success" hidden role="status"></div>
+        <div id="cbrConversationBanner" class="lhai-cbr-conversation lhai-cbr-banner--success" hidden role="status"></div>
         <div id="cbrStatusBanner" class="lhai-cbr-banner" hidden role="status"></div>
 
-        <section class="lhai-card lhai-cbr-summary" aria-label="견적 요약">
+        <section class="lhai-card lhai-cbr-summary" aria-label="비딩 요약">
           <dl class="lhai-cbr-summary__grid">
-            <div><dt>도착한 제안</dt><dd><span id="cbrOfferCount">0</span>개</dd></div>
-            <div><dt>참여 파트너</dt><dd><span id="cbrPartnerCount">0</span>명</dd></div>
-            <div><dt>비딩 마감까지</dt><dd id="cbrCountdown">—</dd></div>
-            <div><dt>최근 업데이트</dt><dd id="cbrRecentUpdate">—</dd></div>
-            <div><dt>견적 요청 사용</dt><dd id="cbrQuoteUsage">—</dd></div>
+            <div><dt>비딩 상태</dt><dd id="cbrBidStatus">—</dd></div>
+            <div><dt>남은 시간</dt><dd id="cbrCountdown">—</dd></div>
+            <div><dt>총 제안</dt><dd><span id="cbrOfferCount">0</span>개</dd></div>
+            <div><dt>새 비딩 요청</dt><dd id="cbrQuoteUsage">—</dd></div>
           </dl>
+          <div class="lhai-cbr-new-round">
+            <button type="button" class="lhai-button lhai-button--secondary" id="cbrNewRoundBtn" hidden>
+              이 라운드를 종료하고 새 제안 요청
+            </button>
+            <p id="cbrNewRoundHint" class="lhai-cbr-new-round__hint u-text-muted" hidden></p>
+          </div>
         </section>
 
-        <nav id="cbrTabs" class="lhai-cbr-tabs" aria-label="제안 탭"></nav>
+        <nav id="cbrTabs" class="lhai-cbr-tabs" aria-label="제안 탭" hidden></nav>
 
         <section class="lhai-card lhai-cbr-toolbar">
           <label class="lhai-field">
@@ -49,17 +57,22 @@
             <select id="cbrSort"></select>
           </label>
           <div id="cbrFilters" class="lhai-cbr-filters">
-            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterBudget" /> 예산 안</label>
-            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterNew" /> 신차</label>
-            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterUsed" /> 중고차</label>
-            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterCleanTitle" /> Clean title</label>
-            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterNoAccident" /> 사고 이력 없음</label>
-            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterAlt" checked /> 대안 제안 포함</label>
-            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterUpdated" /> 업데이트된 제안만</label>
+            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterPhotos" /> 사진 있음</label>
+            <label class="lhai-checkbox" id="cbrFilterBudgetWrap" hidden><input type="checkbox" id="cbrFilterBudget" /> 예산 안</label>
             <label class="lhai-field">
-              <span class="lhai-label">브랜드</span>
-              <select id="cbrFilterMake"><option value="">브랜드 전체</option></select>
+              <span class="lhai-label">카테고리</span>
+              <select id="cbrFilterCategory"><option value="">전체</option></select>
             </label>
+            <label class="lhai-field">
+              <span class="lhai-label">파트너</span>
+              <select id="cbrFilterPartner"><option value="">전체</option></select>
+            </label>
+            <label class="lhai-field">
+              <span class="lhai-label">위치</span>
+              <select id="cbrFilterLocation"><option value="">전체</option></select>
+            </label>
+            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterAlt" checked /> 대안 포함</label>
+            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterUpdated" /> 업데이트된 제안만</label>
           </div>
         </section>
 
@@ -75,6 +88,23 @@
       <div id="cbrDetailBody"></div>
       <div class="lhai-cbr-modal__foot">
         <button type="button" class="lhai-button lhai-button--secondary" id="cbrDetailClose">닫기</button>
+        <button type="button" class="lhai-button lhai-button--primary" id="cbrDetailSelect" hidden>이 제안 선택</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="cbrNewRoundModal" class="lhai-cbr-modal">
+    <div class="lhai-cbr-modal__inner">
+      <h3 class="lhai-cbr-modal__title">새 제안을 요청할까요?</h3>
+      <p>현재 비딩 라운드가 종료되고, 파트너에게 새 제안 제출을 요청합니다.</p>
+      <p id="cbrNewRoundRemaining" class="lhai-cbr-new-round__remaining"></p>
+      <label class="lhai-field lhai-cbr-new-round__reason">
+        <span class="lhai-label">사유 (선택)</span>
+        <textarea id="cbrNewRoundReason" rows="3" maxlength="2000" placeholder="예: 마음에 드는 제안이 없어요"></textarea>
+      </label>
+      <div class="lhai-cbr-modal__foot">
+        <button type="button" class="lhai-button lhai-button--secondary" id="cbrNewRoundCancel">취소</button>
+        <button type="button" class="lhai-button lhai-button--primary" id="cbrNewRoundSubmit">새 제안 요청</button>
       </div>
     </div>
   </dialog>

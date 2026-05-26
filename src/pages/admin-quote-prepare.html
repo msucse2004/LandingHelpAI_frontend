@@ -37,11 +37,11 @@
 
         <section class="lhai-quote-prep__panel lhai-quote-prep__panel--editor" aria-labelledby="qpEditorHeading">
           <h2 class="lhai-quote-prep__panel-title" id="qpEditorHeading">
-            견적 초안 (Draft)
+            <span id="qpEditorHeadingLabel">견적 초안</span>
             <span id="qpStatusBadge" class="lhai-quote-prep__badge lhai-quote-prep__badge--draft"></span>
           </h2>
-          <p class="lhai-quote-prep__panel-kicker">
-            저장하면 초안만 갱신됩니다. 만족하시면 이 화면에서 <strong>견적 제안</strong>으로 고객 검토용 상태로 전환하세요.
+          <p class="lhai-quote-prep__panel-kicker" id="qpEditorKicker">
+            저장하면 초안만 갱신됩니다. 내용을 확인한 뒤 <strong>고객에게 견적 보내기</strong>로 검토용 견적을 전달하세요.
           </p>
           <div id="qpEditorWarn" class="lhai-quote-prep__warn" hidden></div>
           <form class="lhai-form lhai-quote-editor" id="qpForm" novalidate>
@@ -51,20 +51,23 @@
               <input class="lhai-input" id="qpServiceName" type="text" required />
             </div>
             <div class="lhai-quote-editor__section">
-              <label class="lhai-label">선택 서비스 / 단가</label>
-              <p class="lhai-help u-mb-2">아래 <strong>고객이 선택한 전달 방식</strong>은 설문 제출 시점의 값입니다. 단가는 초안에 맞게 조정할 수 있습니다.</p>
+              <label class="lhai-label">견적 항목</label>
+              <p class="lhai-help u-mb-2">서비스별 단가를 조정하면 아래 <strong>고객에게 제안할 총액</strong>에 바로 반영됩니다.</p>
               <div id="qpSelectedServicePriceEditor"></div>
               <p class="lhai-help" id="qpSelectedServicePriceEmpty" hidden>선택 서비스 정보가 없습니다.</p>
-              <p class="lhai-help">
-                <strong>제안 총액(단가 합계):</strong> <span id="qpSelectedServiceTotal">—</span>
-                — 고객 견적서·청구 금액은 위 합계와 동일합니다. 단가를 조정하면 합계가 바뀝니다.
-                저장 후 <strong>견적 제안</strong>으로 고객 검토 단계로 넘깁니다.
-              </p>
+              <div class="lhai-quote-prep__total-card" id="qpCustomerTotalHero" hidden>
+                <p class="lhai-quote-prep__total-label">고객에게 제안할 총액</p>
+                <p class="lhai-quote-prep__total-amount" id="qpSelectedServiceTotal" aria-live="polite">—</p>
+                <p class="lhai-help lhai-quote-prep__total-note">고객 견적서·청구서에 표시되는 금액과 동일합니다.</p>
+              </div>
             </div>
             <div class="lhai-quote-editor__section">
               <label class="lhai-label" for="qpCustomerNote">고객에게 보여줄 메모 (선택)</label>
-              <p class="lhai-help">제안(Propose) 이후 고객 견적 화면 등에 활용할 수 있는 짧은 안내입니다.</p>
+              <p class="lhai-help">고객에게 보낼 검토용 견적 화면에 표시될 짧은 안내입니다.</p>
               <textarea class="lhai-textarea" id="qpCustomerNote" rows="2"></textarea>
+            </div>
+            <div class="lhai-quote-editor__section">
+              <div id="qpCustomerPreview" class="lhai-quote-prep__preview" aria-live="polite" aria-label="고객 견적 미리보기"></div>
             </div>
             <div class="lhai-quote-editor__section">
               <label class="lhai-label" for="qpInternalNotes">내부 메모 (고객 비노출)</label>
@@ -72,7 +75,7 @@
             </div>
             <div class="lhai-quote-prep__editor-actions">
               <button type="submit" class="lhai-button lhai-button--primary" id="qpSaveBtn">초안 저장</button>
-              <button type="button" class="lhai-button lhai-button--secondary" id="qpProposeBtn">견적 제안</button>
+              <button type="button" class="lhai-button lhai-button--secondary" id="qpProposeBtn">고객에게 견적 보내기</button>
               <a class="lhai-button lhai-button--secondary" id="qpProposeLink" href="admin-quotes.html">견적 목록으로 이동</a>
             </div>
           </form>
@@ -81,6 +84,28 @@
       </div>
     </main>
   </div>
+
+  <dialog
+    class="lhai-quote-prep__modal lhai-dialog"
+    id="qpProposeConfirmDialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="qpProposeConfirmTitle"
+  >
+    <div class="lhai-quote-prep__modal-header">
+      <h3 class="lhai-quote-prep__modal-title" id="qpProposeConfirmTitle">이 견적을 고객에게 보낼까요?</h3>
+      <p class="lhai-help">고객에게 검토용 견적을 보냅니다. 확인 후 알림이 발송될 수 있습니다.</p>
+    </div>
+    <div class="lhai-quote-prep__modal-body">
+      <div class="lhai-quote-prep__modal-summary" id="qpProposeConfirmSummary"></div>
+      <p class="lhai-quote-prep__danger-note">보낸 후에는 이 화면에서 수정할 수 없습니다.</p>
+    </div>
+    <div class="lhai-quote-prep__modal-actions">
+      <button type="button" class="lhai-button lhai-button--secondary" id="qpProposeConfirmCancel">취소</button>
+      <button type="button" class="lhai-button lhai-button--primary" id="qpProposeConfirmSubmit">고객에게 보내기</button>
+    </div>
+  </dialog>
+
   <script type="module" src="../assets/js/core/app-header.js"></script>
   <script type="module" src="../assets/js/core/logout-button.js"></script>
   <script type="module" src="../assets/js/core/admin-user-menu.js"></script>

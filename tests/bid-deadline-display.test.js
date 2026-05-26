@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import {
   formatBidDeadlineRemaining,
   formatBidDeadlineForUi,
+  formatCustomerCountdownBanner,
+  formatPartnerCountdownBanner,
   isBidDeadlinePassed,
 } from "../src/assets/js/core/bid-deadline-display.js";
 
@@ -21,11 +23,30 @@ test("formatBidDeadlineRemaining tiers", () => {
 });
 
 test("formatBidDeadlineForUi prefers server label", () => {
+  const now = Date.parse("2026-05-16T12:00:00.000Z");
   assert.equal(
-    formatBidDeadlineForUi({ remaining_label: "2시간 0분 남음", expires_at: "2026-05-16T14:00:00Z" }),
+    formatBidDeadlineForUi(
+      {
+        remaining_label: "2시간 0분 남음",
+        expires_at: "2026-05-16T14:00:00Z",
+        server_now: "2026-05-16T12:00:00Z",
+      },
+      now,
+    ),
     "2시간 0분 남음",
   );
   assert.equal(formatBidDeadlineForUi({ is_expired: true }), "비딩 종료");
+});
+
+test("countdown banners use server skew", () => {
+  const now = Date.parse("2026-05-16T12:00:00.000Z");
+  const snap = {
+    expires_at: "2026-05-18T16:00:00.000Z",
+    server_now: "2026-05-16T12:00:00.000Z",
+  };
+  assert.equal(formatCustomerCountdownBanner(snap, now), "비딩 마감까지 2일 4시간");
+  assert.equal(formatPartnerCountdownBanner(snap, now), "제출 마감까지 2d 4h");
+  assert.equal(formatCustomerCountdownBanner({ ...snap, bid_request_status: "EXPIRED" }, now), "비딩 종료");
 });
 
 test("isBidDeadlinePassed", () => {

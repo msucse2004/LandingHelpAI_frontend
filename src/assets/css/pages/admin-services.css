@@ -1719,11 +1719,59 @@
 
 /* ----- Customer Intake Builder: preview dialog (uses shared .lhai-intake-* from messages.css) ----- */
 .admin-intake-preview-dialog {
+  box-sizing: border-box;
+  width: min(52rem, 96vw);
   max-width: min(52rem, 96vw);
-  width: 100%;
-  border: 1px solid var(--lhai-color-border);
-  background: var(--lhai-color-bg-elevated, #1a1d24);
+  max-height: min(90vh, 920px);
+  margin: auto;
+  padding: 0;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: var(--lhai-radius-lg, 12px);
+  background: rgba(3, 10, 22, 0.98);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  /* Light page tokens (#132238) on dark shell → unreadable; scope dark contrast here */
+  color-scheme: dark;
+  color: #e8edf5;
+  --lhai-color-text: #e8edf5;
+  --lhai-color-text-muted: rgba(226, 232, 245, 0.76);
+  --lhai-color-border: rgba(148, 163, 184, 0.42);
+  --lhai-color-surface: rgba(15, 23, 42, 0.88);
+  --lhai-color-surface-alt: rgba(30, 41, 59, 0.82);
+  --lhai-color-surface-raised: rgba(51, 65, 85, 0.55);
+  --lhai-color-bg-elevated: rgba(3, 10, 22, 0.98);
+  --lhai-panel-06: rgba(148, 163, 184, 0.12);
+  --lhai-panel-08: rgba(148, 163, 184, 0.14);
+  --lhai-panel-12: rgba(148, 163, 184, 0.16);
+  --lhai-panel-18: rgba(30, 41, 59, 0.72);
+  --lhai-panel-20: rgba(30, 41, 59, 0.72);
+  --lhai-panel-22: rgba(51, 65, 85, 0.65);
+  --lhai-panel-38: rgba(71, 85, 105, 0.65);
+}
+
+.admin-intake-preview-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+}
+
+.admin-intake-preview-dialog::backdrop {
+  background: rgba(2, 8, 23, 0.55);
+}
+
+.admin-intake-preview-dialog .lhai-dialog__title,
+.admin-intake-preview-dialog .lhai-help {
+  color: var(--lhai-color-text-muted);
+}
+
+.admin-intake-preview-dialog .lhai-dialog__title {
   color: var(--lhai-color-text);
+  font-weight: 700;
 }
 
 .admin-intake-preview-dialog__inner {
@@ -1732,6 +1780,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--lhai-space-2);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .admin-intake-preview-dialog__head {
@@ -1951,6 +2002,11 @@
   background: var(--lhai-panel-22);
   color: var(--lhai-color-text);
   font: inherit;
+}
+
+.admin-intake-preview-dialog .admin-intake-preview__select option {
+  background: #1e293b;
+  color: #e8edf5;
 }
 
 .admin-intake-preview__radio-group,
