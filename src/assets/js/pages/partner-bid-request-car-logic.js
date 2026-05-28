@@ -1,16 +1,47 @@
 /**
  * CAR_PURCHASE partner bid — pure helpers (unit-testable).
+ * Submit/storage uses PRODUCT_OFFER + product_category vehicle (legacy CAR_PURCHASE read).
  */
 
 import { formatBidDeadlineRemaining, isBidDeadlinePassed } from "../core/bid-deadline-display.js";
+import { PRODUCT_OFFER_BID_TYPE } from "./partner-bid-request-product-logic.js";
 
 export const CAR_BID_TYPE = "CAR_PURCHASE";
+export const VEHICLE_PRODUCT_CATEGORY = "vehicle";
+export const DEFAULT_MAX_OFFER_PHOTOS = 12;
 export const OFFER_KIND_MATCH = "REQUESTED_MATCH";
 export const OFFER_KIND_ALT = "ALTERNATIVE";
+
+/** Shown when bid_request is EXPIRED — partner submit/edit/upload is closed. */
+export const PARTNER_BID_EXPIRED_POLICY_BANNER =
+  "Bidding ended. You can no longer edit offers. A customer may still select an existing offer.";
 
 /** @param {unknown} v */
 export function isCarPurchaseBiddingMode(v) {
   return String(v ?? "").trim().toUpperCase() === CAR_BID_TYPE;
+}
+
+/** @param {Record<string, unknown> | null | undefined} data */
+export function resolveCarPurchaseMode(data) {
+  if (!data || typeof data !== "object") return false;
+  if (isCarPurchaseBiddingMode(data.bidding_mode)) return true;
+  const bidCfg =
+    data.bidding_config && typeof data.bidding_config === "object"
+      ? /** @type {Record<string, unknown>} */ (data.bidding_config)
+      : null;
+  if (bidCfg && isCarPurchaseBiddingMode(bidCfg.mode)) return true;
+  if (
+    data.car_purchase_config &&
+    typeof data.car_purchase_config === "object" &&
+    Object.keys(/** @type {Record<string, unknown>} */ (data.car_purchase_config)).length > 0
+  ) {
+    return true;
+  }
+  const svc = data.service;
+  if (svc && typeof svc === "object") {
+    return isCarPurchaseBiddingMode(/** @type {Record<string, unknown>} */ (svc).bidding_mode);
+  }
+  return false;
 }
 
 /**
@@ -47,6 +78,58 @@ export function computeOfferEstimatedTotal(offer) {
 }
 
 /**
+ * @param {Array<Record<string, unknown>> | null | undefined} vehicleRequests
+ */
+export function resolveDefaultLinkedRequestIndex(vehicleRequests) {
+  const list = Array.isArray(vehicleRequests) ? vehicleRequests : [];
+  if (!list.length) return 1;
+  for (const vr of list) {
+    const n = Number(vr?.request_index);
+    if (Number.isFinite(n) && n >= 1) return Math.floor(n);
+  }
+  return 1;
+}
+
+/**
+ * @param {Array<Record<string, unknown>> | null | undefined} vehicleRequests
+ * @param {number} index
+ */
+export function linkedRequestDisplayLabel(vehicleRequests, index) {
+  const idx = Number(index);
+  if (!Number.isFinite(idx) || idx < 1) return "";
+  const list = Array.isArray(vehicleRequests) ? vehicleRequests : [];
+  const vr = list.find((row) => Number(row?.request_index) === idx);
+  if (!vr || typeof vr !== "object") return "";
+  const parts = [vr.label, vr.make, vr.model]
+    .map((x) => (x == null ? "" : String(x).trim()))
+    .filter(Boolean);
+  return parts.join(" ").trim();
+}
+
+/**
+ * @param {Record<string, unknown>} offer
+ * @param {Array<Record<string, unknown>> | null | undefined} vehicleRequests
+ */
+export function withLinkedRequestIndex(offer, vehicleRequests) {
+  const base = offer && typeof offer === "object" ? { ...offer } : createEmptyCarOffer({});
+  const current = base.linked_request_index;
+  if (current != null && current !== "" && Number.isFinite(Number(current)) && Number(current) >= 1) {
+    return { ...base, linked_request_index: Math.floor(Number(current)) };
+  }
+  return { ...base, linked_request_index: resolveDefaultLinkedRequestIndex(vehicleRequests) };
+}
+
+/**
+ * @param {Record<string, unknown>[]} offers
+ * @param {Array<Record<string, unknown>> | null | undefined} vehicleRequests
+ */
+export function ensureOffersLinkedRequestIndexes(offers, vehicleRequests) {
+  return (Array.isArray(offers) ? offers : []).map((o) =>
+    withLinkedRequestIndex(o && typeof o === "object" ? o : {}, vehicleRequests),
+  );
+}
+
+/**
  * @param {Record<string, unknown>} offer
  * @param {{ linkedRequestIndex?: number|null, isAlternative?: boolean }} opts
  */
@@ -63,46 +146,221 @@ export function createEmptyCarOffer(opts = {}) {
     trim: "",
     year: null,
     mileage: null,
-    clean_title_required: null,
-    no_accident_preferred: null,
+    vin_or_stock: "",
+    title_status: "",
+    accident_history: "",
+    exterior_color: "",
     location: "",
-    color: "",
     vehicle_price: null,
-    estimated_tax_fees: null,
-    dealer_fee: null,
-    partner_service_fee: null,
-    delivery_fee: null,
+    estimated_tax_fees: 0,
+    dealer_fee: 0,
+    partner_service_fee: 0,
+    delivery_fee: 0,
     estimated_total: 0,
+    estimated_total_manual_override: false,
     currency: "USD",
     available_timeline: "",
+    description: "",
     included_services: "",
     message_to_customer: "",
     alternative_reason: "",
+    photos: [],
+    primary_photo_index: 0,
     notes: "",
   };
+}
+
+/** @param {Record<string, unknown>} offer */
+export function buildAutoOfferTitle(offer) {
+  const parts = [offer.year, offer.make, offer.model, offer.trim]
+    .map((x) => (x == null ? "" : String(x).trim()))
+    .filter(Boolean);
+  return parts.length ? parts.join(" ") : "Vehicle offer";
+}
+
+/** @param {Record<string, unknown>} offer */
+function sumFeeComponents(offer) {
+  let sum = 0;
+  let any = false;
+  for (const k of ["estimated_tax_fees", "dealer_fee", "partner_service_fee", "delivery_fee"]) {
+    const n = Number(offer[k]);
+    if (Number.isFinite(n) && n > 0) {
+      sum += n;
+      any = true;
+    }
+  }
+  return any ? Math.round(sum * 100) / 100 : 0;
+}
+
+/** @param {unknown} v */
+function numOrNull(v) {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** @param {Record<string, unknown>} offer @param {Record<string, unknown>} attrs */
+function mergeAttrsIntoOffer(offer, attrs) {
+  const a = attrs;
+  if (a.year != null) offer.year = numOrNull(a.year);
+  if (a.make != null) offer.make = String(a.make).trim();
+  if (a.model != null) offer.model = String(a.model).trim();
+  if (a.trim != null) offer.trim = String(a.trim).trim();
+  if (a.mileage != null) offer.mileage = numOrNull(a.mileage);
+  if (a.vin_or_stock != null) offer.vin_or_stock = String(a.vin_or_stock).trim();
+  if (a.vehicle_condition != null) offer.vehicle_condition = String(a.vehicle_condition).trim();
+  if (a.title_status != null) offer.title_status = String(a.title_status).trim();
+  if (a.accident_history != null) offer.accident_history = String(a.accident_history).trim();
+  if (a.exterior_color != null) offer.exterior_color = String(a.exterior_color).trim();
+  if (a.vehicle_price != null) offer.vehicle_price = numOrNull(a.vehicle_price);
+  if (a.estimated_tax_fees != null) offer.estimated_tax_fees = numOrNull(a.estimated_tax_fees);
+  if (a.dealer_fee != null) offer.dealer_fee = numOrNull(a.dealer_fee);
+  if (a.partner_service_fee != null) offer.partner_service_fee = numOrNull(a.partner_service_fee);
+  if (a.delivery_fee != null) offer.delivery_fee = numOrNull(a.delivery_fee);
+}
+
+/** @param {unknown} item @param {number} index @param {string} topCategory */
+function hydrateVehicleOfferFromStored(item, index, topCategory) {
+  const x =
+    item && typeof item === "object" ? /** @type {Record<string, unknown>} */ ({ ...item }) : {};
+  const attrs =
+    x.attributes && typeof x.attributes === "object" && !Array.isArray(x.attributes)
+      ? /** @type {Record<string, unknown>} */ ({ ...x.attributes })
+      : {};
+
+  mergeAttrsIntoOffer(x, attrs);
+
+  if (!x.offer_id) x.offer_id = `offer_${index + 1}`;
+
+  const kind = String(x.offer_kind || "").toUpperCase();
+  x.is_alternative = Boolean(x.is_alternative) || kind === OFFER_KIND_ALT;
+  x.offer_kind = x.is_alternative ? OFFER_KIND_ALT : OFFER_KIND_MATCH;
+
+  if (x.color && !x.exterior_color) x.exterior_color = String(x.color).trim();
+  if (!x.vehicle_price && x.price_amount != null) x.vehicle_price = numOrNull(x.price_amount);
+
+  const feeFromRow = numOrNull(x.fees);
+  if (feeFromRow != null && feeFromRow > 0) {
+    if (x.estimated_tax_fees == null) x.estimated_tax_fees = feeFromRow;
+  }
+
+  const storedTotal = numOrNull(x.estimated_total);
+  const computed = computeOfferEstimatedTotal(x);
+  if (storedTotal != null && storedTotal > 0) {
+    x.estimated_total = storedTotal;
+    x.estimated_total_manual_override =
+      computed > 0 && Math.abs(storedTotal - computed) > 0.009;
+  } else {
+    x.estimated_total = computed || 0;
+    x.estimated_total_manual_override = false;
+  }
+
+  if (!String(x.product_category || "").trim()) {
+    x.product_category = topCategory || VEHICLE_PRODUCT_CATEGORY;
+  }
+
+  if (!Array.isArray(x.photos)) x.photos = [];
+  const initialPrimary = Number(x.primary_photo_index);
+  const hadPrimary = Number.isFinite(initialPrimary) ? initialPrimary : 0;
+  const normalized = x.photos
+    .map((p, i) => {
+      const pr = p && typeof p === "object" ? /** @type {Record<string, unknown>} */ (p) : {};
+      const url = String(pr.url || "").trim();
+      if (!url) return null;
+      const isPrimary = Boolean(pr.is_primary) || i === hadPrimary;
+      return {
+        asset_id: String(pr.asset_id || "").trim() || undefined,
+        url,
+        thumbnail_url: String(pr.thumbnail_url || url).trim(),
+        caption: String(pr.caption || "").trim(),
+        is_primary: isPrimary,
+        sort_order: i,
+      };
+    })
+    .filter(Boolean);
+  let primaryIdx = normalized.findIndex((p) => p && p.is_primary);
+  if (primaryIdx < 0 && normalized.length) {
+    normalized[0].is_primary = true;
+    primaryIdx = 0;
+  }
+  normalized.forEach((p, i) => {
+    if (p) p.is_primary = i === primaryIdx;
+  });
+  x.photos = normalized;
+  x.primary_photo_index = primaryIdx >= 0 ? primaryIdx : 0;
+
+  return x;
+}
+
+/** @param {unknown[]} photos @param {number} primaryIndex */
+export function normalizeVehiclePhotosForSubmit(photos, primaryIndex = 0) {
+  if (!Array.isArray(photos)) return [];
+  const rows = photos
+    .map((p, i) => {
+      const pr = p && typeof p === "object" ? /** @type {Record<string, unknown>} */ (p) : {};
+      const url = String(pr.url || "").trim();
+      if (!url) return null;
+      const thumb = String(pr.thumbnail_url || url).trim();
+      /** @type {Record<string, unknown>} */
+      const out = {
+        url,
+        thumbnail_url: thumb,
+        sort_order: i,
+      };
+      const assetId = String(pr.asset_id || "").trim();
+      if (assetId) out.asset_id = assetId;
+      const cap = String(pr.caption || "").trim();
+      if (cap) out.caption = cap;
+      if (Boolean(pr.is_primary)) out.is_primary = true;
+      return out;
+    })
+    .filter(Boolean);
+  let pi = rows.findIndex((r) => r && r.is_primary === true);
+  if (pi < 0) pi = Number.isFinite(primaryIndex) ? primaryIndex : 0;
+  if (pi > 0 && pi < rows.length) {
+    const [primary] = rows.splice(pi, 1);
+    rows.unshift(primary);
+  }
+  return rows.map((r, i) => ({
+    ...r,
+    sort_order: i,
+    is_primary: i === 0,
+  }));
+}
+
+/** @param {unknown} item @param {string} topCategory */
+function isVehicleStoredOffer(item, topCategory) {
+  const row = item && typeof item === "object" ? /** @type {Record<string, unknown>} */ (item) : {};
+  const cat = String(row.product_category || topCategory || "").trim().toLowerCase();
+  if (cat === VEHICLE_PRODUCT_CATEGORY) return true;
+  const attrs = row.attributes;
+  if (attrs && typeof attrs === "object" && !Array.isArray(attrs)) {
+    if (attrs.make != null || attrs.year != null || attrs.model != null) return true;
+  }
+  if (row.make || row.model || row.vehicle_price != null) return true;
+  return topCategory === VEHICLE_PRODUCT_CATEGORY;
 }
 
 /** @param {unknown} raw */
 export function offersFromIncludedItems(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
   const o = /** @type {Record<string, unknown>} */ (raw);
-  if (String(o.bid_type || "").toUpperCase() !== CAR_BID_TYPE) return [];
+  const bt = String(o.bid_type || "").toUpperCase();
   const list = o.offers;
   if (!Array.isArray(list)) return [];
-  return list.map((item, i) => normalizeLoadedOffer(item, i));
-}
+  const topCat = String(o.product_category || "").trim().toLowerCase();
 
-/** @param {unknown} item @param {number} index */
-function normalizeLoadedOffer(item, index) {
-  const x = item && typeof item === "object" ? /** @type {Record<string, unknown>} */ ({ ...item }) : {};
-  if (!x.offer_id) x.offer_id = `offer_${index + 1}`;
-  x.is_alternative = Boolean(x.is_alternative) || String(x.offer_kind || "").toUpperCase() === OFFER_KIND_ALT;
-  x.offer_kind = x.is_alternative ? OFFER_KIND_ALT : OFFER_KIND_MATCH;
-  const est = Number(x.estimated_total);
-  if (!Number.isFinite(est) || est <= 0) {
-    x.estimated_total = computeOfferEstimatedTotal(x) || null;
+  if (bt === PRODUCT_OFFER_BID_TYPE) {
+    return list
+      .filter((item) => isVehicleStoredOffer(item, topCat))
+      .map((item, i) => hydrateVehicleOfferFromStored(item, i, topCat || VEHICLE_PRODUCT_CATEGORY));
   }
-  return x;
+  if (bt === CAR_BID_TYPE) {
+    return list.map((item, i) =>
+      hydrateVehicleOfferFromStored(item, i, VEHICLE_PRODUCT_CATEGORY),
+    );
+  }
+  return [];
 }
 
 /** @param {Record<string, unknown>} offer */
@@ -115,20 +373,31 @@ export function assignOfferIds(offers) {
 
 /**
  * @param {Record<string, unknown>[]} offers
- * @param {{ maxOffers: number, allowAlternatives: boolean }} cfg
+ * @param {{ allowAlternatives: boolean, requiresOfferPhotos?: boolean, maxPhotosPerOffer?: number, uploadsInProgress?: boolean }} cfg
  */
 export function validateCarOffersForSubmit(offers, cfg) {
-  const max = Math.max(1, Number(cfg.maxOffers) || 3);
+  const maxPhotos = Math.max(1, Number(cfg.maxPhotosPerOffer) || DEFAULT_MAX_OFFER_PHOTOS);
+  const requirePhotos = cfg.requiresOfferPhotos === true;
+  if (cfg.uploadsInProgress === true) {
+    return "사진 업로드가 끝날 때까지 기다려 주세요.";
+  }
   if (!offers.length) return "최소 1개의 차량 제안을 추가해 주세요.";
-  if (offers.length > max) return `제안은 최대 ${max}개까지 가능합니다.`;
   if (!cfg.allowAlternatives && offers.some((o) => o.is_alternative)) {
     return "이 요청에서는 대안 차량 제안이 허용되지 않습니다.";
   }
   for (let i = 0; i < offers.length; i += 1) {
     const o = offers[i];
     const label = `제안 ${i + 1}`;
+    const year = numOrNull(o.year);
+    if (year == null || year < 1980) {
+      return `${label}: 연식(year)을 입력해 주세요.`;
+    }
     if (!String(o.make || "").trim() || !String(o.model || "").trim()) {
-      return `${label}: 브랜드와 모델을 입력해 주세요.`;
+      return `${label}: 제조사와 모델을 입력해 주세요.`;
+    }
+    const mileage = numOrNull(o.mileage);
+    if (mileage == null || mileage < 0) {
+      return `${label}: 주행거리(mileage)를 입력해 주세요.`;
     }
     const est = Number(o.estimated_total);
     if (!Number.isFinite(est) || est <= 0) {
@@ -140,63 +409,120 @@ export function validateCarOffersForSubmit(offers, cfg) {
     if (o.is_alternative && !String(o.alternative_reason || "").trim()) {
       return `${label}: 대안 차량 제안 사유를 입력해 주세요.`;
     }
+    const photos = Array.isArray(o.photos) ? o.photos : [];
+    const photoCount = photos.filter(
+      (p) => p && typeof p === "object" && String(/** @type {Record<string, unknown>} */ (p).url || "").trim(),
+    ).length;
+    if (photoCount > maxPhotos) {
+      return `${label}: 사진은 최대 ${maxPhotos}장까지 등록할 수 있습니다.`;
+    }
+    if (requirePhotos && photoCount < 1) {
+      return `${label}: 최소 1장의 차량 사진이 필요합니다.`;
+    }
   }
   return "";
+}
+
+/** @param {Record<string, unknown>} offer */
+function buildOfferAttributes(offer) {
+  /** @type {Record<string, unknown>} */
+  const attrs = {};
+  const setNum = (k, v) => {
+    const n = numOrNull(v);
+    if (n != null) attrs[k] = n;
+  };
+  const setStr = (k, v) => {
+    const s = String(v ?? "").trim();
+    if (s) attrs[k] = s;
+  };
+  setNum("year", offer.year);
+  setStr("make", offer.make);
+  setStr("model", offer.model);
+  setStr("trim", offer.trim);
+  setNum("mileage", offer.mileage);
+  setStr("vin_or_stock", offer.vin_or_stock);
+  setStr("vehicle_condition", offer.vehicle_condition);
+  setStr("title_status", offer.title_status);
+  setStr("accident_history", offer.accident_history);
+  setStr("exterior_color", offer.exterior_color);
+  setNum("vehicle_price", offer.vehicle_price);
+  setNum("estimated_tax_fees", offer.estimated_tax_fees ?? 0);
+  setNum("dealer_fee", offer.dealer_fee ?? 0);
+  setNum("partner_service_fee", offer.partner_service_fee ?? 0);
+  setNum("delivery_fee", offer.delivery_fee ?? 0);
+  if (offer.is_alternative && String(offer.alternative_reason || "").trim()) {
+    attrs.alternative_reason = String(offer.alternative_reason).trim();
+  }
+  if (offer.linked_request_index != null && offer.linked_request_index !== "") {
+    attrs.linked_request_index = Number(offer.linked_request_index);
+  }
+  return attrs;
+}
+
+/** @param {Record<string, unknown>} o */
+function vehicleOfferToProductRow(o) {
+  const totalRaw = Number(o.estimated_total);
+  const total =
+    Number.isFinite(totalRaw) && totalRaw > 0 ? totalRaw : computeOfferEstimatedTotal(o);
+  const vehiclePrice = numOrNull(o.vehicle_price);
+  const feesSum = sumFeeComponents(o);
+  const currency = String(o.currency || "USD").trim().toUpperCase().slice(0, 3) || "USD";
+
+  /** @type {Record<string, unknown>} */
+  const row = {
+    offer_id: String(o.offer_id || "").trim(),
+    offer_kind: o.is_alternative ? OFFER_KIND_ALT : OFFER_KIND_MATCH,
+    title: buildAutoOfferTitle(o),
+    product_category: VEHICLE_PRODUCT_CATEGORY,
+    estimated_total: String(Math.round(total * 100) / 100),
+    currency,
+  };
+
+  const descParts = [o.description, o.included_services, o.notes]
+    .map((x) => String(x ?? "").trim())
+    .filter(Boolean);
+  if (descParts.length) row.description = descParts.join("\n");
+
+  if (vehiclePrice != null && vehiclePrice > 0) row.price_amount = String(vehiclePrice);
+  if (feesSum > 0) row.fees = String(feesSum);
+
+  const tl = String(o.available_timeline || "").trim();
+  if (tl) row.available_timeline = tl;
+  const loc = String(o.location || "").trim();
+  if (loc) row.location = loc;
+  const msg = String(o.message_to_customer || "").trim();
+  if (msg) row.message_to_customer = msg;
+
+  if (o.is_alternative) {
+    row.is_alternative = true;
+    const reason = String(o.alternative_reason || "").trim();
+    if (reason) row.alternative_reason = reason;
+  }
+  if (o.linked_request_index != null && o.linked_request_index !== "") {
+    row.linked_request_index = Number(o.linked_request_index);
+  }
+
+  const photos = normalizeVehiclePhotosForSubmit(
+    Array.isArray(o.photos) ? o.photos : [],
+    Number(o.primary_photo_index),
+  );
+  if (photos.length) row.photos = photos;
+
+  row.attributes = buildOfferAttributes(o);
+  return row;
 }
 
 /**
  * @param {Record<string, unknown>[]} offers
  * @param {string|null|undefined} globalMessage
+ * @param {Array<Record<string, unknown>> | null | undefined} [vehicleRequests]
  */
-export function buildCarSubmitPayload(offers, globalMessage) {
-  const normalized = assignOfferIds(offers).map((o) => {
-    const est = Number(o.estimated_total);
-    const total = Number.isFinite(est) && est > 0 ? est : computeOfferEstimatedTotal(o);
-    const out = {
-      offer_id: String(o.offer_id),
-      offer_kind: o.is_alternative ? OFFER_KIND_ALT : OFFER_KIND_MATCH,
-      is_alternative: Boolean(o.is_alternative),
-      estimated_total: String(total),
-      currency: String(o.currency || "USD").trim().toUpperCase().slice(0, 3) || "USD",
-    };
-    if (o.linked_request_index != null && o.linked_request_index !== "") {
-      out.linked_request_index = Number(o.linked_request_index);
-    }
-    if (o.is_alternative && String(o.alternative_reason || "").trim()) {
-      out.alternative_reason = String(o.alternative_reason).trim();
-    }
-    const copyKeys = [
-      "vehicle_condition",
-      "make",
-      "model",
-      "trim",
-      "year",
-      "mileage",
-      "clean_title_required",
-      "no_accident_preferred",
-      "location",
-      "color",
-      "vehicle_price",
-      "estimated_tax_fees",
-      "dealer_fee",
-      "partner_service_fee",
-      "delivery_fee",
-      "available_timeline",
-      "included_services",
-      "message_to_customer",
-      "notes",
-      "title_status",
-      "accident_history",
-    ];
-    for (const k of copyKeys) {
-      if (o[k] === null || o[k] === undefined || o[k] === "") continue;
-      out[k] = o[k];
-    }
-    return out;
-  });
+export function buildCarSubmitPayload(offers, globalMessage, vehicleRequests) {
+  const linked = ensureOffersLinkedRequestIndexes(offers, vehicleRequests);
+  const normalized = assignOfferIds(linked).map((o) => vehicleOfferToProductRow(o));
 
   const totals = normalized
-    .map((o) => Number(o.estimated_total))
+    .map((o) => Number(String(o.estimated_total || "").replace(/,/g, "")))
     .filter((n) => Number.isFinite(n) && n > 0);
   const price_amount = totals.length ? Math.min(...totals) : 0;
   const timelines = normalized.map((o) => String(o.available_timeline || "").trim()).filter(Boolean);
@@ -209,7 +535,8 @@ export function buildCarSubmitPayload(offers, globalMessage) {
     estimated_time: timelines[0] || "",
     message_to_customer: gm || perOfferMsg || null,
     included_items: {
-      bid_type: CAR_BID_TYPE,
+      bid_type: PRODUCT_OFFER_BID_TYPE,
+      product_category: VEHICLE_PRODUCT_CATEGORY,
       offers: normalized,
     },
   };
@@ -325,6 +652,63 @@ const VP_TIMELINE_LABELS = {
   "1_month": "Within 1 month",
   flexible: "Flexible",
 };
+
+const VP_TIMELINE_LABELS_KO = {
+  asap: "가능한 한 빨리",
+  "1_week": "1주 이내",
+  "2_weeks": "2주 이내",
+  "1_month": "1개월 이내",
+  flexible: "유연함",
+};
+
+/**
+ * @param {Record<string, unknown> | null | undefined} carReq
+ * @returns {number | null}
+ */
+export function resolveCarPurchaseBudgetMax(carReq) {
+  if (!carReq || typeof carReq !== "object") return null;
+  const top = carReq.budget_max;
+  if (top != null && top !== "") {
+    const n = Number(top);
+    if (Number.isFinite(n)) return n;
+  }
+  const vrs = Array.isArray(carReq.vehicle_requests) ? carReq.vehicle_requests : [];
+  let max = null;
+  for (const vr of vrs) {
+    if (!vr || typeof vr !== "object") continue;
+    const n = Number(vr.budget_max);
+    if (!Number.isFinite(n)) continue;
+    max = max == null ? n : Math.max(max, n);
+  }
+  return max;
+}
+
+/**
+ * @param {unknown} raw
+ * @returns {string}
+ */
+export function formatCarDesiredTimeline(raw) {
+  const key = String(raw ?? "").trim().toLowerCase();
+  if (!key) return "";
+  return VP_TIMELINE_LABELS_KO[key] || VP_TIMELINE_LABELS[key] || String(raw).trim();
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} carReq
+ * @returns {string}
+ */
+export function resolveCarDesiredTimeline(carReq) {
+  if (!carReq || typeof carReq !== "object") return "";
+  const top = formatCarDesiredTimeline(carReq.desired_timeline);
+  if (top) return top;
+  const vrs = Array.isArray(carReq.vehicle_requests) ? carReq.vehicle_requests : [];
+  for (const vr of vrs) {
+    if (!vr || typeof vr !== "object") continue;
+    const label = formatCarDesiredTimeline(vr.desired_timeline);
+    if (label) return label;
+  }
+  return "";
+}
 
 const VP_COLOR_LABELS = {
   white: "White",

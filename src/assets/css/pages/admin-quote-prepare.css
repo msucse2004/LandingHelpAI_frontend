@@ -843,46 +843,7 @@
   font-style: italic;
 }
 
-.lhai-quote-prep__modal {
-  width: min(36rem, calc(100vw - var(--lhai-space-6)));
-  max-width: min(36rem, calc(100vw - var(--lhai-space-6)));
-  max-height: min(90dvh, 720px);
-  margin: auto;
-  padding: 0;
-  border: 1px solid var(--lhai-color-border);
-  overflow: hidden;
-}
-
-.lhai-quote-prep__modal[open] {
-  display: flex;
-  flex-direction: column;
-}
-
-.lhai-quote-prep__modal::backdrop {
-  background: rgba(15, 23, 42, 0.55);
-}
-
-.lhai-quote-prep__modal-header {
-  flex-shrink: 0;
-  padding: var(--lhai-space-5) var(--lhai-space-5) var(--lhai-space-3);
-  border-bottom: 1px solid var(--lhai-color-border);
-}
-
-.lhai-quote-prep__modal-title {
-  margin: 0 0 var(--lhai-space-2);
-  font-size: var(--lhai-font-size-lg);
-  font-weight: 800;
-  line-height: 1.35;
-}
-
-.lhai-quote-prep__modal-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  padding: var(--lhai-space-4) var(--lhai-space-5);
-}
+/* Shell placement: ../components/quote-confirm-dialog.css */
 
 .lhai-quote-prep__modal-summary {
   margin-bottom: var(--lhai-space-4);
@@ -959,17 +920,6 @@
   line-height: 1.45;
 }
 
-.lhai-quote-prep__modal-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--lhai-space-3);
-  flex-shrink: 0;
-  padding: var(--lhai-space-4) var(--lhai-space-5) var(--lhai-space-5);
-  border-top: 1px solid var(--lhai-color-border);
-  background: var(--lhai-panel-08);
-}
-
 /* ---- Responsive: toolbar, dl, buttons, preview, focus ---- */
 
 @container qp-request (max-width: 520px) {
@@ -1043,15 +993,6 @@
     margin-top: 0;
   }
 
-  .lhai-quote-prep__modal-actions {
-    flex-direction: column-reverse;
-    align-items: stretch;
-  }
-
-  .lhai-quote-prep__modal-actions .lhai-button {
-    width: 100%;
-    justify-content: center;
-  }
 }
 
 .lhai-quote-prep .lhai-input:focus-visible,
@@ -1062,8 +1003,7 @@
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
 }
 
-.lhai-quote-prep .lhai-button:focus-visible,
-.lhai-quote-prep__modal .lhai-button:focus-visible {
+.lhai-quote-prep .lhai-button:focus-visible {
   outline: 2px solid var(--lhai-color-primary);
   outline-offset: 2px;
 }

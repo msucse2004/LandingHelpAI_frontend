@@ -1,0 +1,96 @@
+/**
+ * Quote confirmation dialogs — shared viewport placement.
+ * Admin: 고객에게 견적 보내기 (.lhai-quote-prep__modal)
+ * Customer: 견적 승인·거절 (.lhai-quote-decision-modal)
+ */
+
+.lhai-quote-prep__modal.lhai-dialog,
+.lhai-quote-decision-modal.lhai-dialog {
+  width: min(36rem, calc(100vw - var(--lhai-space-6)));
+  max-width: min(36rem, calc(100vw - var(--lhai-space-6)));
+  max-height: min(90dvh, 720px);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-md);
+  background: var(--lhai-color-surface);
+  color: var(--lhai-color-text);
+  box-shadow: var(--lhai-shadow-lg);
+  overflow: hidden;
+}
+
+.lhai-quote-prep__modal[open],
+.lhai-quote-decision-modal[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.lhai-quote-prep__modal::backdrop,
+.lhai-quote-decision-modal::backdrop {
+  background: rgba(15, 23, 42, 0.55);
+}
+
+/* Header / body / footer — admin prep + customer decision modals */
+.lhai-quote-confirm-modal__header,
+.lhai-quote-prep__modal-header {
+  flex-shrink: 0;
+  padding: var(--lhai-space-5) var(--lhai-space-5) var(--lhai-space-3);
+  border-bottom: 1px solid var(--lhai-color-border);
+}
+
+.lhai-quote-confirm-modal__title,
+.lhai-quote-prep__modal-title {
+  margin: 0 0 var(--lhai-space-2);
+  font-size: var(--lhai-font-size-lg);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.lhai-quote-confirm-modal__header .lhai-help {
+  margin: 0;
+}
+
+.lhai-quote-confirm-modal__body,
+.lhai-quote-prep__modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--lhai-space-4) var(--lhai-space-5);
+  font-size: var(--lhai-font-size-sm);
+  line-height: 1.55;
+  color: var(--lhai-color-text-muted);
+}
+
+.lhai-quote-confirm-modal__actions,
+.lhai-quote-prep__modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--lhai-space-3);
+  flex-shrink: 0;
+  padding: var(--lhai-space-4) var(--lhai-space-5) var(--lhai-space-5);
+  border-top: 1px solid var(--lhai-color-border);
+  background: var(--lhai-panel-08);
+}
+
+.lhai-quote-confirm-modal__actions .lhai-button:focus-visible,
+.lhai-quote-prep__modal-actions .lhai-button:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.55);
+  outline-offset: 2px;
+}
+
+@media (max-width: 520px) {
+  .lhai-quote-confirm-modal__actions,
+  .lhai-quote-prep__modal-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .lhai-quote-confirm-modal__actions .lhai-button,
+  .lhai-quote-prep__modal-actions .lhai-button {
+    width: 100%;
+    justify-content: center;
+  }
+}

@@ -133,10 +133,120 @@ test("renderSelectionConversationBannerHtml includes Open conversation", async (
 
 test("customerBidStatusBannerMessage for EXPIRED and CLOSED", async () => {
   const m = await importFresh(logicPath);
-  assert.match(m.customerBidStatusBannerMessage("EXPIRED"), /새 라운드/);
+  assert.match(m.customerBidStatusBannerMessage("EXPIRED"), /Bidding has ended/i);
   assert.match(m.customerBidStatusBannerMessage("CLOSED"), /종료/);
   assert.equal(m.canSelectCustomerBid("OPEN"), true);
-  assert.equal(m.canSelectCustomerBid("EXPIRED"), false);
+  assert.equal(m.canSelectCustomerBid("EXPIRED"), true);
+});
+
+test("buildCustomerBidSelectConfirmContent EXPIRED vs OPEN", async () => {
+  const m = await importFresh(logicPath);
+  const offer = { title: "2022 Sienna", estimated_total: 28000, currency: "USD" };
+  const expired = m.buildCustomerBidSelectConfirmContent("EXPIRED", offer, {});
+  assert.equal(expired.modalTitle, "Select this offer?");
+  assert.match(expired.bodyHtml, /bidding round has ended/i);
+  assert.equal(expired.submitLabel, "Select and contact partner");
+  const open = m.buildCustomerBidSelectConfirmContent("OPEN", offer, {
+    expires_at: new Date(Date.now() + 3600_000).toISOString(),
+  });
+  assert.equal(open.modalTitle, "제안 선택 확인");
+  assert.match(open.warnText, /비딩 마감/);
+});
+
+test("resolveCustomerBidActions prefers API flags", async () => {
+  const m = await importFresh(logicPath);
+  const actions = m.resolveCustomerBidActions({
+    bid_request_status: "EXPIRED",
+    can_select_existing_offers: true,
+    can_partner_submit: false,
+    can_request_new_round: true,
+  });
+  assert.equal(actions.can_select_existing_offers, true);
+  assert.equal(actions.can_partner_submit, false);
+  assert.equal(actions.can_request_new_round, true);
+});
+
+test("isVehicleOffer detects vehicle category and block", async () => {
+  const m = await importFresh(logicPath);
+  assert.equal(m.isVehicleOffer({ product_category: "vehicle" }), true);
+  assert.equal(m.isVehicleOffer({ vehicle: { make: "Toyota" } }), true);
+  assert.equal(m.isVehicleOffer({ title: "Widget", product_category: "electronics" }), false);
+});
+
+test("formatOfferRankBadgeEn Recommended #2 of 9", async () => {
+  const m = await importFresh(logicPath);
+  const badge = m.formatOfferRankBadgeEn(
+    { rank: 2, rank_total: 9, rank_basis: "recommended" },
+    "recommended",
+  );
+  assert.equal(badge, "Recommended #2 of 9");
+});
+
+test("formatVehiclePriceBreakdownLines includes vehicle and fees", async () => {
+  const m = await importFresh(logicPath);
+  const lines = m.formatVehiclePriceBreakdownLines({
+    currency: "USD",
+    estimated_total: 32000,
+    pricing: {
+      vehicle_price: 28000,
+      estimated_tax_registration: 1500,
+      dealer_fee: 500,
+      partner_service_fee: 300,
+      delivery_fee: 200,
+    },
+  });
+  const labels = lines.map((l) => l.label);
+  assert.ok(labels.includes("Vehicle price"));
+  assert.ok(labels.includes("Tax & fees"));
+  assert.ok(labels.includes("Estimated total"));
+});
+
+test("offerSelectionUiState hides select when CUSTOMER_SELECTED", async () => {
+  const m = await importFresh(logicPath);
+  const offer = { bid_id: "b1", offer_id: "o1" };
+  const open = m.offerSelectionUiState("OPEN", offer, { snap: { status: "OPEN" } });
+  assert.equal(open.showSelectButton, true);
+  const picked = m.offerSelectionUiState("CUSTOMER_SELECTED", offer, {
+    selectedBidId: "b1",
+    selectedOfferId: "o1",
+    snap: { status: "CUSTOMER_SELECTED" },
+  });
+  assert.equal(picked.isSelected, true);
+  assert.equal(picked.showSelectButton, false);
+  const other = m.offerSelectionUiState("CUSTOMER_SELECTED", { bid_id: "b2", offer_id: "o2" }, {
+    selectedBidId: "b1",
+    selectedOfferId: "o1",
+  });
+  assert.equal(other.dimmed, true);
+  assert.equal(other.showSelectButton, false);
+});
+
+test("buildVehicleOfferCardHtml includes rank and expired badge", async () => {
+  const m = await importFresh(logicPath);
+  const esc = (s) => String(s);
+  const html = m.buildVehicleOfferCardHtml(
+    {
+      offer_id: "o1",
+      bid_id: "b1",
+      product_category: "vehicle",
+      title: "2021 Toyota Camry SE",
+      partner_name: "Acme Motors",
+      estimated_total: 28000,
+      currency: "USD",
+      rank: 2,
+      rank_total: 9,
+      vehicle: { mileage: 12000, title_status: "CLEAN", accident_history: "NONE" },
+      location: "Raleigh, NC",
+      available_timeline: "2 weeks",
+      message_to_customer: "Available now",
+    },
+    { phase: "EXPIRED", activeSort: "recommended", snap: { status: "EXPIRED" } },
+    esc,
+  );
+  assert.match(html, /Recommended #2 of 9/);
+  assert.match(html, /availability needs confirmation/i);
+  assert.match(html, /Select this offer/);
+  assert.match(html, /View details/);
 });
 
 test("quoteRequestRemaining and canRequestNewBidRound", async () => {

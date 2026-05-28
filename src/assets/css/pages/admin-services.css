@@ -1255,6 +1255,13 @@
   overflow: hidden;
 }
 
+.admin-services__intake-qg-footer-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-3) var(--lhai-space-4);
+  align-items: center;
+}
+
 .admin-services__intake-card-actions {
   flex-wrap: wrap;
   margin-top: var(--lhai-space-3);
@@ -2180,4 +2187,87 @@
 .admin-intake-body-editor-host .ql-snow a.ql-preview {
   color: rgba(147, 197, 253, 0.95);
 }
+
+/* Read-only: Partner Type → canonical bidding.mode (save uses same resolver) */
+.admin-services__resolved-bidding-preview {
+  padding: var(--lhai-space-2) var(--lhai-space-3);
+  border-radius: var(--lhai-radius-md, 8px);
+  border: 1px solid var(--lhai-border-strong);
+  background: var(--lhai-panel-12);
+}
+
+.admin-services__resolved-bidding-preview__label {
+  margin: 0 0 var(--lhai-space-1);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--lhai-color-text-muted);
+}
+
+.admin-services__resolved-bidding-preview__headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lhai-space-2);
+  margin: 0;
+}
+
+.admin-services__resolved-bidding-preview__badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--lhai-badge-customer-bg);
+  color: var(--lhai-badge-customer-text);
+}
+
+.admin-services__resolved-bidding-preview__badge--car {
+  background: var(--lhai-badge-risk-medium-bg);
+  color: var(--lhai-badge-risk-medium-text);
+}
+
+.admin-services__resolved-bidding-preview__title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--lhai-color-text);
+}
+
+.admin-services__resolved-bidding-preview__desc {
+  margin: var(--lhai-space-1) 0 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--lhai-color-text-muted);
+}
+
+/* Partner bidding started email debug (workflow tab) */
+.admin-services__bidding-email-debug .ac360-open-form__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+  align-items: flex-end;
+}
+
+.admin-services__bidding-email-debug .ac360-open-form__row .lhai-input {
+  min-width: 220px;
+}
+
+.admin-services__bidding-email-debug {
+  padding: var(--lhai-space-3);
+  border-top: 1px solid var(--lhai-color-border, rgb(255 255 255 / 0.1));
+}
+
+.admin-services__bidding-email-debug-body {
+  max-height: min(60vh, 480px);
+  overflow: auto;
+}
+
+.admin-services__bidding-email-debug .lhai-bid-notify-debug,
+.admin-services__bidding-email-debug .lhai-intake-diag-kv {
+  margin-top: var(--lhai-space-2);
+}
+
+/* Bid notify badges: inherit high-contrast styles from messages.css */
 

@@ -16,7 +16,7 @@ test("validateProductOffersForSubmit requires title and total", async () => {
   const m = await importFresh();
   const err = m.validateProductOffersForSubmit(
     [{ offer_id: "offer_1", title: "", estimated_total: "" }],
-    { maxOffers: 3 },
+    {},
   );
   assert.match(err, /상품명/);
 });
@@ -54,7 +54,7 @@ test("formatRankSummaryLabel uses API label_ko", async () => {
 
 test("endedStateMessage distinguishes EXPIRED and CANCELLED", async () => {
   const m = await importFresh(logicPath);
-  assert.match(m.endedStateMessage({ status: "DRAFT" }, "EXPIRED"), /72-hour/i);
+  assert.match(m.endedStateMessage({ status: "DRAFT" }, "EXPIRED"), /can no longer edit offers/i);
   assert.match(m.endedStateMessage({ status: "DRAFT" }, "CANCELLED"), /new bidding round/i);
 });
 

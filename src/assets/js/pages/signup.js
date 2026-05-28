@@ -15,6 +15,7 @@ const inviteBannerBody = document.getElementById("inviteBannerBody");
 const emailInput = document.getElementById("email");
 const firstNameInput = document.getElementById("firstName");
 const lastNameInput = document.getElementById("lastName");
+const phoneNumberInput = document.getElementById("phoneNumber");
 const genderSelect = document.getElementById("gender");
 const roleFieldGroup = document.getElementById("roleFieldGroup");
 const roleNameSelect = document.getElementById("roleName");
@@ -27,7 +28,6 @@ const signupResultLoginLink = document.getElementById("signupResultLoginLink");
 const signupResultCloseBtn = document.getElementById("signupResultCloseBtn");
 const partnerProfileSection = document.getElementById("partnerProfileSection");
 const partnerProfileName = document.getElementById("partnerProfileName");
-const partnerProfilePhone = document.getElementById("partnerProfilePhone");
 const partnerProfileState = document.getElementById("partnerProfileState");
 const partnerProfileCity = document.getElementById("partnerProfileCity");
 
@@ -206,6 +206,22 @@ function updateLastNameStatus() {
   const v = lastNameInput.value.trim();
   if (v.length === 0) setInputStatus(wrap, "neutral");
   else setInputStatus(wrap, "valid");
+}
+
+function phoneDigitsCount(raw) {
+  return String(raw || "").replace(/\D/g, "").length;
+}
+
+function updatePhoneNumberStatus() {
+  const wrap = document.getElementById("phoneNumberStatusWrap");
+  if (!phoneNumberInput || !wrap) return;
+  const v = phoneNumberInput.value.trim();
+  if (v.length === 0) {
+    setInputStatus(wrap, "neutral");
+    return;
+  }
+  if (phoneDigitsCount(v) >= 7) setInputStatus(wrap, "valid");
+  else setInputStatus(wrap, "invalid");
 }
 
 function updateBirthDateStatus() {
@@ -388,13 +404,17 @@ if (firstNameInput) {
 if (lastNameInput) {
   lastNameInput.addEventListener("input", updateLastNameStatus);
   lastNameInput.addEventListener("blur", updateLastNameStatus);
+  if (phoneNumberInput) {
+    phoneNumberInput.addEventListener("input", updatePhoneNumberStatus);
+    phoneNumberInput.addEventListener("blur", updatePhoneNumberStatus);
+  }
 }
 
 if (genderSelect) {
   genderSelect.addEventListener("change", updateGenderStatus);
 }
 
-[partnerProfileName, partnerProfilePhone, partnerProfileState, partnerProfileCity].forEach((el) => {
+[partnerProfileName, partnerProfileState, partnerProfileCity].forEach((el) => {
   if (el instanceof HTMLElement) {
     el.addEventListener("input", () => refreshSignupSubmitButton());
     el.addEventListener("change", () => refreshSignupSubmitButton());
@@ -543,7 +563,7 @@ async function initInviteFlow() {
       let partnerBlock = "";
       if (partnerSignupRequired && p.partner_type_label) {
         partnerBlock = `<br />🏷️ 초대된 파트너 업무 유형: <strong>${p.partner_type_label}</strong>
-<br />📝 아래 <strong>파트너 정보</strong>에서 이름·전화·지역·도시를 입력해 주세요.`;
+<br />📝 아래 <strong>파트너 정보</strong>에서 이름·지역·도시를 입력해 주세요.`;
       }
       inviteBannerBody.innerHTML = `✅ 초대 역할: <strong>${roleLabel}</strong> (${p.role_name})
 <br />📧 이메일은 초대 메일의 주소와 동일해야 합니다.${partnerBlock}
@@ -607,6 +627,13 @@ if (form) {
       return;
     }
 
+    const phoneNumber = String(formData.get("phoneNumber") || "").trim();
+    if (phoneDigitsCount(phoneNumber) < 7) {
+      setStatus("전화번호를 올바르게 입력해 주세요. (숫자 7자리 이상)");
+      phoneNumberInput?.focus();
+      return;
+    }
+
     if (partnerSignupRequired && activeInviteToken) {
       const pn = String(formData.get("partnerProfileName") || "").trim();
       if (!pn) {
@@ -633,6 +660,7 @@ if (form) {
       username: String(formData.get("username") || "").trim(),
       first_name: String(formData.get("firstName") || "").trim(),
       last_name: String(formData.get("lastName") || "").trim(),
+      phone_number: phoneNumber,
       email: String(formData.get("email") || "").trim(),
       password,
       password_confirm: passwordConfirm,
@@ -645,10 +673,9 @@ if (form) {
     }
     if (partnerSignupRequired && activeInviteToken) {
       payload.partner_name = String(formData.get("partnerProfileName") || "").trim();
-      const ph = String(formData.get("partnerProfilePhone") || "").trim();
       const st = String(formData.get("partnerProfileState") || "").trim();
       const ct = String(formData.get("partnerProfileCity") || "").trim();
-      if (ph) payload.partner_phone = ph;
+      payload.partner_phone = phoneNumber;
       if (st) payload.partner_state = st;
       if (ct) payload.partner_city = ct;
     }
@@ -743,10 +770,16 @@ if (form) {
       }
     } catch (error) {
       setStatus("");
+      let errMsg = String(error?.message || error || "알 수 없는 오류가 발생했습니다.");
+      if (/phone_number|전화번호/i.test(errMsg)) {
+        errMsg = "전화번호가 서버에 전달되지 않았습니다. 페이지를 새로고침(Ctrl+F5)하거나 프론트엔드 이미지를 다시 빌드한 뒤 다시 시도해 주세요.";
+      } else if (/422|validation|필수|required/i.test(errMsg)) {
+        errMsg = `입력 값 검증 실패: ${errMsg}`;
+      }
       openSignupOutcomeDialog({
         title: "😔 가입을 완료할 수 없습니다",
         paragraphs: [
-          `❗ ${String(error?.message || error || "알 수 없는 오류가 발생했습니다.")}`,
+          `❗ ${errMsg}`,
           "📝 입력 값을 다시 확인하시거나, 잠시 후 다시 시도해 주세요. 문제가 계속되면 관리자에게 문의해 주세요.",
         ],
         showLoginLink: false,
@@ -767,6 +800,7 @@ function refreshSignupFieldStatuses() {
   updateEmailStatus();
   updateFirstNameStatus();
   updateLastNameStatus();
+  updatePhoneNumberStatus();
   updateBirthDateStatus();
   updateGenderStatus();
   updatePasswordStatus();

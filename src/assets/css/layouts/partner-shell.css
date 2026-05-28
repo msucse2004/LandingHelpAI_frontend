@@ -1,0 +1,242 @@
+/**
+ * Partner account shell — header, sidebar, main, nav, page chrome.
+ * Page-specific visuals live in pages/partner-*.css (content only).
+ */
+
+body.lhai-partner-shell {
+  --lhai-partner-header-height: 72px;
+  --lhai-partner-sidebar-width: 260px;
+  --lhai-partner-content-max-width: 1200px;
+  --lhai-partner-content-padding: var(--lhai-space-6);
+  --lhai-partner-section-gap: var(--lhai-space-4);
+  --lhai-partner-nav-gap: var(--lhai-space-1);
+  --lhai-partner-shell-bg: var(--lhai-color-bg);
+  --lhai-partner-sidebar-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(238, 244, 255, 0.35));
+  --lhai-partner-sidebar-border: var(--lhai-color-border);
+  --lhai-partner-nav-active-bg: rgb(37 99 235 / 0.1);
+  --lhai-partner-nav-active-text: var(--lhai-color-primary-strong, #2563eb);
+}
+
+/* --- Outer shell (header + app body) --- */
+#lhai-partner-shell-root,
+.lhai-partner-shell-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.lhai-partner-shell__header {
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: var(--lhai-partner-shell-bg);
+}
+
+.lhai-partner-shell__header #lhai-app-header-root {
+  display: block;
+}
+
+.lhai-partner-shell__header .lhai-topbar {
+  margin: 0;
+  min-height: var(--lhai-partner-header-height);
+  box-sizing: border-box;
+}
+
+.lhai-partner-shell__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lhai-partner-shell__body > #app {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+}
+
+body.lhai-partner-shell-pending #app {
+  min-height: calc(100vh - var(--lhai-partner-header-height));
+}
+
+body.lhai-partner-shell-pending.lhai-partner-shell .lhai-partner-shell__body > #app {
+  min-height: 0;
+}
+
+body.lhai-partner-shell-pending #app:empty::before {
+  content: "";
+  display: block;
+  min-height: 12rem;
+}
+
+body.lhai-partner-shell .lhai-partner-shell__body > #app > .lhai-partner-shell__layout {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* --- Sidebar + main grid --- */
+body.lhai-partner-shell .lhai-partner-shell__layout {
+  display: grid;
+  grid-template-columns: var(--lhai-partner-sidebar-width) 1fr;
+  min-height: calc(100vh - var(--lhai-partner-header-height));
+  min-height: calc(100dvh - var(--lhai-partner-header-height));
+  width: 100%;
+}
+
+body.lhai-partner-shell .lhai-partner-shell__sidebar {
+  display: flex;
+  flex-direction: column;
+  width: var(--lhai-partner-sidebar-width);
+  flex-shrink: 0;
+  padding: var(--lhai-partner-content-padding) var(--lhai-space-4);
+  border-right: 1px solid var(--lhai-partner-sidebar-border);
+  background: var(--lhai-partner-sidebar-bg);
+  box-sizing: border-box;
+}
+
+body.lhai-partner-shell .lhai-partner-shell__main {
+  max-width: var(--lhai-partner-content-max-width);
+  width: 100%;
+  padding: var(--lhai-partner-content-padding);
+  box-sizing: border-box;
+}
+
+body.lhai-partner-shell .lhai-partner-shell__content {
+  width: 100%;
+  max-width: var(--lhai-partner-content-max-width);
+}
+
+/* --- Partner nav --- */
+body.lhai-partner-shell .lhai-partner-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-partner-nav-gap);
+}
+
+body.lhai-partner-shell .lhai-partner-nav__item {
+  display: block;
+  padding: var(--lhai-space-2) var(--lhai-space-3);
+  border-radius: var(--lhai-radius-sm);
+  color: var(--lhai-color-text);
+  text-decoration: none;
+  font-size: var(--lhai-font-size-md, 1rem);
+  line-height: 1.35;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+body.lhai-partner-shell .lhai-partner-nav__item:hover {
+  background: var(--lhai-panel-08);
+  color: var(--lhai-color-text);
+}
+
+body.lhai-partner-shell .lhai-partner-nav__item:focus-visible {
+  outline: 2px solid var(--lhai-color-primary);
+  outline-offset: 2px;
+}
+
+body.lhai-partner-shell .lhai-partner-nav__item--active,
+body.lhai-partner-shell .lhai-partner-nav__item.is-active {
+  font-weight: 600;
+  color: var(--lhai-partner-nav-active-text);
+  background: var(--lhai-partner-nav-active-bg);
+}
+
+/* --- Shared page chrome (title + sections) --- */
+body.lhai-partner-shell .lhai-partner-page {
+  width: 100%;
+}
+
+body.lhai-partner-shell .lhai-partner-page__header {
+  margin-bottom: 0;
+}
+
+body.lhai-partner-shell .lhai-partner-page__eyebrow {
+  margin-bottom: var(--lhai-space-2);
+}
+
+body.lhai-partner-shell .lhai-partner-page__back {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+body.lhai-partner-shell .lhai-partner-page__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lhai-partner-section-gap);
+}
+
+body.lhai-partner-shell .lhai-partner-page__body > .lhai-card,
+body.lhai-partner-shell .lhai-partner-page__body > section.lhai-card,
+body.lhai-partner-shell .lhai-partner-page__body > .lhai-grid {
+  margin-top: 0;
+}
+
+body.lhai-partner-shell .lhai-page-header {
+  margin-bottom: var(--lhai-partner-section-gap);
+}
+
+body.lhai-partner-shell .lhai-partner-page__body .lhai-card {
+  border-radius: var(--lhai-radius-md);
+  border-color: var(--lhai-color-border);
+}
+
+/* 신청 리스트 nav: dashboard stats hidden (content rule lives in partner-dashboard.css too) */
+body.lhai-partner-shell[data-partner-page="bid_requests"] .lhai-partner-dash__stats {
+  display: none !important;
+}
+
+/* Legacy aliases (older markup / scripts) */
+.lhai-partner-app,
+#lhai-partner-app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.lhai-partner-app__header {
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+
+.lhai-partner-app__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+body.lhai-partner-shell .lhai-layout.lhai-partner-shell__layout {
+  display: grid;
+}
+
+body.lhai-partner-shell .lhai-sidebar.lhai-partner-shell__sidebar,
+body.lhai-partner-shell aside#sidebar.lhai-partner-shell__sidebar {
+  /* specificity for legacy .lhai-sidebar from layout.css */
+  width: var(--lhai-partner-sidebar-width);
+}
+
+@media (max-width: 900px) {
+  body.lhai-partner-shell .lhai-partner-shell__layout {
+    grid-template-columns: 1fr;
+  }
+
+  body.lhai-partner-shell .lhai-partner-shell__sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--lhai-partner-sidebar-border);
+  }
+
+  body.lhai-partner-shell .lhai-partner-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}

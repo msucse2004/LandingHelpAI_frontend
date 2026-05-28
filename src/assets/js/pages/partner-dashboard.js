@@ -1,4 +1,10 @@
-import { applyPartnerBiddingSidebarMessagingHide, loadSidebar } from "../components/sidebar.js";
+import {
+  detectPartnerPageKey,
+  mountPartnerShell,
+  resolvePartnerPageKey,
+  syncPartnerPageState,
+} from "../layouts/partner-shell.js";
+import { renderPartnerDashboardContentHtml } from "./partner-dashboard-content.js";
 import {
   emitPartnerDashboardAuthDebug,
   getCurrentRole,
@@ -19,6 +25,7 @@ import {
 } from "../core/partner-dashboard-debug.js";
 import { clearShellTopLayerBlockers, diagnoseShellTopLayerBlockers } from "../core/ui-blockers.js";
 import { formatMessageTimestamp } from "../core/utils.js";
+import { buildBiddingDashboardCardHtml } from "./partner-dashboard-bidding-logic.js";
 
 const ERR_LOAD =
   "대시보드를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
@@ -117,14 +124,11 @@ function renderUnsupportedPartnerMode(data) {
   applyPartnerDashboardDualPanels("unsupported");
   applyPartnerMainDashboardClasses("unsupported");
 
-  const titleEl = document.querySelector("#partnerDashboardTitle");
-  const subEl = document.querySelector("#partnerDashboardSubtitle");
+  applyPartnerDashboardTitles("unsupported");
   const secTitle = document.querySelector("#partnerRequestsSectionTitle");
   const emptyEl = document.querySelector("#partnerDashboardEmpty");
   const bodyEl = document.querySelector("#partnerDashboardUnsupportedBody");
 
-  if (titleEl) titleEl.textContent = "파트너 대시보드";
-  if (subEl) subEl.textContent = "";
   if (secTitle) secTitle.textContent = "안내";
 
   if (emptyEl instanceof HTMLElement) {
@@ -353,8 +357,64 @@ function biddingBidStatusLabelKo(code) {
 function scrollToHash() {
   const h = (window.location.hash || "").trim();
   if (h === "#partner-requests") {
-    document.querySelector("#partner-requests")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.querySelector("#partner-requests")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
+}
+
+/** @returns {"assigned" | "bidding" | "unsupported"} */
+function detectDashboardBranchFromDom() {
+  const main = document.getElementById("partnerDashboardMain");
+  if (!(main instanceof HTMLElement)) return "assigned";
+  if (main.classList.contains("lhai-bidding-dashboard")) return "bidding";
+  if (main.classList.contains("lhai-partner-dash--unsupported")) return "unsupported";
+  return "assigned";
+}
+
+/**
+ * Page title area respects nav key (신청 리스트 vs 대시보드).
+ * @param {"assigned" | "bidding" | "unsupported"} branch
+ */
+function applyPartnerDashboardTitles(branch) {
+  const pageKey = resolvePartnerPageKey(window.location.pathname, window.location.hash);
+  const titleEl = document.querySelector("#partnerDashboardTitle");
+  const subEl = document.querySelector("#partnerDashboardSubtitle");
+  const secTitle = document.querySelector("#partnerRequestsSectionTitle");
+
+  if (pageKey === "bid_requests") {
+    if (titleEl) titleEl.textContent = "신청 리스트";
+    if (subEl) {
+      subEl.textContent =
+        branch === "bidding"
+          ? "받은 견적 신청을 확인하고 상세에서 견적을 제출합니다."
+          : "배정된 고객 신청을 확인하고 메시지로 서비스를 진행하세요.";
+    }
+    if (secTitle) secTitle.textContent = "신청 목록";
+    return;
+  }
+
+  if (branch === "assigned") {
+    if (titleEl) titleEl.textContent = "배정 업무 대시보드";
+    if (subEl) subEl.textContent = "배정된 고객 신청을 확인하고 메시지로 서비스를 진행하세요.";
+    if (secTitle) secTitle.textContent = "요청 목록";
+    return;
+  }
+  if (branch === "bidding") {
+    if (titleEl) titleEl.textContent = "견적 요청 대시보드";
+    if (subEl) subEl.textContent = "받은 견적 요청을 확인하고 견적을 제출합니다.";
+    if (secTitle) secTitle.textContent = "견적 요청 리스트";
+    return;
+  }
+  if (titleEl) titleEl.textContent = "파트너 대시보드";
+  if (subEl) subEl.textContent = "";
+  if (secTitle) secTitle.textContent = "목록";
+}
+
+function onPartnerDashboardHashChange() {
+  const file = (window.location.pathname || "").split("/").pop()?.toLowerCase() || "";
+  if (file !== "partner-dashboard.html") return;
+  syncPartnerPageState();
+  applyPartnerDashboardTitles(detectDashboardBranchFromDom());
+  scrollToHash();
 }
 
 /** dialog/inert 잔여물 제거 — 즉시 + 다음 프레임·마이크로태스크 한 번 더 */
@@ -390,7 +450,7 @@ function showDashboardError(errEl, emptyEl, assignedWrap, biddingWrap, msg) {
   setHidden(assignedWrap, false);
   setHidden(biddingWrap, false);
   const wa = document.querySelector("#partnerAssignedCardsRoot");
-  const wb = document.querySelector("#partnerDashboardTableWrapBidding");
+  const wb = document.querySelector("#partnerBiddingListRoot");
   setHidden(wa, false);
   setHidden(wb, false);
 }
@@ -552,6 +612,11 @@ function renderPartnerDashboardFromPayload(data) {
   logPartnerDashboardDomAfterRender(branch === "assigned" ? "assigned" : branch === "bidding" ? "bidding" : "unsupported");
 }
 
+if (typeof window !== "undefined" && !window.__lhaiPartnerDashHashScrollBound) {
+  window.__lhaiPartnerDashHashScrollBound = true;
+  window.addEventListener("hashchange", onPartnerDashboardHashChange);
+}
+
 if (typeof document !== "undefined" && !document.documentElement.dataset.lhaiPartnerDashCompleteBound) {
   document.documentElement.dataset.lhaiPartnerDashCompleteBound = "1";
   document.body.addEventListener("click", (ev) => {
@@ -575,13 +640,7 @@ function renderAssignedDashboard(data) {
   applyPartnerDashboardDualPanels("assigned");
   applyPartnerMainDashboardClasses("assigned");
 
-  const titleEl = document.querySelector("#partnerDashboardTitle");
-  const subEl = document.querySelector("#partnerDashboardSubtitle");
-  const secTitle = document.querySelector("#partnerRequestsSectionTitle");
-
-  if (titleEl) titleEl.textContent = "배정 업무 대시보드";
-  if (subEl) subEl.textContent = "배정된 고객 신청을 확인하고 메시지로 서비스를 진행하세요.";
-  if (secTitle) secTitle.textContent = "요청 목록";
+  applyPartnerDashboardTitles("assigned");
 
   const statProgress = document.querySelector("#partnerStatProgress");
   const statDone = document.querySelector("#partnerStatDone");
@@ -656,13 +715,7 @@ function renderBiddingDashboard(data) {
   applyPartnerDashboardDualPanels("bidding");
   applyPartnerMainDashboardClasses("bidding");
 
-  const titleEl = document.querySelector("#partnerDashboardTitle");
-  const subEl = document.querySelector("#partnerDashboardSubtitle");
-  const secTitle = document.querySelector("#partnerRequestsSectionTitle");
-
-  if (titleEl) titleEl.textContent = "견적 요청 대시보드";
-  if (subEl) subEl.textContent = "받은 견적 요청을 확인하고 견적을 제출합니다.";
-  if (secTitle) secTitle.textContent = "견적 요청 리스트";
+  applyPartnerDashboardTitles("bidding");
 
   /** @type {Record<string, HTMLElement | null>} */
   const statEls = {
@@ -680,8 +733,7 @@ function renderBiddingDashboard(data) {
   }
 
   const emptyEl = document.querySelector("#partnerDashboardEmpty");
-  const wrapEl = document.querySelector("#partnerDashboardTableWrapBidding");
-  const tbody = document.querySelector("#partnerDashboardTbodyBidding");
+  const listRoot = document.querySelector("#partnerBiddingListRoot");
 
   const requests = Array.isArray(data.requests) ? data.requests : [];
 
@@ -690,22 +742,22 @@ function renderBiddingDashboard(data) {
       emptyEl.hidden = false;
       emptyEl.textContent = EMPTY_BIDDING;
     }
-    setHidden(wrapEl, false);
-    if (tbody) tbody.innerHTML = "";
+    setHidden(listRoot, false);
+    if (listRoot instanceof HTMLElement) listRoot.innerHTML = "";
     return;
   }
 
   if (emptyEl instanceof HTMLElement) emptyEl.hidden = true;
-  setHidden(wrapEl, true);
+  setHidden(listRoot, true);
 
-  if (tbody) {
-    tbody.innerHTML = requests
+  if (listRoot instanceof HTMLElement) {
+    listRoot.innerHTML = requests
       .map((row) => {
         /** @type {Record<string, unknown>} */
         const r = row && typeof row === "object" ? row : {};
         const bidRequestId = String(r.bid_request_id || "").trim();
-        const expRaw = r.expires_at;
         const qs = new URLSearchParams();
+        const expRaw = r.expires_at;
         if (expRaw != null && String(expRaw).trim() !== "") {
           qs.set("expires_at", String(expRaw).trim());
         }
@@ -713,24 +765,7 @@ function renderBiddingDashboard(data) {
         if (reqSt) qs.set("request_status", reqSt);
         const expQ = qs.toString() ? `?${qs.toString()}` : "";
         const detailHref = `partner-bid-request.html${expQ}#/partner/bid-requests/${encodeURIComponent(bidRequestId)}`;
-        const svc = escHtml(r.service_name || "—");
-        const cust = escHtml(r.customer_display_name || "—");
-        const loc = escHtml(r.location || "—");
-        const subAt = formatMessageTimestamp(r.submitted_at);
-        const expAt = formatMessageTimestamp(r.expires_at);
-        const bidSt = escHtml(biddingBidStatusLabelKo(String(r.bid_status || "")));
-        const newBadge = r.is_new_request
-          ? '<span class="lhai-badge lhai-badge--accent" style="margin-left:0.35rem">새 견적 요청</span>'
-          : "";
-        return `<tr class="lhai-bidding-request-card">
-          <td>${svc}${newBadge}</td>
-          <td>${cust}</td>
-          <td>${loc}</td>
-          <td>${escHtml(subAt)}</td>
-          <td>${escHtml(expAt)}</td>
-          <td>${bidSt}</td>
-          <td><a class="lhai-button lhai-button--secondary" href="${detailHref}">요청 보기</a></td>
-        </tr>`;
+        return buildBiddingDashboardCardHtml(r, detailHref, escHtml);
       })
       .join("");
   }
@@ -758,6 +793,16 @@ async function initPartnerDashboard() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
 
+  const pageKey = resolvePartnerPageKey(window.location.pathname, window.location.hash);
+  await mountPartnerShell("#app", {
+    pageKey,
+    documentTitle:
+      pageKey === "bid_requests" ? "신청 리스트 - Landing Help AI" : "파트너 대시보드 - Landing Help AI",
+    contentHtml: renderPartnerDashboardContentHtml(),
+    mainExtraClass: "lhai-partner-dash",
+    mainId: "partnerDashboardMain",
+  });
+
   const errEl = document.querySelector("#partnerDashboardError");
   const emptyEl = document.querySelector("#partnerDashboardEmpty");
   const assignedWrap = document.querySelector("#partnerTableAssignedWrap");
@@ -776,8 +821,6 @@ async function initPartnerDashboard() {
       message: e && typeof e.message === "string" ? e.message.slice(0, 400) : String(e).slice(0, 400),
     });
     showDashboardError(errEl, emptyEl, assignedWrap, biddingWrap, ERR_LOAD);
-    await loadSidebar("#sidebar", "customer");
-    applyPartnerBiddingSidebarMessagingHide();
     debugDashboard("render-complete", { path: "error-no-data" });
     logPartnerDashboardDomAfterRender("");
     schedulePartnerShellModalCleanup();
@@ -789,8 +832,6 @@ async function initPartnerDashboard() {
   if (!data || typeof data !== "object") {
     debugDashboard("api-request-error", { reason: "invalid_or_empty_json" });
     showDashboardError(errEl, emptyEl, assignedWrap, biddingWrap, ERR_LOAD);
-    await loadSidebar("#sidebar", "customer");
-    applyPartnerBiddingSidebarMessagingHide();
     debugDashboard("render-complete", { path: "invalid-payload" });
     logPartnerDashboardDomAfterRender("");
     schedulePartnerShellModalCleanup();
@@ -798,9 +839,6 @@ async function initPartnerDashboard() {
   }
 
   persistPartnerModeFromDashboard(data);
-
-  await loadSidebar("#sidebar", "customer");
-  applyPartnerBiddingSidebarMessagingHide();
 
   renderPartnerDashboardFromPayload(data);
 }

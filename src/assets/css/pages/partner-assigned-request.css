@@ -1,21 +1,8 @@
-/* ASSIGNED_ONLY partner — assigned request detail (no customer intake UI) */
-
-.lhai-par-detail__header-row {
-  margin-bottom: var(--lhai-space-2);
-}
-
-.lhai-par-detail__back {
-  margin: 0 0 var(--lhai-space-2);
-  font-size: 0.9rem;
-}
+/* ASSIGNED_ONLY partner — assigned request detail (layout: partner-shell.css) */
 
 .lhai-par-detail__error {
   color: var(--lhai-color-danger, #f87171);
   margin-bottom: var(--lhai-space-3);
-}
-
-.lhai-par-detail__hero {
-  margin-bottom: var(--lhai-space-4);
 }
 
 .lhai-par-detail__hero-grid {

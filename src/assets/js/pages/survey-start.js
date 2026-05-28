@@ -1214,8 +1214,20 @@ function renderServicesSubstepHeader() {
     helpEl.textContent = help;
   }
 
-  if (prevBtn) prevBtn.disabled = servicesCategoryIndex <= 0;
-  if (nextBtn) nextBtn.disabled = servicesCategoryIndex >= total - 1;
+  const canGoPrev = total > 1 && servicesCategoryIndex > 0;
+  const canGoNext = total > 1 && servicesCategoryIndex < total - 1;
+  if (prevBtn) {
+    prevBtn.hidden = !canGoPrev;
+    prevBtn.disabled = !canGoPrev;
+  }
+  if (nextBtn) {
+    nextBtn.hidden = !canGoNext;
+    nextBtn.disabled = !canGoNext;
+  }
+  const navGroup = prevBtn?.closest(".service-flow__services-substep-nav");
+  if (navGroup instanceof HTMLElement) {
+    navGroup.hidden = !canGoPrev && !canGoNext;
+  }
 }
 
 function renderMixedDeliveryNote(list = []) {

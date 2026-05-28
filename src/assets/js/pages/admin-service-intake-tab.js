@@ -66,6 +66,9 @@ const MSI_LEGACY_USER_PREFILL_SOURCES = [
 
 const MSI_PREFILL_MODES = ["auto_fill", "dropdown_existing_values", "hide_if_exists", "confirm_existing_value"];
 
+/** Stored on field / question-group child ``visibility_rule_json.partner_visibility``. */
+const PARTNER_VISIBILITY_MASKED_UNTIL_ASSIGNED = "MASKED_UNTIL_ASSIGNED";
+
 function msiAdaptPrefillFromStored(raw) {
   const p = raw && typeof raw === "object" ? /** @type {Record<string, unknown>} */ (raw) : {};
   const legacySource = String(p.source || "").trim();
@@ -358,6 +361,8 @@ let msiBlocks = [];
 let msiLastOpenedContentBlockId = "";
 /** Deep copy of the open content block when the side editor opens; restored on Cancel / backdrop / ×. */
 let msiSideEditorSnapshot = null;
+/** Set only by the Save button click handler; blocks accidental API writes on dismiss. */
+let msiSideSaveRequested = false;
 /** Suppress intake list clicks right after dismiss (avoids ghost clicks on Save / Edit under the cursor). */
 let msiSideDismissGuardUntil = 0;
 /** Deep copy of the legacy field dialog field when it opens; restored on Cancel / Escape / backdrop. */
@@ -465,6 +470,103 @@ function msiFormatInputTypeLabel(inputType) {
 function msiIsChoiceType(inputType) {
   const it = String(inputType || "").toLowerCase();
   return it === "select" || it === "radio" || it === "multi_select";
+}
+
+function msiIsSelectType(inputType) {
+  return String(inputType || "").toLowerCase() === "select";
+}
+
+/** @param {unknown} vis */
+function msiVisMaskUntilPartnerAssigned(vis) {
+  const v = vis && typeof vis === "object" ? /** @type {Record<string, unknown>} */ (vis) : {};
+  return String(v.partner_visibility || "").trim().toUpperCase() === PARTNER_VISIBILITY_MASKED_UNTIL_ASSIGNED;
+}
+
+/** @param {Record<string, unknown>} vis */
+function msiVisWithMaskUntilPartnerAssigned(vis, enabled) {
+  const out = { ...(vis && typeof vis === "object" ? vis : {}) };
+  if (enabled) {
+    out.partner_visibility = PARTNER_VISIBILITY_MASKED_UNTIL_ASSIGNED;
+  } else if (String(out.partner_visibility || "").toUpperCase() === PARTNER_VISIBILITY_MASKED_UNTIL_ASSIGNED) {
+    delete out.partner_visibility;
+  }
+  return out;
+}
+
+/** Help text in question-group child rows (description + textarea only; label is under Question label). */
+function msiQgChildHelpFieldHtml(helpText) {
+  const ht = String(helpText ?? "");
+  return `
+              <p class="lhai-help u-mt-2">${esc(
+                t(
+                  "common.admin_services.intake.qgroup_child_help_desc",
+                  "도움말 항목: 고객 화면에서 입력 칸 아래에 보이는 짧은 안내 문구입니다. 드롭다운 선택지는 Field type을 Select로 선택한 뒤 아래 Options에 한 줄에 하나씩 입력하세요."
+                )
+              )}</p>
+              <textarea class="lhai-textarea msi-qg-child-help" rows="2" maxlength="2000">${esc(ht)}</textarea>`;
+}
+
+function msiQgChildFooterTogglesHtml(required, maskUntilAssigned, showMask = true) {
+  const maskToggle = showMask
+    ? `
+                <label class="admin-services__switch">
+                  <input type="checkbox" class="msi-qg-child-mask-until-assigned" ${maskUntilAssigned ? "checked" : ""} />
+                  <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                  <span class="admin-services__switch-label">${esc(
+                    t("common.admin_services.intake.toggle_mask_until_partner", "Mask for partners until assigned")
+                  )}</span>
+                </label>`
+    : "";
+  const maskHelp = showMask
+    ? `<p class="lhai-help u-mt-1">${esc(
+        t(
+          "common.admin_services.intake.toggle_mask_until_partner_help",
+          "While bidding is open, partners see only the first character of the answer; the rest is shown as asterisks until a partner is selected."
+        )
+      )}</p>`
+    : "";
+  return `
+              <div class="admin-services__intake-qg-footer-toggles u-mt-2">
+                <label class="admin-services__switch">
+                  <input type="checkbox" class="msi-qg-child-req" ${required ? "checked" : ""} />
+                  <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                  <span class="admin-services__switch-label">${esc(t("common.admin_services.intake.qgroup_child_required", "Required"))}</span>
+                </label>
+                ${maskToggle}
+              </div>
+              ${maskHelp}`;
+}
+
+function msiQgChildOptionsBlockHtml(optLines, inputType) {
+  const hidden = !msiIsSelectType(inputType);
+  return `
+              <div class="msi-qg-child-options-wrap u-mt-2"${hidden ? " hidden" : ""}>
+                <label class="lhai-label">${esc(t("common.admin_services.intake.qgroup_child_options", "Options (choice fields only)"))}</label>
+                <textarea class="lhai-textarea msi-qg-child-options" rows="3" maxlength="8000" placeholder="value|label">${esc(optLines)}</textarea>
+              </div>`;
+}
+
+function msiQgSyncChildRowFields(row) {
+  if (!(row instanceof HTMLElement)) return;
+  const typeEl = row.querySelector(".msi-qg-child-type");
+  const wrap = row.querySelector(".msi-qg-child-options-wrap");
+  if (typeEl instanceof HTMLSelectElement && wrap instanceof HTMLElement) {
+    wrap.hidden = !msiIsSelectType(typeEl.value);
+  }
+}
+
+function msiQgWireChildRowTypeHandlers(root) {
+  const scope = root instanceof HTMLElement ? root : qs("#msiQgChildren");
+  if (!scope) return;
+  scope.querySelectorAll("[data-qg-child-row]").forEach((row) => {
+    if (!(row instanceof HTMLElement)) return;
+    msiQgSyncChildRowFields(row);
+    const typeEl = row.querySelector(".msi-qg-child-type");
+    if (typeEl instanceof HTMLSelectElement && typeEl.dataset.msiQgTypeBound !== "1") {
+      typeEl.dataset.msiQgTypeBound = "1";
+      typeEl.addEventListener("change", () => msiQgSyncChildRowFields(row));
+    }
+  });
 }
 
 function msiSortedFields() {
@@ -792,7 +894,10 @@ function msiSyntheticFieldFromGroupChild(child) {
     placeholder: String(child.placeholder || ""),
     required: Boolean(child.required),
     sort_order: 0,
-    visibility_rule_json: {},
+    visibility_rule_json:
+      child.visibility_rule_json && typeof child.visibility_rule_json === "object"
+        ? { .../** @type {Record<string, unknown>} */ (child.visibility_rule_json) }
+        : {},
     default_value: child.default_value != null ? String(child.default_value) : null,
     validation: child.validation && typeof child.validation === "object" ? child.validation : {},
     prefill: {},
@@ -1340,6 +1445,11 @@ function msiRenderQuestionGroupSideEditor(payload) {
           const ht = String(c.help_text || "");
           const it = String(c.input_type || "text");
           const req = Boolean(c.required);
+          const childVis =
+            c.visibility_rule_json && typeof c.visibility_rule_json === "object"
+              ? /** @type {Record<string, unknown>} */ (c.visibility_rule_json)
+              : {};
+          const maskUntil = msiVisMaskUntilPartnerAssigned(childVis);
           const carKey = msiQgResolveCarKeyFromChild(c, bidScope);
           const prefill = c.prefill && typeof c.prefill === "object" ? /** @type {Record<string, unknown>} */ (c.prefill) : {};
           const prefillSource = String(prefill.source || "").trim();
@@ -1372,19 +1482,13 @@ function msiRenderQuestionGroupSideEditor(payload) {
               </div>
               <label class="lhai-label">${esc(t("common.admin_services.intake.qgroup_child_label", "Label"))}</label>
               <input class="lhai-input msi-qg-child-label" type="text" maxlength="500" value="${esc(lab)}" />
+              ${msiQgChildHelpFieldHtml(ht)}
               <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_type", "Field type"))}</label>
               <select class="lhai-select msi-qg-child-type">${typeOpts}</select>
-              <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_required", "Required"))}</label>
-              <label class="admin-services__switch">
-                <input type="checkbox" class="msi-qg-child-req" ${req ? "checked" : ""} />
-                <span class="admin-services__switch-slider" aria-hidden="true"></span>
-              </label>
-              <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_help", "Help text (optional)"))}</label>
-              <textarea class="lhai-textarea msi-qg-child-help" rows="2" maxlength="2000">${esc(ht)}</textarea>
               ${carKeyBlock}
               ${prefillBlock}
-              <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_options", "Options (choice fields only)"))}</label>
-              <textarea class="lhai-textarea msi-qg-child-options" rows="3" maxlength="8000" placeholder="value|label">${esc(optLines)}</textarea>
+              ${msiQgChildFooterTogglesHtml(req, maskUntil, !isBidding)}
+              ${msiQgChildOptionsBlockHtml(optLines, it)}
             </div>`;
         })
         .join("")}</div>
@@ -1430,6 +1534,7 @@ function msiRenderQuestionGroupSideEditor(payload) {
   });
   if (isBidding) msiQgBindBiddingGroupSettingsHandlers(mount);
   msiQgSyncLayoutSectionVisibility();
+  msiQgWireChildRowTypeHandlers(mount);
 }
 
 function msiRerenderQuestionGroupChildRowControls() {
@@ -1477,23 +1582,18 @@ function msiAppendQuestionGroupChildRow() {
       </div>
       <label class="lhai-label">${esc(t("common.admin_services.intake.qgroup_child_label", "Label"))}</label>
       <input class="lhai-input msi-qg-child-label" type="text" maxlength="500" value="" />
+      ${msiQgChildHelpFieldHtml("")}
       <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_type", "Field type"))}</label>
       <select class="lhai-select msi-qg-child-type">${typeOpts}</select>
-      <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_required", "Required"))}</label>
-      <label class="admin-services__switch">
-        <input type="checkbox" class="msi-qg-child-req" />
-        <span class="admin-services__switch-slider" aria-hidden="true"></span>
-      </label>
-      <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_help", "Help text (optional)"))}</label>
-      <textarea class="lhai-textarea msi-qg-child-help" rows="2" maxlength="2000"></textarea>
       ${carKeyBlock}
       ${prefillBlock}
-      <label class="lhai-label u-mt-2">${esc(t("common.admin_services.intake.qgroup_child_options", "Options (choice fields only)"))}</label>
-      <textarea class="lhai-textarea msi-qg-child-options" rows="3" maxlength="8000" placeholder="value|label"></textarea>
+      ${msiQgChildFooterTogglesHtml(false, !isBidding)}
+      ${msiQgChildOptionsBlockHtml("", "text")}
     </div>`
   );
   msiRerenderQuestionGroupChildRowControls();
   msiQgSyncLayoutSectionVisibility();
+  msiQgWireChildRowTypeHandlers(wrap);
 }
 
 function msiHideQuestionGroupSideEditor() {
@@ -1522,6 +1622,7 @@ function msiReadQuestionGroupPayloadFromSideDom() {
       const labEl = row.querySelector(".msi-qg-child-label");
       const typeEl = row.querySelector(".msi-qg-child-type");
       const reqEl = row.querySelector(".msi-qg-child-req");
+      const maskEl = row.querySelector(".msi-qg-child-mask-until-assigned");
       const helpEl = row.querySelector(".msi-qg-child-help");
       const prefillSourceEl = row.querySelector(".msi-qg-child-prefill-source");
       const optEl = row.querySelector(".msi-qg-child-options");
@@ -1557,6 +1658,8 @@ function msiReadQuestionGroupPayloadFromSideDom() {
           car_answer_key,
           childVehicleIndex ?? groupMeta.vehicle_request_index ?? 1
         );
+      } else if (maskEl instanceof HTMLInputElement && maskEl.checked) {
+        visibility_rule_json = { partner_visibility: PARTNER_VISIBILITY_MASKED_UNTIL_ASSIGNED };
       }
       const childRow = {
         id,
@@ -1954,9 +2057,10 @@ function msiCaptureSideEditorSnapshot(block) {
     msiSideEditorSnapshot = null;
     return;
   }
+  const payload = msiDeepCloneJson(block.payload && typeof block.payload === "object" ? block.payload : {});
   msiSideEditorSnapshot = {
     blockId: String(block.id),
-    payload: msiDeepCloneJson(block.payload && typeof block.payload === "object" ? block.payload : {}),
+    payload,
     visibility_rule_json: msiDeepCloneJson(
       block.visibility_rule_json && typeof block.visibility_rule_json === "object" ? block.visibility_rule_json : {}
     ),
@@ -1964,7 +2068,7 @@ function msiCaptureSideEditorSnapshot(block) {
 }
 
 function msiRestoreSideEditorFromSnapshot() {
-  if (!msiSideEditorSnapshot) return;
+  if (!msiSideEditorSnapshot) return false;
   const { blockId, payload, visibility_rule_json } = msiSideEditorSnapshot;
   const block = msiBlocks.find((b) => String(b.id) === blockId);
   if (block) {
@@ -1973,6 +2077,7 @@ function msiRestoreSideEditorFromSnapshot() {
     msiRenderFieldCards();
   }
   msiSideEditorSnapshot = null;
+  return true;
 }
 
 function msiClearSideEditorSnapshot() {
@@ -1990,9 +2095,9 @@ function msiArmSideDismissGuard() {
 
 /** Close side editor without persisting edits (Cancel, ×, backdrop). */
 function msiCancelSidePanel() {
+  msiSideSaveRequested = false;
   msiArmSideDismissGuard();
-  msiDiscardSideEditorChanges();
-  msiCloseSidePanel();
+  msiCloseSidePanel({ saved: false });
 }
 
 function msiCaptureFieldDialogSnapshot(field) {
@@ -2025,7 +2130,13 @@ function msiCancelFieldDialog() {
   msiResetSidePanelEmpty();
 }
 
-function msiCloseSidePanel() {
+function msiCloseSidePanel(opts = {}) {
+  const saved = Boolean(opts && opts.saved);
+  if (!saved) {
+    msiRestoreSideEditorFromSnapshot();
+  } else {
+    msiClearSideEditorSnapshot();
+  }
   msiHideQuestionGroupSideEditor();
   const form = qs("#manageServiceIntakeSideForm");
   const empty = qs("#manageServiceIntakeSideEmpty");
@@ -2035,7 +2146,6 @@ function msiCloseSidePanel() {
   if (empty) empty.hidden = false;
   if (th) th.hidden = true;
   if (p) p.hidden = true;
-  msiClearSideEditorSnapshot();
   msiSyncIntakeEditorFocusLayout(false);
 }
 
@@ -2196,13 +2306,13 @@ function msiOpenSideEditor(block) {
   if (!p || !form || !block) return;
   const formWasOpen = form instanceof HTMLElement && !form.hidden;
   const prevBlockId = qs("#manageServiceIntakeSideBlockId")?.value?.trim() || "";
-  if (formWasOpen && prevBlockId && prevBlockId !== String(block.id || "").trim()) {
-    msiDiscardSideEditorChanges();
-    msiCloseSidePanel();
+  const nextBlockId = String(block.id || "").trim();
+  const sameBlockOpen = formWasOpen && prevBlockId && prevBlockId === nextBlockId;
+  if (formWasOpen && prevBlockId && !sameBlockOpen) {
+    msiCloseSidePanel({ saved: false });
   }
   msiHideQuestionGroupSideEditor();
-  msiCaptureSideEditorSnapshot(block);
-  msiLastOpenedContentBlockId = String(block.id || "").trim();
+  msiLastOpenedContentBlockId = nextBlockId;
   p.hidden = false;
   form.hidden = false;
   if (empty) empty.hidden = true;
@@ -2276,6 +2386,9 @@ function msiOpenSideEditor(block) {
   }
   msiSideApplyVisibilityToUi(block.visibility_rule_json);
   msiSyncIntakeEditorFocusLayout(true);
+  if (!sameBlockOpen) {
+    msiCaptureSideEditorSnapshot(block);
+  }
 }
 
 function msiSyncIntakeEditorFocusLayout(forceOpen) {
@@ -2300,6 +2413,8 @@ function msiSyncIntakeEditorFocusLayout(forceOpen) {
 const MSI_MEDIA_ASSET_ID_RE = /^[A-Za-z0-9._:@/-]{1,128}$/;
 
 async function msiSaveSideEditor() {
+  if (!msiSideSaveRequested) return;
+  msiSideSaveRequested = false;
   const blockId = qs("#manageServiceIntakeSideBlockId")?.value?.trim();
   const block = msiBlocks.find((b) => b.id === blockId);
   if (!blockId || !block || String(block.block_type) === "question") {
@@ -2334,7 +2449,7 @@ async function msiSaveSideEditor() {
       await serviceIntakeAdminApi.updateBlock(blockId, { payload: pl, visibility_rule_json });
       msiClearSideEditorSnapshot();
       await msiRefresh();
-      msiCloseSidePanel();
+      msiCloseSidePanel({ saved: true });
     } catch (err) {
       const msg = err && typeof err.message === "string" ? err.message : String(err);
       if (statusEl) statusEl.textContent = msg;
@@ -2388,7 +2503,7 @@ async function msiSaveSideEditor() {
     await serviceIntakeAdminApi.updateBlock(blockId, { payload: pl, visibility_rule_json });
     msiClearSideEditorSnapshot();
     await msiRefresh();
-    msiCloseSidePanel();
+    msiCloseSidePanel({ saved: true });
   } catch (err) {
     const msg = err && typeof err.message === "string" ? err.message : String(err);
     if (statusEl) statusEl.textContent = msg;
@@ -2804,7 +2919,7 @@ function msiToggleOptionsBlockVisibility() {
   const sel = qs("#manageServiceIntakeFieldInputType");
   const block = qs("#manageServiceIntakeOptionsBlock");
   if (!block || !sel) return;
-  block.hidden = !msiIsChoiceType(sel.value);
+  block.hidden = !msiIsSelectType(sel.value);
 }
 
 function msiUpdateBehaviorSubfieldsVisibility() {
@@ -2899,6 +3014,10 @@ function msiOpenDialog(mode, field) {
   qs("#manageServiceIntakeFieldPlaceholder").value = field?.placeholder || "";
   qs("#manageServiceIntakeFieldDefault").value = field?.default_value ?? "";
   qs("#manageServiceIntakeFieldRequired").checked = Boolean(field?.required);
+  const maskEl = qs("#manageServiceIntakeFieldMaskUntilAssigned");
+  if (maskEl instanceof HTMLInputElement) {
+    maskEl.checked = msiVisMaskUntilPartnerAssigned(field?.visibility_rule_json);
+  }
   const activeEl = qs("#manageServiceIntakeFieldActive");
   if (activeEl instanceof HTMLInputElement) activeEl.checked = field ? field.active !== false : true;
 
@@ -2996,6 +3115,11 @@ async function msiSaveDialogField() {
     window.alert(msg);
     return;
   }
+  const maskUntilEl = qs("#manageServiceIntakeFieldMaskUntilAssigned");
+  visibility_rule_json = msiVisWithMaskUntilPartnerAssigned(
+    visibility_rule_json,
+    maskUntilEl instanceof HTMLInputElement && maskUntilEl.checked
+  );
 
   const body = {
     label,
@@ -3220,7 +3344,11 @@ export function initManageServiceIntakeTab() {
   qs("#manageServiceIntakeAddQuestionGroupBtn")?.addEventListener("click", () => void msiAddContentBlock("question_group"));
   qs("#manageServiceIntakePresetPhoneBtn")?.addEventListener("click", () => void msiApplyPhoneStylePreset());
 
-  qs("#manageServiceIntakeSideCloseBtn")?.addEventListener("click", () => msiCancelSidePanel());
+  qs("#manageServiceIntakeSideCloseBtn")?.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    msiCancelSidePanel();
+  });
   qs("#manageServiceIntakeSideBackdrop")?.addEventListener("mousedown", (ev) => {
     ev.preventDefault();
     msiArmSideDismissGuard();
@@ -3236,7 +3364,9 @@ export function initManageServiceIntakeTab() {
       ev.stopPropagation();
       return;
     }
+    ev.preventDefault();
     ev.stopPropagation();
+    msiSideSaveRequested = true;
     void msiSaveSideEditor();
   });
   qs("#manageServiceIntakeSideForm")?.addEventListener("keydown", (e) => {
@@ -3244,7 +3374,11 @@ export function initManageServiceIntakeTab() {
     if (e.target instanceof HTMLTextAreaElement) return;
     e.preventDefault();
   });
-  qs("#manageServiceIntakeSideDeleteBtn")?.addEventListener("click", () => msiCancelSidePanel());
+  qs("#manageServiceIntakeSideDeleteBtn")?.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    msiCancelSidePanel();
+  });
   qs("#manageServiceIntakeSidePanel")?.addEventListener("click", (ev) => ev.stopPropagation());
 
   qsa('input[name="msiSideVisibilityMode"]').forEach((el) => {

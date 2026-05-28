@@ -1,0 +1,24 @@
+/**
+ * Partner messages inbox — content only.
+ * Shell layout: ../layouts/partner-shell.css
+ */
+
+body.lhai-partner-shell .lhai-message-filters {
+  display: none !important;
+}
+
+body.lhai-partner-shell .lhai-thread-list-hint {
+  display: none !important;
+}
+
+body.lhai-partner-shell .lhai-partner-page .lhai-grid--2 {
+  align-items: stretch;
+}
+
+body.lhai-partner-shell .lhai-partner-page .lhai-message-list {
+  min-height: 12rem;
+}
+
+body.lhai-partner-shell .lhai-partner-page .lhai-message-detail {
+  min-height: 12rem;
+}

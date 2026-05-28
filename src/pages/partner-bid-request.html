@@ -1,40 +1,38 @@
 <!doctype html>
+
 <html lang="ko">
+
 <head>
+
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
   <title>견적 요청 — Landing Help AI</title>
+
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
-  <link rel="stylesheet" href="../assets/css/pages/partner-dashboard.css" />
-  <link rel="stylesheet" href="../assets/css/pages/partner-assigned-request.css" />
-  <link rel="stylesheet" href="../assets/css/pages/partner-bid-request.css" />
+
+  <link rel="stylesheet" href="../assets/css/layouts/partner-shell.css" />
+
+  <link rel="stylesheet" href="../assets/css/pages/partner-bid-requests.css" />
+
 </head>
-<body>
+
+<body class="lhai-partner-shell-pending">
+
   <div id="lhai-app-header-root"></div>
-  <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar"></aside>
-    <main class="lhai-main">
-      <p class="lhai-par-bid__back"><a href="partner-dashboard.html#partner-requests">← 대시보드로</a></p>
 
-      <section class="lhai-page-header lhai-par-detail__hero">
-        <div>
-          <h1 class="lhai-title" id="partnerBidPageTitle">견적 요청</h1>
-          <p class="lhai-subtitle" id="partnerBidPageSubtitle"></p>
-        </div>
-      </section>
+  <div id="app" aria-busy="true"></div>
 
-      <p class="lhai-par-bid__error" id="partnerBidError" role="alert" hidden></p>
-      <p class="lhai-par-bid__loading" id="partnerBidLoading">불러오는 중…</p>
-
-      <div id="partnerBidMain" hidden>
-        <div id="partnerBidCountdownBanner" class="lhai-par-bid__countdown" hidden role="status"></div>
-        <div id="partnerBidProductRoot"></div>
-      </div>
-    </main>
-  </div>
   <script type="module" src="../assets/js/core/app-header.js"></script>
+
   <script type="module" src="../assets/js/core/logout-button.js"></script>
+
   <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
-  <script type="module" src="../assets/js/pages/partner-bid-request.js"></script>
+
+  <script type="module" src="../assets/js/pages/partner-bid-request.js?v=20260526-bid-detail-1"></script>
+
 </body>
+
 </html>
+

@@ -14,7 +14,7 @@
 
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
 
-  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/components/quote-confirm-dialog.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
 
   <link rel="stylesheet" href="../assets/css/pages/quote-detail.css?v=20260519h" />
 
@@ -505,27 +505,27 @@
     aria-modal="true"
     aria-labelledby="quoteApproveModalTitle"
   >
-    <div class="lhai-dialog__inner">
-      <h3 class="lhai-dialog__title" id="quoteApproveModalTitle" data-i18n="customer.quote.modal.approve.title">
+    <div class="lhai-quote-confirm-modal__header">
+      <h3 class="lhai-quote-confirm-modal__title" id="quoteApproveModalTitle" data-i18n="customer.quote.modal.approve.title">
         Approve this quote?
       </h3>
-      <div class="lhai-dialog__body lhai-quote-decision-modal__body">
-        <dl class="lhai-quote-decision-modal__summary">
-          <dt id="quoteApproveModalServiceLabel" data-i18n="customer.quote.modal.approve.service_label">Service summary</dt>
-          <dd id="quoteApproveModalService">—</dd>
-          <dt id="quoteApproveModalTotalLabel" data-i18n="customer.quote.modal.approve.total_label">Proposed total</dt>
-          <dd id="quoteApproveModalTotal" class="lhai-quote-decision-modal__total">—</dd>
-        </dl>
-        <ul class="lhai-quote-decision-modal__bullets" id="quoteApproveModalBullets"></ul>
-      </div>
-      <div class="lhai-dialog__actions">
-        <button type="button" class="lhai-button lhai-button--secondary" id="quoteApproveModalCancel" data-i18n="customer.quote.modal.cancel">
-          Cancel
-        </button>
-        <button type="button" class="lhai-button lhai-button--primary" id="quoteApproveModalConfirm" data-i18n="customer.quote.hero.cta.approve">
-          Approve quote
-        </button>
-      </div>
+    </div>
+    <div class="lhai-quote-confirm-modal__body lhai-quote-decision-modal__body">
+      <dl class="lhai-quote-decision-modal__summary">
+        <dt id="quoteApproveModalServiceLabel" data-i18n="customer.quote.modal.approve.service_label">Service summary</dt>
+        <dd id="quoteApproveModalService">—</dd>
+        <dt id="quoteApproveModalTotalLabel" data-i18n="customer.quote.modal.approve.total_label">Proposed total</dt>
+        <dd id="quoteApproveModalTotal" class="lhai-quote-decision-modal__total">—</dd>
+      </dl>
+      <ul class="lhai-quote-decision-modal__bullets" id="quoteApproveModalBullets"></ul>
+    </div>
+    <div class="lhai-quote-confirm-modal__actions">
+      <button type="button" class="lhai-button lhai-button--secondary" id="quoteApproveModalCancel" data-i18n="customer.quote.modal.cancel">
+        Cancel
+      </button>
+      <button type="button" class="lhai-button lhai-button--primary" id="quoteApproveModalConfirm" data-i18n="customer.quote.hero.cta.approve">
+        Approve quote
+      </button>
     </div>
   </dialog>
 
@@ -536,37 +536,37 @@
     aria-modal="true"
     aria-labelledby="quoteRejectModalTitle"
   >
-    <div class="lhai-dialog__inner">
-      <h3 class="lhai-dialog__title" id="quoteRejectModalTitle" data-i18n="customer.quote.modal.reject.title">
+    <div class="lhai-quote-confirm-modal__header">
+      <h3 class="lhai-quote-confirm-modal__title" id="quoteRejectModalTitle" data-i18n="customer.quote.modal.reject.title">
         Decline this quote?
       </h3>
-      <div class="lhai-dialog__body lhai-quote-decision-modal__body">
-        <p id="quoteRejectModalIntro" data-i18n="customer.quote.modal.reject.intro">
-          If you decline, this quote will not move forward.
-        </p>
-        <p class="lhai-quote-decision-modal__hint" id="quoteRejectModalHint" data-i18n="customer.quote.modal.reject.reason_hint">
-          If you can, please leave a short reason so the team can help.
-        </p>
-        <label class="lhai-quote-decision-modal__label" for="quoteRejectModalReason" id="quoteRejectModalReasonLabel" data-i18n="customer.quote.modal.reject.reason_label">
-          Reason for declining (optional)
-        </label>
-        <textarea
-          class="lhai-quote-decision-modal__textarea"
-          id="quoteRejectModalReason"
-          rows="3"
-          maxlength="500"
-          data-i18n-placeholder="customer.quote.modal.reject.reason_placeholder"
-          placeholder="Optional — e.g. timing, budget, or scope"
-        ></textarea>
-      </div>
-      <div class="lhai-dialog__actions">
-        <button type="button" class="lhai-button lhai-button--secondary" id="quoteRejectModalCancel" data-i18n="customer.quote.modal.cancel">
-          Cancel
-        </button>
-        <button type="button" class="lhai-button lhai-quote-decision-modal__confirm-reject" id="quoteRejectModalConfirm" data-i18n="customer.quote.hero.cta.reject">
-          Decline quote
-        </button>
-      </div>
+    </div>
+    <div class="lhai-quote-confirm-modal__body lhai-quote-decision-modal__body">
+      <p id="quoteRejectModalIntro" data-i18n="customer.quote.modal.reject.intro">
+        If you decline, this quote will not move forward.
+      </p>
+      <p class="lhai-quote-decision-modal__hint" id="quoteRejectModalHint" data-i18n="customer.quote.modal.reject.reason_hint">
+        If you can, please leave a short reason so the team can help.
+      </p>
+      <label class="lhai-quote-decision-modal__label" for="quoteRejectModalReason" id="quoteRejectModalReasonLabel" data-i18n="customer.quote.modal.reject.reason_label">
+        Reason for declining (optional)
+      </label>
+      <textarea
+        class="lhai-quote-decision-modal__textarea"
+        id="quoteRejectModalReason"
+        rows="3"
+        maxlength="500"
+        data-i18n-placeholder="customer.quote.modal.reject.reason_placeholder"
+        placeholder="Optional — e.g. timing, budget, or scope"
+      ></textarea>
+    </div>
+    <div class="lhai-quote-confirm-modal__actions">
+      <button type="button" class="lhai-button lhai-button--secondary" id="quoteRejectModalCancel" data-i18n="customer.quote.modal.cancel">
+        Cancel
+      </button>
+      <button type="button" class="lhai-button lhai-quote-decision-modal__confirm-reject" id="quoteRejectModalConfirm" data-i18n="customer.quote.hero.cta.reject">
+        Decline quote
+      </button>
     </div>
   </dialog>
 

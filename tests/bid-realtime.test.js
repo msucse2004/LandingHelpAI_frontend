@@ -14,9 +14,9 @@ async function importFresh(modulePath) {
   return import(url.href);
 }
 
-test("normalizeBidUpdatedPayload merges SSE envelope and nested payload", async () => {
+test("normalizeBiddingEventPayload merges SSE envelope and resolves event_kind", async () => {
   const m = await importFresh(logicPath);
-  const p = m.normalizeBidUpdatedPayload({
+  const p = m.normalizeBiddingEventPayload({
     type: "bid.updated",
     data: {
       thread_id: "tid-1",
@@ -25,14 +25,29 @@ test("normalizeBidUpdatedPayload merges SSE envelope and nested payload", async 
         service_type: "CAR_PURCHASE",
         update_kind: "UPDATED",
         workflow_instance_id: "wid-1",
+        offer_count: 5,
+        status: "OPEN",
       },
     },
   });
   assert.equal(p.thread_id, "tid-1");
   assert.equal(p.bid_request_id, "br-1");
-  assert.equal(p.service_type, "CAR_PURCHASE");
+  assert.equal(p.event_kind, m.BIDDING_EVENT_KINDS.BID_UPDATED);
   assert.equal(p.update_kind, "UPDATED");
   assert.equal(p.service_request_id, "wid-1");
+  assert.equal(p.offer_count, 5);
+});
+
+test("legacy CAR_PURCHASE alias still matches BIDDING service_type", async () => {
+  const m = await importFresh(logicPath);
+  assert.equal(m.isCarPurchaseBidUpdatedPayload({ bid_request_id: "x", service_type: "CAR_PURCHASE" }), true);
+  assert.equal(m.isCarPurchaseBidUpdatedPayload({ bid_request_id: "x", service_type: "BIDDING" }), true);
+});
+
+test("isBiddingRealtimeSseEvent accepts bidding.event", async () => {
+  const m = await importFresh(logicPath);
+  assert.equal(m.isBiddingRealtimeSseEvent({ type: "bidding.event" }), true);
+  assert.equal(m.isBiddingRealtimeSseEvent({ type: "bid.updated" }), true);
 });
 
 test("buildCustomerBidResultsHref encodes query", async () => {
@@ -67,9 +82,17 @@ test("bidUpdatedMatchesScope filters partner bid_request_id", async () => {
   );
 });
 
-test("isBiddingBidUpdatedPayload requires bid or thread id", async () => {
+test("isBiddingEventPayload requires bid or thread id", async () => {
   const m = await importFresh(logicPath);
-  assert.equal(m.isBiddingBidUpdatedPayload({ bid_request_id: "x" }), true);
-  assert.equal(m.isBiddingBidUpdatedPayload({ thread_id: "t" }), true);
-  assert.equal(m.isBiddingBidUpdatedPayload({ update_kind: "X" }), false);
+  assert.equal(m.isBiddingEventPayload({ bid_request_id: "x" }), true);
+  assert.equal(m.isBiddingEventPayload({ thread_id: "t" }), true);
+  assert.equal(m.isBiddingEventPayload({ update_kind: "X" }), false);
+});
+
+test("resolveBiddingEventKind prefers event_kind over update_kind", async () => {
+  const m = await importFresh(logicPath);
+  assert.equal(
+    m.resolveBiddingEventKind({ event_kind: "CUSTOMER_SELECTED", update_kind: "SUBMITTED" }),
+    "CUSTOMER_SELECTED",
+  );
 });

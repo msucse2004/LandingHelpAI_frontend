@@ -1,121 +1,38 @@
 <!doctype html>
+
 <html lang="ko">
+
 <head>
+
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
   <title>파트너 대시보드 - Landing Help AI</title>
+
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+
+  <link rel="stylesheet" href="../assets/css/layouts/partner-shell.css" />
+
   <link rel="stylesheet" href="../assets/css/pages/partner-dashboard.css" />
+
 </head>
-<body>
+
+<body class="lhai-partner-shell-pending">
+
   <div id="lhai-app-header-root"></div>
-  <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar"></aside>
-    <main class="lhai-main lhai-partner-dash" id="partnerDashboardMain">
-      <section class="lhai-page-header">
-        <div>
-          <h1 class="lhai-title" id="partnerDashboardTitle">파트너 대시보드</h1>
-          <p class="lhai-subtitle" id="partnerDashboardSubtitle"></p>
-        </div>
-      </section>
 
-      <p class="lhai-help lhai-partner-dash__error" id="partnerDashboardError" role="alert" hidden></p>
+  <div id="app" aria-busy="true"></div>
 
-      <!-- ASSIGNED_ONLY: 진행중 / 완료 요약 (비딩 통계와 DOM 분리) -->
-      <section
-        class="lhai-grid lhai-grid--2 lhai-partner-dash__stats lhai-partner-dash__stats--assigned lhai-assigned-dashboard__stats"
-        id="partnerDashStatsAssigned"
-        aria-label="진행 요약"
-        hidden
-      >
-        <article class="lhai-card lhai-partner-dash__stat-card">
-          <h2 class="lhai-card__title lhai-partner-dash__stat-title">진행중</h2>
-          <p class="lhai-partner-dash__stat-value" id="partnerStatProgress">—</p>
-        </article>
-        <article class="lhai-card lhai-partner-dash__stat-card">
-          <h2 class="lhai-card__title lhai-partner-dash__stat-title">완료</h2>
-          <p class="lhai-partner-dash__stat-value" id="partnerStatDone">—</p>
-        </article>
-      </section>
-
-      <!-- BIDDING_ONLY: 견적 파이프라인 통계 (배정 업무 문구 없음) -->
-      <section
-        class="lhai-grid lhai-grid--4 lhai-partner-dash__stats lhai-bidding-dashboard__stats"
-        id="partnerDashStatsBidding"
-        aria-label="견적 요청 파이프라인"
-        hidden
-      >
-        <article class="lhai-card lhai-partner-dash__stat-card">
-          <h2 class="lhai-card__title lhai-partner-dash__stat-title">새 견적 요청</h2>
-          <p class="lhai-partner-dash__stat-value" id="partnerStatBiddingOpen">—</p>
-        </article>
-        <article class="lhai-card lhai-partner-dash__stat-card">
-          <h2 class="lhai-card__title lhai-partner-dash__stat-title">견적 제출 완료</h2>
-          <p class="lhai-partner-dash__stat-value" id="partnerStatBiddingSubmitted">—</p>
-        </article>
-        <article class="lhai-card lhai-partner-dash__stat-card">
-          <h2 class="lhai-card__title lhai-partner-dash__stat-title">선택됨</h2>
-          <p class="lhai-partner-dash__stat-value" id="partnerStatBiddingSelected">—</p>
-        </article>
-        <article class="lhai-card lhai-partner-dash__stat-card">
-          <h2 class="lhai-card__title lhai-partner-dash__stat-title">종료됨</h2>
-          <p class="lhai-partner-dash__stat-value" id="partnerStatBiddingClosed">—</p>
-        </article>
-      </section>
-
-      <section class="lhai-card" id="partner-requests">
-        <h2 class="lhai-card__title" id="partnerRequestsSectionTitle">목록</h2>
-        <p class="u-text-muted lhai-partner-dash__empty" id="partnerDashboardEmpty" role="status" hidden></p>
-
-        <div
-          class="lhai-partner-dash__unsupported-panel lhai-bidding-dashboard__unsupported"
-          id="partnerDashboardUnsupportedPanel"
-          hidden
-          role="alert"
-        >
-          <h3 class="lhai-partner-dash__unsupported-title" id="partnerDashboardUnsupportedTitle">대시보드를 표시할 수 없습니다</h3>
-          <p class="u-text-muted lhai-partner-dash__unsupported-body" id="partnerDashboardUnsupportedBody"></p>
-        </div>
-
-        <div id="partnerTableAssignedWrap" class="lhai-assigned-dashboard">
-          <div id="partnerAssignedCardsRoot" class="lhai-partner-dash__assigned-root lhai-assigned-dashboard__list" hidden>
-            <section class="lhai-partner-dash__subsection" aria-labelledby="partnerAssignedInProgressHeading">
-              <h3 class="lhai-partner-dash__subsection-title" id="partnerAssignedInProgressHeading">진행중</h3>
-              <p class="u-text-muted lhai-partner-dash__section-empty" id="partnerAssignedInProgressEmpty" hidden></p>
-              <div id="partnerAssignedInProgressCards" class="lhai-partner-dash__card-list"></div>
-            </section>
-            <section class="lhai-partner-dash__subsection lhai-partner-dash__subsection--completed" aria-labelledby="partnerAssignedCompletedHeading">
-              <h3 class="lhai-partner-dash__subsection-title" id="partnerAssignedCompletedHeading">완료</h3>
-              <p class="u-text-muted lhai-partner-dash__section-empty" id="partnerAssignedCompletedEmpty" hidden></p>
-              <div id="partnerAssignedCompletedCards" class="lhai-partner-dash__card-list"></div>
-            </section>
-          </div>
-        </div>
-
-        <div id="partnerTableBiddingWrap" class="lhai-bidding-dashboard" hidden>
-          <div class="lhai-partner-dash__table-wrap lhai-bidding-dashboard__table-wrap" id="partnerDashboardTableWrapBidding" hidden>
-            <table class="lhai-partner-dash__table lhai-bidding-dashboard__table">
-              <thead>
-                <tr>
-                  <th scope="col">서비스명</th>
-                  <th scope="col">고객 표시명</th>
-                  <th scope="col">지역</th>
-                  <th scope="col">제출 시간</th>
-                  <th scope="col">마감 시간</th>
-                  <th scope="col">견적 상태</th>
-                  <th scope="col"><span class="u-sr-only">작업</span></th>
-                </tr>
-              </thead>
-              <tbody id="partnerDashboardTbodyBidding"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
   <script type="module" src="../assets/js/core/app-header.js"></script>
+
   <script type="module" src="../assets/js/core/logout-button.js"></script>
+
   <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+
   <script type="module" src="../assets/js/pages/partner-dashboard.js"></script>
+
 </body>
+
 </html>
+

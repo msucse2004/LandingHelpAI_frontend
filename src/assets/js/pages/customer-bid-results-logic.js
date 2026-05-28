@@ -30,6 +30,21 @@ export const RANK_BASIS_LABELS = {
   lowest_fees: "수수료 낮은순",
 };
 
+export const RANK_BASIS_LABELS_EN = {
+  recommended: "Recommended",
+  lowest_total: "Lowest total",
+  recently_updated: "Recently updated",
+  fastest_timeline: "Fastest timeline",
+  photo_first: "With photos",
+  newest_year: "Newest year",
+  lowest_mileage: "Lowest mileage",
+  lowest_fees: "Lowest fees",
+};
+
+/** Shown on vehicle offer cards when bidding is EXPIRED. */
+export const EXPIRED_AVAILABILITY_BADGE =
+  "Bidding ended — availability needs confirmation";
+
 /** @param {unknown} snap */
 export function isProductOfferListResponse(snap) {
   if (!snap || typeof snap !== "object") return false;
@@ -73,12 +88,70 @@ export function customerBidStatusBannerMessage(phase) {
     return "파트너 선택이 완료되었습니다. 메시지함에서 다음 단계를 진행해 주세요.";
   }
   if (phase === "EXPIRED") {
-    return "비딩이 종료되었습니다. 제출된 제안을 검토하거나 새 라운드를 요청할 수 있습니다. (만료 후 선택은 불가)";
+    return "Bidding has ended. Partners can no longer update offers. You can still select an existing offer, but availability and price should be confirmed with the partner.";
   }
   if (phase === "CLOSED") {
     return "이 비딩 라운드는 종료되었습니다. 새 라운드가 시작된 경우 최신 라운드를 확인해 주세요.";
   }
   return "";
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} snap
+ */
+export function resolveCustomerBidActions(snap) {
+  const phase = resolveCustomerBidDisplayPhase(
+    snap?.bid_request_status ?? snap?.status,
+    snap?.expires_at,
+  );
+  const fromApi =
+    typeof snap?.can_select_existing_offers === "boolean" &&
+    typeof snap?.can_partner_submit === "boolean";
+  if (fromApi) {
+    return {
+      can_select_existing_offers: Boolean(snap.can_select_existing_offers),
+      can_partner_submit: Boolean(snap.can_partner_submit),
+      can_request_new_round: Boolean(snap?.can_request_new_round),
+      phase,
+    };
+  }
+  const canSelect = phase === "OPEN" || phase === "EXPIRED";
+  return {
+    can_select_existing_offers: canSelect,
+    can_partner_submit: phase === "OPEN",
+    can_request_new_round: canRequestNewBidRound(snap),
+    phase,
+  };
+}
+
+/**
+ * @param {'OPEN'|'EXPIRED'|'CUSTOMER_SELECTED'|'CLOSED'} phase
+ * @param {Record<string, unknown>} offer
+ * @param {Record<string, unknown> | null | undefined} [snap]
+ */
+export function buildCustomerBidSelectConfirmContent(phase, offer, snap) {
+  const title = offer?.title ? String(offer.title) : formatOfferTitle(offer);
+  const total = formatMoney(offer.estimated_total, offer.currency || "USD");
+  if (phase === "EXPIRED") {
+    return {
+      modalTitle: "Select this offer?",
+      bodyHtml: `<p>This bidding round has ended. This vehicle may still be available, but price and availability should be confirmed with the partner. Do you want to select this offer and start a conversation?</p>`,
+      warnText: "",
+      submitLabel: "Select and contact partner",
+    };
+  }
+  const countdown =
+    snap?.expires_at != null ? formatCountdownToExpiry(snap.expires_at) : "";
+  return {
+    modalTitle: "제안 선택 확인",
+    bodyHtml: `<p><strong>${escapeHtml(title)}</strong> 제안을 선택하시겠습니까?</p>
+    <p>예상 총액 ${escapeHtml(total)}</p>
+    <p class="u-text-muted">선택 후에는 해당 파트너와 메시지로 협의가 진행됩니다.</p>`,
+    warnText: countdown
+      ? `비딩 마감까지 ${escapeHtml(countdown)} 남았습니다. 지금 선택하면 다른 파트너의 추가 제안을 받기 어려울 수 있습니다.`
+      : "",
+    submitLabel: "선택 확정",
+  };
 }
 
 /** @param {string | null | undefined} status */
@@ -150,6 +223,400 @@ export function formatOfferRankBadge(offer, activeSort) {
     /** @type {Record<string, string>} */ (RANK_BASIS_LABELS)[basis] || "순위";
   if (Number.isFinite(total) && total > 0) return `${label} 기준 ${rank}위 / ${total}개`;
   return `${label} 기준 ${rank}위`;
+}
+
+/** English rank label for vehicle cards, e.g. "Recommended #2 of 9". */
+export function formatOfferRankBadgeEn(offer, activeSort) {
+  const rank = Number(offer.rank);
+  if (!Number.isFinite(rank) || rank <= 0) return "";
+  const total = Number(offer.rank_total);
+  const basis = String(offer.rank_basis || activeSort || "recommended").trim();
+  const label =
+    /** @type {Record<string, string>} */ (RANK_BASIS_LABELS_EN)[basis] || "Ranked";
+  if (Number.isFinite(total) && total > 0) return `${label} #${rank} of ${total}`;
+  return `${label} #${rank}`;
+}
+
+/** @param {Record<string, unknown>} offer */
+export function isVehicleOffer(offer) {
+  if (!offer || typeof offer !== "object") return false;
+  const cat = String(offer.product_category || "").trim().toLowerCase();
+  if (cat === "vehicle") return true;
+  if (offer.vehicle && typeof offer.vehicle === "object") return true;
+  const attrs = offer.attributes;
+  if (attrs && typeof attrs === "object") {
+    if (attrs.make || attrs.model || attrs.year != null) return true;
+  }
+  return false;
+}
+
+/** @param {Record<string, unknown>} offer */
+export function resolveVehicleFromOffer(offer) {
+  const v =
+    offer.vehicle && typeof offer.vehicle === "object"
+      ? /** @type {Record<string, unknown>} */ (offer.vehicle)
+      : {};
+  const attrs =
+    offer.attributes && typeof offer.attributes === "object"
+      ? /** @type {Record<string, unknown>} */ (offer.attributes)
+      : {};
+  return {
+    year: v.year ?? attrs.year,
+    make: v.make ?? attrs.make,
+    model: v.model ?? attrs.model,
+    trim: v.trim ?? attrs.trim,
+    mileage: v.mileage ?? attrs.mileage,
+    title_status: v.title_status ?? attrs.title_status,
+    accident_history: v.accident_history ?? attrs.accident_history,
+    condition: v.condition ?? attrs.condition ?? attrs.vehicle_condition,
+    color: v.color ?? attrs.color ?? attrs.exterior_color,
+    location:
+      String(offer.location || v.location || attrs.location || "").trim() || null,
+  };
+}
+
+/** @param {Record<string, unknown>} offer */
+export function offerAvailabilityLabel(offer) {
+  const direct = String(offer.available_timeline || "").trim();
+  if (direct) return direct;
+  const svc =
+    offer.service && typeof offer.service === "object"
+      ? /** @type {Record<string, unknown>} */ (offer.service)
+      : {};
+  return String(svc.available_timeline || "").trim() || "";
+}
+
+/** @param {Record<string, unknown>} offer */
+export function formatVehiclePriceBreakdownLines(offer) {
+  const p =
+    offer.pricing && typeof offer.pricing === "object"
+      ? /** @type {Record<string, unknown>} */ (offer.pricing)
+      : {};
+  const attrs =
+    offer.attributes && typeof offer.attributes === "object"
+      ? /** @type {Record<string, unknown>} */ (offer.attributes)
+      : {};
+  const cur = String(p.currency || offer.currency || "USD");
+  /** @type {Array<{ label: string, value: string, strong?: boolean }>} */
+  const lines = [];
+  const vehiclePrice = p.vehicle_price ?? attrs.vehicle_price ?? offer.price_amount;
+  if (vehiclePrice != null && vehiclePrice !== "") {
+    lines.push({ label: "Vehicle price", value: formatMoney(vehiclePrice, cur) });
+  }
+  const tax =
+    p.estimated_tax_registration ??
+    p.estimated_tax_fees ??
+    attrs.estimated_tax_fees ??
+    attrs.estimated_tax_registration;
+  if (tax != null && tax !== "") {
+    lines.push({ label: "Tax & fees", value: formatMoney(tax, cur) });
+  }
+  const dealer = p.dealer_fee ?? attrs.dealer_fee;
+  if (dealer != null && dealer !== "") {
+    lines.push({ label: "Dealer fee", value: formatMoney(dealer, cur) });
+  }
+  const partnerFee = p.partner_service_fee ?? attrs.partner_service_fee;
+  if (partnerFee != null && partnerFee !== "") {
+    lines.push({ label: "Partner service fee", value: formatMoney(partnerFee, cur) });
+  }
+  const delivery = p.delivery_fee ?? attrs.delivery_fee;
+  if (delivery != null && delivery !== "") {
+    lines.push({ label: "Delivery fee", value: formatMoney(delivery, cur) });
+  }
+  const total = p.estimated_total ?? offer.estimated_total;
+  if (total != null && total !== "") {
+    lines.push({ label: "Estimated total", value: formatMoney(total, cur), strong: true });
+  }
+  if (!lines.length) {
+    return formatOfferPriceBreakdownLines(offer);
+  }
+  return lines;
+}
+
+/** @param {Record<string, unknown>} offer */
+export function collectOfferPhotos(offer) {
+  const photos = Array.isArray(offer.photos) ? offer.photos : [];
+  return photos
+    .map((p, i) => {
+      const row = p && typeof p === "object" ? /** @type {Record<string, unknown>} */ (p) : {};
+      const url = String(row.url || "").trim();
+      const thumb = String(row.thumbnail_url || url).trim();
+      if (!url && !thumb) return null;
+      return {
+        url: url || thumb,
+        thumbnail_url: thumb || url,
+        caption: String(row.caption || "").trim(),
+        is_primary: Boolean(row.is_primary) || i === 0,
+        sort_order: i,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (a.is_primary && !b.is_primary) return -1;
+      if (!a.is_primary && b.is_primary) return 1;
+      return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+    });
+}
+
+/**
+ * @param {'OPEN'|'EXPIRED'|'CUSTOMER_SELECTED'|'CLOSED'} phase
+ * @param {Record<string, unknown>} offer
+ * @param {{ selectedBidId?: string, selectedOfferId?: string, snap?: Record<string, unknown> | null }} ctx
+ */
+export function offerSelectionUiState(phase, offer, ctx) {
+  const bidId = String(offer.bid_id || "").trim();
+  const offerId = String(offer.offer_id || "").trim();
+  const canSelectGlobal = canSelectCustomerBid(phase, ctx.snap);
+  const isSelected =
+    phase === "CUSTOMER_SELECTED" &&
+    Boolean(ctx.selectedBidId) &&
+    bidId === String(ctx.selectedBidId || "").trim() &&
+    (!ctx.selectedOfferId ||
+      !offerId ||
+      offerId === String(ctx.selectedOfferId || "").trim());
+  const showSelectButton = canSelectGlobal && phase !== "CUSTOMER_SELECTED";
+  const selectDisabled = !canSelectGlobal;
+  const dimmed = phase === "CUSTOMER_SELECTED" && !isSelected;
+  return {
+    isSelected,
+    showSelectButton,
+    selectDisabled,
+    dimmed,
+    selectLabel: isSelected ? "Your selection" : "Select this offer",
+  };
+}
+
+/**
+ * @param {Record<string, unknown>} offer
+ * @param {{
+ *   phase: string,
+ *   activeSort: string,
+ *   recentUpdatedAt?: string | null,
+ *   snap?: Record<string, unknown> | null,
+ *   selectedBidId?: string,
+ *   selectedOfferId?: string,
+ * }} ctx
+ * @param {(s: string) => string} esc
+ */
+export function buildVehicleOfferCardHtml(offer, ctx, esc) {
+  const bidId = String(offer.bid_id || "").trim();
+  const offerId = String(offer.offer_id || "").trim();
+  const cur = String(offer.currency || "USD");
+  const thumb = offerThumbnailUrl(offer);
+  const photos = collectOfferPhotos(offer);
+  const veh = resolveVehicleFromOffer(offer);
+  const rankBadge = formatOfferRankBadgeEn(offer, ctx.activeSort);
+  const sel = offerSelectionUiState(ctx.phase, offer, {
+    selectedBidId: ctx.selectedBidId,
+    selectedOfferId: ctx.selectedOfferId,
+    snap: ctx.snap,
+  });
+  const phase = ctx.phase;
+  const showExpiredBadge = phase === "EXPIRED";
+  const relation = formatOfferRelationLabel(offer);
+  const updatedBadge = offerShowsUpdatedBadge(offer.updated_at, ctx.recentUpdatedAt)
+    ? `<span class="lhai-cbr-badge lhai-cbr-badge--updated">Updated</span>`
+    : "";
+  const altBadge = offer.is_alternative
+    ? `<span class="lhai-cbr-badge lhai-cbr-badge--alt">Alternative</span>`
+    : "";
+  const expiredBadge = showExpiredBadge
+    ? `<span class="lhai-cbr-badge lhai-cbr-badge--expired">${esc(EXPIRED_AVAILABILITY_BADGE)}</span>`
+    : "";
+  const selectedBadge = sel.isSelected
+    ? `<span class="lhai-cbr-badge lhai-cbr-badge--selected">Your selection</span>`
+    : "";
+  const breakdown = formatVehiclePriceBreakdownLines(offer);
+  const breakdownId = `cbr-price-${esc(offerId || bidId)}`;
+  const breakdownRows = breakdown
+    .map((line) => {
+      const cls = line.strong ? " lhai-cbr-card__price-row--strong" : "";
+      return `<li class="lhai-cbr-card__price-row${cls}"><span>${esc(line.label)}</span><span>${esc(line.value)}</span></li>`;
+    })
+    .join("");
+  const mileage =
+    veh.mileage != null && veh.mileage !== ""
+      ? `${Number(veh.mileage).toLocaleString()} mi`
+      : "—";
+  const titleStatus = titleStatusLabelKo(veh.title_status) || "—";
+  const accident = accidentLabelKo(veh.accident_history) || "—";
+  const location = veh.location || "—";
+  const availability = offerAvailabilityLabel(offer) || "—";
+  const msg = String(offer.message_to_customer || "").trim();
+  const msgPreview = msg
+    ? esc(msg.slice(0, 160)).replace(/\n/g, "<br />") + (msg.length > 160 ? "…" : "")
+    : "—";
+  const thumbHtml = thumb
+    ? `<img class="lhai-cbr-card__thumb-img" src="${esc(thumb)}" alt="" loading="lazy" />`
+    : `<div class="lhai-cbr-card__thumb-placeholder" aria-hidden="true"><span>No photo</span></div>`;
+  const photoCount =
+    photos.length > 1
+      ? `<span class="lhai-cbr-card__photo-count">${photos.length} photos</span>`
+      : "";
+  const selectBtn = sel.showSelectButton
+    ? `<button type="button" class="lhai-button lhai-button--primary" data-cbr-select="${esc(bidId)}" data-cbr-offer="${esc(offerId)}"${sel.selectDisabled ? " disabled" : ""}>${esc(sel.selectLabel)}</button>`
+    : "";
+  const cardClasses = [
+    "lhai-cbr-card",
+    "lhai-cbr-card--vehicle",
+    sel.isSelected ? "lhai-cbr-card--selected" : "",
+    sel.dimmed ? "lhai-cbr-card--dimmed" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return `
+    <article class="${cardClasses}" data-offer-id="${esc(offerId)}" data-bid-id="${esc(bidId)}">
+      <div class="lhai-cbr-card__media">
+        <div class="lhai-cbr-card__thumb">${thumbHtml}${photoCount}</div>
+      </div>
+      <div class="lhai-cbr-card__body">
+        <div class="lhai-cbr-card__badges">
+          ${rankBadge ? `<span class="lhai-cbr-badge lhai-cbr-badge--rank">${esc(rankBadge)}</span>` : ""}
+          ${selectedBadge}
+          ${expiredBadge}
+          ${updatedBadge}
+          ${altBadge}
+          ${relation ? `<span class="lhai-cbr-badge lhai-cbr-badge--match">${esc(relation)}</span>` : ""}
+        </div>
+        <h3 class="lhai-cbr-card__title">${esc(formatOfferTitle(offer))}</h3>
+        <p class="lhai-cbr-card__partner">${esc(formatOfferPartnerName(offer))}</p>
+        <p class="lhai-cbr-card__total">${esc(formatMoney(offer.estimated_total, cur))}</p>
+        ${
+          breakdown.length
+            ? `<details class="lhai-cbr-card__price-details">
+          <summary>Price breakdown</summary>
+          <ul class="lhai-cbr-card__price-list" id="${breakdownId}">${breakdownRows}</ul>
+        </details>`
+            : ""
+        }
+        <dl class="lhai-cbr-card__specs">
+          <div><dt>Mileage</dt><dd>${esc(mileage)}</dd></div>
+          <div><dt>Title</dt><dd>${esc(titleStatus)}</dd></div>
+          <div><dt>Accident</dt><dd>${esc(accident)}</dd></div>
+          <div><dt>Location</dt><dd>${esc(location)}</dd></div>
+          <div class="lhai-cbr-card__specs--wide"><dt>Availability</dt><dd>${esc(availability)}</dd></div>
+        </dl>
+        <div class="lhai-cbr-card__preview">
+          <span class="lhai-cbr-card__preview-label">Partner message</span>
+          <p>${msgPreview}</p>
+        </div>
+        <div class="lhai-cbr-card__actions">
+          <button type="button" class="lhai-button lhai-button--secondary" data-cbr-detail="${esc(offerId)}">View details</button>
+          ${selectBtn}
+        </div>
+      </div>
+    </article>`;
+}
+
+/**
+ * @param {Record<string, unknown>} offer
+ * @param {{
+ *   phase: string,
+ *   activeSort: string,
+ *   snap?: Record<string, unknown> | null,
+ *   selectedBidId?: string,
+ *   selectedOfferId?: string,
+ * }} ctx
+ * @param {(s: string) => string} esc
+ */
+export function buildVehicleOfferDetailModalHtml(offer, ctx, esc) {
+  const cur = String(offer.currency || "USD");
+  const photos = collectOfferPhotos(offer);
+  const veh = resolveVehicleFromOffer(offer);
+  const rankBadge = formatOfferRankBadgeEn(offer, ctx.activeSort);
+  const sel = offerSelectionUiState(ctx.phase, offer, {
+    selectedBidId: ctx.selectedBidId,
+    selectedOfferId: ctx.selectedOfferId,
+    snap: ctx.snap,
+  });
+  const breakdown = formatVehiclePriceBreakdownLines(offer);
+  const attrs = formatAttributesList(offer.attributes);
+  const vehAttrs = [
+    ["Year", veh.year],
+    ["Make", veh.make],
+    ["Model", veh.model],
+    ["Trim", veh.trim],
+    ["Mileage", veh.mileage != null ? `${Number(veh.mileage).toLocaleString()} mi` : ""],
+    ["Condition", conditionLabelKo(veh.condition)],
+    ["Title status", titleStatusLabelKo(veh.title_status)],
+    ["Accident history", accidentLabelKo(veh.accident_history)],
+    ["Color", veh.color],
+    ["Location", veh.location],
+  ].filter(([, v]) => v != null && String(v).trim() !== "");
+  const seenKeys = new Set(vehAttrs.map(([k]) => k.toLowerCase()));
+  for (const a of attrs) {
+    const key = String(a.key || "").trim();
+    if (!key || seenKeys.has(key.toLowerCase())) continue;
+    vehAttrs.push([key, a.value]);
+  }
+  const attrsHtml = vehAttrs.length
+    ? `<dl class="lhai-cbr-dl lhai-cbr-dl--vehicle">${vehAttrs
+        .map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(String(v))}</dd></div>`)
+        .join("")}</dl>`
+    : `<p class="u-text-muted">—</p>`;
+  const primary = photos[0];
+  const mainUrl = primary ? esc(primary.url) : "";
+  const galleryId = `cbr-gallery-${esc(String(offer.offer_id || "x"))}`;
+  const thumbsHtml = photos.length
+    ? `<div class="lhai-cbr-modal__gallery-thumbs" role="list">${photos
+        .map((p, i) => {
+          const u = esc(p.thumbnail_url || p.url);
+          const active = i === 0 ? " is-active" : "";
+          return `<button type="button" class="lhai-cbr-modal__gallery-thumb${active}" role="listitem" data-cbr-gallery-url="${esc(p.url)}" aria-label="Photo ${i + 1}">
+            <img src="${u}" alt="" loading="lazy" />
+          </button>`;
+        })
+        .join("")}</div>`
+    : "";
+  const galleryHtml = photos.length
+    ? `<div class="lhai-cbr-modal__gallery" id="${galleryId}" data-cbr-gallery>
+        <div class="lhai-cbr-modal__gallery-main">
+          <img src="${mainUrl}" alt="" loading="lazy" data-cbr-gallery-main />
+        </div>
+        ${thumbsHtml}
+      </div>`
+    : `<p class="u-text-muted">No photos submitted.</p>`;
+  const breakdownHtml = breakdown.length
+    ? `<ul class="lhai-cbr-modal__price-list">${breakdown
+        .map(
+          (line) =>
+            `<li class="${line.strong ? "lhai-cbr-modal__price-line--strong" : ""}"><span>${esc(line.label)}</span><span>${esc(line.value)}</span></li>`,
+        )
+        .join("")}</ul>`
+    : `<p class="u-text-muted">—</p>`;
+  const expiredNote =
+    ctx.phase === "EXPIRED"
+      ? `<p class="lhai-cbr-modal__expired-note" role="status">${esc(EXPIRED_AVAILABILITY_BADGE)}</p>`
+      : "";
+
+  return `
+    ${expiredNote}
+    <div class="lhai-cbr-modal__head">
+      <h3 class="lhai-cbr-modal__title">${esc(formatOfferTitle(offer))}</h3>
+      <p class="lhai-cbr-modal__partner">${esc(formatOfferPartnerName(offer))}</p>
+      ${rankBadge ? `<p class="lhai-cbr-modal__rank"><span class="lhai-cbr-badge lhai-cbr-badge--rank">${esc(rankBadge)}</span></p>` : ""}
+    </div>
+    ${galleryHtml}
+    <section class="lhai-cbr-modal__section">
+      <h4>Vehicle details</h4>
+      ${attrsHtml}
+    </section>
+    <section class="lhai-cbr-modal__section">
+      <h4>Price breakdown</h4>
+      <p class="lhai-cbr-modal__total-line">Estimated total: <strong>${esc(formatMoney(offer.estimated_total, cur))}</strong></p>
+      ${breakdownHtml}
+    </section>
+    <section class="lhai-cbr-modal__section">
+      <h4>Availability</h4>
+      <p>${esc(offerAvailabilityLabel(offer) || "—")}</p>
+    </section>
+    <section class="lhai-cbr-modal__section">
+      <h4>Partner message</h4>
+      <p class="lhai-cbr-modal__message">${esc(String(offer.message_to_customer || "—")).replace(/\n/g, "<br />")}</p>
+    </section>
+    <p class="lhai-cbr-modal__notice u-text-muted">Confirm price and availability with the partner in messages after you select an offer.</p>
+    <div class="lhai-cbr-modal__select-hint" data-cbr-modal-can-select="${sel.showSelectButton && !sel.selectDisabled ? "1" : "0"}"></div>`;
 }
 
 /** @param {Record<string, unknown>} offer */
@@ -415,8 +882,11 @@ export function quoteRequestRemaining(usage) {
 /**
  * @param {Record<string, unknown> | null | undefined} snap
  */
-export function canSelectCustomerBid(phase) {
-  return phase === "OPEN";
+export function canSelectCustomerBid(phase, snap) {
+  if (snap && typeof snap === "object") {
+    return resolveCustomerBidActions(snap).can_select_existing_offers;
+  }
+  return phase === "OPEN" || phase === "EXPIRED";
 }
 
 export function canRequestNewBidRound(snap) {

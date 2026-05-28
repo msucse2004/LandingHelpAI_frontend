@@ -1164,36 +1164,41 @@
   background: rgba(110, 168, 254, 0.06);
 }
 
-/* 승인·거절 확인 모달 */
-.lhai-quote-decision-modal {
-  max-width: min(26rem, 94vw);
+/* 승인·거절 확인 모달 — shell placement: ../components/quote-confirm-dialog.css */
+
+.lhai-quote-decision-modal__body {
+  color: var(--lhai-color-text);
 }
 
 .lhai-quote-decision-modal__summary {
   margin: 0 0 var(--lhai-space-4);
   display: grid;
-  gap: var(--lhai-space-2);
+  grid-template-columns: minmax(6rem, 7.5rem) 1fr;
+  gap: var(--lhai-space-2) var(--lhai-space-3);
 }
 
 .lhai-quote-decision-modal__summary dt {
   margin: 0;
-  font-size: var(--lhai-font-size-xs, 0.78rem);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: var(--lhai-font-size-sm);
+  font-weight: 700;
   color: var(--lhai-color-text-muted);
 }
 
 .lhai-quote-decision-modal__summary dd {
   margin: 0;
-  font-size: var(--lhai-font-size-sm, 0.92rem);
-  line-height: 1.5;
+  font-size: var(--lhai-font-size-sm);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
   color: var(--lhai-color-text);
 }
 
 .lhai-quote-decision-modal__total {
-  font-size: var(--lhai-font-size-md, 1.05rem);
-  font-weight: 700;
+  font-size: clamp(1.15rem, 2.5vw, 1.35rem);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: #1d4ed8;
 }
 
 .lhai-quote-decision-modal__bullets {
@@ -1250,10 +1255,6 @@
 .lhai-quote-decision-modal__confirm-reject:hover:not(:disabled) {
   border-color: rgba(220, 38, 38, 0.5);
   background: rgba(254, 226, 226, 0.98);
-}
-
-.lhai-quote-decision-modal .lhai-dialog__actions {
-  margin-top: var(--lhai-space-5);
 }
 
 /* ---- Responsive: customer quote detail (scoped to .lhai-quote-view) ---- */
@@ -1463,10 +1464,6 @@
     grid-column: 1 / -1;
     width: 100%;
     min-height: 2.5rem;
-  }
-
-  .lhai-quote-decision-modal {
-    max-width: min(100%, 94vw);
   }
 
   .lhai-quote-decision-modal__total {

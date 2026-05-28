@@ -1,0 +1,7 @@
+/**
+ * Partner bid / assigned request pages — content only.
+ * Shell layout: ../layouts/partner-shell.css
+ */
+
+@import url("partner-bid-request.css");
+@import url("partner-assigned-request.css");

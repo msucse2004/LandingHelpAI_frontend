@@ -315,6 +315,30 @@
   min-width: 0;
 }
 
+.ac360-bidding-email-debug {
+  padding: var(--lhai-space-3);
+  border-radius: var(--lhai-radius-sm, 6px);
+  border: 1px solid rgb(56 189 248 / 0.35);
+  background: rgb(56 189 248 / 0.06);
+}
+
+.ac360-bidding-email-debug .lhai-intake-diag-kv {
+  list-style: none;
+  margin: var(--lhai-space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.ac360-bidding-email-debug .lhai-intake-diag-kv li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--lhai-space-2);
+  font-size: 0.92rem;
+}
+
+/* Bid notify badges: inherit high-contrast styles from messages.css */
+
 @media (max-width: 640px) {
   .ac360-kv {
     grid-template-columns: 1fr;

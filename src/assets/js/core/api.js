@@ -315,6 +315,15 @@ const authApi = {
       };
     }
   },
+  async findUsername(payload) {
+    return await tryBackendPost("/api/auth/find-username", payload);
+  },
+  async requestPasswordReset(payload) {
+    return await tryBackendPost("/api/auth/password-reset/request", payload);
+  },
+  async confirmPasswordReset(payload) {
+    return await tryBackendPost("/api/auth/password-reset/confirm", payload);
+  },
 };
 
 const timelineApi = {
@@ -1090,6 +1099,35 @@ const partnerThreadsApi = {
     const id = String(bidRequestId || "").trim();
     if (!id) throw new Error("bidRequestId required");
     return await tryBackendPost(`/api/partner/bid-requests/${encodeURIComponent(id)}/submit`, body);
+  },
+  /**
+   * @param {File} file
+   * @returns {Promise<{ media_url: string }>}
+   */
+  async uploadBidOfferImage(file) {
+    const fd = new FormData();
+    fd.append("file", file);
+    return await tryBackendPostFormData("/api/partner/bid-requests/media/upload-image", fd);
+  },
+  /**
+   * @param {string} bidRequestId
+   * @param {File} file
+   * @param {{ offerId?: string, caption?: string }} [opts]
+   * @returns {Promise<{ asset_id: string, url: string, thumbnail_url: string, mime_type: string, size_bytes: number, caption?: string|null }>}
+   */
+  async uploadBidOfferPhoto(bidRequestId, file, opts = {}) {
+    const id = String(bidRequestId || "").trim();
+    if (!id) throw new Error("bidRequestId required");
+    const fd = new FormData();
+    fd.append("file", file);
+    const offerId = String(opts.offerId || "").trim();
+    if (offerId) fd.append("offer_id", offerId);
+    const caption = String(opts.caption || "").trim();
+    if (caption) fd.append("caption", caption);
+    return await tryBackendPostFormData(
+      `/api/partner/bid-requests/${encodeURIComponent(id)}/offer-photos`,
+      fd,
+    );
   },
   async listThreads() {
     return await tryBackendGet("/api/partner/threads");
@@ -2678,6 +2716,20 @@ const serviceCatalogAdminApi = {
     if (sessionId) qs.set("session_id", sessionId);
     const q = qs.toString();
     return await tryBackendGet(`/api/admin/intake-dispatch-diagnostics${q ? `?${q}` : ""}`);
+  },
+
+  /** Thread metadata: last_bidding_dispatch_debug + notification audit. */
+  async getThreadBiddingDispatchDebug(threadId) {
+    const t = String(threadId || "").trim();
+    if (!t) throw new Error("thread_id required");
+    return await tryBackendGet(`/api/admin/threads/${encodeURIComponent(t)}/bidding-dispatch-debug`);
+  },
+
+  /** Bid-request scoped started-email audit + dispatch trace. */
+  async getBidRequestNotificationDebug(bidRequestId) {
+    const id = String(bidRequestId || "").trim();
+    if (!id) throw new Error("bid_request_id required");
+    return await tryBackendGet(`/api/admin/bid-requests/${encodeURIComponent(id)}/notification-debug`);
   },
 
   async updateServiceItem(serviceItemId, payload) {

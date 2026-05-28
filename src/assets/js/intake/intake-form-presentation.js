@@ -101,6 +101,29 @@ function collectIntakePrefillSuffixLabels(row, candidates) {
   return suffixLabels;
 }
 
+/**
+ * Single-value profile prefill on text-like fields: use a plain input, not a dropdown.
+ * @param {Record<string, unknown>} row
+ */
+export function prefillUsesTextInputNotDropdown(row) {
+  if (Boolean(row.prefill_blocked)) return false;
+  const mode = String(row.prefill_mode || (row.prefill_use_dropdown ? "dropdown_existing_values" : ""));
+  if (mode !== "dropdown_existing_values" && !row.prefill_use_dropdown) return false;
+  const list = Array.isArray(row.prefill_candidates)
+    ? /** @type {Array<Record<string, unknown>>} */ (row.prefill_candidates)
+    : [];
+  if (list.length !== 1) return false;
+  const cit = effectiveIntakeInputType(row);
+  if (cit === "select" || cit === "radio" || cit === "multi_select" || cit === "yes_no") return false;
+  return (
+    cit === "text" ||
+    cit === "textarea" ||
+    cit === "number" ||
+    cit === "date" ||
+    isCurrencyUsdInputType(cit)
+  );
+}
+
 /** Customer-facing option label for prefill dropdowns (value only, not ``value - source``). */
 export function prefillCandidateOptionLabel(candidate) {
   const val = String(candidate?.value ?? "").trim();

@@ -131,8 +131,9 @@
 }
 
 .lhai-message-item.is-unread {
-  border-left: 4px solid var(--lhai-color-primary);
-  background: var(--lhai-color-surface-alt);
+  border-left: 4px solid #f59e0b;
+  background: rgb(245 158 11 / 0.1);
+  box-shadow: inset 0 0 0 1px rgb(245 158 11 / 0.22);
 }
 
 .lhai-message-item.is-active {
@@ -178,14 +179,22 @@
 .lhai-message-item__unread-pill {
   display: inline-flex;
   align-items: center;
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 2px 8px;
+  justify-content: center;
+  min-height: 1.35rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+  padding: 0.2rem 0.55rem;
   border-radius: 999px;
-  background: rgb(200 90 70 / 0.22);
-  color: #f0b4a8;
-  border: 1px solid rgb(220 120 100 / 0.35);
+  background: #f59e0b;
+  color: #1a1208;
+  border: 1px solid #fbbf24;
+  box-shadow:
+    0 0 0 1px rgb(251 191 36 / 0.45),
+    0 1px 4px rgb(0 0 0 / 0.35);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .lhai-message-detail {
@@ -1203,6 +1212,209 @@
 }
 
 /* --- Intake partner dispatch diagnostics (operator SERVICE threads) --- */
+
+.lhai-intake-diag-bidding-notify,
+.lhai-bid-notify-debug {
+  margin: 0 0 var(--lhai-space-3);
+  padding: var(--lhai-space-3);
+  border-radius: var(--lhai-radius-md, 8px);
+  border: 1px solid rgb(56 189 248 / 0.35);
+  background: rgb(56 189 248 / 0.06);
+}
+
+.lhai-bid-notify-debug__title {
+  margin: 0 0 var(--lhai-space-2);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.lhai-bid-notify-debug__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 var(--lhai-space-2);
+}
+
+.lhai-bid-notify-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.25;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+}
+
+.lhai-bid-notify-badge--ok {
+  color: #052e16;
+  background: #4ade80;
+  border-color: #22c55e;
+}
+
+.lhai-bid-notify-badge--warn {
+  color: #1a1208;
+  background: #fbbf24;
+  border-color: #f59e0b;
+}
+
+/* High-visibility: email never attempted (admin diagnostics) */
+.lhai-bid-notify-badge--attention {
+  color: #1a1208;
+  font-size: 0.875rem;
+  font-weight: 800;
+  padding: 0.35rem 0.75rem;
+  background: linear-gradient(180deg, #fde68a 0%, #f59e0b 100%);
+  border: 1px solid #fbbf24;
+  box-shadow:
+    0 0 0 1px rgb(251 191 36 / 0.5),
+    0 2px 6px rgb(0 0 0 / 0.3);
+}
+
+.lhai-bid-notify-badge--danger {
+  color: #450a0a;
+  background: #f87171;
+  border-color: #ef4444;
+}
+
+.lhai-bid-notify-debug__hints {
+  margin: 0.75rem 0 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--lhai-radius-md, 8px);
+  border: 1px solid var(--lhai-border-subtle, rgba(255, 255, 255, 0.12));
+  background: var(--lhai-surface-elevated, rgba(255, 255, 255, 0.04));
+}
+
+.lhai-bid-notify-debug__hint-title {
+  margin: 0 0 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--lhai-text-muted, #9ca3af);
+}
+
+.lhai-bid-notify-debug__hint-body {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+.lhai-bid-notify-debug__api-note {
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.lhai-bid-notify-debug__section {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background: rgb(255 255 255 / 0.03);
+}
+
+.lhai-bid-notify-debug__section--brief {
+  border-color: rgb(96 165 250 / 0.35);
+  background: rgb(30 58 138 / 0.12);
+}
+
+.lhai-bid-notify-brief-status {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.lhai-bid-notify-brief--ok {
+  color: rgb(134 239 172);
+}
+
+.lhai-bid-notify-brief--fallback {
+  color: rgb(253 224 71);
+}
+
+.lhai-bid-notify-brief--missing {
+  color: rgb(148 163 184);
+}
+
+.lhai-bid-notify-debug__section-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.78);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.lhai-bid-notify-config--ok {
+  border-color: rgb(34 197 94 / 0.28);
+  background: rgb(34 197 94 / 0.06);
+}
+
+.lhai-bid-notify-config--warn {
+  border-color: rgb(245 158 11 / 0.35);
+  background: rgb(245 158 11 / 0.08);
+}
+
+.lhai-bid-notify-debug__kv--primary {
+  margin-top: 0.5rem;
+}
+
+.lhai-bid-notify-debug__hint {
+  font-size: 0.85rem;
+  margin: 0 0 var(--lhai-space-2);
+}
+
+.lhai-bid-notify-debug__table {
+  width: 100%;
+  font-size: 0.85rem;
+  margin-top: 0.35rem;
+}
+
+.lhai-bid-notify-status {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: lowercase;
+}
+
+.lhai-bid-notify-status--sent {
+  color: #86efac;
+}
+
+.lhai-bid-notify-status--ready {
+  color: #7dd3fc;
+}
+
+.lhai-bid-notify-status--no-email,
+.lhai-bid-notify-status--skipped {
+  color: #fde68a;
+}
+
+.lhai-bid-notify-status--failed {
+  color: #fca5a5;
+}
+
+.lhai-intake-diag-kv {
+  list-style: none;
+  margin: var(--lhai-space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.lhai-intake-diag-kv li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--lhai-space-2);
+  font-size: 0.92rem;
+}
+
+.lhai-intake-diag-kv span {
+  color: var(--lhai-text-muted, #94a3b8);
+}
+
+.lhai-intake-diag-errors {
+  margin: 0.35rem 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.88rem;
+}
 .lhai-intake-diag-panel {
   border-color: rgb(255 255 255 / 0.12);
 }

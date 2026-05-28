@@ -84,6 +84,37 @@ test("database_snapshot skipped path shows reason", () => {
   assert.ok(html.includes("invalid_thread_id_no_db_session"));
 });
 
+test("bidding partner notification panel renders email audit", () => {
+  const html = buildIntakeDispatchDiagnosticsHtml({
+    request_context: { requested_thread_id: "t1" },
+    diagnosis_summary: { status: "OK" },
+    partner_dispatch_outputs: {
+      bidding_dispatch_diagnostics: {
+        eligible_partner_count: 5,
+        draft_bids_created: 5,
+        bidding_started_email_attempted: 5,
+        bidding_started_email_sent: 4,
+        bidding_started_email_failed: 1,
+        bidding_started_email_smtp_enabled: true,
+        bidding_started_email_skipped_dedupe: false,
+        last_bidding_dispatch_debug: {
+          notification: {
+            sent: 4,
+            attempted: 5,
+            smtp: { smtp_enabled: true },
+          },
+        },
+      },
+    },
+    consistency_checks: [],
+  });
+  assert.ok(html.includes("Bidding notification debug"));
+  assert.ok(html.includes("Config validation"));
+  assert.ok(html.includes("Email sent"));
+  assert.ok(html.includes("4"));
+  assert.ok(html.includes("smtp_enabled"));
+});
+
 test("consistency FAIL is red in rendered table row", () => {
   const html = buildIntakeDispatchDiagnosticsHtml({
     request_context: {},

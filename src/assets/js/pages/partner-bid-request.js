@@ -1,15 +1,22 @@
 /**
  * BIDDING_ONLY 견적 요청 상세·제출 (generic PRODUCT_OFFER).
  * 라우트: `#/partner/bid-requests/<uuid>` 또는 `?bid_request_id=`
+ *
+ * Bump PARTNER_BID_DETAIL_ASSET_VERSION (and the same query in partner-bid-request.html)
+ * when car-ui / product-ui / this entry script changes.
  */
-import { applyPartnerBiddingSidebarMessagingHide, loadSidebar } from "../components/sidebar.js";
+import { partnerNavHref } from "../config/partner-nav-config.js";
+import { mountPartnerShell } from "../layouts/partner-shell.js";
+import { renderPartnerBidRequestContentHtml } from "./partner-bid-request-content.js";
 import { partnerThreadsApi } from "../core/api.js";
 import { subscribeRealtimeEvents } from "../core/realtime-client.js";
 import {
   bidUpdatedMatchesScope,
-  isBiddingBidUpdatedPayload,
+  BIDDING_EVENT_KINDS,
+  isBiddingEventPayload,
+  isBiddingRealtimeSseEvent,
   isPartnerBidRequestHtmlPage,
-  normalizeBidUpdatedPayload,
+  normalizeBiddingEventPayload,
   showBidUpdatedToast,
 } from "../core/bid-realtime.js";
 import { isPartnerBidDetailPollingPhase } from "./partner-bid-request-product-logic.js";
@@ -24,8 +31,45 @@ import {
   formatPartnerCountdownBanner,
   normalizeDeadlineSnapshot,
 } from "../core/bid-deadline-display.js";
+import { resolveCarPurchaseMode } from "./partner-bid-request-car-logic.js";
 import { partnerBidStatusLabel } from "./partner-bid-request-product-logic.js";
-import { mountProductOfferBidUi } from "./partner-bid-request-product-ui.js";
+
+/** Cache-bust query for partner bid detail modules (must match partner-bid-request.html script src). */
+const PARTNER_BID_DETAIL_ASSET_VERSION = "20260526-bid-detail-1";
+
+/** @param {string} moduleFile e.g. partner-bid-request-car-ui.js */
+function partnerBidDetailModuleUrl(moduleFile) {
+  const base = String(moduleFile || "").trim().replace(/^\.\//, "");
+  return `./${base}?v=${encodeURIComponent(PARTNER_BID_DETAIL_ASSET_VERSION)}`;
+}
+
+/** @type {((root: HTMLElement, ctx: object) => void) | null} */
+let mountCarPurchaseBidUiCached = null;
+
+/** @type {((root: HTMLElement, ctx: object) => void) | null} */
+let mountProductOfferBidUiCached = null;
+
+/** Load CAR UI with cache-busted module URL. */
+async function loadMountCarPurchaseBidUi() {
+  if (mountCarPurchaseBidUiCached) return mountCarPurchaseBidUiCached;
+  const mod = await import(partnerBidDetailModuleUrl("partner-bid-request-car-ui.js"));
+  if (typeof mod.mountCarPurchaseBidUi !== "function") {
+    throw new Error("mountCarPurchaseBidUi export missing");
+  }
+  mountCarPurchaseBidUiCached = mod.mountCarPurchaseBidUi;
+  return mountCarPurchaseBidUiCached;
+}
+
+/** Load product UI on demand so a broken product module cannot block CAR_PURCHASE pages. */
+async function loadMountProductOfferBidUi() {
+  if (mountProductOfferBidUiCached) return mountProductOfferBidUiCached;
+  const mod = await import(partnerBidDetailModuleUrl("partner-bid-request-product-ui.js"));
+  if (typeof mod.mountProductOfferBidUi !== "function") {
+    throw new Error("mountProductOfferBidUi export missing");
+  }
+  mountProductOfferBidUiCached = mod.mountProductOfferBidUi;
+  return mountProductOfferBidUiCached;
+}
 
 /** @param {unknown} err */
 function httpStatusFromError(err) {
@@ -75,9 +119,12 @@ function setText(sel, text) {
 let partnerCountdownStop = null;
 /** @type {ReturnType<typeof setInterval> | null} */
 let partnerDetailPollTimer = null;
+/** @type {(() => void) | null} */
+let partnerRealtimeUnsub = null;
 /** @type {Record<string, unknown> | null} */
 let latestPartnerDetailForCountdown = null;
 const PARTNER_BID_DETAIL_POLL_MS = 30_000;
+const PARTNER_DASHBOARD_HREF = partnerNavHref("bid_requests");
 
 /** @param {Record<string, unknown> | null | undefined} payload */
 function renderPartnerCountdownBanner(payload) {
@@ -140,71 +187,255 @@ function applyPageHeader(data) {
 }
 
 /** @param {Record<string, unknown>} data @param {object} mountCtx */
-function renderProductBidRequest(data, mountCtx) {
+async function renderProductBidRequest(data, mountCtx) {
+  const carRoot = document.querySelector("#partnerBidCarRoot");
   const root = document.querySelector("#partnerBidProductRoot");
+  if (carRoot instanceof HTMLElement) {
+    carRoot.hidden = true;
+    carRoot.innerHTML = "";
+  }
   if (!(root instanceof HTMLElement)) return;
   root.hidden = false;
   applyPageHeader(data);
-  mountProductOfferBidUi(root, mountCtx);
+  const mount = await loadMountProductOfferBidUi();
+  mount(root, mountCtx);
 }
 
-async function init() {
-  clearShellTopLayerBlockers();
-  syncHeaderRoleBadge();
-  if (getCurrentRole() !== ROLES.PARTNER) {
-    window.location.replace("dashboard.html");
-    return;
+/** @param {Record<string, unknown>} data @param {object} mountCtx */
+async function renderCarPurchaseBidRequest(data, mountCtx) {
+  const productRoot = document.querySelector("#partnerBidProductRoot");
+  const root = document.querySelector("#partnerBidCarRoot");
+  if (productRoot instanceof HTMLElement) {
+    productRoot.hidden = true;
+    productRoot.innerHTML = "";
   }
-  if (!protectCurrentPage()) return;
-  if (!ensureCustomerAccess()) return;
+  if (!(root instanceof HTMLElement)) return;
+  root.hidden = false;
+  applyPageHeader(data);
+  const bidRequestBlock =
+    data.bid_request && typeof data.bid_request === "object"
+      ? /** @type {Record<string, unknown>} */ (data.bid_request)
+      : null;
+  const mount = await loadMountCarPurchaseBidUi();
+  mount(root, { ...mountCtx, data, bidRequestBlock });
+}
 
-  await refreshPartnerModeSession(partnerThreadsApi);
-  await loadSidebar("#sidebar", "customer");
-  applyPartnerBiddingSidebarMessagingHide();
-
-  const bidRequestId = getBidRequestIdFromLocation();
-  const expiresAtQuery = getExpiresAtFromQuery();
-  const requestStatusQuery = getRequestStatusFromQuery();
-  const loadingEl = document.querySelector("#partnerBidLoading");
-  const mainEl = document.querySelector("#partnerBidMain");
-  const errEl = document.querySelector("#partnerBidError");
-
-  const showLoadErr = (msg) => {
-    if (loadingEl instanceof HTMLElement) loadingEl.hidden = true;
-    if (mainEl instanceof HTMLElement) mainEl.hidden = true;
-    if (errEl instanceof HTMLElement) {
-      errEl.hidden = false;
-      errEl.textContent = msg;
-    }
+function getPartnerBidPageEls() {
+  return {
+    loadingEl: document.querySelector("#partnerBidLoading"),
+    mainEl: document.querySelector("#partnerBidMain"),
+    errEl: document.querySelector("#partnerBidError"),
   };
+}
 
-  if (!bidRequestId) {
-    showLoadErr("견적 요청 ID가 없습니다. 대시보드에서 다시 열어 주세요.");
-    return;
+/** @param {string} step @param {unknown} [detail] */
+function debugLog(step, detail) {
+  if (detail !== undefined) {
+    console.debug(`[partner-bid-request] ${step}`, detail);
+  } else {
+    console.debug(`[partner-bid-request] ${step}`);
   }
+}
 
-  let detail;
-  try {
-    detail = await partnerThreadsApi.bidRequestDetail(bidRequestId);
-  } catch (err) {
-    const st = httpStatusFromError(err);
-    if (st === 403) showLoadErr("이 견적 요청을 볼 권한이 없습니다.");
-    else if (st === 404) showLoadErr("견적 요청을 찾을 수 없습니다.");
-    else showLoadErr(err instanceof Error ? err.message : "불러오지 못했습니다.");
-    return;
+/** @param {string} phase @param {unknown} err */
+function logPartnerBidError(phase, err) {
+  console.error(`[partner-bid-request] ${phase}`, err);
+  if (err instanceof Error && err.stack) {
+    console.error(err.stack);
   }
+}
 
-  if (!detail || typeof detail !== "object") {
-    showLoadErr("응답 형식이 올바르지 않습니다.");
-    return;
+/** @param {unknown} err */
+function shortErrorMessage(err) {
+  if (err instanceof Error) return err.message || "Unknown error";
+  if (typeof err === "string" && err.trim()) return err.trim();
+  return "Unknown error";
+}
+
+/** @param {unknown} err */
+function httpUserMessageFromError(err) {
+  const st = httpStatusFromError(err);
+  if (st === 401) return "로그인이 필요합니다.";
+  if (st === 403) return "이 견적 요청을 볼 권한이 없습니다.";
+  if (st === 404) return "견적 요청을 찾을 수 없습니다.";
+  if (st === 500) return "서버 오류가 발생했습니다.";
+  return shortErrorMessage(err);
+}
+
+function teardownPartnerBidPageRuntime() {
+  if (partnerCountdownStop) {
+    partnerCountdownStop();
+    partnerCountdownStop = null;
   }
+  if (partnerDetailPollTimer) {
+    window.clearInterval(partnerDetailPollTimer);
+    partnerDetailPollTimer = null;
+  }
+  if (partnerRealtimeUnsub) {
+    try {
+      partnerRealtimeUnsub();
+    } catch {
+      /* ignore */
+    }
+    partnerRealtimeUnsub = null;
+  }
+  latestPartnerDetailForCountdown = null;
+}
 
+function showPartnerBidLoading() {
+  const { loadingEl, mainEl, errEl } = getPartnerBidPageEls();
+  if (loadingEl instanceof HTMLElement) loadingEl.hidden = false;
+  if (mainEl instanceof HTMLElement) mainEl.hidden = true;
+  if (errEl instanceof HTMLElement) {
+    errEl.hidden = true;
+    errEl.replaceChildren();
+  }
+}
+
+function showPartnerBidMain() {
+  const { loadingEl, mainEl, errEl } = getPartnerBidPageEls();
   if (loadingEl instanceof HTMLElement) loadingEl.hidden = true;
   if (mainEl instanceof HTMLElement) mainEl.hidden = false;
   if (errEl instanceof HTMLElement) {
     errEl.hidden = true;
-    errEl.textContent = "";
+    errEl.replaceChildren();
   }
+}
+
+/**
+ * @param {{
+ *   title?: string,
+ *   lead?: string,
+ *   errorDetail?: string,
+ *   phase?: string,
+ *   showRetry?: boolean,
+ * }} [opts]
+ */
+function showPartnerBidLoadError(opts = {}) {
+  const { loadingEl, mainEl, errEl } = getPartnerBidPageEls();
+  if (loadingEl instanceof HTMLElement) loadingEl.hidden = true;
+  if (mainEl instanceof HTMLElement) mainEl.hidden = true;
+  if (!(errEl instanceof HTMLElement)) return;
+
+  errEl.hidden = false;
+  errEl.replaceChildren();
+
+  const title = document.createElement("h2");
+  title.className = "lhai-par-bid__error-panel__title";
+  title.textContent = opts.title || "견적 요청 정보를 불러오지 못했습니다.";
+
+  const lead = document.createElement("p");
+  lead.className = "lhai-par-bid__error-panel__lead";
+  lead.textContent = opts.lead || "잠시 후 다시 시도해 주세요.";
+
+  errEl.append(title, lead);
+
+  if (opts.phase) {
+    const phaseEl = document.createElement("p");
+    phaseEl.className = "lhai-par-bid__error-panel__phase";
+    phaseEl.textContent = `단계: ${opts.phase}`;
+    errEl.append(phaseEl);
+  }
+
+  if (opts.errorDetail) {
+    const detail = document.createElement("div");
+    detail.className = "lhai-par-bid__error-panel__detail";
+    const lbl = document.createElement("span");
+    lbl.className = "lhai-par-bid__error-panel__detail-label";
+    lbl.textContent = "Error:";
+    const txt = document.createElement("p");
+    txt.className = "lhai-par-bid__error-panel__detail-text";
+    txt.textContent = opts.errorDetail;
+    detail.append(lbl, txt);
+    errEl.append(detail);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "lhai-par-bid__error-actions";
+
+  if (opts.showRetry !== false) {
+    const retryBtn = document.createElement("button");
+    retryBtn.type = "button";
+    retryBtn.className = "lhai-button lhai-button--primary";
+    retryBtn.textContent = "다시 시도";
+    retryBtn.addEventListener("click", () => {
+      void runPartnerBidRequestPage();
+    });
+    actions.append(retryBtn);
+  }
+
+  const dashBtn = document.createElement("a");
+  dashBtn.className = "lhai-button lhai-button--secondary";
+  dashBtn.href = PARTNER_DASHBOARD_HREF;
+  dashBtn.textContent = "대시보드로 돌아가기";
+  actions.append(dashBtn);
+
+  errEl.append(actions);
+}
+
+async function runPartnerBidRequestPage() {
+  teardownPartnerBidPageRuntime();
+  showPartnerBidLoading();
+
+  try {
+    debugLog("page init started");
+
+    try {
+      await refreshPartnerModeSession(partnerThreadsApi);
+    } catch (err) {
+      logPartnerBidError("shell init failed", err);
+      debugLog("render failed", { phase: "shell_init" });
+      showPartnerBidLoadError({
+        lead: "페이지를 준비하지 못했습니다. 다시 시도해 주세요.",
+        errorDetail: shortErrorMessage(err),
+        phase: "shell_init",
+      });
+      return;
+    }
+
+    const bidRequestId = getBidRequestIdFromLocation();
+    const expiresAtQuery = getExpiresAtFromQuery();
+    const requestStatusQuery = getRequestStatusFromQuery();
+
+    debugLog("bid_request_id parsed", { bidRequestId: bidRequestId || null });
+
+    if (!bidRequestId) {
+      debugLog("render failed", { phase: "parse_id", reason: "missing bid_request_id" });
+      showPartnerBidLoadError({
+        lead: "견적 요청 ID가 없습니다. 대시보드에서 다시 열어 주세요.",
+        errorDetail: "bid_request_id missing from URL",
+        phase: "parse_id",
+      });
+      return;
+    }
+
+    let detail;
+    try {
+      debugLog("API fetch started", { bidRequestId });
+      detail = await partnerThreadsApi.bidRequestDetail(bidRequestId);
+      debugLog("API fetch success", { bidRequestId });
+    } catch (err) {
+      logPartnerBidError("API fetch failed", err);
+      debugLog("render failed", { phase: "api_fetch", status: httpStatusFromError(err) });
+      showPartnerBidLoadError({
+        lead: httpUserMessageFromError(err),
+        errorDetail: shortErrorMessage(err),
+        phase: "api_fetch",
+      });
+      return;
+    }
+
+    if (!detail || typeof detail !== "object") {
+      debugLog("render failed", { phase: "api_response", reason: "invalid payload" });
+      showPartnerBidLoadError({
+        lead: "응답 형식이 올바르지 않습니다.",
+        errorDetail: "bidRequestDetail returned empty or non-object response",
+        phase: "api_response",
+      });
+      return;
+    }
+
+    showPartnerBidMain();
 
   /** @type {Record<string, unknown>} */
   let latestDetail = /** @type {Record<string, unknown>} */ (detail);
@@ -234,15 +465,10 @@ async function init() {
     detail.bidding_config && typeof detail.bidding_config === "object"
       ? detail.bidding_config
       : carCfg;
-  const maxOffers =
-    bidCfg.max_partner_offers_per_bid ??
-    carCfg.max_partner_vehicle_offers_per_bid ??
-    carCfg.max_partner_offers_per_bid ??
-    3;
   const requiresOfferPhotos = bidCfg.requires_offer_photos === true;
 
   /** @param {Record<string, unknown>} data */
-  function renderBidRequestView(data) {
+  async function renderBidRequestView(data) {
     latestPartnerDetailForCountdown = data;
     renderPartnerCountdownBanner(data);
     const brBlock =
@@ -261,19 +487,29 @@ async function init() {
       .trim()
       .toUpperCase();
 
-    renderProductBidRequest(data, {
+    const mountCtx = {
       data,
       expiresAtQuery: expEff,
       requestStatusQuery: reqStatus,
-      maxOffers: Number(maxOffers) || 3,
       requiresOfferPhotos,
       onDetailUpdate: (next) => {
         latestDetail = /** @type {Record<string, unknown>} */ (next);
-        renderBidRequestView(latestDetail);
-        syncPartnerDetailPolling();
+        void renderBidRequestView(latestDetail)
+          .then(() => syncPartnerDetailPolling())
+          .catch((renderErr) => {
+            logPartnerBidError("re-render after submit failed", renderErr);
+            debugLog("render failed", { phase: "re_render" });
+            showPartnerBidLoadError({
+              lead: "화면을 갱신하지 못했습니다. 다시 시도해 주세요.",
+              errorDetail: shortErrorMessage(renderErr),
+              phase: "re_render",
+            });
+          });
         window.alert("제안이 저장되었습니다.");
       },
       submitFn: (payload) => partnerThreadsApi.submitBidRequest(bidRequestId, payload),
+      uploadOfferPhotoFn: (file, opts) =>
+        partnerThreadsApi.uploadBidOfferPhoto(bidRequestId, file, opts),
       openMessagesFn: () => {
         const tid = String(latestDetail.thread_id || "").trim();
         if (!tid) {
@@ -282,7 +518,15 @@ async function init() {
         }
         window.location.href = `partner-assigned-request.html?thread_id=${encodeURIComponent(tid)}`;
       },
-    });
+    };
+
+    if (resolveCarPurchaseMode(data)) {
+      debugLog("render mode selected", { mode: "CAR_PURCHASE" });
+      await renderCarPurchaseBidRequest(data, mountCtx);
+    } else {
+      debugLog("render mode selected", { mode: "PRODUCT_OFFER" });
+      await renderProductBidRequest(data, mountCtx);
+    }
   }
 
   /** @param {boolean} [showToast] */
@@ -290,7 +534,7 @@ async function init() {
     try {
       const next = await partnerThreadsApi.bidRequestDetail(bidRequestId);
       latestDetail = /** @type {Record<string, unknown>} */ (next);
-      renderBidRequestView(latestDetail);
+      await renderBidRequestView(latestDetail);
       syncPartnerDetailPolling();
       if (
         showToast &&
@@ -305,8 +549,8 @@ async function init() {
           href,
         });
       }
-    } catch {
-      /* ignore */
+    } catch (err) {
+      logPartnerBidError("background refresh failed", err);
     }
   }
 
@@ -348,20 +592,75 @@ async function init() {
     }
   }
 
-  renderBidRequestView(latestDetail);
-  startPartnerCountdownTicker();
-  syncPartnerDetailPolling();
+    try {
+      await renderBidRequestView(latestDetail);
+      debugLog("render success", { bidRequestId });
+    } catch (err) {
+      logPartnerBidError("render failed", err);
+      debugLog("render failed", { phase: "render" });
+      showPartnerBidLoadError({
+        errorDetail: shortErrorMessage(err),
+        phase: "render",
+      });
+      return;
+    }
 
-  subscribeRealtimeEvents((ev) => {
-    const type = String(ev?.type || "").trim();
-    if (type !== "bid.updated") return;
-    const payload = normalizeBidUpdatedPayload(ev);
-    if (!isBiddingBidUpdatedPayload(payload)) return;
-    if (!bidUpdatedMatchesScope(payload, { bidRequestId })) return;
-    const kind = String(payload.update_kind || "").trim().toUpperCase();
-    const showToast = kind !== "CUSTOMER_SELECTED" && kind !== "EXPIRED" && kind !== "CANCELLED";
-    void refreshPartnerBidDetail(showToast);
-  });
+    startPartnerCountdownTicker();
+    syncPartnerDetailPolling();
+
+    partnerRealtimeUnsub = subscribeRealtimeEvents((ev) => {
+      if (!isBiddingRealtimeSseEvent(ev)) return;
+      const payload = normalizeBiddingEventPayload(ev);
+      if (!isBiddingEventPayload(payload)) return;
+      if (!bidUpdatedMatchesScope(payload, { bidRequestId })) return;
+      const kind = String(payload.event_kind || "");
+      const refreshKinds = [
+        BIDDING_EVENT_KINDS.BID_SUBMITTED,
+        BIDDING_EVENT_KINDS.BID_UPDATED,
+        BIDDING_EVENT_KINDS.BIDDING_EXPIRED,
+        BIDDING_EVENT_KINDS.CUSTOMER_SELECTED,
+        BIDDING_EVENT_KINDS.NEW_ROUND_STARTED,
+      ];
+      if (!refreshKinds.includes(kind)) return;
+      const showToast =
+        kind === BIDDING_EVENT_KINDS.BID_SUBMITTED || kind === BIDDING_EVENT_KINDS.BID_UPDATED;
+      void refreshPartnerBidDetail(showToast);
+    });
+  } catch (err) {
+    logPartnerBidError("page init failed", err);
+    debugLog("render failed", { phase: "init" });
+    showPartnerBidLoadError({
+      errorDetail: shortErrorMessage(err),
+      phase: "init",
+    });
+  }
 }
 
-init();
+async function bootstrapPartnerBidRequestPage() {
+  console.debug("[partner-bid-request] asset version", PARTNER_BID_DETAIL_ASSET_VERSION);
+  clearShellTopLayerBlockers();
+  syncHeaderRoleBadge();
+  if (getCurrentRole() !== ROLES.PARTNER) {
+    window.location.replace("dashboard.html");
+    return;
+  }
+  if (!protectCurrentPage()) return;
+  if (!ensureCustomerAccess()) return;
+
+  await mountPartnerShell("#app", {
+    pageKey: "bid_requests",
+    documentTitle: "견적 요청 — Landing Help AI",
+    contentHtml: renderPartnerBidRequestContentHtml(),
+  });
+
+  await runPartnerBidRequestPage();
+}
+
+void bootstrapPartnerBidRequestPage().catch((err) => {
+  logPartnerBidError("bootstrap failed", err);
+  debugLog("render failed", { phase: "bootstrap" });
+  showPartnerBidLoadError({
+    errorDetail: shortErrorMessage(err),
+    phase: "bootstrap",
+  });
+});

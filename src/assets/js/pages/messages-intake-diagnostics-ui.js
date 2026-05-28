@@ -3,6 +3,11 @@
  * @module messages-intake-diagnostics-ui
  */
 
+import {
+  buildBiddingNotificationDebugHtml,
+  normalizeBiddingNotificationDebugViewModel,
+} from "./admin-bidding-notification-debug-ui.js";
+
 /** @param {unknown} s */
 export function intakeDiagEscapeHtml(s) {
   return String(s ?? "")
@@ -38,6 +43,36 @@ export function intakeDispatchCheckRowClass(st) {
 function _detailsBlock(title, innerHtml) {
   const t = intakeDiagEscapeHtml(title);
   return `<details class="lhai-intake-diag-acc"><summary class="lhai-intake-diag-acc__summary">${t}</summary><div class="lhai-intake-diag-acc__body">${innerHtml}</div></details>`;
+}
+
+/** @param {unknown} v */
+function _diagYesNo(v) {
+  if (v === true) return "Yes";
+  if (v === false) return "No";
+  return "—";
+}
+
+/** @param {Record<string, unknown>} bidding */
+function _renderBiddingPartnerNotificationHtml(bidding) {
+  const trace =
+    bidding.last_bidding_dispatch_debug && typeof bidding.last_bidding_dispatch_debug === "object"
+      ? bidding.last_bidding_dispatch_debug
+      : null;
+  const vm = normalizeBiddingNotificationDebugViewModel({
+    ...bidding,
+    bidding_dispatch_diagnostics: bidding,
+    resolved_bidding: bidding.resolved_bidding,
+    raw_workflow_config: bidding.raw_workflow_config,
+    workflow_config_validation: bidding.workflow_config_validation,
+    last_bidding_dispatch_debug: trace,
+    bidding_notification_audit: bidding.bidding_notification_audit,
+    root_cause_hint:
+      bidding.workflow_config_root_cause_hint === "workflow_config_not_normalized"
+        ? "Workflow config is not normalized (see Config validation below)."
+        : undefined,
+    recommended_next_action: bidding.workflow_config_recommended_next_action,
+  });
+  return buildBiddingNotificationDebugHtml(vm);
 }
 
 /** @param {Record<string, unknown>} data */
@@ -117,7 +152,18 @@ export function buildIntakeDispatchDiagnosticsHtml(data) {
   const jsonPre = (obj) =>
     `<pre class="lhai-intake-diag-pre" tabindex="0">${intakeDiagEscapeHtml(JSON.stringify(obj ?? {}, null, 2))}</pre>`;
 
+  const pdo =
+    data && typeof data === "object" && data.partner_dispatch_outputs && typeof data.partner_dispatch_outputs === "object"
+      ? /** @type {Record<string, unknown>} */ (data.partner_dispatch_outputs)
+      : {};
+  const biddingDiag =
+    pdo.bidding_dispatch_diagnostics && typeof pdo.bidding_dispatch_diagnostics === "object"
+      ? /** @type {Record<string, unknown>} */ (pdo.bidding_dispatch_diagnostics)
+      : null;
+  const biddingNotifyHtml = biddingDiag ? _renderBiddingPartnerNotificationHtml(biddingDiag) : "";
+
   const sections = [
+    ...(biddingNotifyHtml ? [biddingNotifyHtml] : []),
     _detailsBlock("Request Context", jsonPre(rc)),
     _detailsBlock("Diagnosis Summary", jsonPre(ds)),
     _detailsBlock("Thread", jsonPre(data?.thread)),

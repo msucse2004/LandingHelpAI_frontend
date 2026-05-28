@@ -36,10 +36,12 @@ test("side editor saves only via Save; Cancel and backdrop discard", () => {
   const src = readFileSync(TAB_JS, "utf8");
   assert.match(src, /msiCaptureSideEditorSnapshot/);
   assert.match(src, /msiCancelSidePanel/);
+  assert.match(src, /msiSideSaveRequested/);
   assert.match(src, /msiArmSideDismissGuard/);
   assert.match(src, /msiSideDismissGuardUntil/);
-  assert.match(src, /manageServiceIntakeSideDeleteBtn.*msiCancelSidePanel/);
+  assert.match(src, /manageServiceIntakeSideDeleteBtn[\s\S]{0,120}?msiCancelSidePanel/);
   assert.match(src, /manageServiceIntakeSideBackdrop[\s\S]{0,400}?msiCancelSidePanel/);
+  assert.match(src, /msiCloseSidePanel\(\{ saved: true \}\)/);
   assert.doesNotMatch(src, /manageServiceIntakeFieldForm[\s\S]{0,120}?addEventListener\("submit"/);
 });
 
@@ -50,6 +52,17 @@ test("legacy field dialog does not auto-save on Enter; Cancel restores snapshot"
   assert.match(src, /msiRestoreFieldDialogFromSnapshot/);
   assert.match(src, /manageServiceIntakeDialogCancelBtn.*msiCancelFieldDialog/);
   assert.match(src, /addEventListener\("cancel"[\s\S]{0,120}?msiCancelFieldDialog/);
+});
+
+test("question group child editor: help under label, toggles at bottom, options for select only", () => {
+  const js = readFileSync(TAB_JS, "utf8");
+  assert.match(js, /msiQgChildHelpFieldHtml/);
+  assert.doesNotMatch(js, /qgroup_child_help", "Help text \(optional\)"\)/);
+  assert.match(js, /msiQgChildFooterTogglesHtml/);
+  assert.match(js, /msi-qg-child-mask-until-assigned/);
+  assert.match(js, /msiQgChildOptionsBlockHtml/);
+  assert.match(js, /msiIsSelectType/);
+  assert.match(js, /PARTNER_VISIBILITY_MASKED_UNTIL_ASSIGNED/);
 });
 
 test("MSI_INPUT_TYPES includes Currency USD for question group fields", () => {

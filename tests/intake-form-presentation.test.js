@@ -56,6 +56,37 @@ test("normalizePrefillInputScalar strips suffix using candidate label when field
   assert.equal(normalizePrefillInputScalar("demo@x.com - Email", row), "demo@x.com");
 });
 
+test("prefillUsesTextInputNotDropdown for single text prefill candidate", async () => {
+  const { prefillUsesTextInputNotDropdown } = await importFreshLogic();
+  assert.equal(
+    prefillUsesTextInputNotDropdown({
+      input_type: "text",
+      prefill_mode: "dropdown_existing_values",
+      prefill_candidates: [{ value: "Jane", label: "First Name" }],
+    }),
+    true
+  );
+  assert.equal(
+    prefillUsesTextInputNotDropdown({
+      input_type: "text",
+      prefill_mode: "dropdown_existing_values",
+      prefill_candidates: [
+        { value: "A", label: "One" },
+        { value: "B", label: "Two" },
+      ],
+    }),
+    false
+  );
+  assert.equal(
+    prefillUsesTextInputNotDropdown({
+      input_type: "select",
+      prefill_mode: "dropdown_existing_values",
+      prefill_candidates: [{ value: "NC", label: "State" }],
+    }),
+    false
+  );
+});
+
 test("prefillCandidateOptionLabel shows stored value only", async () => {
   const { prefillCandidateOptionLabel } = await importFreshLogic();
   assert.equal(

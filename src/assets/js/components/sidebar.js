@@ -1,5 +1,10 @@
 import { getCurrentRole } from "../core/auth.js";
 import { ROLES } from "../core/config.js";
+import {
+  detectPartnerPageKey,
+  partnerNavActiveHrefBasename,
+} from "../config/partner-nav-config.js";
+import { loadPartnerSidebar } from "../layouts/partner-shell.js";
 import { adminDevApi } from "../core/api.js";
 import { canAccessAdminShell } from "../core/role-tiers.js";
 import { initI18nDomains, t } from "../core/i18n-client.js";
@@ -35,15 +40,7 @@ function resolveSidebarActiveHref(currentFile, variant) {
   };
   if (variant === "admin") return adminMap[currentFile] || currentFile;
   if (getCurrentRole() === ROLES.PARTNER) {
-    const partnerMap = {
-      "partner-dashboard.html": "partner-dashboard.html",
-      "partner-assigned-request.html": "partner-dashboard.html",
-      "partner-bid-request.html": "partner-dashboard.html",
-      "messages.html": "messages.html",
-      "profile.html": "profile.html",
-      "password.html": "profile.html",
-    };
-    return partnerMap[currentFile] || currentFile;
+    return partnerNavActiveHrefBasename(detectPartnerPageKey());
   }
   return customerMap[currentFile] || currentFile;
 }
@@ -166,6 +163,11 @@ async function loadSidebar(targetSelector = "#sidebar", variant = "customer") {
   const target = document.querySelector(targetSelector);
   if (!target) return;
 
+  if (variant !== "admin" && getCurrentRole() === ROLES.PARTNER) {
+    await loadPartnerSidebar(detectPartnerPageKey());
+    return;
+  }
+
   try {
     const partialFile = variant === "admin" ? "admin-sidebar.html" : "customer-sidebar.html";
     const res = await fetch(`../partials/${partialFile}`);
@@ -189,15 +191,6 @@ async function mountMessagesSidebar() {
   // PARTNER는 admin 셸 대상이 아니므로 customer sidebar를 사용한다.
   const variant = canAccessAdminShell() ? "admin" : "customer";
   await loadSidebar("#sidebar", variant);
-}
-
-/** BIDDING_ONLY 파트너는 고객 메시지함 링크를 숨긴다(대시보드가 메인). */
-export function applyPartnerBiddingSidebarMessagingHide() {
-  if (getCurrentRole() !== ROLES.PARTNER) return;
-  const link = document.querySelector('#sidebar a[data-lhai-partner-messages="1"]');
-  if (!(link instanceof HTMLElement)) return;
-  const mode = (sessionStorage.getItem("lhai_partner_mode") || "").trim().toUpperCase();
-  link.style.display = mode === "BIDDING_ONLY" ? "none" : "";
 }
 
 export { loadSidebar, mountMessagesSidebar };

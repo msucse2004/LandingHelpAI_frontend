@@ -1,4 +1,5 @@
-import { applyPartnerBiddingSidebarMessagingHide, loadSidebar } from "../components/sidebar.js";
+import { mountPartnerShell } from "../layouts/partner-shell.js";
+import { renderPartnerAssignedRequestContentHtml } from "./partner-assigned-request-content.js";
 import { partnerThreadsApi } from "../core/api.js";
 import { refreshPartnerModeSession } from "../core/partner-mode-session.js";
 import { getCurrentRole } from "../core/auth.js";
@@ -211,9 +212,13 @@ async function initPartnerAssignedRequest() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
 
+  await mountPartnerShell("#app", {
+    pageKey: "bid_requests",
+    documentTitle: "배정 신청 상세 - Landing Help AI",
+    contentHtml: renderPartnerAssignedRequestContentHtml(),
+  });
+
   await refreshPartnerModeSession(partnerThreadsApi);
-  await loadSidebar("#sidebar", "customer");
-  applyPartnerBiddingSidebarMessagingHide();
 
   const threadId = getThreadIdFromLocation();
   const errEl = document.querySelector("#partnerAssignedError");

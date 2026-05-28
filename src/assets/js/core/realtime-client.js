@@ -11,6 +11,7 @@ const EVENT_NAMES = [
   "unread.changed",
   "thread.read",
   "bid.updated",
+  "bidding.event",
   "heartbeat",
 ];
 const WINDOW_REALTIME = "lhai:realtime-event";

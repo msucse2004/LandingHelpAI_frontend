@@ -1,4 +1,4 @@
-/* Partner dashboards: ASSIGNED work queue + BIDDING_ONLY quote requests */
+/* Partner dashboard / 신청 리스트 — content only. Shell: layouts/partner-shell.css */
 
 /* layout.css ``.lhai-grid { display: grid }`` overrides native [hidden] — 통계 섹션 숨김 보장 */
 .lhai-partner-dash [hidden],
@@ -307,6 +307,187 @@
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.55;
+}
+
+/* BIDDING_ONLY: vehicle / product bid request cards */
+.lhai-par-dash-bid__list {
+  display: grid;
+  gap: var(--lhai-space-4);
+  margin-top: var(--lhai-space-3);
+}
+
+.lhai-par-dash-bid__card {
+  border: 1px solid var(--lhai-color-border, rgba(148, 163, 184, 0.25));
+  border-radius: var(--lhai-radius-md, 8px);
+  padding: var(--lhai-space-4);
+  background: var(--lhai-color-surface, #121a24);
+}
+
+.lhai-par-dash-bid__head {
+  margin-bottom: var(--lhai-space-3);
+}
+
+.lhai-par-dash-bid__head-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lhai-space-2);
+  margin-bottom: var(--lhai-space-1);
+}
+
+.lhai-par-dash-bid__title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.lhai-par-dash-bid__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
+}
+
+/* Light card surface — high-contrast pill badges (Vehicle was low-contrast on white) */
+.lhai-par-dash-bid__badges .lhai-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.lhai-par-dash-bid__badges .lhai-badge--vehicle {
+  background: #dbeafe;
+  color: #1e40af;
+  border-color: #93c5fd;
+}
+
+.lhai-par-dash-bid__badges .lhai-badge--accent {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.lhai-par-dash-bid__badges .lhai-badge--warn {
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: #fdba74;
+}
+
+.lhai-par-dash-bid__meta {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--lhai-color-muted, #8fa3b5);
+}
+
+.lhai-par-dash-bid__summary {
+  margin: 0 0 var(--lhai-space-3);
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--lhai-color-text, #e8eef4);
+}
+
+.lhai-par-dash-bid__summary--empty {
+  padding-left: 0;
+  list-style: none;
+}
+
+.lhai-par-dash-bid__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--lhai-space-3);
+  margin: 0 0 var(--lhai-space-3);
+  font-size: 0.85rem;
+}
+
+.lhai-par-dash-bid__facts dt {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--lhai-color-muted, #8fa3b5);
+  margin-bottom: 2px;
+}
+
+.lhai-par-dash-bid__facts dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+.lhai-par-dash-bid__time {
+  font-weight: 600;
+}
+
+/* Bidding list status badges — light card background, high contrast */
+.lhai-par-dash-bid__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 24px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  opacity: 1;
+}
+
+.lhai-par-dash-bid__status--pending {
+  background: #eef2ff;
+  color: #3730a3;
+  border-color: #c7d2fe;
+}
+
+.lhai-par-dash-bid__status--submitted {
+  background: #e0f2fe;
+  color: #075985;
+  border-color: #bae6fd;
+}
+
+.lhai-par-dash-bid__status--selected {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.lhai-par-dash-bid__status--ended,
+.lhai-par-dash-bid__status--expired,
+.lhai-par-dash-bid__status--closed {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.lhai-par-dash-bid__status--draft {
+  background: #f3f4f6;
+  color: #374151;
+  border-color: #d1d5db;
+}
+
+.lhai-par-dash-bid__rank {
+  margin: 0 0 var(--lhai-space-3);
+}
+
+.lhai-badge--rank {
+  background: #e0f2fe;
+  color: #075985;
+  border: 1px solid #bae6fd;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.lhai-par-dash-bid__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lhai-space-2);
 }
 
 .u-sr-only {

@@ -1,4 +1,7 @@
-import { applyPartnerBiddingSidebarMessagingHide, mountMessagesSidebar } from "../components/sidebar.js";
+import { mountMessagesSidebar } from "../components/sidebar.js";
+import { mountCustomerInboxShell } from "../layouts/customer-inbox-shell.js";
+import { mountPartnerShell } from "../layouts/partner-shell.js";
+import { renderCustomerMessagesContentHtml, renderPartnerMessagesContentHtml } from "./partner-messages-content.js";
 import {
   customerBidsApi,
   customerWorkflowsApi,
@@ -20,12 +23,13 @@ import {
   deliveryModeBadgeFromThreadMeta,
   renderIntakeThreadContentBlockBubble,
 } from "../intake/intake-runtime-view.js";
-import { coerceToIsoDateInputValue, effectiveIntakeInputType, intakeRequiredFieldError, intakeRequiredFieldErrorForInputType, isCurrencyUsdInputType, isEffectivelyEmptyIntakeHelpText, normalizeIntakeFormPromptUiPayload, normalizePrefillInputScalar, prefillCandidateOptionLabel, renderCurrencyUsdInputControlsHtml, resolveIntakeFieldInitialValue, shouldHideIntakeBlockTitle } from "../intake/intake-form-presentation.js";
+import { coerceToIsoDateInputValue, effectiveIntakeInputType, intakeRequiredFieldError, intakeRequiredFieldErrorForInputType, isCurrencyUsdInputType, isEffectivelyEmptyIntakeHelpText, normalizeIntakeFormPromptUiPayload, normalizePrefillInputScalar, prefillCandidateOptionLabel, prefillUsesTextInputNotDropdown, renderCurrencyUsdInputControlsHtml, resolveIntakeFieldInitialValue, shouldHideIntakeBlockTitle } from "../intake/intake-form-presentation.js";
 import { formatMessageTimestamp, resolveBackendMediaUrl, safeText } from "../core/utils.js";
 import { getRealtimeStatus, subscribeRealtimeEvents } from "../core/realtime-client.js";
 import {
   buildCustomerBidResultsHref,
   isBiddingBidUpdatedPayload,
+  isBiddingRealtimeSseEvent,
   normalizeBidUpdatedPayload,
   showBidUpdatedToast,
 } from "../core/bid-realtime.js";
@@ -46,6 +50,7 @@ import {
   intakeStartServiceItemIdFromCardJson,
   isCatalogRecServiceItemUuidString,
 } from "../lib/catalog-rec-service-item-id.js";
+import { loadBiddingNotificationDebugInto } from "./admin-bidding-notification-debug-ui.js";
 import { buildIntakeDispatchDiagnosticsHtml } from "./messages-intake-diagnostics-ui.js";
 
 /** @param {unknown} s */
@@ -693,6 +698,7 @@ const PREFILL_MANUAL_VALUE = "__prefill_manual__";
 /** @param {Record<string, unknown>} row */
 function usesPrefillCandidatesDropdown(row) {
   if (Boolean(row.prefill_blocked)) return false;
+  if (prefillUsesTextInputNotDropdown(row)) return false;
   const mode = String(row.prefill_mode || row.prefill_use_dropdown ? "dropdown_existing_values" : "");
   if (mode !== "dropdown_existing_values" && !row.prefill_use_dropdown) return false;
   const list = Array.isArray(row.prefill_candidates) ? row.prefill_candidates : [];
@@ -2016,48 +2022,98 @@ function showIntakeDispatchDiagToast(message) {
   }, 2800);
 }
 
-function wireIntakeDispatchDiagnosticsPanel() {
-  const runBtn = document.querySelector("#lhaiIntakeDispatchDiagRunBtn");
+async function refreshBiddingNotificationDebugPanel(threadId, opts = {}) {
+  const fromUser = Boolean(opts.fromUser);
+  const wrap = document.querySelector("#lhaiBiddingNotifyDebugBody");
+  if (!(wrap instanceof HTMLElement)) return;
+  const tid = String(threadId || selectedThreadId || "").trim();
+  const loading = document.querySelector("#lhaiBiddingNotifyDebugLoading");
+  const runBtn = document.querySelector("#lhaiBiddingNotifyDebugRunBtn");
+  if (!tid) {
+    wrap.innerHTML = `<p class="u-text-muted">스레드를 선택하면 비딩 시작 이메일 진단을 불러옵니다.</p>`;
+    if (fromUser) showIntakeDispatchDiagToast("스레드를 먼저 선택해 주세요.");
+    return;
+  }
+  if (runBtn instanceof HTMLButtonElement) runBtn.disabled = true;
+  if (loading instanceof HTMLElement) {
+    loading.hidden = false;
+    loading.textContent = "불러오는 중…";
+  }
+  try {
+    await loadBiddingNotificationDebugInto(wrap, {
+      threadId: tid,
+      fetchThreadDebug: (id) => serviceCatalogAdminApi.getThreadBiddingDispatchDebug(id),
+      fetchBidDebug: (id) => serviceCatalogAdminApi.getBidRequestNotificationDebug(id),
+    });
+    const refreshedAt = new Date().toLocaleString("ko-KR");
+    const stamp = wrap.querySelector(".lhai-bid-notify-debug__refreshed-at");
+    if (stamp instanceof HTMLElement) {
+      stamp.textContent = `마지막 갱신: ${refreshedAt}`;
+    } else {
+      wrap.insertAdjacentHTML(
+        "beforeend",
+        `<p class="lhai-help lhai-bid-notify-debug__refreshed-at u-mt-2">마지막 갱신: ${escapeHtml(refreshedAt)}</p>`
+      );
+    }
+    if (fromUser) {
+      const hasErr = wrap.querySelector(".lhai-state--error");
+      showIntakeDispatchDiagToast(
+        hasErr ? "이메일 진단을 불러오지 못했습니다." : "비딩 시작 이메일 진단을 불러왔습니다."
+      );
+    }
+  } finally {
+    if (runBtn instanceof HTMLButtonElement) runBtn.disabled = false;
+    if (loading instanceof HTMLElement) loading.hidden = true;
+  }
+}
+
+async function runIntakeDispatchDiagnosticsLoad() {
+  const tid = String(selectedThreadId || "").trim();
   const body = document.querySelector("#lhaiIntakeDispatchDiagBody");
   const loading = document.querySelector("#lhaiIntakeDispatchDiagLoading");
-  if (!(runBtn instanceof HTMLButtonElement) || !(body instanceof HTMLElement)) return;
-  const clone = /** @type {HTMLButtonElement} */ (runBtn.cloneNode(true));
-  runBtn.replaceWith(clone);
-  clone.addEventListener("click", async () => {
-    const tid = String(selectedThreadId || "").trim();
-    if (!tid) return;
-    if (loading instanceof HTMLElement) {
-      loading.hidden = false;
-      loading.textContent = "불러오는 중…";
+  const runBtn = document.querySelector("#lhaiIntakeDispatchDiagRunBtn");
+  if (!tid) {
+    showIntakeDispatchDiagToast("스레드를 먼저 선택해 주세요.");
+    return;
+  }
+  if (!(body instanceof HTMLElement)) return;
+  if (runBtn instanceof HTMLButtonElement) runBtn.disabled = true;
+  if (loading instanceof HTMLElement) {
+    loading.hidden = false;
+    loading.textContent = "불러오는 중…";
+  }
+  body.innerHTML = "";
+  try {
+    const data = await serviceCatalogAdminApi.getIntakeDispatchDiagnostics({ threadId: tid });
+    body.innerHTML = buildIntakeDispatchDiagnosticsHtml(data);
+    const copyBtn = document.querySelector("#lhaiIntakeDiagCopyTidBtn");
+    if (copyBtn instanceof HTMLButtonElement) {
+      const copyClone = /** @type {HTMLButtonElement} */ (copyBtn.cloneNode(true));
+      copyBtn.replaceWith(copyClone);
+      copyClone.addEventListener("click", async () => {
+        let out = "";
+        try {
+          out = JSON.stringify(data, null, 2);
+        } catch {
+          out = String(data);
+        }
+        try {
+          await navigator.clipboard.writeText(out);
+          showIntakeDispatchDiagToast("진단 전체(JSON)가 복사되었습니다");
+        } catch {
+          showIntakeDispatchDiagToast("복사에 실패했습니다");
+        }
+      });
     }
-    body.innerHTML = "";
-    try {
-      const data = await serviceCatalogAdminApi.getIntakeDispatchDiagnostics({ threadId: tid });
-      body.innerHTML = buildIntakeDispatchDiagnosticsHtml(data);
-      const copyBtn = document.querySelector("#lhaiIntakeDiagCopyTidBtn");
-      if (copyBtn instanceof HTMLButtonElement) {
-        copyBtn.addEventListener("click", async () => {
-          let out = "";
-          try {
-            out = JSON.stringify(data, null, 2);
-          } catch {
-            out = String(data);
-          }
-          try {
-            await navigator.clipboard.writeText(out);
-            showIntakeDispatchDiagToast("진단 전체(JSON)가 복사되었습니다");
-          } catch {
-            showIntakeDispatchDiagToast("복사에 실패했습니다");
-          }
-        });
-      }
-    } catch (e) {
-      const msg = e && typeof e.message === "string" ? e.message : String(e);
-      body.innerHTML = `<p class="lhai-state lhai-state--error">${escapeHtml(msg)}</p>`;
-    } finally {
-      if (loading instanceof HTMLElement) loading.hidden = true;
-    }
-  });
+    showIntakeDispatchDiagToast("파트너 배정 진단을 불러왔습니다.");
+  } catch (e) {
+    const msg = e && typeof e.message === "string" ? e.message : String(e);
+    body.innerHTML = `<p class="lhai-state lhai-state--error">${escapeHtml(msg)}</p>`;
+    showIntakeDispatchDiagToast("진단을 불러오지 못했습니다.");
+  } finally {
+    if (runBtn instanceof HTMLButtonElement) runBtn.disabled = false;
+    if (loading instanceof HTMLElement) loading.hidden = true;
+  }
 }
 
 const CUSTOMER_BIDDING_WORKFLOW_TYPES = new Set(["PARTNER_BIDDING", "CUSTOMER_SELECTS_PARTNER"]);
@@ -2489,10 +2545,19 @@ function renderMessageDetailShell(threadMeta) {
     ? `<section class="lhai-card lhai-intake-diag-panel u-mb-2" id="lhaiIntakeDispatchDiagWrap" aria-labelledby="lhaiIntakeDiagHeading">
         <div class="lhai-intake-diag-panel__head" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.5rem">
           <h3 id="lhaiIntakeDiagHeading" class="lhai-card__title" style="margin:0;font-size:1rem">파트너 배정 진단</h3>
-          <button type="button" class="lhai-button lhai-button--secondary" id="lhaiIntakeDispatchDiagRunBtn">진단 불러오기</button>
+          <button type="button" class="lhai-button lhai-button--secondary" id="lhaiIntakeDispatchDiagRunBtn" data-lhai-action="load-intake-dispatch-diag">진단 불러오기</button>
         </div>
         <p class="lhai-help u-mt-1" id="lhaiIntakeDispatchDiagLoading" hidden>불러오는 중…</p>
         <div id="lhaiIntakeDispatchDiagBody" class="lhai-intake-diag-body u-mt-2"></div>
+      </section>
+      <section class="lhai-card lhai-intake-diag-panel u-mb-2" id="lhaiBiddingNotifyDebugWrap" aria-labelledby="lhaiBiddingNotifyDebugHeading">
+        <div class="lhai-intake-diag-panel__head" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.5rem">
+          <h3 id="lhaiBiddingNotifyDebugHeading" class="lhai-card__title" style="margin:0;font-size:1rem">비딩 시작 이메일 진단</h3>
+          <button type="button" class="lhai-button lhai-button--secondary" id="lhaiBiddingNotifyDebugRunBtn" data-lhai-action="load-bidding-email-diag">이메일 진단 불러오기</button>
+        </div>
+        <p class="lhai-help u-mt-1">관리자 로그인 세션으로 API를 호출합니다(주소창 직접 호출 아님). intake 제출 후 파트너 bidding started 메일 발송 여부를 확인합니다.</p>
+        <p class="lhai-help u-mt-1" id="lhaiBiddingNotifyDebugLoading" hidden>불러오는 중…</p>
+        <div id="lhaiBiddingNotifyDebugBody" class="lhai-intake-diag-body u-mt-2"></div>
       </section>`
     : "";
   const customerExtras =
@@ -2547,7 +2612,7 @@ function renderMessageDetailShell(threadMeta) {
   `;
   syncChatHeader(threadMeta);
   if (showIntakeDiag) {
-    wireIntakeDispatchDiagnosticsPanel();
+    void refreshBiddingNotificationDebugPanel(selectedThreadId);
   }
 }
 
@@ -3182,7 +3247,7 @@ async function handleMessagesRealtimeEvent(detail) {
     return;
   }
 
-  if (type === "bid.updated") {
+  if (isBiddingRealtimeSseEvent({ type })) {
     const bidPayload = normalizeBidUpdatedPayload({ type, data });
     if (!isBiddingBidUpdatedPayload(bidPayload)) return;
     const wfId = String(
@@ -3323,14 +3388,45 @@ async function onComposerSubmit(event) {
   }
 }
 
+async function mountMessagesPageShell() {
+  const app = document.getElementById("app");
+  if (!(app instanceof HTMLElement)) {
+    await mountMessagesSidebar();
+    return;
+  }
+  if (partnerInboxMode) {
+    document.body.classList.add("lhai-partner-shell-pending");
+    await mountPartnerShell(app, {
+      pageKey: "messages",
+      documentTitle: "메시지함 - Landing Help AI",
+      contentHtml: renderPartnerMessagesContentHtml({ partner: true }),
+      mainExtraClass: "lhai-partner-messages",
+    });
+    return;
+  }
+  const contentHtml = renderCustomerMessagesContentHtml();
+  if (operatorInboxMode) {
+    await mountCustomerInboxShell(app, contentHtml, { variant: "admin" });
+  } else {
+    await mountCustomerInboxShell(app, contentHtml);
+  }
+}
+
 async function initMessagesPage() {
   operatorInboxMode = canAccessAdminShell();
   partnerInboxMode = !operatorInboxMode && getCurrentRole() === ROLES.PARTNER;
   syncHeaderRoleBadge();
-  await mountMessagesSidebar();
+  try {
+    await mountMessagesPageShell();
+  } catch {
+    try {
+      await mountMessagesSidebar();
+    } catch {
+      /* ignore */
+    }
+  }
   if (partnerInboxMode) {
     await refreshPartnerModeSession(partnerThreadsApi);
-    applyPartnerBiddingSidebarMessagingHide();
   }
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
@@ -3450,6 +3546,20 @@ async function initMessagesPage() {
         void runWorkflowSelectOffer(wfBtn, wid, oid);
         return;
       }
+    }
+    const intakeDiagBtn =
+      t instanceof Element ? t.closest("[data-lhai-action='load-intake-dispatch-diag']") : null;
+    if (intakeDiagBtn instanceof HTMLButtonElement) {
+      event.preventDefault();
+      void runIntakeDispatchDiagnosticsLoad();
+      return;
+    }
+    const bidEmailDiagBtn =
+      t instanceof Element ? t.closest("[data-lhai-action='load-bidding-email-diag']") : null;
+    if (bidEmailDiagBtn instanceof HTMLButtonElement) {
+      event.preventDefault();
+      void refreshBiddingNotificationDebugPanel(selectedThreadId, { fromUser: true });
+      return;
     }
     if (event.target.closest("#lhaiEscalateToOpsBtn")) {
       event.preventDefault();

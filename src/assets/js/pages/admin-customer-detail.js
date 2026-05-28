@@ -1,4 +1,5 @@
-import { adminApi, emailLogsApi } from "../core/api.js";
+import { adminApi, emailLogsApi, serviceCatalogAdminApi } from "../core/api.js";
+import { loadBiddingNotificationDebugInto } from "./admin-bidding-notification-debug-ui.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { formatDate, formatMessageTimestamp, safeText } from "../core/utils.js";
 import { loadSidebar } from "../components/sidebar.js";
@@ -656,18 +657,27 @@ function renderWorkflow(data) {
     html += `<h4 class="u-mb-2">Workflow instances</h4>${renderEmpty()}`;
   } else {
     html += `<h4 class="u-mb-2">Workflow instances</h4><div class="ac360-table-wrap"><table class="ac360-table">
-      <thead><tr><th>Type</th><th>Status</th><th>Step</th><th>Thread</th><th>Updated</th></tr></thead>
+      <thead><tr><th>Type</th><th>Status</th><th>Step</th><th>Thread</th><th>Actions</th><th>Updated</th></tr></thead>
       <tbody>${instances
-        .map(
-          (w) => `<tr>
+        .map((w) => {
+          const tid = String(w.thread_id || "").trim();
+          const msgHref = tid
+            ? `messages.html?customer_profile_id=${encodeURIComponent(currentCustomerProfileId)}&thread_id=${encodeURIComponent(tid)}`
+            : "";
+          const actions = tid
+            ? `<a class="lhai-link" href="${escapeHtml(msgHref)}">메시지함</a>`
+            : "—";
+          return `<tr>
             <td>${escapeHtml(safeText(w.workflow_type))}</td>
             <td>${escapeHtml(safeText(w.status))} / ${escapeHtml(safeText(w.customer_status))}</td>
             <td>${escapeHtml(safeText(w.current_step))}</td>
-            <td><span class="u-text-muted">${escapeHtml(String(w.thread_id || "").slice(0, 8))}…</span></td>
+            <td>${tid ? `<code>${escapeHtml(tid.slice(0, 8))}…</code>` : "—"}</td>
+            <td>${actions}</td>
             <td>${escapeHtml(formatDate(w.updated_at))}</td>
-          </tr>`
-        )
-        .join("")}</tbody></table></div>`;
+          </tr>`;
+        })
+        .join("")}</tbody></table></div>
+      <p class="lhai-help u-mt-2">비딩 시작 이메일 진단은 아래 <strong>파트너 / 비딩</strong> 섹션의 Bidding requests → 이메일 진단을 사용하세요.</p>`;
   }
 
   if (!cases.length) {
@@ -738,13 +748,27 @@ function renderPartners(data) {
     ) +
     section(
       "Bidding requests",
-      (partners.bidding_requests || []).map(
-        (b) => `<td>${escapeHtml(safeText(b.status))}</td>
-          <td>${escapeHtml(String(b.thread_id || "").slice(0, 8))}…</td>
-          <td>${escapeHtml(formatDate(b.expires_at || b.created_at))}</td>`
-      ),
-      ["Status", "Thread", "Expires"]
+      (partners.bidding_requests || []).map((b) => {
+        const bidId = String(b.id || "").trim();
+        const tid = String(b.thread_id || "").trim();
+        const msgHref = tid
+          ? `messages.html?customer_profile_id=${encodeURIComponent(currentCustomerProfileId)}&thread_id=${encodeURIComponent(tid)}`
+          : "#";
+        return `<td>${escapeHtml(safeText(b.status))}</td>
+          <td><a class="lhai-link" href="${escapeHtml(msgHref)}">${escapeHtml(String(tid).slice(0, 8))}…</a></td>
+          <td>${escapeHtml(formatDate(b.expires_at || b.created_at))}</td>
+          <td>${
+            bidId
+              ? `<button type="button" class="lhai-button lhai-button--secondary lhai-button--sm ac360-bid-email-debug-btn" data-bid-request-id="${escapeHtml(bidId)}" data-thread-id="${escapeHtml(tid)}">Notification debug</button>`
+              : "—"
+          }</td>`;
+      }),
+      ["Status", "Thread", "Expires", "Debug"]
     ) +
+    `<div id="ac360BiddingEmailDebugMount" class="ac360-bidding-email-debug u-mt-3" hidden>
+      <p class="lhai-help u-mb-1">Bidding notification debug (admin API; bid_request_id from table below)</p>
+      <div id="ac360BiddingEmailDebugBody"></div>
+    </div>` +
     section(
       "Partner bids",
       (partners.partner_bids || []).map(
@@ -842,6 +866,54 @@ function renderAdminNotes(data) {
   target.innerHTML = withEditToolbar(body, "notes");
 }
 
+function ac360AutoLoadLatestBiddingEmailDebug(partnersBlock) {
+  const list = partnersBlock?.bidding_requests;
+  if (!Array.isArray(list) || !list.length) return;
+  const sorted = [...list].sort((a, b) => {
+    const ta = Date.parse(String(a.created_at || a.expires_at || "")) || 0;
+    const tb = Date.parse(String(b.created_at || b.expires_at || "")) || 0;
+    return tb - ta;
+  });
+  const latest = sorted[0];
+  const bidRequestId = String(latest?.id || "").trim();
+  const threadId = String(latest?.thread_id || "").trim();
+  if (!bidRequestId) return;
+  const mount = qs("#ac360BiddingEmailDebugMount");
+  const body = qs("#ac360BiddingEmailDebugBody");
+  if (mount instanceof HTMLElement) mount.hidden = false;
+  if (!(body instanceof HTMLElement)) return;
+  void loadBiddingNotificationDebugInto(body, {
+    threadId,
+    bidRequestId,
+    fetchThreadDebug: (id) => serviceCatalogAdminApi.getThreadBiddingDispatchDebug(id),
+    fetchBidDebug: (id) => serviceCatalogAdminApi.getBidRequestNotificationDebug(id),
+  });
+}
+
+function wireAc360BiddingEmailDebug() {
+  const partners = qs("#ac360Partners");
+  if (!partners || partners.dataset.bidEmailDebugWired === "1") return;
+  partners.dataset.bidEmailDebugWired = "1";
+  partners.addEventListener("click", (ev) => {
+    const btn =
+      ev.target instanceof HTMLElement ? ev.target.closest(".ac360-bid-email-debug-btn") : null;
+    if (!(btn instanceof HTMLButtonElement)) return;
+    const bidRequestId = String(btn.getAttribute("data-bid-request-id") || "").trim();
+    const threadId = String(btn.getAttribute("data-thread-id") || "").trim();
+    const mount = qs("#ac360BiddingEmailDebugMount");
+    const body = qs("#ac360BiddingEmailDebugBody");
+    if (mount instanceof HTMLElement) mount.hidden = false;
+    if (!(body instanceof HTMLElement)) return;
+    void loadBiddingNotificationDebugInto(body, {
+      threadId,
+      bidRequestId,
+      fetchThreadDebug: (id) => serviceCatalogAdminApi.getThreadBiddingDispatchDebug(id),
+      fetchBidDebug: (id) => serviceCatalogAdminApi.getBidRequestNotificationDebug(id),
+    });
+    mount?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+}
+
 function renderCustomer360(data, customerProfileId) {
   renderBasicInfo(data);
   renderContactLocation(data);
@@ -852,6 +924,8 @@ function renderCustomer360(data, customerProfileId) {
   renderQuotes(data);
   renderWorkflow(data);
   renderPartners(data);
+  wireAc360BiddingEmailDebug();
+  ac360AutoLoadLatestBiddingEmailDebug(data.partners || {});
   renderMessagesBlock(data, customerProfileId);
   renderActivity(data);
   renderAdminNotes(data);

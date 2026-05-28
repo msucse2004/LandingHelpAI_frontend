@@ -105,13 +105,11 @@ export function normalizePhotosForSubmit(photos) {
 
 /**
  * @param {Record<string, unknown>[]} offers
- * @param {{ maxOffers: number, requiresOfferPhotos?: boolean }} cfg
+ * @param {{ requiresOfferPhotos?: boolean }} cfg
  */
 export function validateProductOffersForSubmit(offers, cfg) {
-  const max = Math.max(1, Number(cfg.maxOffers) || 3);
   const requirePhotos = cfg.requiresOfferPhotos === true;
   if (!offers.length) return "최소 1개의 제안을 추가해 주세요.";
-  if (offers.length > max) return `제안은 최대 ${max}개까지 등록할 수 있습니다.`;
   for (let i = 0; i < offers.length; i += 1) {
     const o = offers[i];
     const n = i + 1;
@@ -267,6 +265,28 @@ export function partnerBidStatusLabel(bidStatus, requestStatus) {
   return bs || "—";
 }
 
+/** 고객 견적 요청(라운드) 상태 — 파트너 히어로 카드용 */
+export function partnerBidRequestRoundLabel(requestStatus) {
+  const rs = String(requestStatus || "").trim().toUpperCase();
+  if (rs === "OPEN") return "견적 접수 중";
+  if (rs === "CUSTOMER_SELECTED") return "고객 선택 완료";
+  if (rs === "EXPIRED") return "제출 마감됨";
+  if (rs === "CANCELLED") return "라운드 종료 (재요청)";
+  if (rs === "CLOSED") return "종료됨";
+  return rs || "—";
+}
+
+/** 이 파트너의 견적 제안 제출 여부 — 파트너 히어로 카드용 */
+export function partnerMyBidSubmissionLabel(bidStatus) {
+  const bs = String(bidStatus || "").trim().toUpperCase();
+  if (bs === "SUBMITTED") return "제출 완료";
+  if (bs === "SELECTED") return "제출 완료 · 고객 선택";
+  if (bs === "DRAFT") return "초안 저장됨 (미제출)";
+  if (bs === "REJECTED") return "제출했으나 선택되지 않음";
+  if (bs === "CLOSED") return "수정 불가";
+  return "아직 제출 안 함";
+}
+
 /** @param {Record<string, unknown>} bid @param {string} requestStatus */
 export function endedStateMessage(bid, requestStatus) {
   const bs = String(bid?.status ?? "").trim().toUpperCase();
@@ -275,7 +295,7 @@ export function endedStateMessage(bid, requestStatus) {
     return "Customer selected your offer. You have been added to the message thread.";
   }
   if (rs === "EXPIRED") {
-    return "Bidding ended because the 72-hour window expired. You can no longer submit offers.";
+    return "Bidding ended. You can no longer edit offers. A customer may still select an existing offer.";
   }
   if (rs === "CANCELLED") {
     return "Customer requested a new bidding round. This round is closed.";

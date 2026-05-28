@@ -1,0 +1,12 @@
+/**
+ * Partner profile page — content only (forms, feedback).
+ * Shell layout: ../layouts/partner-shell.css
+ */
+
+body.lhai-partner-shell .lhai-partner-profile .service-flow__field + .service-flow__field {
+  margin-top: var(--lhai-space-3);
+}
+
+body.lhai-partner-shell .lhai-partner-profile .lhai-form .lhai-button[type="submit"] {
+  margin-top: var(--lhai-space-4);
+}

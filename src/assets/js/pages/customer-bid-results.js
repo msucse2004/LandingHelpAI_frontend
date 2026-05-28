@@ -7,8 +7,10 @@ import { loadSidebar } from "../components/sidebar.js";
 import { subscribeRealtimeEvents } from "../core/realtime-client.js";
 import {
   bidUpdatedMatchesScope,
-  isBiddingBidUpdatedPayload,
-  normalizeBidUpdatedPayload,
+  BIDDING_EVENT_KINDS,
+  isBiddingEventPayload,
+  isBiddingRealtimeSseEvent,
+  normalizeBiddingEventPayload,
 } from "../core/bid-realtime.js";
 import {
   buildCustomerBidRequestTabs,
@@ -25,6 +27,7 @@ import {
   formatAttributesList,
   formatBidRequestStatusLabel,
   customerBidStatusBannerMessage,
+  buildCustomerBidSelectConfirmContent,
   canSelectCustomerBid,
   formatCountdownToExpiry,
   formatMoney,
@@ -41,6 +44,10 @@ import {
   resolveCustomerBidDisplayPhase,
   isCustomerBidListPollingPhase,
   snapshotHasBudgetHint,
+  isVehicleOffer,
+  buildVehicleOfferCardHtml,
+  buildVehicleOfferDetailModalHtml,
+  offerSelectionUiState,
 } from "./customer-bid-results-logic.js";
 import {
   createBidCountdownTicker,
@@ -345,8 +352,22 @@ function renderToolbar() {
   if (updated instanceof HTMLInputElement) updated.checked = Boolean(activeFilters.updatedOnly);
 }
 
+function offerCardContext() {
+  return {
+    phase: displayPhase(),
+    activeSort,
+    recentUpdatedAt: listSnapshot?.recent_updated_at,
+    snap: listSnapshot,
+    selectedBidId,
+    selectedOfferId,
+  };
+}
+
 function renderOfferCard(offer) {
-  const phase = displayPhase();
+  if (isVehicleOffer(offer)) {
+    return buildVehicleOfferCardHtml(offer, offerCardContext(), escapeHtml);
+  }
+  const ctx = offerCardContext();
   const bidId = String(offer.bid_id || "").trim();
   const offerId = String(offer.offer_id || "").trim();
   const cur = String(offer.currency || "USD");
@@ -368,20 +389,27 @@ function renderOfferCard(offer) {
   const updatedBadge = offerShowsUpdatedBadge(offer.updated_at, listSnapshot?.recent_updated_at)
     ? `<span class="lhai-cbr-badge lhai-cbr-badge--updated">업데이트됨</span>`
     : "";
-  const canSelect = canSelectCustomerBid(phase);
-  const isSelected =
-    phase === "CUSTOMER_SELECTED" &&
-    selectedBidId &&
-    bidId === selectedBidId &&
-    (!selectedOfferId || !offerId || offerId === selectedOfferId);
-  const selectDisabled = !canSelect || phase === "CUSTOMER_SELECTED";
-  const selectLabel = isSelected ? "선택한 제안" : "이 제안 선택";
+  const sel = offerSelectionUiState(ctx.phase, offer, {
+    selectedBidId,
+    selectedOfferId,
+    snap: listSnapshot,
+  });
   const thumbHtml = thumb
     ? `<img class="lhai-cbr-card__thumb-img" src="${escapeHtml(thumb)}" alt="" loading="lazy" />`
     : `<div class="lhai-cbr-card__thumb-placeholder" aria-hidden="true">📷</div>`;
+  const selectBtn = sel.showSelectButton
+    ? `<button type="button" class="lhai-button lhai-button--primary" data-cbr-select="${escapeHtml(bidId)}" data-cbr-offer="${escapeHtml(offerId)}"${sel.selectDisabled ? " disabled" : ""}>이 제안 선택</button>`
+    : "";
+  const cardClasses = [
+    "lhai-cbr-card",
+    sel.isSelected ? "lhai-cbr-card--selected" : "",
+    sel.dimmed ? "lhai-cbr-card--dimmed" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return `
-    <article class="lhai-cbr-card${isSelected ? " lhai-cbr-card--selected" : ""}" data-offer-id="${escapeHtml(offerId)}" data-bid-id="${escapeHtml(bidId)}">
+    <article class="${cardClasses}" data-offer-id="${escapeHtml(offerId)}" data-bid-id="${escapeHtml(bidId)}">
       <div class="lhai-cbr-card__thumb">${thumbHtml}</div>
       <div class="lhai-cbr-card__body">
         <div class="lhai-cbr-card__badges">${rankBadge ? `<span class="lhai-cbr-badge lhai-cbr-badge--rank">${escapeHtml(rankBadge)}</span>` : ""}${updatedBadge}</div>
@@ -398,7 +426,7 @@ function renderOfferCard(offer) {
         </div>
         <div class="lhai-cbr-card__actions">
           <button type="button" class="lhai-button lhai-button--secondary" data-cbr-detail="${escapeHtml(offerId)}">자세히 보기</button>
-          <button type="button" class="lhai-button lhai-button--primary" data-cbr-select="${escapeHtml(bidId)}" data-cbr-offer="${escapeHtml(offerId)}"${selectDisabled ? " disabled" : ""}>${escapeHtml(selectLabel)}</button>
+          ${selectBtn}
         </div>
       </div>
     </article>`;
@@ -419,6 +447,8 @@ function renderCards() {
     return;
   }
   if (empty instanceof HTMLElement) empty.hidden = true;
+  const hasVehicle = offers.some((o) => isVehicleOffer(/** @type {Record<string, unknown>} */ (o)));
+  grid.classList.toggle("lhai-cbr-cards--vehicle", hasVehicle);
   grid.innerHTML = offers
     .map((o) => renderOfferCard(/** @type {Record<string, unknown>} */ (o)))
     .join("");
@@ -487,6 +517,23 @@ function findOfferById(offerId) {
   return offers.find((o) => String(o?.offer_id || "") === offerId) || null;
 }
 
+function wireDetailModalGallery(root) {
+  if (!(root instanceof HTMLElement)) return;
+  const main = root.querySelector("[data-cbr-gallery-main]");
+  if (!(main instanceof HTMLImageElement)) return;
+  root.querySelectorAll("[data-cbr-gallery-url]").forEach((btn) => {
+    if (!(btn instanceof HTMLButtonElement)) return;
+    btn.addEventListener("click", () => {
+      const url = String(btn.getAttribute("data-cbr-gallery-url") || "").trim();
+      if (!url) return;
+      main.src = url;
+      root.querySelectorAll(".lhai-cbr-modal__gallery-thumb").forEach((el) => {
+        el.classList.toggle("is-active", el === btn);
+      });
+    });
+  });
+}
+
 function openDetailModal(offerId) {
   const offer = findOfferById(offerId);
   if (!offer) return;
@@ -495,25 +542,32 @@ function openDetailModal(offerId) {
   const dlg = document.querySelector("#cbrDetailModal");
   const selectBtn = document.querySelector("#cbrDetailSelect");
   if (!(body instanceof HTMLElement) || !(dlg instanceof HTMLDialogElement)) return;
-  const cur = String(offer.currency || "USD");
-  const photos = Array.isArray(offer.photos) ? offer.photos : [];
-  const photosHtml = photos.length
-    ? `<div class="lhai-cbr-modal__photos">${photos
-        .map((p) => {
-          const row = p && typeof p === "object" ? p : {};
-          const url = String(row.url || row.thumbnail_url || "").trim();
-          if (!url) return "";
-          return `<img src="${escapeHtml(url)}" alt="${escapeHtml(String(row.caption || ""))}" loading="lazy" />`;
-        })
-        .filter(Boolean)
-        .join("")}</div>`
-    : "";
-  const attrs = formatAttributesList(offer.attributes);
-  const attrsHtml = attrs.length
-    ? `<dl class="lhai-cbr-dl">${attrs.map((a) => `<div><dt>${escapeHtml(a.key)}</dt><dd>${escapeHtml(a.value)}</dd></div>`).join("")}</dl>`
-    : `<p class="u-text-muted">—</p>`;
-  const breakdown = formatOfferPriceBreakdownLines(offer);
-  body.innerHTML = `
+  const ctx = offerCardContext();
+  const vehicle = isVehicleOffer(offer);
+  dlg.classList.toggle("lhai-cbr-modal--vehicle", vehicle);
+  if (vehicle) {
+    body.innerHTML = buildVehicleOfferDetailModalHtml(offer, ctx, escapeHtml);
+    wireDetailModalGallery(body);
+  } else {
+    const cur = String(offer.currency || "USD");
+    const photos = Array.isArray(offer.photos) ? offer.photos : [];
+    const photosHtml = photos.length
+      ? `<div class="lhai-cbr-modal__photos">${photos
+          .map((p) => {
+            const row = p && typeof p === "object" ? p : {};
+            const url = String(row.url || row.thumbnail_url || "").trim();
+            if (!url) return "";
+            return `<img src="${escapeHtml(url)}" alt="${escapeHtml(String(row.caption || ""))}" loading="lazy" />`;
+          })
+          .filter(Boolean)
+          .join("")}</div>`
+      : "";
+    const attrs = formatAttributesList(offer.attributes);
+    const attrsHtml = attrs.length
+      ? `<dl class="lhai-cbr-dl">${attrs.map((a) => `<div><dt>${escapeHtml(a.key)}</dt><dd>${escapeHtml(a.value)}</dd></div>`).join("")}</dl>`
+      : `<p class="u-text-muted">—</p>`;
+    const breakdown = formatOfferPriceBreakdownLines(offer);
+    body.innerHTML = `
     <h3 class="lhai-cbr-modal__title">${escapeHtml(formatOfferTitle(offer))}</h3>
     <p class="lhai-cbr-modal__partner">${escapeHtml(formatOfferPartnerName(offer))}</p>
     ${photosHtml}
@@ -535,9 +589,16 @@ function openDetailModal(offerId) {
     </section>
     <p class="lhai-cbr-modal__notice u-text-muted">선택 전에는 일부 정보가 제한될 수 있습니다. 선택 후 메시지함에서 상세 협의를 진행합니다.</p>
   `;
+  }
   if (selectBtn instanceof HTMLButtonElement) {
-    const phase = displayPhase();
-    selectBtn.hidden = !canSelectCustomerBid(phase);
+    const sel = offerSelectionUiState(ctx.phase, offer, {
+      selectedBidId,
+      selectedOfferId,
+      snap: listSnapshot,
+    });
+    selectBtn.hidden = !sel.showSelectButton;
+    selectBtn.disabled = sel.selectDisabled;
+    selectBtn.textContent = vehicle ? "Select this offer" : "이 제안 선택";
   }
   dlg.showModal();
 }
@@ -547,18 +608,24 @@ function openConfirmModal(bidId, offer) {
   const dlg = document.querySelector("#cbrConfirmModal");
   const body = document.querySelector("#cbrConfirmBody");
   const warn = document.querySelector("#cbrConfirmWarn");
+  const titleEl = document.querySelector("#cbrConfirmModal .lhai-cbr-modal__title");
+  const submitBtn = document.querySelector("#cbrConfirmSubmit");
   if (!(dlg instanceof HTMLDialogElement) || !(body instanceof HTMLElement)) return;
-  body.innerHTML = `<p><strong>${escapeHtml(formatOfferTitle(offer))}</strong> 제안을 선택하시겠습니까?</p>
-    <p>예상 총액 ${escapeHtml(formatMoney(offer.estimated_total, offer.currency || "USD"))}</p>
-    <p class="u-text-muted">선택 후에는 해당 파트너와 메시지로 협의가 진행됩니다.</p>`;
+  const phase = displayPhase();
+  const content = buildCustomerBidSelectConfirmContent(phase, offer, listSnapshot);
+  if (titleEl instanceof HTMLElement) titleEl.textContent = content.modalTitle;
+  body.innerHTML = content.bodyHtml;
   if (warn instanceof HTMLElement) {
-    if (displayPhase() === "OPEN") {
+    if (content.warnText) {
       warn.hidden = false;
-      warn.textContent = `비딩 마감까지 ${formatCountdownToExpiry(listSnapshot?.expires_at)} 남았습니다. 지금 선택하면 다른 파트너의 추가 제안을 받기 어려울 수 있습니다.`;
+      warn.textContent = content.warnText;
     } else {
       warn.hidden = true;
       warn.textContent = "";
     }
+  }
+  if (submitBtn instanceof HTMLButtonElement) {
+    submitBtn.textContent = content.submitLabel;
   }
   dlg.showModal();
 }
@@ -649,10 +716,26 @@ function wireRealtime() {
     }
   }
   realtimeUnsub = subscribeRealtimeEvents((ev) => {
-    if (String(ev?.type || "").trim() !== "bid.updated") return;
-    const payload = normalizeBidUpdatedPayload(ev);
-    if (!isBiddingBidUpdatedPayload(payload)) return;
+    if (!isBiddingRealtimeSseEvent(ev)) return;
+    const payload = normalizeBiddingEventPayload(ev);
+    if (!isBiddingEventPayload(payload)) return;
     if (!bidUpdatedMatchesScope(payload, { threadId, serviceRequestId })) return;
+    const kind = String(payload.event_kind || "");
+    const refreshKinds = [
+      BIDDING_EVENT_KINDS.BID_SUBMITTED,
+      BIDDING_EVENT_KINDS.BID_UPDATED,
+      BIDDING_EVENT_KINDS.BIDDING_EXPIRED,
+      BIDDING_EVENT_KINDS.CUSTOMER_SELECTED,
+      BIDDING_EVENT_KINDS.NEW_ROUND_STARTED,
+      BIDDING_EVENT_KINDS.BIDDING_STARTED,
+    ];
+    if (!refreshKinds.includes(kind)) return;
+    if (kind === BIDDING_EVENT_KINDS.NEW_ROUND_STARTED) {
+      const newBr = String(payload.new_bid_request_id || "").trim();
+      if (newBr) {
+        /* list API resolves latest open round for thread */
+      }
+    }
     void reloadList();
   });
   window.addEventListener("lhai:customer-bid-updated", () => void reloadList());

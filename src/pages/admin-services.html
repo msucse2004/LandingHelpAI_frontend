@@ -780,6 +780,13 @@
                           <select class="lhai-select" id="mswMultiPartnerType" autocomplete="off">
                             <option value="" data-msw-placeholder="1" data-i18n="common.admin_services.workflow.partner_type.placeholder">선택…</option>
                           </select>
+                          <div
+                            id="mswResolvedBiddingModePreview"
+                            class="admin-services__resolved-bidding-preview u-mt-2"
+                            hidden
+                            aria-live="polite"
+                            aria-atomic="true"
+                          ></div>
                           <p class="lhai-help" data-i18n="common.admin_services.workflow.request_type.derived_from_partner_type">파트너 요청 유형(Request type)은 위 Partner Type에 따라 서버에서 자동 설정됩니다(예: 자동차 딜러 → AUTO_PURCHASE_RFP).</p>
                           <label class="lhai-label" for="mswMultiMatchingStrategy" data-i18n="common.admin_services.workflow.label.matching_strategy">Partner matching strategy</label>
                           <select class="lhai-select" id="mswMultiMatchingStrategy" autocomplete="off">
@@ -794,10 +801,6 @@
                             <div>
                               <label class="lhai-label" for="mswMultiMinResponses" data-i18n="common.admin_services.workflow.label.min_responses">Min response count</label>
                               <input class="lhai-input" id="mswMultiMinResponses" type="number" min="0" max="99" value="1" />
-                            </div>
-                            <div>
-                              <label class="lhai-label" for="mswMultiTimeoutHours" data-i18n="common.admin_services.workflow.label.timeout_hours">Timeout hours</label>
-                              <input class="lhai-input" id="mswMultiTimeoutHours" type="number" min="1" max="720" value="48" />
                             </div>
                             <div>
                               <label class="lhai-label" for="mswMultiRankingRule" data-i18n="common.admin_services.workflow.label.ranking_rule">Ranking rule</label>
@@ -819,7 +822,7 @@
                           <input class="lhai-input" id="mswEmailAutoPublishThreshold" type="number" min="0" max="1" step="0.01" inputmode="decimal" placeholder="예: 0.85" />
                           <section class="admin-services__workflow-bidding u-mt-3" id="mswBiddingSettings" aria-labelledby="mswBiddingHeading">
                             <h6 class="admin-services__workflow-subtitle" id="mswBiddingHeading">Partner bidding policy</h6>
-                            <p class="lhai-help">Saved to <code>workflow_config_json.bidding</code>. Missing keys use server defaults (72h window, 3 rounds, 3 offers).</p>
+                            <p class="lhai-help">정책 값은 <code>workflow_config_json.bidding</code>에 저장됩니다. <strong>Partner Type에 따라 비딩 유형이 자동 적용</strong>되며, 별도 Bidding Mode 선택은 없습니다. <strong>AUTO_DEALER</strong>는 <code>CAR_PURCHASE</code> 비딩 모드를 사용합니다. 누락된 정책 키는 서버 기본값(72시간, 3회)을 씁니다.</p>
                             <label class="lhai-checkbox u-mt-2">
                               <input type="checkbox" id="mswBiddingEnabled" checked />
                               Enable partner bidding
@@ -832,10 +835,6 @@
                               <div>
                                 <label class="lhai-label" for="mswBiddingMaxRounds">Max new bidding rounds per customer</label>
                                 <input class="lhai-input" id="mswBiddingMaxRounds" type="number" min="1" max="20" value="3" />
-                              </div>
-                              <div>
-                                <label class="lhai-label" for="mswBiddingMaxOffers">Max offers per partner bid</label>
-                                <input class="lhai-input" id="mswBiddingMaxOffers" type="number" min="1" max="20" value="3" />
                               </div>
                               <div>
                                 <label class="lhai-label" for="mswBiddingDefaultSort">Default customer sort</label>
@@ -890,6 +889,20 @@
                             <button type="button" class="lhai-button lhai-button--secondary" id="mswWorkflowDbCopyDiagApiBtn"
                               data-i18n="common.admin_services.workflow.db.copy_diag_url">URL 복사</button>
                           </div>
+                          <section class="admin-services__bidding-email-debug u-mt-3" id="mswBiddingEmailDebugPanel" aria-labelledby="mswBiddingEmailDebugHeading">
+                            <h6 class="admin-services__workflow-card-title" id="mswBiddingEmailDebugHeading">Partner bidding notification debug</h6>
+                            <p class="lhai-help u-mb-2">서비스 요청(스레드)의 비딩 시작 파트너 이메일 상태를 조회합니다. thread_id는 메시지함·Customer 360에서 확인할 수 있습니다.</p>
+                            <div class="ac360-open-form__row u-mb-2">
+                              <label class="lhai-label">Thread ID
+                                <input type="text" class="lhai-input" id="mswBiddingEmailDebugThreadId" placeholder="message_threads UUID" autocomplete="off" />
+                              </label>
+                              <label class="lhai-label">Bid request ID (선택)
+                                <input type="text" class="lhai-input" id="mswBiddingEmailDebugBidId" placeholder="service_partner_bid_requests UUID" autocomplete="off" />
+                              </label>
+                              <button type="button" class="lhai-button lhai-button--secondary" id="mswBiddingEmailDebugLoadBtn">진단 불러오기</button>
+                            </div>
+                            <div id="mswBiddingEmailDebugBody" class="admin-services__bidding-email-debug-body"></div>
+                          </section>
                         </section>
                       </div>
                       </div>
@@ -1002,6 +1015,7 @@
                             <label class="lhai-label" for="manageServiceIntakeFieldLabel" data-i18n="common.admin_services.intake.label_field_label">Label shown to customer</label>
                             <input class="lhai-input" id="manageServiceIntakeFieldLabel" type="text" required maxlength="500" autocomplete="off" />
                             <label class="lhai-label" for="manageServiceIntakeFieldHelp" data-i18n="common.admin_services.intake.label_help">Helper text</label>
+                            <p class="lhai-help u-mt-1" data-i18n="common.admin_services.intake.label_help_desc">도움말 항목: 고객 화면에서 입력 칸 아래에 보이는 짧은 안내 문구입니다. 드롭다운·라디오 선택지는 아래 Choices에 추가하세요.</p>
                             <textarea class="lhai-textarea" id="manageServiceIntakeFieldHelp" rows="4" maxlength="2000"></textarea>
                           </section>
 
@@ -1019,14 +1033,6 @@
                               <input class="lhai-input" id="manageServiceIntakeFieldDefault" type="text" maxlength="500" autocomplete="off" />
                             </div>
                             <div class="admin-services__intake-toggle-row">
-                              <label class="admin-services__switch" for="manageServiceIntakeFieldRequired">
-                                <input id="manageServiceIntakeFieldRequired" type="checkbox" />
-                                <span class="admin-services__switch-slider" aria-hidden="true"></span>
-                                <span class="admin-services__switch-label" data-i18n="common.admin_services.intake.toggle_required">Required answer</span>
-                              </label>
-                              <p class="lhai-help admin-services__intake-toggle-help" data-i18n="common.admin_services.intake.toggle_required_help">When on, customers must fill this field before continuing.</p>
-                            </div>
-                            <div class="admin-services__intake-toggle-row">
                               <label class="admin-services__switch" for="manageServiceIntakeFieldActive">
                                 <input id="manageServiceIntakeFieldActive" type="checkbox" checked />
                                 <span class="admin-services__switch-slider" aria-hidden="true"></span>
@@ -1034,6 +1040,20 @@
                               </label>
                               <p class="lhai-help admin-services__intake-toggle-help" data-i18n="common.admin_services.intake.toggle_active_help">Turn off to hide this field from the customer form without deleting it.</p>
                             </div>
+                            <div class="admin-services__intake-qg-footer-toggles u-mt-2">
+                              <label class="admin-services__switch" for="manageServiceIntakeFieldRequired">
+                                <input id="manageServiceIntakeFieldRequired" type="checkbox" />
+                                <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                                <span class="admin-services__switch-label" data-i18n="common.admin_services.intake.toggle_required">Required answer</span>
+                              </label>
+                              <label class="admin-services__switch" for="manageServiceIntakeFieldMaskUntilAssigned">
+                                <input id="manageServiceIntakeFieldMaskUntilAssigned" type="checkbox" />
+                                <span class="admin-services__switch-slider" aria-hidden="true"></span>
+                                <span class="admin-services__switch-label" data-i18n="common.admin_services.intake.toggle_mask_until_partner">Mask for partners until assigned</span>
+                              </label>
+                            </div>
+                            <p class="lhai-help u-mt-1" data-i18n="common.admin_services.intake.toggle_mask_until_partner_help">While bidding is open, partners see only the first character of the answer; the rest is shown as asterisks until a partner is selected.</p>
+                            <p class="lhai-help u-mt-1" data-i18n="common.admin_services.intake.toggle_required_help">When on, customers must fill this field before continuing.</p>
                           </section>
 
                           <section class="admin-services__intake-form-section" aria-labelledby="manageServiceIntakeSecPrefill">
