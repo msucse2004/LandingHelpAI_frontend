@@ -9,6 +9,100 @@ import { PRODUCT_OFFER_BID_TYPE } from "./partner-bid-request-product-logic.js";
 export const CAR_BID_TYPE = "CAR_PURCHASE";
 export const VEHICLE_PRODUCT_CATEGORY = "vehicle";
 export const DEFAULT_MAX_OFFER_PHOTOS = 12;
+/** Backend limit (bid_offer_photo_storage._MAX_BYTES). */
+export const MAX_BID_OFFER_PHOTO_BYTES = 8 * 1024 * 1024;
+/** Client prep target — many nginx defaults use client_max_body_size 1m. */
+export const BID_OFFER_PHOTO_UPLOAD_TARGET_BYTES = 950 * 1024;
+export const BID_OFFER_PHOTO_ACCEPT_TYPES = Object.freeze([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
+/** @param {File | null | undefined} file */
+export function validateBidOfferPhotoFile(file) {
+  if (!(file instanceof File) || !file.size) {
+    return "빈 파일입니다.";
+  }
+  const type = String(file.type || "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+  if (!BID_OFFER_PHOTO_ACCEPT_TYPES.includes(type)) {
+    return "JPEG, PNG, WebP 형식만 업로드할 수 있습니다.";
+  }
+  if (file.size > MAX_BID_OFFER_PHOTO_BYTES) {
+    return "파일당 최대 8MB까지 업로드할 수 있습니다.";
+  }
+  return null;
+}
+
+/**
+ * Resize/compress large photos so uploads pass typical reverse-proxy body limits.
+ * @param {File} file
+ * @returns {Promise<File>}
+ */
+export async function prepareBidOfferPhotoFileForUpload(file) {
+  const validationError = validateBidOfferPhotoFile(file);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+  if (file.size <= BID_OFFER_PHOTO_UPLOAD_TARGET_BYTES) {
+    return file;
+  }
+  if (typeof document === "undefined" || typeof createImageBitmap !== "function") {
+    return file;
+  }
+
+  const bitmap = await createImageBitmap(file);
+  try {
+    let width = bitmap.width;
+    let height = bitmap.height;
+    const maxSide = 2048;
+    if (width > maxSide || height > maxSide) {
+      const scale = maxSide / Math.max(width, height);
+      width = Math.max(1, Math.round(width * scale));
+      height = Math.max(1, Math.round(height * scale));
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("이미지를 처리할 수 없습니다.");
+    }
+    ctx.drawImage(bitmap, 0, 0, width, height);
+
+    let quality = 0.88;
+    /** @type {Blob | null} */
+    let blob = await new Promise((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", quality);
+    });
+    while (blob && blob.size > BID_OFFER_PHOTO_UPLOAD_TARGET_BYTES && quality > 0.45) {
+      quality -= 0.08;
+      blob = await new Promise((resolve) => {
+        canvas.toBlob(resolve, "image/jpeg", quality);
+      });
+    }
+
+    if (!blob || blob.size > MAX_BID_OFFER_PHOTO_BYTES) {
+      throw new Error(
+        "사진 용량이 너무 큽니다. 더 작은 사진을 선택하거나 카메라 해상도를 낮춰 주세요.",
+      );
+    }
+
+    const baseName = String(file.name || "photo")
+      .replace(/\.[^.]+$/, "")
+      .trim();
+    return new File([blob], `${baseName || "photo"}.jpg`, { type: "image/jpeg" });
+  } finally {
+    if (typeof bitmap.close === "function") {
+      bitmap.close();
+    }
+  }
+}
+
 export const OFFER_KIND_MATCH = "REQUESTED_MATCH";
 export const OFFER_KIND_ALT = "ALTERNATIVE";
 

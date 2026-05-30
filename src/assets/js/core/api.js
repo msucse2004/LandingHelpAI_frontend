@@ -41,6 +41,22 @@ function isHttp404Error(err) {
   return /\b404\b/.test(msg);
 }
 
+/** @param {Response} response @param {unknown} payload */
+function formatHttpErrorDetail(response, payload) {
+  if (response.status === 413) {
+    return "파일 크기가 서버 업로드 한도를 초과했습니다. JPEG/PNG/WebP, 파일당 8MB 이하로 올려 주세요.";
+  }
+  const raw = typeof payload === "object" && payload !== null ? payload.detail : payload;
+  const detail = formatFastApiDetail(raw);
+  if (typeof detail === "string" && /<html|<!doctype/i.test(detail)) {
+    if (response.status === 413) {
+      return "파일 크기가 서버 업로드 한도를 초과했습니다. JPEG/PNG/WebP, 파일당 8MB 이하로 올려 주세요.";
+    }
+    return `요청에 실패했습니다. (HTTP ${response.status})`;
+  }
+  return detail;
+}
+
 /** @param {Response} response @param {string} detail */
 function throwBackendRequestFailed(response, detail) {
   const trimmed = detail != null ? String(detail).trim() : "";
@@ -139,8 +155,7 @@ async function tryBackendPost(path, body, extraHeaders = {}) {
       handleUnauthorized();
       throw new Error("인증이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.");
     }
-    const raw = typeof payload === "object" && payload !== null ? payload.detail : payload;
-    const detail = formatFastApiDetail(raw);
+    const detail = formatHttpErrorDetail(response, payload);
     throwBackendRequestFailed(response, detail);
   }
   return payload;
@@ -163,8 +178,7 @@ async function tryBackendPostFormData(path, formData) {
       handleUnauthorized();
       throw new Error("인증이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.");
     }
-    const raw = typeof payload === "object" && payload !== null ? payload.detail : payload;
-    const detail = formatFastApiDetail(raw);
+    const detail = formatHttpErrorDetail(response, payload);
     throwBackendRequestFailed(response, detail);
   }
   return payload;

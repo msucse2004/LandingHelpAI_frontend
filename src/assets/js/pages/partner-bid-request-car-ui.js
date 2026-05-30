@@ -10,6 +10,8 @@ import {
   computeOfferEstimatedTotal,
   createEmptyCarOffer,
   DEFAULT_MAX_OFFER_PHOTOS,
+  prepareBidOfferPhotoFileForUpload,
+  validateBidOfferPhotoFile,
   ensureOffersLinkedRequestIndexes,
   formatDeadlineFromBidRequestBlock,
   formatMoney,
@@ -29,10 +31,16 @@ import {
   resolvePartnerIntakeAnswerRows,
 } from "./partner-bid-request-intake-display.js";
 import {
+  clearPartnerCarOfferDraft,
+  loadPartnerCarOfferDraft,
+  savePartnerCarOfferDraft,
+} from "./partner-bid-request-car-draft.js";
+import {
   formatRankSummaryLabel,
   partnerBidRequestRoundLabel,
   partnerMyBidSubmissionLabel,
 } from "./partner-bid-request-product-logic.js";
+import { setTextIfChanged } from "../core/page-refresh.js";
 
 function escHtml(s) {
   return String(s ?? "")
@@ -388,6 +396,76 @@ function renderVehicleOfferFormHtml(params) {
 }
 
 /**
+ * Rank / meta only — keeps offer form DOM when background refresh runs while typing.
+ * @param {HTMLElement} root
+ * @param {Record<string, unknown>} data
+ */
+export function refreshCarPurchaseBidMeta(root, data) {
+  if (!(root instanceof HTMLElement)) return;
+  const bidRequestBlock =
+    data.bid_request && typeof data.bid_request === "object"
+      ? /** @type {Record<string, unknown>} */ (data.bid_request)
+      : null;
+  const bid =
+    data.bid && typeof data.bid === "object"
+      ? /** @type {Record<string, unknown>} */ (data.bid)
+      : {};
+  const reqStatus = String(
+    data.bid_request_status ?? bidRequestBlock?.bid_request_status ?? "OPEN",
+  )
+    .trim()
+    .toUpperCase();
+  const bidStatus = String(bid.status ?? "").trim().toUpperCase();
+  setTextIfChanged(
+    root.querySelector("#partnerCarReqRound"),
+    partnerBidRequestRoundLabel(reqStatus),
+  );
+  setTextIfChanged(
+    root.querySelector("#partnerCarMyBidStatus"),
+    partnerMyBidSubmissionLabel(bidStatus),
+  );
+  setTextIfChanged(
+    root.querySelector("#partnerCarDeadline"),
+    formatDeadlineFromBidRequestBlock(bidRequestBlock || data),
+  );
+
+  const rankSummary =
+    data.rank_summary && typeof data.rank_summary === "object" ? data.rank_summary : null;
+  const rankLabel = formatRankSummaryLabel(rankSummary, { prefix: "현재 순위" });
+  const lastViewSummary =
+    data.last_view_rank_summary && typeof data.last_view_rank_summary === "object"
+      ? data.last_view_rank_summary
+      : null;
+  const lastViewLabel = formatRankSummaryLabel(lastViewSummary, {
+    prefix: "마지막 확인 시 순위",
+  });
+  const rankCard = root.querySelector("#partnerCarRankCard");
+  const rankEl = root.querySelector("#partnerCarRank");
+  const lastViewRankEl = root.querySelector("#partnerCarLastViewRank");
+  if (!(rankCard instanceof HTMLElement) || !(rankEl instanceof HTMLElement)) return;
+  if (rankLabel) {
+    rankCard.hidden = false;
+    setTextIfChanged(rankEl, rankLabel);
+    if (lastViewRankEl instanceof HTMLElement) {
+      if (lastViewLabel) {
+        lastViewRankEl.hidden = false;
+        setTextIfChanged(lastViewRankEl, lastViewLabel);
+      } else {
+        lastViewRankEl.hidden = true;
+        lastViewRankEl.textContent = "";
+      }
+    }
+  } else {
+    rankCard.hidden = true;
+    rankEl.textContent = "";
+    if (lastViewRankEl instanceof HTMLElement) {
+      lastViewRankEl.hidden = true;
+      lastViewRankEl.textContent = "";
+    }
+  }
+}
+
+/**
  * @param {HTMLElement} root
  * @param {object} ctx
  */
@@ -460,6 +538,7 @@ export function mountCarPurchaseBidUi(root, ctx) {
   });
 
   const vehicleRequests = Array.isArray(carReq.vehicle_requests) ? carReq.vehicle_requests : [];
+  const bidRequestId = String(data.bid_request_id || "").trim();
 
   let offers = ensureOffersLinkedRequestIndexes(
     offersFromIncludedItems(bid.included_items),
@@ -469,6 +548,13 @@ export function mountCarPurchaseBidUi(root, ctx) {
     offers = [withLinkedRequestIndex(createEmptyCarOffer({ isAlternative: false }), vehicleRequests)];
   }
   let activeIdx = 0;
+
+  const savedDraft =
+    bidRequestId && isEditable ? loadPartnerCarOfferDraft(bidRequestId) : null;
+  if (savedDraft?.dirty && Array.isArray(savedDraft.offers) && savedDraft.offers.length) {
+    offers = ensureOffersLinkedRequestIndexes(savedDraft.offers, vehicleRequests);
+    activeIdx = Math.max(0, Math.min(Number(savedDraft.activeIdx) || 0, offers.length - 1));
+  }
 
   const hasCap = partnerHasCarPurchaseCapability(readPartnerCapabilities());
 
@@ -483,8 +569,8 @@ export function mountCarPurchaseBidUi(root, ctx) {
       <h2 class="lhai-card__title">자동차 구매 견적 요청</h2>
       ${!hasCap ? '<p class="lhai-par-car__cap-warn" role="status">CAR_PURCHASE 견적 권한이 프로필에 없을 수 있습니다. 제출이 거절되면 관리자에게 문의하세요.</p>' : ""}
       <dl class="lhai-par-car__status-dl">
-        <div><dt>견적 요청</dt><dd>${escHtml(partnerBidRequestRoundLabel(reqStatus))}</dd></div>
-        <div><dt>내 견적</dt><dd>${escHtml(partnerMyBidSubmissionLabel(bidStatus))}</dd></div>
+        <div><dt>견적 요청</dt><dd id="partnerCarReqRound">${escHtml(partnerBidRequestRoundLabel(reqStatus))}</dd></div>
+        <div><dt>내 견적</dt><dd id="partnerCarMyBidStatus">${escHtml(partnerMyBidSubmissionLabel(bidStatus))}</dd></div>
         <div><dt>제출 마감</dt><dd id="partnerCarDeadline">${escHtml(formatDeadlineFromBidRequestBlock(bidRequestBlock) || formatDeadlineFromBidRequestBlock({ expires_at: expiresAtQuery }))}</dd></div>
       </dl>
       <div class="lhai-par-car__rank-card" id="partnerCarRankCard" hidden>
@@ -504,7 +590,15 @@ export function mountCarPurchaseBidUi(root, ctx) {
     ${!isEditable && !isSelected && !isTerminal && (reqStatus === "EXPIRED" || serverExpired) ? `<p class="lhai-par-car__expired" role="status">${escHtml(PARTNER_BID_EXPIRED_POLICY_BANNER)}</p>` : ""}
 
     <div class="lhai-par-car__request-stack">
-      ${renderAiBidRequestBriefCard(aiBrief)}
+      ${renderAiBidRequestBriefCard(aiBrief, {
+        serviceTitle: String(
+          data.service_title ||
+            (data.service && typeof data.service === "object"
+              ? data.service.title
+              : "") ||
+            "",
+        ).trim() || undefined,
+      })}
       ${renderFullIntakeAnswersDisclosure(intakeAnswerRows)}
       ${renderVehicleOfferFormHtml({
         vehicleRequests,
@@ -538,6 +632,22 @@ export function mountCarPurchaseBidUi(root, ctx) {
 
   if (globalMsg instanceof HTMLTextAreaElement) {
     globalMsg.disabled = !isEditable;
+    if (savedDraft?.globalMessage) {
+      globalMsg.value = savedDraft.globalMessage;
+    }
+  }
+
+  function persistCarOfferDraft() {
+    if (!bidRequestId || !isEditable) return;
+    if (offerFields instanceof HTMLElement && offers.length) {
+      offers[activeIdx] = withLinkedRequestIndex(readOfferFromForm(), vehicleRequests);
+    }
+    savePartnerCarOfferDraft(bidRequestId, {
+      offers: offers.map((o) => cloneOffer(o)),
+      activeIdx,
+      globalMessage: globalMsg instanceof HTMLTextAreaElement ? globalMsg.value : "",
+      dirty: true,
+    });
   }
 
   if (deadlineEl) {
@@ -678,6 +788,7 @@ export function mountCarPurchaseBidUi(root, ctx) {
         }
         offers.push(next);
         activeIdx = offers.length - 1;
+        persistCarOfferDraft();
         renderOffersUi();
       });
     });
@@ -697,6 +808,7 @@ export function mountCarPurchaseBidUi(root, ctx) {
     offerTabs.querySelectorAll(".lhai-par-car__tab").forEach((btn) => {
       btn.addEventListener("click", () => {
         syncOfferFromForm();
+        persistCarOfferDraft();
         activeIdx = Number(btn.getAttribute("data-idx"));
         renderOffersUi();
       });
@@ -731,7 +843,21 @@ export function mountCarPurchaseBidUi(root, ctx) {
           window.alert(`사진은 제안당 최대 ${maxPhotosPerOffer}장까지입니다.`);
           break;
         }
-        const res = await uploadOfferPhotoFn(file, { offerId });
+        const prepErr = validateBidOfferPhotoFile(file);
+        if (prepErr) {
+          window.alert(prepErr);
+          continue;
+        }
+        let uploadFile = file;
+        try {
+          uploadFile = await prepareBidOfferPhotoFileForUpload(file);
+        } catch (compressErr) {
+          window.alert(
+            compressErr instanceof Error ? compressErr.message : "사진을 처리하지 못했습니다.",
+          );
+          continue;
+        }
+        const res = await uploadOfferPhotoFn(uploadFile, { offerId });
         const url = String(res?.url || "").trim();
         if (!url) throw new Error("업로드 URL을 받지 못했습니다.");
         const isFirst = list.length === 0;
@@ -749,6 +875,7 @@ export function mountCarPurchaseBidUi(root, ctx) {
       window.alert(err instanceof Error ? err.message : "사진 업로드에 실패했습니다.");
     } finally {
       photoUploadsInFlight = Math.max(0, photoUploadsInFlight - 1);
+      persistCarOfferDraft();
       renderOffersUi();
     }
   }
@@ -767,6 +894,7 @@ export function mountCarPurchaseBidUi(root, ctx) {
           offers[activeIdx].primary_photo_index = 0;
         }
         offers[activeIdx].photos = list;
+        persistCarOfferDraft();
         renderOffersUi();
       });
     });
@@ -781,6 +909,7 @@ export function mountCarPurchaseBidUi(root, ctx) {
         });
         offers[activeIdx].primary_photo_index = idx;
         offers[activeIdx].photos = list;
+        persistCarOfferDraft();
         renderOffersUi();
       });
     });
@@ -867,8 +996,14 @@ export function mountCarPurchaseBidUi(root, ctx) {
 
     offerFields.querySelectorAll("input, select, textarea").forEach((el) => {
       if (el instanceof HTMLInputElement && el.name === "estimated_total") return;
-      el.addEventListener("input", () => recalc(false));
-      el.addEventListener("change", () => recalc(false));
+      el.addEventListener("input", () => {
+        recalc(false);
+        persistCarOfferDraft();
+      });
+      el.addEventListener("change", () => {
+        recalc(false);
+        persistCarOfferDraft();
+      });
     });
 
     const totalInput = offerFields.querySelector('[name="estimated_total"]');
@@ -876,8 +1011,12 @@ export function mountCarPurchaseBidUi(root, ctx) {
       totalInput.addEventListener("input", () => {
         setManualOverride(true);
         syncOfferFromForm();
+        persistCarOfferDraft();
       });
-      totalInput.addEventListener("change", () => setManualOverride(true));
+      totalInput.addEventListener("change", () => {
+        setManualOverride(true);
+        persistCarOfferDraft();
+      });
     }
 
     const kind = offerFields.querySelector('[name="offer_kind"]');
@@ -893,6 +1032,11 @@ export function mountCarPurchaseBidUi(root, ctx) {
     recalc(true);
   }
 
+  if (globalMsg instanceof HTMLTextAreaElement && isEditable) {
+    globalMsg.addEventListener("input", () => persistCarOfferDraft());
+    globalMsg.addEventListener("change", () => persistCarOfferDraft());
+  }
+
   if (vehicleRequests.length) renderVreqList();
   renderOffersUi();
 
@@ -906,6 +1050,7 @@ export function mountCarPurchaseBidUi(root, ctx) {
     }
     if (!o.currency) o.currency = currency;
     offers[activeIdx] = o;
+    persistCarOfferDraft();
     renderOffersUi();
   });
 
@@ -913,6 +1058,7 @@ export function mountCarPurchaseBidUi(root, ctx) {
     syncOfferFromForm();
     offers.push(cloneOffer(offers[activeIdx]));
     activeIdx = offers.length - 1;
+    persistCarOfferDraft();
     renderOffersUi();
   });
 
@@ -920,6 +1066,7 @@ export function mountCarPurchaseBidUi(root, ctx) {
     syncOfferFromForm();
     offers.push(withLinkedRequestIndex(createEmptyCarOffer({ isAlternative: false }), vehicleRequests));
     activeIdx = offers.length - 1;
+    persistCarOfferDraft();
     renderOffersUi();
   });
 
@@ -978,6 +1125,7 @@ export function mountCarPurchaseBidUi(root, ctx) {
       if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = true;
       try {
         const next = await submitFn(payload);
+        if (bidRequestId) clearPartnerCarOfferDraft(bidRequestId);
         onDetailUpdate(next);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "제출에 실패했습니다.";

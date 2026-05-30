@@ -2,6 +2,7 @@
  * 고객 견적 제안 비교 — PRODUCT_OFFER 카드 리스트.
  */
 import { customerBidsApi } from "../core/api.js";
+import { resolveBackendMediaUrl } from "../core/utils.js";
 import { ensureCustomerAccess } from "../core/guards.js";
 import { loadSidebar } from "../components/sidebar.js";
 import { subscribeRealtimeEvents } from "../core/realtime-client.js";
@@ -40,7 +41,8 @@ import {
   quoteRequestRemaining,
   isProductOfferListResponse,
   offerShowsUpdatedBadge,
-  offerThumbnailUrl,
+  buildOfferThumbImgHtml,
+  wireOfferPhotoImgFallbacks,
   resolveCustomerBidDisplayPhase,
   isCustomerBidListPollingPhase,
   snapshotHasBudgetHint,
@@ -55,6 +57,7 @@ import {
   formatCustomerCountdownBanner,
   normalizeDeadlineSnapshot,
 } from "../core/bid-deadline-display.js";
+import { setInnerHtmlIfChanged } from "../core/page-refresh.js";
 
 function escapeHtml(s) {
   return String(s ?? "")
@@ -98,6 +101,13 @@ let pendingSelect = null;
 /** @type {Record<string, unknown> | null} */
 let detailOffer = null;
 let newRoundInFlight = false;
+/** @type {string | null} */
+let lastCardsRenderKey = null;
+/** @type {string | null} */
+let lastToolbarOptionsKey = null;
+/** @type {string | null} */
+let lastTabsRenderKey = null;
+let sortSelectInitialized = false;
 
 const { serviceRequestId: initialServiceRequestId, threadId: initialThreadId } = readPageParams();
 let serviceRequestId = initialServiceRequestId;
@@ -191,7 +201,7 @@ function renderConversationBanner(phase) {
         }
       : null;
   el.hidden = false;
-  el.innerHTML = renderSelectionConversationBannerHtml(threadId, offer, partner);
+  setInnerHtmlIfChanged(el, renderSelectionConversationBannerHtml(threadId, offer, partner));
 }
 
 function renderStatusBanner(phase) {
@@ -211,6 +221,17 @@ function renderStatusBanner(phase) {
   el.textContent = msg;
 }
 
+function applyCountdownBannerText(text, expired) {
+  const el = document.querySelector("#cbrCountdownBanner");
+  if (!(el instanceof HTMLElement)) return;
+  const nextClass = expired
+    ? "lhai-cbr-countdown lhai-cbr-countdown--expired"
+    : "lhai-cbr-countdown";
+  if (el.textContent !== text) el.textContent = text;
+  if (el.className !== nextClass) el.className = nextClass;
+  if (el.hidden) el.hidden = false;
+}
+
 function renderCountdownBanner(phase) {
   const el = document.querySelector("#cbrCountdownBanner");
   if (!(el instanceof HTMLElement)) return;
@@ -222,9 +243,7 @@ function renderCountdownBanner(phase) {
   const snap = deadlineSnapshot();
   const text = formatCustomerCountdownBanner(snap);
   const expired = phase === "EXPIRED" || text === "비딩 종료";
-  el.hidden = false;
-  el.textContent = text;
-  el.className = expired ? "lhai-cbr-countdown lhai-cbr-countdown--expired" : "lhai-cbr-countdown";
+  applyCountdownBannerText(text, expired);
 }
 
 function renderHeader() {
@@ -288,7 +307,13 @@ function renderTabs() {
   const tabs = buildCustomerBidRequestTabs(vehicleReqs || []);
   const showTabs = Array.isArray(vehicleReqs) && vehicleReqs.length > 0;
   nav.hidden = !showTabs;
-  if (!showTabs) return;
+  if (!showTabs) {
+    lastTabsRenderKey = null;
+    return;
+  }
+  const tabsKey = `${tabs.map((t) => t.key).join("\u0001")}|${activeTabKey}`;
+  if (tabsKey === lastTabsRenderKey) return;
+  lastTabsRenderKey = tabsKey;
   nav.innerHTML = tabs
     .map((t) => {
       const active = t.key === activeTabKey ? " is-active" : "";
@@ -297,13 +322,26 @@ function renderTabs() {
     .join("");
 }
 
+function buildToolbarOptionsKey(offers) {
+  const cats = collectDistinctProductCategories(offers).join("\u0001");
+  const partners = collectDistinctPartners(offers)
+    .map((p) => p.id)
+    .join("\u0001");
+  const locs = collectDistinctLocations(offers).join("\u0001");
+  const budget = snapshotHasBudgetHint(listSnapshot) ? "1" : "0";
+  return `${cats}|${partners}|${locs}|${budget}`;
+}
+
 function renderToolbar() {
   const sortSel = document.querySelector("#cbrSort");
   if (sortSel instanceof HTMLSelectElement) {
-    sortSel.innerHTML = CUSTOMER_BID_SORT_OPTIONS.map(
-      (o) =>
-        `<option value="${escapeHtml(o.value)}"${o.value === activeSort ? " selected" : ""}>${escapeHtml(o.label)}</option>`
-    ).join("");
+    if (!sortSelectInitialized) {
+      sortSel.innerHTML = CUSTOMER_BID_SORT_OPTIONS.map(
+        (o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`,
+      ).join("");
+      sortSelectInitialized = true;
+    }
+    if (sortSel.value !== activeSort) sortSel.value = activeSort;
   }
 
   const budgetWrap = document.querySelector("#cbrFilterBudgetWrap");
@@ -312,8 +350,12 @@ function renderToolbar() {
   }
 
   const offers = Array.isArray(listSnapshot?.offers) ? listSnapshot.offers : [];
+  const optionsKey = buildToolbarOptionsKey(offers);
+  const rebuildFilters = optionsKey !== lastToolbarOptionsKey;
+  if (rebuildFilters) lastToolbarOptionsKey = optionsKey;
+
   const catSel = document.querySelector("#cbrFilterCategory");
-  if (catSel instanceof HTMLSelectElement) {
+  if (catSel instanceof HTMLSelectElement && rebuildFilters) {
     const cats = collectDistinctProductCategories(offers);
     const cur = String(activeFilters.productCategory || "");
     catSel.innerHTML =
@@ -321,7 +363,7 @@ function renderToolbar() {
       cats.map((c) => `<option value="${escapeHtml(c)}"${c === cur ? " selected" : ""}>${escapeHtml(c)}</option>`).join("");
   }
   const partnerSel = document.querySelector("#cbrFilterPartner");
-  if (partnerSel instanceof HTMLSelectElement) {
+  if (partnerSel instanceof HTMLSelectElement && rebuildFilters) {
     const partners = collectDistinctPartners(offers);
     const cur = String(activeFilters.partner || "");
     partnerSel.innerHTML =
@@ -329,12 +371,12 @@ function renderToolbar() {
       partners
         .map(
           (p) =>
-            `<option value="${escapeHtml(p.id)}"${p.id === cur ? " selected" : ""}>${escapeHtml(p.name)}</option>`
+            `<option value="${escapeHtml(p.id)}"${p.id === cur ? " selected" : ""}>${escapeHtml(p.name)}</option>`,
         )
         .join("");
   }
   const locSel = document.querySelector("#cbrFilterLocation");
-  if (locSel instanceof HTMLSelectElement) {
+  if (locSel instanceof HTMLSelectElement && rebuildFilters) {
     const locs = collectDistinctLocations(offers);
     const cur = String(activeFilters.location || "");
     locSel.innerHTML =
@@ -371,7 +413,6 @@ function renderOfferCard(offer) {
   const bidId = String(offer.bid_id || "").trim();
   const offerId = String(offer.offer_id || "").trim();
   const cur = String(offer.currency || "USD");
-  const thumb = offerThumbnailUrl(offer);
   const rankBadge = formatOfferRankBadge(offer, activeSort);
   const partner = escapeHtml(formatOfferPartnerName(offer));
   const desc = String(offer.description || "").trim();
@@ -394,9 +435,7 @@ function renderOfferCard(offer) {
     selectedOfferId,
     snap: listSnapshot,
   });
-  const thumbHtml = thumb
-    ? `<img class="lhai-cbr-card__thumb-img" src="${escapeHtml(thumb)}" alt="" loading="lazy" />`
-    : `<div class="lhai-cbr-card__thumb-placeholder" aria-hidden="true">📷</div>`;
+  const thumbHtml = buildOfferThumbImgHtml(offer, escapeHtml);
   const selectBtn = sel.showSelectButton
     ? `<button type="button" class="lhai-button lhai-button--primary" data-cbr-select="${escapeHtml(bidId)}" data-cbr-offer="${escapeHtml(offerId)}"${sel.selectDisabled ? " disabled" : ""}>이 제안 선택</button>`
     : "";
@@ -432,26 +471,59 @@ function renderOfferCard(offer) {
     </article>`;
 }
 
+function buildCardsRenderKey(offers, phase) {
+  const offerPart = offers
+    .map((o) => {
+      const row = /** @type {Record<string, unknown>} */ (o);
+      return [
+        row.offer_id,
+        row.bid_id,
+        row.updated_at,
+        row.rank,
+        row.estimated_total,
+        selectedBidId,
+        selectedOfferId,
+        activeSort,
+        activeTabKey,
+        phase,
+      ].join(":");
+    })
+    .join("|");
+  return [
+    offerPart,
+    JSON.stringify(activeFilters),
+    totalOfferCount(),
+    listSnapshot?.bid_request_status,
+    listSnapshot?.offer_count,
+  ].join(";");
+}
+
 function renderCards() {
   const grid = document.querySelector("#cbrCards");
   const empty = document.querySelector("#cbrEmpty");
   if (!(grid instanceof HTMLElement)) return;
   const offers = visibleOffers();
   const phase = displayPhase();
+  const emptyMsg = emptyOffersMessage(phase, totalOfferCount());
   if (!offers.length) {
+    lastCardsRenderKey = `empty:${phase}:${totalOfferCount()}`;
     grid.innerHTML = "";
     if (empty instanceof HTMLElement) {
       empty.hidden = false;
-      empty.textContent = emptyOffersMessage(phase, totalOfferCount());
+      if (empty.textContent !== emptyMsg) empty.textContent = emptyMsg;
     }
     return;
   }
   if (empty instanceof HTMLElement) empty.hidden = true;
   const hasVehicle = offers.some((o) => isVehicleOffer(/** @type {Record<string, unknown>} */ (o)));
   grid.classList.toggle("lhai-cbr-cards--vehicle", hasVehicle);
+  const renderKey = buildCardsRenderKey(offers, phase);
+  if (renderKey === lastCardsRenderKey) return;
+  lastCardsRenderKey = renderKey;
   grid.innerHTML = offers
     .map((o) => renderOfferCard(/** @type {Record<string, unknown>} */ (o)))
     .join("");
+  wireOfferPhotoImgFallbacks(grid);
 }
 
 function renderMessagesCta() {
@@ -462,7 +534,11 @@ function renderMessagesCta() {
     return;
   }
   el.hidden = false;
-  el.innerHTML = `<a class="lhai-button lhai-button--primary" href="${buildMessagesThreadHref(threadId)}">Open conversation</a>`;
+  const href = buildMessagesThreadHref(threadId);
+  setInnerHtmlIfChanged(
+    el,
+    `<a class="lhai-button lhai-button--primary" href="${escapeHtml(href)}">Open conversation</a>`,
+  );
 }
 
 function renderAll() {
@@ -474,13 +550,20 @@ function renderAll() {
   renderNewRoundCta(displayPhase());
 }
 
-async function reloadList() {
+/** @param {{ silent?: boolean }} [options] */
+async function reloadList(options = {}) {
+  const silent = Boolean(options.silent);
   const loading = document.querySelector("#cbrLoading");
   const main = document.querySelector("#cbrMain");
   const err = document.querySelector("#cbrError");
-  if (loading instanceof HTMLElement) loading.hidden = false;
-  if (main instanceof HTMLElement) main.hidden = true;
-  if (err instanceof HTMLElement) err.hidden = true;
+  if (!silent) {
+    if (loading instanceof HTMLElement) loading.hidden = false;
+    if (main instanceof HTMLElement) main.hidden = true;
+    if (err instanceof HTMLElement) err.hidden = true;
+    lastCardsRenderKey = null;
+    lastToolbarOptionsKey = null;
+    lastTabsRenderKey = null;
+  }
   try {
     listSnapshot = await fetchList();
     if (!isProductOfferListResponse(listSnapshot)) {
@@ -500,15 +583,16 @@ async function reloadList() {
     }
     renderAll();
     syncListPolling();
-    if (main instanceof HTMLElement) main.hidden = false;
+    if (!silent && main instanceof HTMLElement) main.hidden = false;
   } catch (e) {
     const msg = e && typeof e.message === "string" ? e.message : "제안을 불러오지 못했습니다.";
     if (err instanceof HTMLElement) {
       err.hidden = false;
       err.textContent = msg;
+      if (!silent && main instanceof HTMLElement) main.hidden = true;
     }
   } finally {
-    if (loading instanceof HTMLElement) loading.hidden = true;
+    if (!silent && loading instanceof HTMLElement) loading.hidden = true;
   }
 }
 
@@ -548,6 +632,7 @@ function openDetailModal(offerId) {
   if (vehicle) {
     body.innerHTML = buildVehicleOfferDetailModalHtml(offer, ctx, escapeHtml);
     wireDetailModalGallery(body);
+    wireOfferPhotoImgFallbacks(body);
   } else {
     const cur = String(offer.currency || "USD");
     const photos = Array.isArray(offer.photos) ? offer.photos : [];
@@ -555,7 +640,7 @@ function openDetailModal(offerId) {
       ? `<div class="lhai-cbr-modal__photos">${photos
           .map((p) => {
             const row = p && typeof p === "object" ? p : {};
-            const url = String(row.url || row.thumbnail_url || "").trim();
+            const url = resolveBackendMediaUrl(String(row.url || row.thumbnail_url || "").trim());
             if (!url) return "";
             return `<img src="${escapeHtml(url)}" alt="${escapeHtml(String(row.caption || ""))}" loading="lazy" />`;
           })
@@ -589,6 +674,7 @@ function openDetailModal(offerId) {
     </section>
     <p class="lhai-cbr-modal__notice u-text-muted">선택 전에는 일부 정보가 제한될 수 있습니다. 선택 후 메시지함에서 상세 협의를 진행합니다.</p>
   `;
+    wireOfferPhotoImgFallbacks(body);
   }
   if (selectBtn instanceof HTMLButtonElement) {
     const sel = offerSelectionUiState(ctx.phase, offer, {
@@ -662,7 +748,8 @@ async function confirmNewRound() {
     if (dlg instanceof HTMLDialogElement) dlg.close();
     selectedBidId = "";
     selectedOfferId = "";
-    await reloadList();
+    lastCardsRenderKey = null;
+    await reloadList({ silent: true });
     window.dispatchEvent(new CustomEvent("lhai:customer-bid-updated"));
     window.alert("새 비딩 라운드가 시작되었습니다. 파트너의 새 제안을 기다려 주세요.");
   } catch (e) {
@@ -688,7 +775,8 @@ async function confirmSelection() {
     const tid = String(res?.message_thread_id || res?.thread_id || threadId || "").trim();
     if (tid) threadId = tid;
     if (dlg instanceof HTMLDialogElement) dlg.close();
-    await reloadList();
+    lastCardsRenderKey = null;
+    await reloadList({ silent: true });
     window.dispatchEvent(new CustomEvent("lhai:customer-bid-updated"));
     const conv = document.querySelector("#cbrConversationBanner");
     if (conv instanceof HTMLElement && tid) {
@@ -736,9 +824,9 @@ function wireRealtime() {
         /* list API resolves latest open round for thread */
       }
     }
-    void reloadList();
+    void reloadList({ silent: true });
   });
-  window.addEventListener("lhai:customer-bid-updated", () => void reloadList());
+  window.addEventListener("lhai:customer-bid-updated", () => void reloadList({ silent: true }));
 }
 
 function stopListPolling() {
@@ -768,19 +856,15 @@ function startCountdownTicker() {
     onTick: (text, expired) => {
       const phase = displayPhase();
       if (phase !== "OPEN" && phase !== "EXPIRED") return;
-      const el = document.querySelector("#cbrCountdownBanner");
-      if (el instanceof HTMLElement) {
-        el.hidden = false;
-        el.textContent = text;
-        el.className = expired
-          ? "lhai-cbr-countdown lhai-cbr-countdown--expired"
-          : "lhai-cbr-countdown";
-      }
+      applyCountdownBannerText(text, expired);
       const countdownEl = document.querySelector("#cbrCountdown");
-      if (countdownEl) countdownEl.textContent = formatBidDeadlineForUi(deadlineSnapshot());
+      if (countdownEl) {
+        const uiText = formatBidDeadlineForUi(deadlineSnapshot());
+        if (countdownEl.textContent !== uiText) countdownEl.textContent = uiText;
+      }
       if (expired && phase === "OPEN" && !deadlineExpireReloadPending) {
         deadlineExpireReloadPending = true;
-        void reloadList().finally(() => {
+        void reloadList({ silent: true }).finally(() => {
           deadlineExpireReloadPending = false;
         });
       }
@@ -799,7 +883,7 @@ function startListPolling() {
       stopListPolling();
       return;
     }
-    void reloadList();
+    void reloadList({ silent: true });
   }, CBR_LIST_POLL_MS);
 }
 
@@ -835,6 +919,7 @@ function wireUi() {
     const btn = ev.target instanceof Element ? ev.target.closest("[data-cbr-tab]") : null;
     if (!(btn instanceof HTMLButtonElement)) return;
     activeTabKey = String(btn.getAttribute("data-cbr-tab") || "all");
+    lastCardsRenderKey = null;
     renderTabs();
     renderCards();
   });
@@ -842,12 +927,14 @@ function wireUi() {
   document.querySelector("#cbrSort")?.addEventListener("change", (ev) => {
     if (!(ev.target instanceof HTMLSelectElement)) return;
     activeSort = ev.target.value || "recommended";
-    void reloadList();
+    lastCardsRenderKey = null;
+    void reloadList({ silent: true });
   });
 
   document.querySelector("#cbrFilters")?.addEventListener("change", () => {
     readFiltersFromDom();
-    void reloadList();
+    lastCardsRenderKey = null;
+    void reloadList({ silent: true });
   });
 
   document.querySelector("#cbrCards")?.addEventListener("click", (ev) => {
@@ -912,7 +999,6 @@ async function initCustomerBidResultsPage() {
   wireUi();
   wireRealtime();
   startCountdownTicker();
-  startListPolling();
   await reloadList();
 }
 

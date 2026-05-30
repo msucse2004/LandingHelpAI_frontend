@@ -19,6 +19,7 @@ import {
   renderFullIntakeAnswersDisclosure,
   resolvePartnerIntakeAnswerRows,
 } from "./partner-bid-request-intake-display.js";
+import { setInnerHtmlIfChanged, setTextIfChanged } from "../core/page-refresh.js";
 
 function escHtml(s) {
   return String(s ?? "")
@@ -130,6 +131,99 @@ function renderOfferPanel(offer, index, disabled) {
 }
 
 /**
+ * Rank / status / deadline only — keeps offer form DOM on background refresh.
+ * @param {HTMLElement} root
+ * @param {Record<string, unknown>} data
+ */
+export function refreshProductBidMeta(root, data) {
+  if (!(root instanceof HTMLElement)) return;
+  const bid =
+    data.bid && typeof data.bid === "object"
+      ? /** @type {Record<string, unknown>} */ (data.bid)
+      : {};
+  const bidStatus = String(bid.status ?? "").trim().toUpperCase();
+  const reqStatus = String(data.bid_request_status ?? "OPEN").trim().toUpperCase();
+  const bidStatusLine =
+    bidStatus === "SUBMITTED" ? "Submitted" : bidStatus === "DRAFT" ? "Draft" : bidStatus || "—";
+
+  setTextIfChanged(
+    root.querySelector("#pbrProdReqStatus"),
+    partnerBidStatusLabel(bidStatus, reqStatus),
+  );
+  setTextIfChanged(root.querySelector("#pbrProdYourBidStatus"), bidStatusLine);
+  const brBlock =
+    data.bid_request && typeof data.bid_request === "object"
+      ? /** @type {Record<string, unknown>} */ (data.bid_request)
+      : null;
+  const exp =
+    brBlock?.expires_at != null
+      ? String(brBlock.expires_at)
+      : data.expires_at != null
+        ? String(data.expires_at)
+        : "";
+  setTextIfChanged(root.querySelector("#pbrProdDeadline"), formatDeadlineCountdown(exp || undefined));
+
+  const rankSummary =
+    data.rank_summary && typeof data.rank_summary === "object" ? data.rank_summary : null;
+  const lastViewRank =
+    data.last_view_rank_summary && typeof data.last_view_rank_summary === "object"
+      ? data.last_view_rank_summary
+      : null;
+  const rankLabel = formatRankSummaryLabel(rankSummary);
+  const lastViewLabel =
+    lastViewRank && lastViewRank.basis !== rankSummary?.basis
+      ? formatRankSummaryLabel(lastViewRank, { prefix: "Last view" })
+      : "";
+  const rankCard = root.querySelector("#pbrProdRankCard");
+  const rankEl = root.querySelector("#pbrProdRank");
+  const lastViewRankEl = root.querySelector("#pbrProdLastViewRank");
+  if (!(rankCard instanceof HTMLElement) || !(rankEl instanceof HTMLElement)) return;
+  if (rankLabel) {
+    rankCard.hidden = false;
+    setTextIfChanged(rankEl, rankLabel);
+    if (lastViewRankEl instanceof HTMLElement) {
+      if (lastViewLabel) {
+        lastViewRankEl.hidden = false;
+        setTextIfChanged(lastViewRankEl, lastViewLabel);
+      } else {
+        lastViewRankEl.hidden = true;
+        lastViewRankEl.textContent = "";
+      }
+    }
+  } else {
+    rankCard.hidden = true;
+    rankEl.textContent = "";
+    if (lastViewRankEl instanceof HTMLElement) {
+      lastViewRankEl.hidden = true;
+      lastViewRankEl.textContent = "";
+    }
+  }
+
+  const endedMsg = endedStateMessage(bid, reqStatus);
+  const selectedBanner = root.querySelector("#pbrProdSelectedBanner");
+  const closedBanner = root.querySelector("#pbrProdClosedBanner");
+  if (bidStatus === "SELECTED" && selectedBanner instanceof HTMLElement) {
+    selectedBanner.hidden = false;
+    if (closedBanner instanceof HTMLElement) {
+      closedBanner.hidden = true;
+      closedBanner.innerHTML = "";
+    }
+  } else if (endedMsg && closedBanner instanceof HTMLElement) {
+    closedBanner.hidden = false;
+    setInnerHtmlIfChanged(closedBanner, `<p>${escHtml(endedMsg)}</p>`);
+    if (selectedBanner instanceof HTMLElement) {
+      selectedBanner.hidden = true;
+    }
+  } else {
+    if (selectedBanner instanceof HTMLElement) selectedBanner.hidden = true;
+    if (closedBanner instanceof HTMLElement) {
+      closedBanner.hidden = true;
+      closedBanner.innerHTML = "";
+    }
+  }
+}
+
+/**
  * @param {HTMLElement} root
  * @param {{
  *   data: Record<string, unknown>,
@@ -182,7 +276,7 @@ export function mountProductOfferBidUi(root, ctx) {
       <h2 class="lhai-card__title">${escHtml(svcName)}</h2>
       <dl class="lhai-par-prod__summary-dl">
         <div><dt>Request status</dt><dd id="pbrProdReqStatus">${escHtml(partnerBidStatusLabel(bidStatus, reqStatus))}</dd></div>
-        <div><dt>Your bid</dt><dd>${escHtml(bidStatusLine)}</dd></div>
+        <div><dt>Your bid</dt><dd id="pbrProdYourBidStatus">${escHtml(bidStatusLine)}</dd></div>
         <div><dt>Deadline</dt><dd id="pbrProdDeadline">${escHtml(formatDeadlineCountdown(ctx.expiresAtQuery))}</dd></div>
         <div><dt>Customer</dt><dd>${escHtml(String(cust.display_name || "—"))}</dd></div>
         <div><dt>Location</dt><dd>${escHtml(String(cust.location || svc.location || "—"))}</dd></div>
@@ -207,6 +301,9 @@ export function mountProductOfferBidUi(root, ctx) {
         data.ai_bid_request_brief && typeof data.ai_bid_request_brief === "object"
           ? data.ai_bid_request_brief
           : null,
+        {
+          serviceTitle: String(data.service_title || "").trim() || undefined,
+        },
       )}
       ${renderFullIntakeAnswersDisclosure(resolvePartnerIntakeAnswerRows(data), {
         emptyMessage: "No partner-visible intake answers.",

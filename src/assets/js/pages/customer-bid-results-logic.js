@@ -7,6 +7,36 @@ import {
   isBidDeadlinePassed,
 } from "../core/bid-deadline-display.js";
 
+/**
+ * `/uploads/...` 등 상대 경로를 API 베이스(또는 현재 origin)에 붙임.
+ * @param {string} url
+ */
+export function resolveOfferMediaUrl(url) {
+  const s = String(url || "").trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  const path = s.startsWith("/") ? s : `/${s}`;
+  if (typeof window === "undefined") return s;
+  const explicit = window.LHAI_API_BASE_URL;
+  let base = "";
+  if (explicit != null && String(explicit).trim() !== "") {
+    base = String(explicit).replace(/\/$/, "");
+  } else {
+    const host = window.location.hostname;
+    const port = window.location.port;
+    const local = host === "localhost" || host === "127.0.0.1";
+    if (local && (port === "8000" || port === "")) {
+      base = "";
+    } else if (window.location.protocol === "https:") {
+      base = "";
+    } else {
+      base = "http://localhost:8000";
+    }
+  }
+  if (base) return `${base}${path}`;
+  return `${window.location.origin}${path}`;
+}
+
 export { formatBidDeadlineRemaining, isBidDeadlinePassed };
 
 /** @typedef {'recommended'|'lowest_total'|'recently_updated'|'fastest_timeline'|'photo_first'|'newest_year'|'lowest_mileage'|'lowest_fees'} CustomerOfferSort */
@@ -201,16 +231,76 @@ export function formatOfferTitle(offer) {
   return formatOfferVehicleTitle(offer);
 }
 
+/**
+ * Primary + full URLs for card thumbnail (thumb first; full used on img error).
+ * @param {Record<string, unknown>} offer
+ */
+export function getOfferPhotoDisplayUrls(offer) {
+  const photos = collectOfferPhotos(offer);
+  if (!photos.length) {
+    const topThumb = String(offer.thumbnail_url || "").trim();
+    if (!topThumb) return { thumb: "", full: "" };
+    const resolved = resolveOfferMediaUrl(topThumb);
+    return { thumb: resolved, full: resolved };
+  }
+  const primary = photos[0];
+  const full = String(primary.url || "").trim();
+  const thumb = String(primary.thumbnail_url || full).trim();
+  return {
+    thumb: thumb ? resolveOfferMediaUrl(thumb) : "",
+    full: full ? resolveOfferMediaUrl(full) : "",
+  };
+}
+
 /** @param {Record<string, unknown>} offer */
 export function offerThumbnailUrl(offer) {
-  const thumb = String(offer.thumbnail_url || "").trim();
-  if (thumb) return thumb;
-  const photos = Array.isArray(offer.photos) ? offer.photos : [];
-  if (photos.length && photos[0] && typeof photos[0] === "object") {
-    const p = /** @type {Record<string, unknown>} */ (photos[0]);
-    return String(p.thumbnail_url || p.url || "").trim() || null;
+  const { thumb, full } = getOfferPhotoDisplayUrls(offer);
+  const pick = thumb || full;
+  return pick || null;
+}
+
+/**
+ * @param {Record<string, unknown>} offer
+ * @param {(s: string) => string} esc
+ */
+export function buildOfferThumbImgHtml(offer, esc) {
+  const { thumb, full } = getOfferPhotoDisplayUrls(offer);
+  if (!thumb && !full) {
+    return `<div class="lhai-cbr-card__thumb-placeholder" aria-hidden="true"><span>사진을 불러올 수 없습니다</span></div>`;
   }
-  return null;
+  const src = esc(thumb || full);
+  const fallback =
+    thumb && full && thumb !== full ? ` data-cbr-photo-fallback="${esc(full)}"` : "";
+  return `<img class="lhai-cbr-card__thumb-img" src="${src}" alt="" loading="lazy"${fallback} />`;
+}
+
+/**
+ * img error: thumbnail → original → placeholder.
+ * @param {ParentNode} [root]
+ */
+export function wireOfferPhotoImgFallbacks(root = document) {
+  const scope = root instanceof Document ? root : root;
+  if (!scope || typeof scope.querySelectorAll !== "function") return;
+  const placeholder =
+    '<div class="lhai-cbr-card__thumb-placeholder" aria-hidden="true"><span>사진을 불러올 수 없습니다</span></div>';
+  scope.querySelectorAll(".lhai-cbr-card__thumb-img").forEach((node) => {
+    if (!(node instanceof HTMLImageElement) || node.dataset.cbrPhotoWired === "1") return;
+    node.dataset.cbrPhotoWired = "1";
+    node.addEventListener("error", () => {
+      const fb = node.getAttribute("data-cbr-photo-fallback");
+      if (fb && node.dataset.cbrPhotoFallbackStage !== "full") {
+        node.dataset.cbrPhotoFallbackStage = "full";
+        node.src = fb;
+        return;
+      }
+      const host =
+        node.closest(".lhai-cbr-card__thumb") ||
+        node.closest(".lhai-cbr-card__media");
+      if (host instanceof HTMLElement) {
+        host.innerHTML = placeholder;
+      }
+    });
+  });
 }
 
 /** @param {Record<string, unknown>} offer @param {string} [activeSort] */
@@ -342,9 +432,11 @@ export function collectOfferPhotos(offer) {
       const url = String(row.url || "").trim();
       const thumb = String(row.thumbnail_url || url).trim();
       if (!url && !thumb) return null;
+      const resolvedUrl = resolveOfferMediaUrl(url || thumb);
+      const resolvedThumb = resolveOfferMediaUrl(thumb || url);
       return {
-        url: url || thumb,
-        thumbnail_url: thumb || url,
+        url: resolvedUrl || resolvedThumb,
+        thumbnail_url: resolvedThumb || resolvedUrl,
         caption: String(row.caption || "").trim(),
         is_primary: Boolean(row.is_primary) || i === 0,
         sort_order: i,
@@ -402,7 +494,6 @@ export function buildVehicleOfferCardHtml(offer, ctx, esc) {
   const bidId = String(offer.bid_id || "").trim();
   const offerId = String(offer.offer_id || "").trim();
   const cur = String(offer.currency || "USD");
-  const thumb = offerThumbnailUrl(offer);
   const photos = collectOfferPhotos(offer);
   const veh = resolveVehicleFromOffer(offer);
   const rankBadge = formatOfferRankBadgeEn(offer, ctx.activeSort);
@@ -446,9 +537,7 @@ export function buildVehicleOfferCardHtml(offer, ctx, esc) {
   const msgPreview = msg
     ? esc(msg.slice(0, 160)).replace(/\n/g, "<br />") + (msg.length > 160 ? "…" : "")
     : "—";
-  const thumbHtml = thumb
-    ? `<img class="lhai-cbr-card__thumb-img" src="${esc(thumb)}" alt="" loading="lazy" />`
-    : `<div class="lhai-cbr-card__thumb-placeholder" aria-hidden="true"><span>No photo</span></div>`;
+  const thumbHtml = buildOfferThumbImgHtml(offer, esc);
   const photoCount =
     photos.length > 1
       ? `<span class="lhai-cbr-card__photo-count">${photos.length} photos</span>`
@@ -945,14 +1034,35 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
-export function buildCustomerBidResultsPageHref(serviceRequestId, threadId) {
-  const p = new URLSearchParams();
+/**
+ * 고객 견적 비교 화면 링크.
+ * 1) service_request_id 있으면 service_request_id (+ thread_id 있으면 함께)
+ * 2) thread_id만 있으면 thread_id
+ * 3) 둘 다 없으면 fallbackHref (기본 messages.html)
+ *
+ * @param {string} [serviceRequestId]
+ * @param {string} [threadId]
+ * @param {{ fallbackHref?: string }} [options]
+ */
+export function buildCustomerBidResultsPageHref(serviceRequestId, threadId, options = {}) {
+  const fallbackHref = String(options.fallbackHref || "messages.html").trim() || "messages.html";
   const wid = String(serviceRequestId || "").trim();
   const tid = String(threadId || "").trim();
-  if (wid) p.set("service_request_id", wid);
-  if (tid) p.set("thread_id", tid);
-  const qs = p.toString();
-  return qs ? `customer-bid-results.html?${qs}` : "customer-bid-results.html";
+
+  if (wid) {
+    const p = new URLSearchParams();
+    p.set("service_request_id", wid);
+    if (tid) p.set("thread_id", tid);
+    return `customer-bid-results.html?${p.toString()}`;
+  }
+
+  if (tid) {
+    const p = new URLSearchParams();
+    p.set("thread_id", tid);
+    return `customer-bid-results.html?${p.toString()}`;
+  }
+
+  return fallbackHref;
 }
 
 export function collectDistinctMakes(vehicleRequests, offers) {

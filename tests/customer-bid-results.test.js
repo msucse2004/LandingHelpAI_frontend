@@ -74,6 +74,24 @@ test("formatOfferRankBadge shows rank total", async () => {
   assert.match(badge, /추천순 기준 1위 \/ 12개/);
 });
 
+test("buildOfferThumbImgHtml includes fallback data attribute when thumb differs from full", async () => {
+  const m = await importFresh(logicPath);
+  const esc = (s) => String(s);
+  const html = m.buildOfferThumbImgHtml(
+    {
+      photos: [
+        {
+          url: "/uploads/bid-offers/2026/05/a.jpg",
+          thumbnail_url: "/uploads/bid-offers/2026/05/thumbs/a.jpg",
+        },
+      ],
+    },
+    esc,
+  );
+  assert.match(html, /data-cbr-photo-fallback=/);
+  assert.match(html, /\/uploads\/bid-offers\/2026\/05\/a\.jpg/);
+});
+
 test("offerThumbnailUrl prefers thumbnail_url", async () => {
   const m = await importFresh(logicPath);
   assert.equal(m.offerThumbnailUrl({ thumbnail_url: "https://x/t.jpg" }), "https://x/t.jpg");
@@ -81,6 +99,21 @@ test("offerThumbnailUrl prefers thumbnail_url", async () => {
     m.offerThumbnailUrl({ photos: [{ url: "https://x/p.jpg" }] }),
     "https://x/p.jpg",
   );
+});
+
+test("resolveOfferMediaUrl leaves absolute URLs unchanged", async () => {
+  const m = await importFresh(logicPath);
+  assert.equal(m.resolveOfferMediaUrl("https://cdn.example/a.jpg"), "https://cdn.example/a.jpg");
+});
+
+test("collectOfferPhotos resolves relative upload paths", async () => {
+  const m = await importFresh(logicPath);
+  const photos = m.collectOfferPhotos({
+    photos: [{ url: "/uploads/bid-offers/2026/05/abc.jpg", thumbnail_url: "/uploads/bid-offers/2026/05/thumbs/abc.jpg" }],
+  });
+  assert.equal(photos.length, 1);
+  assert.match(photos[0].url, /\/uploads\/bid-offers\/2026\/05\/abc\.jpg$/);
+  assert.match(photos[0].thumbnail_url, /thumbs\/abc\.jpg$/);
 });
 
 test("emptyOffersMessage OPEN vs EXPIRED", async () => {
@@ -117,6 +150,22 @@ test("buildCustomerBidResultsPageHref encodes params", async () => {
   const href = m.buildCustomerBidResultsPageHref("wid-1", "tid-2");
   assert.match(href, /service_request_id=wid-1/);
   assert.match(href, /thread_id=tid-2/);
+});
+
+test("buildCustomerBidResultsPageHref thread_id only", async () => {
+  const m = await importFresh(logicPath);
+  const href = m.buildCustomerBidResultsPageHref("", "tid-only");
+  assert.equal(href, "customer-bid-results.html?thread_id=tid-only");
+  assert.doesNotMatch(href, /service_request_id=/);
+});
+
+test("buildCustomerBidResultsPageHref falls back when ids missing", async () => {
+  const m = await importFresh(logicPath);
+  assert.equal(m.buildCustomerBidResultsPageHref("", ""), "messages.html");
+  assert.equal(
+    m.buildCustomerBidResultsPageHref("", "", { fallbackHref: "quote-detail.html" }),
+    "quote-detail.html",
+  );
 });
 
 test("renderSelectionConversationBannerHtml includes Open conversation", async () => {

@@ -45,6 +45,7 @@ import {
   resolveCustomerBidDisplayPhase,
 } from "./customer-bid-results-logic.js";
 import { formatBidDeadlineForUi } from "../core/bid-deadline-display.js";
+import { setInnerHtmlIfChanged } from "../core/page-refresh.js";
 import {
   assertServiceItemUuid,
   intakeStartServiceItemIdFromCardJson,
@@ -2412,7 +2413,10 @@ async function refreshCustomerBidPanel() {
     customerBidPanelSnapshot = null;
     if (banner instanceof HTMLElement) {
       banner.hidden = false;
-      banner.innerHTML = `<p class="lhai-state lhai-state--error">${escapeHtml(msg)}</p>`;
+      setInnerHtmlIfChanged(
+        banner,
+        `<p class="lhai-state lhai-state--error">${escapeHtml(msg)}</p>`,
+      );
     }
     if (panel instanceof HTMLElement) panel.hidden = true;
     customerBidPanelAwaitingFetch = false;
@@ -2467,28 +2471,31 @@ async function refreshCustomerBidPanel() {
   const isCar = isCarPurchaseBidListResponse(customerBidPanelSnapshot);
   if (phase === "CUSTOMER_SELECTED" && banner instanceof HTMLElement) {
     banner.hidden = false;
-    banner.innerHTML = isCar
-      ? renderCustomerCarBidBannerHtml(bidSnapshot)
-      : `<div class="lhai-messages-car-bid-banner lhai-messages-car-bid-banner--selected">${renderCustomerSelectedOfferCardHtml(bidSnapshot)}</div>`;
+    setInnerHtmlIfChanged(
+      banner,
+      isCar
+        ? renderCustomerCarBidBannerHtml(bidSnapshot)
+        : `<div class="lhai-messages-car-bid-banner lhai-messages-car-bid-banner--selected">${renderCustomerSelectedOfferCardHtml(bidSnapshot)}</div>`,
+    );
     if (panel instanceof HTMLElement) {
       panel.hidden = true;
-      panel.innerHTML = "";
+      if (panel.innerHTML !== "") panel.innerHTML = "";
     }
   } else if (isCar && banner instanceof HTMLElement) {
     banner.hidden = false;
-    banner.innerHTML = renderCustomerCarBidBannerHtml(bidSnapshot);
+    setInnerHtmlIfChanged(banner, renderCustomerCarBidBannerHtml(bidSnapshot));
     startCustomerBidCountdownTimer();
     if (panel instanceof HTMLElement) {
       panel.hidden = true;
-      panel.innerHTML = "";
+      if (panel.innerHTML !== "") panel.innerHTML = "";
     }
   } else if (panel instanceof HTMLElement) {
     if (banner instanceof HTMLElement) {
       banner.hidden = true;
-      banner.innerHTML = "";
+      if (banner.innerHTML !== "") banner.innerHTML = "";
     }
     panel.hidden = false;
-    panel.innerHTML = renderCustomerBidPanelInnerHtml();
+    setInnerHtmlIfChanged(panel, renderCustomerBidPanelInnerHtml());
   }
   syncCustomerComposerBidGate();
 }
@@ -2861,6 +2868,7 @@ async function loadThreadMessages(options = {}) {
    * unchanged so the signature matches and we must not return before list/header badge sync. */
   if (sigUnchanged && !partnerInboxMode && !operatorInboxMode) {
     messagesRtDebug("fallback tick skipped unchanged thread messages");
+    await refreshCustomerBidPanel();
     return;
   }
   messagesRtDebug("markRead count", markedReadCount, { customerPath: !operatorInboxMode && !partnerInboxMode });

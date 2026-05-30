@@ -31,11 +31,19 @@ import {
   formatPartnerCountdownBanner,
   normalizeDeadlineSnapshot,
 } from "../core/bid-deadline-display.js";
+import { setClassNameIfChanged, setTextIfChanged } from "../core/page-refresh.js";
 import { resolveCarPurchaseMode } from "./partner-bid-request-car-logic.js";
-import { partnerBidStatusLabel } from "./partner-bid-request-product-logic.js";
+import { isPartnerCarOfferDraftDirty, clearPartnerCarOfferDraft } from "./partner-bid-request-car-draft.js";
+import {
+  endedStateMessage,
+  offersFromIncludedItems as productOffersFromIncludedItems,
+  partnerBidStatusLabel,
+  resolvePartnerBidEditable,
+} from "./partner-bid-request-product-logic.js";
+import { offersFromIncludedItems as carOffersFromIncludedItems } from "./partner-bid-request-car-logic.js";
 
 /** Cache-bust query for partner bid detail modules (must match partner-bid-request.html script src). */
-const PARTNER_BID_DETAIL_ASSET_VERSION = "20260526-bid-detail-1";
+const PARTNER_BID_DETAIL_ASSET_VERSION = "20260519-flicker-refresh-1";
 
 /** @param {string} moduleFile e.g. partner-bid-request-car-ui.js */
 function partnerBidDetailModuleUrl(moduleFile) {
@@ -110,6 +118,89 @@ function getRequestStatusFromQuery() {
   return v && String(v).trim() ? String(v).trim().toUpperCase() : "OPEN";
 }
 
+/** @param {Record<string, unknown>} data */
+function partnerBidRequestStatusFromData(data) {
+  const brBlock =
+    data.bid_request && typeof data.bid_request === "object"
+      ? /** @type {Record<string, unknown>} */ (data.bid_request)
+      : null;
+  return String(data.bid_request_status ?? brBlock?.bid_request_status ?? "OPEN")
+    .trim()
+    .toUpperCase();
+}
+
+/** @param {Record<string, unknown>} data */
+function partnerBidExpiresAtFromData(data) {
+  const brBlock =
+    data.bid_request && typeof data.bid_request === "object"
+      ? /** @type {Record<string, unknown>} */ (data.bid_request)
+      : null;
+  const fromBlock = brBlock?.expires_at != null ? String(brBlock.expires_at) : "";
+  if (fromBlock.trim()) return fromBlock.trim();
+  const top = data.expires_at != null ? String(data.expires_at) : "";
+  if (top.trim()) return top.trim();
+  return getExpiresAtFromQuery();
+}
+
+/** @param {Record<string, unknown>} data */
+function partnerBidStructuralRenderKey(data) {
+  const isCar = resolveCarPurchaseMode(data);
+  const bid =
+    data.bid && typeof data.bid === "object"
+      ? /** @type {Record<string, unknown>} */ (data.bid)
+      : {};
+  const reqStatus = partnerBidRequestStatusFromData(data);
+  const bidStatus = String(bid.status ?? "").trim().toUpperCase();
+  const expiresAt = partnerBidExpiresAtFromData(data);
+  const editable = resolvePartnerBidEditable({
+    bidStatus,
+    requestStatus: reqStatus,
+    expiresAt,
+  });
+  const ended = endedStateMessage(bid, reqStatus) ? "1" : "0";
+  const selected = bidStatus === "SELECTED" ? "1" : "0";
+  const bidCfg =
+    data.bidding_config && typeof data.bidding_config === "object"
+      ? data.bidding_config
+      : data.car_purchase_config && typeof data.car_purchase_config === "object"
+        ? data.car_purchase_config
+        : {};
+  const requiresPhotos = bidCfg.requires_offer_photos === true ? "1" : "0";
+  let layout = "";
+  if (isCar) {
+    const vreqs = Array.isArray(data.customer_vehicle_requests)
+      ? data.customer_vehicle_requests
+      : [];
+    const offers = carOffersFromIncludedItems(bid.included_items);
+    layout = `v:${vreqs.length}:o:${offers.length || 1}`;
+  } else {
+    const offers = productOffersFromIncludedItems(bid.included_items);
+    layout = `o:${Math.max(offers.length, 1)}`;
+  }
+  return `${isCar ? "car" : "prod"}|${reqStatus}|${bidStatus}|${editable ? "e" : "l"}|${selected}|${ended}|${layout}|ph:${requiresPhotos}`;
+}
+
+/** @returns {"car" | "product" | null} */
+function detectMountedPartnerBidMode() {
+  const carRoot = document.querySelector("#partnerBidCarRoot");
+  if (
+    carRoot instanceof HTMLElement &&
+    !carRoot.hidden &&
+    carRoot.querySelector("#partnerCarForm")
+  ) {
+    return "car";
+  }
+  const prodRoot = document.querySelector("#partnerBidProductRoot");
+  if (
+    prodRoot instanceof HTMLElement &&
+    !prodRoot.hidden &&
+    prodRoot.querySelector("#pbrProdForm")
+  ) {
+    return "product";
+  }
+  return null;
+}
+
 function setText(sel, text) {
   const el = document.querySelector(sel);
   if (el) el.textContent = text;
@@ -144,10 +235,11 @@ function renderPartnerCountdownBanner(payload) {
   const text = formatPartnerCountdownBanner(snap);
   const expired = text === "비딩이 종료되었습니다" || reqStatus === "EXPIRED";
   el.hidden = false;
-  el.textContent = text;
-  el.className = expired
-    ? "lhai-par-bid__countdown lhai-par-bid__countdown--expired"
-    : "lhai-par-bid__countdown";
+  setTextIfChanged(el, text);
+  setClassNameIfChanged(
+    el,
+    expired ? "lhai-par-bid__countdown lhai-par-bid__countdown--expired" : "lhai-par-bid__countdown",
+  );
 }
 
 function startPartnerCountdownTicker() {
@@ -162,10 +254,11 @@ function startPartnerCountdownTicker() {
       const el = document.querySelector("#partnerBidCountdownBanner");
       if (!(el instanceof HTMLElement)) return;
       el.hidden = false;
-      el.textContent = text;
-      el.className = expired
-        ? "lhai-par-bid__countdown lhai-par-bid__countdown--expired"
-        : "lhai-par-bid__countdown";
+      setTextIfChanged(el, text);
+      setClassNameIfChanged(
+        el,
+        expired ? "lhai-par-bid__countdown lhai-par-bid__countdown--expired" : "lhai-par-bid__countdown",
+      );
     },
     intervalMs: 1000,
   });
@@ -440,6 +533,7 @@ async function runPartnerBidRequestPage() {
   /** @type {Record<string, unknown>} */
   let latestDetail = /** @type {Record<string, unknown>} */ (detail);
   latestPartnerDetailForCountdown = latestDetail;
+  let lastPartnerBidStructuralKey = partnerBidStructuralRenderKey(latestDetail);
 
   const bidRequestBlock =
     detail.bid_request && typeof detail.bid_request === "object"
@@ -520,6 +614,7 @@ async function runPartnerBidRequestPage() {
       },
     };
 
+    lastPartnerBidStructuralKey = partnerBidStructuralRenderKey(data);
     if (resolveCarPurchaseMode(data)) {
       debugLog("render mode selected", { mode: "CAR_PURCHASE" });
       await renderCarPurchaseBidRequest(data, mountCtx);
@@ -529,12 +624,74 @@ async function runPartnerBidRequestPage() {
     }
   }
 
+  /** @param {Record<string, unknown>} data */
+  async function softRefreshPartnerBidDetail(data) {
+    applyPageHeader(data);
+    renderPartnerCountdownBanner(data);
+    const mounted = detectMountedPartnerBidMode();
+    const expectCar = resolveCarPurchaseMode(data);
+    if (expectCar && mounted === "car") {
+      const carRoot = document.querySelector("#partnerBidCarRoot");
+      if (carRoot instanceof HTMLElement) {
+        const carUi = await import(partnerBidDetailModuleUrl("partner-bid-request-car-ui.js"));
+        if (typeof carUi.refreshCarPurchaseBidMeta === "function") {
+          carUi.refreshCarPurchaseBidMeta(carRoot, data);
+        }
+      }
+      return;
+    }
+    if (!expectCar && mounted === "product") {
+      const prodRoot = document.querySelector("#partnerBidProductRoot");
+      if (prodRoot instanceof HTMLElement) {
+        const prodUi = await import(partnerBidDetailModuleUrl("partner-bid-request-product-ui.js"));
+        if (typeof prodUi.refreshProductBidMeta === "function") {
+          prodUi.refreshProductBidMeta(prodRoot, data);
+        }
+      }
+    }
+  }
+
   /** @param {boolean} [showToast] */
   async function refreshPartnerBidDetail(showToast = false) {
     try {
       const next = await partnerThreadsApi.bidRequestDetail(bidRequestId);
       latestDetail = /** @type {Record<string, unknown>} */ (next);
-      await renderBidRequestView(latestDetail);
+      latestPartnerDetailForCountdown = latestDetail;
+      const reqStatus = partnerRequestStatusFromDetail(latestDetail);
+      const carDraftDirty =
+        resolveCarPurchaseMode(latestDetail) && isPartnerCarOfferDraftDirty(bidRequestId);
+
+      if (carDraftDirty && isPartnerBidDetailPollingPhase(reqStatus)) {
+        applyPageHeader(latestDetail);
+        renderPartnerCountdownBanner(latestDetail);
+        const carRoot = document.querySelector("#partnerBidCarRoot");
+        if (carRoot instanceof HTMLElement && !carRoot.hidden) {
+          const carUi = await import(partnerBidDetailModuleUrl("partner-bid-request-car-ui.js"));
+          if (typeof carUi.refreshCarPurchaseBidMeta === "function") {
+            carUi.refreshCarPurchaseBidMeta(carRoot, latestDetail);
+          }
+        }
+        syncPartnerDetailPolling();
+        return;
+      }
+
+      if (carDraftDirty) {
+        clearPartnerCarOfferDraft(bidRequestId);
+      }
+
+      const structuralKey = partnerBidStructuralRenderKey(latestDetail);
+      const mounted = detectMountedPartnerBidMode();
+      const modeMatch =
+        (resolveCarPurchaseMode(latestDetail) && mounted === "car") ||
+        (!resolveCarPurchaseMode(latestDetail) && mounted === "product");
+
+      if (mounted && modeMatch && structuralKey === lastPartnerBidStructuralKey) {
+        await softRefreshPartnerBidDetail(latestDetail);
+      } else {
+        lastPartnerBidStructuralKey = structuralKey;
+        await renderBidRequestView(latestDetail);
+      }
+
       syncPartnerDetailPolling();
       if (
         showToast &&

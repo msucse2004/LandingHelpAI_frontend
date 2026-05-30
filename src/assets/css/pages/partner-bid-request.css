@@ -286,6 +286,57 @@
   box-shadow: none;
 }
 
+.lhai-par-bid__brief-card--multiline .lhai-par-bid__brief-kv-list,
+.lhai-par-bid__brief-card--simple .lhai-par-bid__brief-lines {
+  list-style: none;
+  margin: var(--lhai-space-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.lhai-par-bid__brief-kv-item {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: #f8fafc;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.lhai-par-bid__brief-kv-item--solo {
+  padding-left: 0;
+}
+
+.lhai-par-bid__brief-empty-kp {
+  margin: var(--lhai-space-2) 0 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+
+.lhai-par-bid__brief-summary--subtle {
+  font-size: 0.88rem;
+  color: #94a3b8;
+}
+
+.lhai-par-bid__brief-line-label {
+  margin: 0 0 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.lhai-par-bid__brief-line-value {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: #f8fafc;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .lhai-par-bid__brief-eyebrow {
   margin: 0 0 var(--lhai-space-1);
   font-size: 0.75rem;
@@ -329,37 +380,21 @@
   color: #94a3b8;
 }
 
+/* Legacy grid (deprecated): kept for cached HTML; new briefings use --multiline + kv-list */
 .lhai-par-bid__brief-kp-grid {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-  gap: var(--lhai-space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
 }
 
 .lhai-par-bid__brief-kp-item {
   margin: 0;
-  padding: var(--lhai-space-2);
-  border-radius: var(--lhai-radius-md, 8px);
-  background: rgba(15, 23, 42, 0.55);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.lhai-par-bid__brief-kp-label {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #94a3b8;
-}
-
-.lhai-par-bid__brief-kp-value {
-  font-size: 0.92rem;
-  line-height: 1.4;
+  font-size: 0.98rem;
+  line-height: 1.55;
   color: #f8fafc;
-  font-weight: 500;
 }
 
 .lhai-par-bid__brief-section--missing {

@@ -147,6 +147,8 @@ export function isBidDeadlinePassed(expiresAtIso, nowMs = Date.now()) {
  * @returns {() => void}
  */
 export function createBidCountdownTicker({ getDeadline, onTick, formatBanner, intervalMs = 1000 }) {
+  let lastText = "";
+  let lastExpired = false;
   const tick = () => {
     const snap = getDeadline();
     const rem = remainingSecondsFromDeadline(snap);
@@ -154,7 +156,11 @@ export function createBidCountdownTicker({ getDeadline, onTick, formatBanner, in
       snap?.is_expired === true ||
       snap?.bid_request_status === "EXPIRED" ||
       (rem != null && rem <= 0);
-    onTick(formatBanner(snap), Boolean(expired));
+    const text = formatBanner(snap);
+    if (text === lastText && expired === lastExpired) return;
+    lastText = text;
+    lastExpired = expired;
+    onTick(text, expired);
   };
   tick();
   const id = window.setInterval(tick, intervalMs);

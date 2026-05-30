@@ -11,6 +11,20 @@ test("intake display exports briefing and disclosure renderers", async () => {
   assert.equal(typeof mod.renderAiBidRequestBriefCard, "function");
   assert.equal(typeof mod.renderFullIntakeAnswersDisclosure, "function");
 
+  assert.equal(typeof mod.isMeaninglessBriefingValue, "function");
+  assert.equal(typeof mod.filterPartnerIntakeAnswerRows, "function");
+  assert.equal(mod.isMeaninglessBriefingValue("__skipped__"), true);
+  assert.equal(mod.isMeaninglessBriefingValue(0), false);
+  assert.equal(mod.isMeaninglessBriefingValue(false), false);
+  assert.equal(mod.isMeaninglessBriefingValue("なし"), true);
+
+  const filtered = mod.filterPartnerIntakeAnswerRows([
+    { label: "Model", value: "X5", display_value: "X5" },
+    { label: "Trim", value: "__skipped__", display_value: "__skipped__" },
+    { label: "Vehicle", kind: "section", value: "", display_value: "" },
+  ]);
+  assert.equal(filtered.length, 2);
+
   const fallback = mod.renderAiBidRequestBriefCard(null);
   assert.match(fallback, /고객 요청 브리핑을 생성하지 못했습니다/);
 
@@ -21,6 +35,21 @@ test("intake display exports briefing and disclosure renderers", async () => {
   });
   assert.match(fallbackOllama, /Ollama/);
 
+  const simpleBrief = mod.renderAiBidRequestBriefCard({
+    partner_display: {
+      headline: "Car purchase intake",
+      lines: [
+        { label: "Budget", value: "25000" },
+        { label: "Brand", value: "BMW" },
+      ],
+    },
+  });
+  assert.match(simpleBrief, /Car purchase intake/);
+  assert.match(simpleBrief, /lhai-par-bid__brief-kv-list/);
+  assert.match(simpleBrief, /Budget: 25000/);
+  assert.doesNotMatch(simpleBrief, /핵심 조건/);
+  assert.doesNotMatch(simpleBrief, /brief-kp-grid/);
+
   const brief = mod.renderAiBidRequestBriefCard({
     brief_title: "BMW 중고차 구매 요청",
     one_line_summary: "Morrisville, NC · $25,000 예산",
@@ -29,12 +58,45 @@ test("intake display exports briefing and disclosure renderers", async () => {
     partner_guidance: "예산에 맞는 BMW 중고차를 제안하세요.",
   });
   assert.match(brief, /BMW 중고차 구매 요청/);
-  assert.match(brief, /핵심 조건/);
+  assert.match(brief, /예산: 약 \$25,000/);
   assert.match(brief, /확인 필요/);
   assert.match(brief, /파트너 안내/);
+  assert.doesNotMatch(brief, /핵심 조건/);
+
+  const piiBrief = mod.renderAiBidRequestBriefCard({
+    brief_title: "Auto purchase",
+    key_points: [
+      { label: "First Name", value: "Jordan" },
+      { label: "차량 상태", value: "중고차" },
+      { label: "예산", value: "25000" },
+      { label: "선호 브랜드", value: "BMW" },
+    ],
+  });
+  assert.doesNotMatch(piiBrief, /First Name/);
+  assert.match(piiBrief, /차량 상태: 중고차/);
+  assert.match(piiBrief, /예산: 25000/);
+
+  const genericSummary = mod.renderAiBidRequestBriefCard({
+    brief_title: "Car",
+    one_line_summary: "Please review the customer's request details below.",
+    key_points: [{ label: "Budget", value: "25k" }],
+  });
+  assert.doesNotMatch(genericSummary, /request details below/);
+
+  const emptyKp = mod.renderAiBidRequestBriefCard({
+    brief_title: "Car",
+    key_points: [],
+    partner_guidance: "Check intake.",
+  });
+  assert.match(emptyKp, /전체 인테이크 답변을 확인해 주세요/);
+
+  assert.equal(mod.isPersonalOrSensitiveBriefingLabel("First Name"), true);
+  assert.equal(mod.isPersonalOrSensitiveBriefingLabel("지역"), false);
+  assert.equal(mod.shouldShowBriefKeyPoint({ label: "Phone", value: "555-1234" }), false);
 
   const disclosure = mod.renderFullIntakeAnswersDisclosure([
     { label: "전체 예산", value: "25000", display_value: "$25,000" },
+    { label: "Trim", value: "__skipped__", display_value: "__skipped__" },
   ]);
   assert.match(disclosure, /전체 인테이크 답변 보기/);
   assert.match(disclosure, /lhai-par-bid__intake-q/);
@@ -50,6 +112,22 @@ test("intake display exports briefing and disclosure renderers", async () => {
 
   const empty = mod.renderFullIntakeAnswersDisclosure([]);
   assert.match(empty, /파트너에게 공개된 인테이크 답변이 없습니다/);
+});
+
+test("brief card uses multiline kv list not card grid", async () => {
+  const mod = await import(`file:///${join(ROOT, "src/assets/js/pages/partner-bid-request-intake-display.js").replace(/\\/g, "/")}`);
+  const html = mod.renderAiBidRequestBriefCard({
+    brief_title: "자동차 조사/구입",
+    key_points: [
+      { label: "차량 상태", value: "중고차 (Pre-owned)" },
+      { label: "예산", value: "25000" },
+      { label: "선호 브랜드", value: "BMW" },
+    ],
+  });
+  assert.match(html, /lhai-par-bid__brief-kv-list/);
+  assert.match(html, /차량 상태: 중고차 \(Pre-owned\)/);
+  assert.doesNotMatch(html, /brief-kp-grid/);
+  assert.doesNotMatch(html, /First Name/);
 });
 
 test("car UI uses new render order", () => {

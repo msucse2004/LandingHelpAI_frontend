@@ -9,6 +9,11 @@ import { adminDevApi } from "../core/api.js";
 import { canAccessAdminShell } from "../core/role-tiers.js";
 import { initI18nDomains, t } from "../core/i18n-client.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
+import {
+  applyCustomerQuoteNavFromAggregate,
+  bindCustomerQuoteNavRefreshListeners,
+  refreshCustomerQuoteNavBadge,
+} from "./customer-quote-nav.js";
 
 function basename(pathname) {
   const raw = String(pathname || "").split("?")[0].split("#")[0];
@@ -37,6 +42,7 @@ function resolveSidebarActiveHref(currentFile, variant) {
     "messages.html": "messages.html",
     "cases.html": "cases.html",
     "case-detail.html": "cases.html",
+    "customer-bid-results.html": "customer-bid-results.html",
   };
   if (variant === "admin") return adminMap[currentFile] || currentFile;
   if (getCurrentRole() === ROLES.PARTNER) {
@@ -50,9 +56,18 @@ function applyActiveNavHighlight(target, variant) {
   const expected = resolveSidebarActiveHref(current, variant);
   const links = target.querySelectorAll("a[href]");
   let hasActive = false;
+  const quoteNavPages = new Set(["quote-detail.html", "customer-bid-results.html"]);
   links.forEach((link) => {
     const hrefBase = basename(link.getAttribute("href") || "");
-    const isActive = hrefBase === expected;
+    let isActive = hrefBase === expected;
+    if (
+      !isActive &&
+      link.matches('[data-lhai-nav="customer-quote"]') &&
+      quoteNavPages.has(current) &&
+      quoteNavPages.has(hrefBase)
+    ) {
+      isActive = true;
+    }
     if (isActive) {
       link.setAttribute("aria-current", "page");
       link.classList.add("is-active");
@@ -180,6 +195,9 @@ async function loadSidebar(targetSelector = "#sidebar", variant = "customer") {
     applyActiveNavHighlight(target, variant);
     if (variant === "admin") {
       bindAdminDevResetQuotesInvoices(target);
+    } else {
+      bindCustomerQuoteNavRefreshListeners();
+      void refreshCustomerQuoteNavBadge(target);
     }
   } catch (e) {
     target.innerHTML = `<div class='lhai-placeholder'>${t("common.sidebar.placeholder.todo", "사이드바를 불러오는 중입니다…")}</div>`;

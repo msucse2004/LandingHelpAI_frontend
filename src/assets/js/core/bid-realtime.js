@@ -162,16 +162,7 @@ export function isPartnerBidRequestHtmlPage() {
   }
 }
 
-/** @param {string} serviceRequestId @param {string} threadId */
-export function buildCustomerBidResultsHref(serviceRequestId, threadId) {
-  const q = new URLSearchParams();
-  const wid = String(serviceRequestId || "").trim();
-  const tid = String(threadId || "").trim();
-  if (wid) q.set("service_request_id", wid);
-  if (tid) q.set("thread_id", tid);
-  const qs = q.toString();
-  return qs ? `customer-bid-results.html?${qs}` : "customer-bid-results.html";
-}
+export { buildCustomerBidResultsPageHref as buildCustomerBidResultsHref } from "../pages/customer-bid-results-logic.js";
 
 export function isCustomerDashboardHtmlPage() {
   try {

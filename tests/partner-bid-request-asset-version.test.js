@@ -8,7 +8,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const VERSION = "20260526-bid-detail-1";
+const VERSION = "20260519-flicker-refresh-1";
 
 test("partner-bid-request.html script src includes asset version query", () => {
   const html = readFileSync(join(ROOT, "src/pages/partner-bid-request.html"), "utf8");
@@ -29,5 +29,6 @@ test("partner-bid-request.js defines version and uses it in dynamic imports", ()
   assert.match(js, /partnerBidDetailModuleUrl\("partner-bid-request-car-ui\.js"\)/);
   assert.match(js, /partnerBidDetailModuleUrl\("partner-bid-request-product-ui\.js"\)/);
   assert.match(js, /\?v=\$\{encodeURIComponent\(PARTNER_BID_DETAIL_ASSET_VERSION\)\}/);
-  assert.match(js, /\[partner-bid-request\] asset version/);
+  assert.match(js, /partnerBidStructuralRenderKey/);
+  assert.match(js, /softRefreshPartnerBidDetail/);
 });
