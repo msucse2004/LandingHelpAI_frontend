@@ -25,3 +25,17 @@ test("car UI removed fixed budget timeline rows from hero summary", () => {
   assert.doesNotMatch(js, /<dt>전체 예산<\/dt>/);
   assert.doesNotMatch(js, /<dt>구매 희망 시기<\/dt>/);
 });
+
+test("car UI accident history select includes minor and major options", () => {
+  const js = readFileSync(CAR_UI, "utf8");
+  assert.match(js, /Minor accident reported/);
+  assert.match(js, /Major accident reported/);
+  assert.match(js, /accidentHistorySelectOptionsHtml/);
+});
+
+test("car UI new offer uses blank offer helper without copying vehicle request fields", () => {
+  const js = readFileSync(CAR_UI, "utf8");
+  assert.match(js, /createBlankCarOfferForAdd/);
+  assert.doesNotMatch(js, /next\.make\s*=\s*vr\.make/);
+  assert.doesNotMatch(js, /next\.model\s*=\s*vr\.model/);
+});

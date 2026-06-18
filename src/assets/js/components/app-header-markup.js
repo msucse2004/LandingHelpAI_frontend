@@ -10,6 +10,9 @@ export const APP_HEADER_MAIL_ICON_SVG = `
 </svg>
 `.trim();
 
+/** Stable mount target for the global language dropdown (see language-switcher.js). */
+export const TOPBAR_LANGUAGE_SLOT_ID = "lhai-topbar-language-slot";
+
 /**
  * @param {{
  *   brand: string,
@@ -26,19 +29,22 @@ export function renderAppHeaderMarkup(shell) {
 <header class="lhai-topbar" role="banner">
   <div class="lhai-brand">${shell.brand}</div>
   <div class="lhai-topbar__right">
-    <a class="lhai-topbar-mail" id="lhai-header-messages-link" href="${shell.messagesHref}" data-i18n-title="common.header.messages" data-i18n-aria-label="common.header.messages" title="메시지함" aria-label="메시지함"${currentAttr}>
-      ${APP_HEADER_MAIL_ICON_SVG}
-      <span id="lhai-header-mail-unread" class="lhai-topbar-mail__badge" role="status" aria-live="polite" hidden></span>
-    </a>
-    <div class="lhai-user-menu" data-lhai-account-menu>
-      <button type="button" class="lhai-user-menu__trigger" aria-expanded="false" aria-haspopup="menu">
-        <span id="lhai-header-role-badge" class="lhai-badge" aria-live="polite"></span>
-        <span class="lhai-user-menu__chevron" aria-hidden="true">▾</span>
-      </button>
-      <div class="lhai-user-menu__panel" role="menu" aria-orientation="vertical" hidden>
-        <a class="lhai-user-menu__item" role="menuitem" href="${shell.profileHref}" data-i18n="common.header.menu.profile">내 정보</a>
-        <a class="lhai-user-menu__item" role="menuitem" href="${shell.passwordHref}" data-i18n="common.header.menu.password">비밀번호 변경</a>
-        <button type="button" class="lhai-user-menu__item lhai-user-menu__item--button" role="menuitem" data-lhai-logout data-i18n="common.header.menu.logout">로그아웃</button>
+    <div class="lhai-topbar__actions" id="lhai-topbar-actions">
+      <div class="lhai-topbar__language-slot" id="${TOPBAR_LANGUAGE_SLOT_ID}" data-lhai-topbar-language-slot></div>
+      <a class="lhai-topbar-mail" id="lhai-header-messages-link" href="${shell.messagesHref}" data-i18n-title="common.header.messages" data-i18n-aria-label="common.header.messages" title="메시지함" aria-label="메시지함"${currentAttr}>
+        ${APP_HEADER_MAIL_ICON_SVG}
+        <span id="lhai-header-mail-unread" class="lhai-topbar-mail__badge" role="status" aria-live="polite" hidden></span>
+      </a>
+      <div class="lhai-user-menu" data-lhai-account-menu>
+        <button type="button" class="lhai-user-menu__trigger" aria-expanded="false" aria-haspopup="menu">
+          <span id="lhai-header-role-badge" class="lhai-badge" aria-live="polite"></span>
+          <span class="lhai-user-menu__chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="lhai-user-menu__panel" role="menu" aria-orientation="vertical" hidden>
+          <a class="lhai-user-menu__item" role="menuitem" href="${shell.profileHref}" data-i18n="common.header.menu.profile">내 정보</a>
+          <a class="lhai-user-menu__item" role="menuitem" href="${shell.passwordHref}" data-i18n="common.header.menu.password">비밀번호 변경</a>
+          <button type="button" class="lhai-user-menu__item lhai-user-menu__item--button" role="menuitem" data-lhai-logout data-i18n="common.header.menu.logout">로그아웃</button>
+        </div>
       </div>
     </div>
   </div>

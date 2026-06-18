@@ -21,12 +21,18 @@ test("bidding question groups use group-level UI, not per-child bidding checkbox
   assert.doesNotMatch(src, /msiQgChildBiddingUiHtml/);
 });
 
-test("intake toolbar uses Questions block only (no standalone Question add)", () => {
+test("intake toolbar uses Questions + Description (legacy notice/image/rich_text merged)", () => {
   const html = readFileSync(HTML, "utf8");
   const js = readFileSync(TAB_JS, "utf8");
   assert.match(html, /manageServiceIntakeAddQuestionGroupBtn/);
-  assert.match(html, /add_questions/);
+  assert.match(html, /manageServiceIntakeAddDescriptionBtn/);
+  assert.match(html, /add_description/);
+  assert.doesNotMatch(html, /manageServiceIntakeAddNoticeBtn/);
+  assert.doesNotMatch(html, /manageServiceIntakeAddImageBtn/);
+  assert.doesNotMatch(html, /manageServiceIntakeAddRichTextBtn/);
   assert.doesNotMatch(html, /manageServiceIntakeAddQuestionBtn/);
+  assert.match(js, /msiIsDescriptionLikeBlock/);
+  assert.match(js, /msiQuillInsertImageFromUpload/);
   assert.match(js, /msiDefaultStandardQuestionGroupPayload/);
   assert.match(js, /msiConvertLegacyQuestionToGroup/);
   assert.doesNotMatch(js, /manageServiceIntakeAddQuestionBtn/);
@@ -37,11 +43,17 @@ test("side editor saves only via Save; Cancel and backdrop discard", () => {
   assert.match(src, /msiCaptureSideEditorSnapshot/);
   assert.match(src, /msiCancelSidePanel/);
   assert.match(src, /msiSideSaveRequested/);
+  assert.match(src, /msiSideEditorSession/);
+  assert.match(src, /msiInvalidateSideEditorSave/);
+  assert.match(src, /saveSession !== msiSideEditorSession/);
+  assert.match(src, /msiDiscardSideEditorChanges/);
   assert.match(src, /msiArmSideDismissGuard/);
   assert.match(src, /msiSideDismissGuardUntil/);
+  assert.match(src, /manageServiceIntakeSideCloseBtn[\s\S]{0,200}?msiCancelSidePanel/);
   assert.match(src, /manageServiceIntakeSideDeleteBtn[\s\S]{0,120}?msiCancelSidePanel/);
   assert.match(src, /manageServiceIntakeSideBackdrop[\s\S]{0,400}?msiCancelSidePanel/);
   assert.match(src, /msiCloseSidePanel\(\{ saved: true \}\)/);
+  assert.doesNotMatch(src, /if \(!sameBlockOpen\)[\s\S]{0,80}?msiCaptureSideEditorSnapshot/);
   assert.doesNotMatch(src, /manageServiceIntakeFieldForm[\s\S]{0,120}?addEventListener\("submit"/);
 });
 

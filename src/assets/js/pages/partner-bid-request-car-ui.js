@@ -8,7 +8,9 @@ import {
   buildAutoOfferTitle,
   cloneOffer,
   computeOfferEstimatedTotal,
+  createBlankCarOfferForAdd,
   createEmptyCarOffer,
+  optionalNumberInputValue,
   DEFAULT_MAX_OFFER_PHOTOS,
   prepareBidOfferPhotoFileForUpload,
   validateBidOfferPhotoFile,
@@ -84,9 +86,23 @@ const TITLE_STATUS_OPTIONS = [
 const ACCIDENT_OPTIONS = [
   { value: "", label: "—" },
   { value: "No accident reported", label: "No accident reported" },
-  { value: "Accident reported", label: "Accident reported" },
+  { value: "Minor accident reported", label: "Minor accident reported (경미한 사고)" },
+  { value: "Major accident reported", label: "Major accident reported (중대 사고)" },
   { value: "Unknown", label: "Unknown" },
 ];
+
+/** @param {string} selected */
+function accidentHistorySelectOptionsHtml(selected) {
+  const value = String(selected || "").trim();
+  const options = [...ACCIDENT_OPTIONS];
+  if (value === "Accident reported" && !options.some((o) => o.value === value)) {
+    options.splice(3, 0, {
+      value: "Accident reported",
+      label: "Accident reported (기존 제안 — 세부 등급 미지정)",
+    });
+  }
+  return renderSelectOptions(options, value);
+}
 
 /** @param {Array<{value:string,label:string}>} options @param {string} selected */
 function renderSelectOptions(options, selected) {
@@ -303,7 +319,7 @@ function renderOfferFields(offer, disabled, photoOpts = {}) {
         </div>
         <div class="lhai-par-car__field-row">
           <label>사고 이력</label>
-          <select name="accident_history" ${dis}>${renderSelectOptions(ACCIDENT_OPTIONS, accident)}</select>
+          <select name="accident_history" ${dis}>${accidentHistorySelectOptionsHtml(accident)}</select>
         </div>
       </div>
     </fieldset>
@@ -317,19 +333,19 @@ function renderOfferFields(offer, disabled, photoOpts = {}) {
         </div>
         <div class="lhai-par-car__field-row">
           <label>예상 세금·수수료</label>
-          <input type="number" name="estimated_tax_fees" min="0" step="1" value="${offer.estimated_tax_fees ?? 0}" ${dis} />
+          <input type="number" name="estimated_tax_fees" min="0" step="1" value="${optionalNumberInputValue(offer.estimated_tax_fees)}" ${dis} />
         </div>
         <div class="lhai-par-car__field-row">
           <label>딜러 수수료</label>
-          <input type="number" name="dealer_fee" min="0" step="1" value="${offer.dealer_fee ?? 0}" ${dis} />
+          <input type="number" name="dealer_fee" min="0" step="1" value="${optionalNumberInputValue(offer.dealer_fee)}" ${dis} />
         </div>
         <div class="lhai-par-car__field-row">
           <label>파트너 서비스 수수료</label>
-          <input type="number" name="partner_service_fee" min="0" step="1" value="${offer.partner_service_fee ?? 0}" ${dis} />
+          <input type="number" name="partner_service_fee" min="0" step="1" value="${optionalNumberInputValue(offer.partner_service_fee)}" ${dis} />
         </div>
         <div class="lhai-par-car__field-row">
           <label>배송비</label>
-          <input type="number" name="delivery_fee" min="0" step="1" value="${offer.delivery_fee ?? 0}" ${dis} />
+          <input type="number" name="delivery_fee" min="0" step="1" value="${optionalNumberInputValue(offer.delivery_fee)}" ${dis} />
         </div>
         <div class="lhai-par-car__field-row lhai-par-car__total-row">
           <label>총 견적 <span class="u-text-muted">(수동 입력 가능)</span></label>
@@ -775,17 +791,8 @@ export function mountCarPurchaseBidUi(root, ctx) {
       if (!isEditable) btn.disabled = true;
       btn.addEventListener("click", () => {
         syncOfferFromForm();
-        const vr = findVehicleRequest(index);
         const isAlt = action === "alt";
-        const next = createEmptyCarOffer({ linkedRequestIndex: index, isAlternative: isAlt });
-        if (vr && !isAlt) {
-          next.vehicle_condition = vr.vehicle_condition || "";
-          next.make = vr.make || "";
-          next.model = vr.model || "";
-          next.year = vr.year_min ?? null;
-          next.mileage = vr.mileage_max ?? null;
-          next.location = String(carReq.location || cust.location || "");
-        }
+        const next = createBlankCarOfferForAdd({ linkedRequestIndex: index, isAlternative: isAlt });
         offers.push(next);
         activeIdx = offers.length - 1;
         persistCarOfferDraft();
@@ -1064,7 +1071,17 @@ export function mountCarPurchaseBidUi(root, ctx) {
 
   root.querySelector("#partnerCarAddOfferBtn")?.addEventListener("click", () => {
     syncOfferFromForm();
-    offers.push(withLinkedRequestIndex(createEmptyCarOffer({ isAlternative: false }), vehicleRequests));
+    const linked = offers[activeIdx]?.linked_request_index;
+    const linkedRequestIndex =
+      linked != null && linked !== "" && Number.isFinite(Number(linked)) && Number(linked) >= 1
+        ? Math.floor(Number(linked))
+        : null;
+    offers.push(
+      withLinkedRequestIndex(
+        createBlankCarOfferForAdd({ linkedRequestIndex, isAlternative: false }),
+        vehicleRequests,
+      ),
+    );
     activeIdx = offers.length - 1;
     persistCarOfferDraft();
     renderOffersUi();

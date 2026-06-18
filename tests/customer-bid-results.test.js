@@ -190,16 +190,27 @@ test("customerBidStatusBannerMessage for EXPIRED and CLOSED", async () => {
 
 test("buildCustomerBidSelectConfirmContent EXPIRED vs OPEN", async () => {
   const m = await importFresh(logicPath);
-  const offer = { title: "2022 Sienna", estimated_total: 28000, currency: "USD" };
-  const expired = m.buildCustomerBidSelectConfirmContent("EXPIRED", offer, {});
+  const vehicleOffer = {
+    title: "2022 Sienna",
+    product_category: "vehicle",
+    estimated_total: 28000,
+    currency: "USD",
+  };
+  const expired = m.buildCustomerBidSelectConfirmContent("EXPIRED", vehicleOffer, {});
   assert.equal(expired.modalTitle, "Select this offer?");
   assert.match(expired.bodyHtml, /bidding round has ended/i);
+  assert.match(expired.bodyHtml, /다른 구매자에게 먼저 판매/);
   assert.equal(expired.submitLabel, "Select and contact partner");
-  const open = m.buildCustomerBidSelectConfirmContent("OPEN", offer, {
+  const open = m.buildCustomerBidSelectConfirmContent("OPEN", vehicleOffer, {
     expires_at: new Date(Date.now() + 3600_000).toISOString(),
   });
   assert.equal(open.modalTitle, "제안 선택 확인");
+  assert.match(open.bodyHtml, /다른 구매자에게 먼저 판매/);
   assert.match(open.warnText, /비딩 마감/);
+
+  const productOffer = { title: "Phone plan", product_category: "service", estimated_total: 99 };
+  const openProduct = m.buildCustomerBidSelectConfirmContent("OPEN", productOffer, {});
+  assert.doesNotMatch(openProduct.bodyHtml, /다른 구매자에게 먼저 판매/);
 });
 
 test("resolveCustomerBidActions prefers API flags", async () => {
@@ -213,6 +224,38 @@ test("resolveCustomerBidActions prefers API flags", async () => {
   assert.equal(actions.can_select_existing_offers, true);
   assert.equal(actions.can_partner_submit, false);
   assert.equal(actions.can_request_new_round, true);
+});
+
+test("vehicle offer card shows minor and major accident labels", async () => {
+  const m = await importFresh(logicPath);
+  const html = m.buildVehicleOfferCardHtml(
+    {
+      offer_id: "o1",
+      bid_id: "b1",
+      title: "2020 Camry",
+      partner_name: "Dealer",
+      estimated_total: 20000,
+      currency: "USD",
+      vehicle: { accident_history: "Minor accident reported" },
+    },
+    { phase: "OPEN", activeSort: "recommended", snap: { status: "OPEN" } },
+    (s) => String(s),
+  );
+  assert.match(html, /경미한 사고/);
+  const majorHtml = m.buildVehicleOfferCardHtml(
+    {
+      offer_id: "o2",
+      bid_id: "b2",
+      title: "2018 SUV",
+      partner_name: "Dealer",
+      estimated_total: 18000,
+      currency: "USD",
+      vehicle: { accident_history: "Major accident reported" },
+    },
+    { phase: "OPEN", activeSort: "recommended", snap: { status: "OPEN" } },
+    (s) => String(s),
+  );
+  assert.match(majorHtml, /중대 사고/);
 });
 
 test("isVehicleOffer detects vehicle category and block", async () => {

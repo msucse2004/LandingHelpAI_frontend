@@ -1,5 +1,4 @@
 import { surveyCustomerApi } from "../core/api.js";
-import { initCommonI18nAndApplyDom } from "../core/i18n-dom.js";
 import { t } from "../core/i18n-client.js";
 import { qs, safeText } from "../core/utils.js";
 import { isCatalogRecServiceItemUuidString } from "../lib/catalog-rec-service-item-id.js";
@@ -229,8 +228,6 @@ function renderPackages(rec) {
 }
 
 async function init() {
-  await initCommonI18nAndApplyDom(document);
-
   const submissionId = parseSubmissionId();
   if (!submissionId) {
     setStatus(t("common.survey_recommendations.err_no_submission", "Missing submission. Open this page from the survey flow."));

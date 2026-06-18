@@ -8,6 +8,7 @@
  *   title: string,
  *   subtitle?: string,
  *   titleId?: string,
+ *   titleI18nKey?: string,
  *   subtitleId?: string,
  *   eyebrowHtml?: string,
  * }} opts
@@ -15,6 +16,7 @@
  */
 export function renderPartnerPageHeaderHtml(opts) {
   const titleId = opts.titleId ? ` id="${opts.titleId}"` : "";
+  const titleI18n = opts.titleI18nKey ? ` data-i18n="${opts.titleI18nKey}"` : "";
   const subtitleBlock = opts.subtitleId
     ? `<p class="lhai-subtitle" id="${opts.subtitleId}">${opts.subtitle ?? ""}</p>`
     : opts.subtitle
@@ -27,7 +29,7 @@ export function renderPartnerPageHeaderHtml(opts) {
   return `<section class="lhai-page-header lhai-partner-page__header">
     ${eyebrow}
     <div>
-      <h1 class="lhai-title"${titleId}>${opts.title}</h1>
+      <h1 class="lhai-title"${titleId}${titleI18n}>${opts.title}</h1>
       ${subtitleBlock}
     </div>
   </section>`;
@@ -38,6 +40,7 @@ export function renderPartnerPageHeaderHtml(opts) {
  *   title: string,
  *   subtitle?: string,
  *   titleId?: string,
+ *   titleI18nKey?: string,
  *   subtitleId?: string,
  *   eyebrowHtml?: string,
  *   bodyHtml?: string,
@@ -51,6 +54,7 @@ export function renderPartnerPageContentHtml(opts) {
     title: opts.title,
     subtitle: opts.subtitle,
     titleId: opts.titleId,
+    titleI18nKey: opts.titleI18nKey,
     subtitleId: opts.subtitleId,
     eyebrowHtml: opts.eyebrowHtml,
   });

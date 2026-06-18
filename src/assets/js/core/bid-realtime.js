@@ -173,49 +173,63 @@ export function isCustomerDashboardHtmlPage() {
   }
 }
 
-function escapeHtml(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+import { showGlobalRealtimeInboxToast } from "./realtime-inbox-toast.js";
+import {
+  bidUpdatedToastAllowed,
+  tryAcquireBidUpdatedToast,
+} from "./realtime-toast-dedupe.js";
+
+export {
+  bidUpdatedToastAllowed,
+  BID_MESSAGE_OVERLAP_EVENT_KINDS,
+  buildBidUpdatedToastDedupeKeys,
+  buildMessageCreatedToastDedupeKeys,
+  reserveMessageActionToastDedupe,
+  reserveMessageCreatedToastDedupe,
+  shouldSuppressBidUpdatedToast,
+  tryAcquireBidUpdatedToast,
+  tryAcquireRealtimeMessageToast,
+} from "./realtime-toast-dedupe.js";
+
+export { recordRealtimeMessageCreatedForThread, shouldSuppressBidToastForThread } from "./realtime-inbox-toast.js";
+
+/**
+ * @param {Record<string, unknown>} payload
+ * @returns {boolean}
+ */
+export function isBiddingCustomerSelectedPayload(payload) {
+  return resolveBiddingEventKind(payload) === BIDDING_EVENT_KINDS.CUSTOMER_SELECTED;
 }
 
 /**
- * @param {{ href: string, title?: string, body?: string, cta?: string }} opts
+ * @param {{
+ *   href: string;
+ *   title?: string;
+ *   body?: string;
+ *   cta?: string;
+ *   threadId?: string | null;
+ *   bidRequestId?: string | null;
+ *   eventKind?: string | null;
+ * }} opts
  */
 export function showBidUpdatedToast(opts) {
   const href = String(opts.href || "").trim();
   if (!href) return;
-  let root = document.querySelector("#lhai-message-toast-root");
-  if (!(root instanceof HTMLElement)) {
-    root = document.createElement("div");
-    root.id = "lhai-message-toast-root";
-    root.className = "lhai-message-toast-root";
-    document.body.appendChild(root);
+  const eventKind = String(opts.eventKind || "").trim().toUpperCase();
+  if (!bidUpdatedToastAllowed(eventKind)) return;
+  if (
+    !tryAcquireBidUpdatedToast({
+      threadId: opts.threadId,
+      bidRequestId: opts.bidRequestId,
+      eventKind,
+    })
+  ) {
+    return;
   }
-  const title = escapeHtml(opts.title || "견적이 업데이트되었습니다");
-  const body = escapeHtml(opts.body || "");
-  const cta = escapeHtml(opts.cta || "보기");
-  root.innerHTML = `
-    <div class="lhai-message-toast" role="status" aria-live="polite">
-      <div class="lhai-message-toast__title">${title}</div>
-      ${body ? `<div class="lhai-message-toast__body">${body}</div>` : ""}
-      <a class="lhai-message-toast__cta" href="${escapeHtml(href)}">${cta}</a>
-      <button type="button" class="lhai-message-toast__close" aria-label="닫기">닫기</button>
-    </div>`;
-  const close = root.querySelector(".lhai-message-toast__close");
-  close?.addEventListener("click", () => {
-    root.classList.remove("is-visible");
-    window.setTimeout(() => {
-      root.innerHTML = "";
-    }, 180);
+  showGlobalRealtimeInboxToast({
+    title: opts.title || "견적이 업데이트되었습니다",
+    body: opts.body || "",
+    cta: opts.cta || "보기",
+    href,
   });
-  root.classList.add("is-visible");
-  window.setTimeout(() => {
-    root.classList.remove("is-visible");
-    window.setTimeout(() => {
-      root.innerHTML = "";
-    }, 180);
-  }, 12_000);
 }

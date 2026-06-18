@@ -1,111 +1,111 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Admin Customer 360 - Landing Help AI</title>
+  <title data-i18n="admin.customer_detail.page_title" data-i18n-default="Admin Customer 360 - Landing Help AI">Admin Customer 360 - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/admin-customer-detail.css" />
 </head>
-<body>
+<body data-lhai-i18n-domains="common,nav,admin">
   <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar"></aside>
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" data-i18n-default="Admin menu" aria-label="Admin menu"></aside>
     <main class="lhai-main ac360-main">
       <section class="lhai-page-header ac360-page-header">
         <div>
-          <p class="ac360-back"><a href="admin-customers.html" class="lhai-link">← 고객 목록</a></p>
-          <h1 class="lhai-title" id="ac360PageTitle">Customer 360</h1>
-          <p class="lhai-subtitle" id="ac360PageSubtitle">고객 프로필·인테이크·설문·워크플로·메시지를 한 화면에서 조회합니다.</p>
+          <p class="ac360-back"><a href="admin-customers.html" class="lhai-link" data-i18n="admin.customer_detail.back_link" data-i18n-default="← Customer list">← Customer list</a></p>
+          <h1 class="lhai-title" id="ac360PageTitle" data-i18n="admin.customer_detail.title" data-i18n-default="Customer 360">Customer 360</h1>
+          <p class="lhai-subtitle" id="ac360PageSubtitle" data-i18n="admin.customer_detail.subtitle" data-i18n-default="View profile, intake, survey, workflow, and messages in one place.">View profile, intake, survey, workflow, and messages in one place.</p>
         </div>
         <div class="ac360-page-actions">
-          <button type="button" class="lhai-button lhai-button--secondary" id="ac360ReloadBtn">새로고침</button>
-          <a class="lhai-button lhai-button--secondary" id="ac360MessagesLink" href="messages.html">메시지함</a>
+          <button type="button" class="lhai-button lhai-button--secondary" id="ac360ReloadBtn" data-i18n="admin.customer_detail.reload" data-i18n-default="Refresh">Refresh</button>
+          <a class="lhai-button lhai-button--secondary" id="ac360MessagesLink" href="messages.html" data-i18n="admin.customer_detail.messages_link" data-i18n-default="Messages">Messages</a>
         </div>
       </section>
 
       <div id="ac360GlobalError" class="ac360-banner ac360-banner--error" hidden role="alert"></div>
-      <div id="ac360GlobalLoading" class="lhai-state">Customer 360 데이터를 불러오는 중…</div>
+      <div id="ac360GlobalLoading" class="lhai-state" data-i18n="admin.customer_detail.loading" data-i18n-default="Loading Customer 360 data…">Loading Customer 360 data…</div>
 
       <div id="ac360Root" class="ac360-root" hidden>
-        <nav class="ac360-toc" aria-label="섹션 목록">
-          <a href="#ac360SecBasic">기본 정보</a>
-          <a href="#ac360SecContact">연락처·위치</a>
-          <a href="#ac360SecFamily">가족·가구</a>
-          <a href="#ac360SecServices">서비스 프로필</a>
-          <a href="#ac360SecSurvey">설문</a>
-          <a href="#ac360SecIntake">인테이크</a>
-          <a href="#ac360SecQuotes">견적</a>
-          <a href="#ac360SecWorkflow">워크플로</a>
-          <a href="#ac360SecPartners">파트너·비딩</a>
-          <a href="#ac360SecMessages">메시지</a>
-          <a href="#ac360SecActivity">활동</a>
-          <a href="#ac360SecNotes">관리자 메모</a>
+        <nav class="ac360-toc" data-i18n-aria-label="admin.customer_detail.toc.aria_label" data-i18n-default="Section list" aria-label="Section list">
+          <a href="#ac360SecBasic" data-i18n="admin.customer_detail.toc.basic" data-i18n-default="Basic info">Basic info</a>
+          <a href="#ac360SecContact" data-i18n="admin.customer_detail.toc.contact" data-i18n-default="Contact & location">Contact & location</a>
+          <a href="#ac360SecFamily" data-i18n="admin.customer_detail.toc.family" data-i18n-default="Family & household">Family & household</a>
+          <a href="#ac360SecServices" data-i18n="admin.customer_detail.toc.services" data-i18n-default="Service profile">Service profile</a>
+          <a href="#ac360SecSurvey" data-i18n="admin.customer_detail.toc.survey" data-i18n-default="Survey">Survey</a>
+          <a href="#ac360SecIntake" data-i18n="admin.customer_detail.toc.intake" data-i18n-default="Intake">Intake</a>
+          <a href="#ac360SecQuotes" data-i18n="admin.customer_detail.toc.quotes" data-i18n-default="Quotes">Quotes</a>
+          <a href="#ac360SecWorkflow" data-i18n="admin.customer_detail.toc.workflow" data-i18n-default="Workflow">Workflow</a>
+          <a href="#ac360SecPartners" data-i18n="admin.customer_detail.toc.partners" data-i18n-default="Partners & bidding">Partners & bidding</a>
+          <a href="#ac360SecMessages" data-i18n="admin.customer_detail.toc.messages" data-i18n-default="Messages">Messages</a>
+          <a href="#ac360SecActivity" data-i18n="admin.customer_detail.toc.activity" data-i18n-default="Activity">Activity</a>
+          <a href="#ac360SecNotes" data-i18n="admin.customer_detail.toc.notes" data-i18n-default="Admin notes">Admin notes</a>
         </nav>
 
         <div class="ac360-sections">
           <details class="ac360-section" id="ac360SecBasic" open>
-            <summary class="ac360-section__summary">1. 기본 정보</summary>
+            <summary class="ac360-section__summary" data-i18n="admin.customer_detail.section.basic" data-i18n-default="1. Basic info">1. Basic info</summary>
             <div class="ac360-section__body" id="ac360Basic"></div>
           </details>
 
           <details class="ac360-section" id="ac360SecContact" open>
-            <summary class="ac360-section__summary">2. 연락처 / 위치</summary>
+            <summary class="ac360-section__summary" data-i18n="admin.customer_detail.section.contact" data-i18n-default="2. Contact / location">2. Contact / location</summary>
             <div class="ac360-section__body" id="ac360Contact"></div>
           </details>
 
           <details class="ac360-section" id="ac360SecFamily">
-            <summary class="ac360-section__summary">3. 가족 / 가구</summary>
+            <summary class="ac360-section__summary" data-i18n="admin.customer_detail.section.family" data-i18n-default="3. Family / household">3. Family / household</summary>
             <div class="ac360-section__body" id="ac360Family"></div>
           </details>
 
           <details class="ac360-section" id="ac360SecServices" open>
-            <summary class="ac360-section__summary">4. 서비스 프로필</summary>
+            <summary class="ac360-section__summary" data-i18n="admin.customer_detail.section.services" data-i18n-default="4. Service profile">4. Service profile</summary>
             <div class="ac360-section__body" id="ac360Services"></div>
           </details>
 
           <details class="ac360-section" id="ac360SecSurvey">
-            <summary class="ac360-section__summary">5. 설문 응답</summary>
+            <summary class="ac360-section__summary" data-i18n="admin.customer_detail.section.survey" data-i18n-default="5. Survey responses">5. Survey responses</summary>
             <div class="ac360-section__body" id="ac360Survey"></div>
           </details>
 
           <details class="ac360-section" id="ac360SecIntake">
-            <summary class="ac360-section__summary">6. 인테이크 응답</summary>
+            <summary class="ac360-section__summary" data-i18n="admin.customer_detail.section.intake" data-i18n-default="6. Intake responses">6. Intake responses</summary>
             <div class="ac360-section__body" id="ac360Intake"></div>
           </details>
 
           <details class="ac360-section" id="ac360SecQuotes">
-            <summary class="ac360-section__summary">7. 견적 / 서비스 요청</summary>
+            <summary class="ac360-section__summary" data-i18n="admin.customer_detail.section.quotes" data-i18n-default="7. Quotes / service requests">7. Quotes / service requests</summary>
             <div class="ac360-section__body" id="ac360Quotes"></div>
           </details>
 
           <details class="ac360-section" id="ac360SecWorkflow">
-            <summary class="ac360-section__summary">8. 워크플로 / 케이스</summary>
+            <summary class="ac360-section__summary" data-i18n="admin.customer_detail.section.workflow" data-i18n-default="8. Workflow / cases">8. Workflow / cases</summary>
             <div class="ac360-section__body" id="ac360Workflow"></div>
           </details>
 
           <details class="ac360-section" id="ac360SecPartners">
-            <summary class="ac360-section__summary">9. 파트너 / 비딩</summary>
+            <summary class="ac360-section__summary" data-i18n="admin.customer_detail.section.partners" data-i18n-default="9. Partners / bidding">9. Partners / bidding</summary>
             <div class="ac360-section__body" id="ac360Partners"></div>
           </details>
 
           <details class="ac360-section" id="ac360SecMessages">
-            <summary class="ac360-section__summary">10. 메시지</summary>
+            <summary class="ac360-section__summary" data-i18n="admin.customer_detail.section.messages" data-i18n-default="10. Messages">10. Messages</summary>
             <div class="ac360-section__body" id="ac360Messages"></div>
           </details>
 
           <details class="ac360-section" id="ac360SecActivity">
-            <summary class="ac360-section__summary">11. 활동 타임라인</summary>
+            <summary class="ac360-section__summary" data-i18n="admin.customer_detail.section.activity" data-i18n-default="11. Activity timeline">11. Activity timeline</summary>
             <div class="ac360-section__body" id="ac360Activity"></div>
           </details>
 
           <details class="ac360-section" id="ac360SecNotes">
-            <summary class="ac360-section__summary">12. 관리자 메모</summary>
+            <summary class="ac360-section__summary" data-i18n="admin.customer_detail.section.notes" data-i18n-default="12. Admin notes">12. Admin notes</summary>
             <div class="ac360-section__body" id="ac360Notes"></div>
           </details>
 
           <details class="ac360-section ac360-section--secondary">
-            <summary class="ac360-section__summary">부가: 이메일 로그</summary>
+            <summary class="ac360-section__summary" data-i18n="admin.customer_detail.section.email_logs" data-i18n-default="Extra: email logs">Extra: email logs</summary>
             <div class="ac360-section__body" id="ac360EmailLogs"></div>
           </details>
         </div>
@@ -113,12 +113,12 @@
 
       <dialog id="ac360EditDialog" class="ac360-dialog">
         <form id="ac360EditForm" method="dialog" class="ac360-dialog__form">
-          <h2 class="ac360-dialog__title" id="ac360EditDialogTitle">편집</h2>
+          <h2 class="ac360-dialog__title" id="ac360EditDialogTitle" data-i18n="admin.customer_detail.edit_dialog.title" data-i18n-default="Edit">Edit</h2>
           <div id="ac360EditDialogFields" class="ac360-dialog__fields"></div>
           <p id="ac360EditDialogError" class="ac360-banner ac360-banner--error" hidden role="alert"></p>
           <div class="ac360-dialog__actions">
-            <button type="button" class="lhai-button lhai-button--secondary" id="ac360EditCancelBtn">취소</button>
-            <button type="submit" class="lhai-button lhai-button--primary" id="ac360EditSaveBtn">저장</button>
+            <button type="button" class="lhai-button lhai-button--secondary" id="ac360EditCancelBtn" data-i18n="common.cancel" data-i18n-default="Cancel">Cancel</button>
+            <button type="submit" class="lhai-button lhai-button--primary" id="ac360EditSaveBtn" data-i18n="common.save" data-i18n-default="Save">Save</button>
           </div>
         </form>
       </dialog>

@@ -1,12 +1,13 @@
 import { ROLES } from "./config.js";
 import { debugDashboard, isPartnerDashboardDebugEnabled } from "./partner-dashboard-debug.js";
+import { applyLoginPreferredLanguage, resolveAccountPreferredLanguageCode } from "./preferred-language.js";
 
 const TOKEN_KEY = "lhai_access_token";
 const SESSION_KEY = "lhai_session";
 
 /**
  * Session shape:
- * { userId: string, role: string, email: string, username?: string }
+ * { userId: string, role: string, email: string, username?: string, preferred_language_code?: string }
  */
 function getSession() {
   const raw = window.localStorage.getItem(SESSION_KEY);
@@ -29,7 +30,34 @@ function setSession(session) {
   if (payload.role != null && String(payload.role).trim() !== "") {
     payload.role = normalizeRole(payload.role);
   }
+  const langRaw =
+    payload.preferred_language_code != null
+      ? payload.preferred_language_code
+      : payload.preferredLanguage;
+  if (langRaw != null && String(langRaw).trim() !== "") {
+    payload.preferred_language_code = resolveAccountPreferredLanguageCode(langRaw);
+    delete payload.preferredLanguage;
+  }
   window.localStorage.setItem(SESSION_KEY, JSON.stringify(payload));
+}
+
+/**
+ * Update ``preferred_language_code`` on the authenticated session (validated supported code).
+ * @param {string | null | undefined} code
+ * @returns {boolean}
+ */
+function updateSessionPreferredLanguage(code) {
+  try {
+    const session = getSession();
+    if (!session || typeof session !== "object") return false;
+    setSession({
+      ...session,
+      preferred_language_code: resolveAccountPreferredLanguageCode(code),
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function clearSession() {
@@ -101,9 +129,37 @@ function logout() {
   window.location.href = "login.html";
 }
 
+/**
+ * Apply POST /api/auth/login response: token + session only.
+ * Account ``preferred_language_code`` from the login API becomes the session language.
+ * Guest ``lhai_preferred_language`` remains in localStorage for logged-out pages only.
+ * @param {object} result
+ * @returns {{ preferredLanguageCode: string }}
+ */
+function applyAuthLoginResult(result) {
+  if (!result || typeof result !== "object") {
+    throw new Error("Invalid login response");
+  }
+  const accessToken = result.access_token;
+  if (!accessToken || String(accessToken).trim() === "") {
+    throw new Error("Login response missing access_token");
+  }
+  const preferredLanguageCode = applyLoginPreferredLanguage(result.preferred_language_code);
+  setAccessToken(accessToken);
+  setSession({
+    userId: result.user_id,
+    role: result.role,
+    email: result.email,
+    username: String(result.username || "").trim(),
+    preferred_language_code: preferredLanguageCode,
+  });
+  return { preferredLanguageCode };
+}
+
 export {
   SESSION_KEY,
   TOKEN_KEY,
+  applyAuthLoginResult,
   clearAccessToken,
   clearSession,
   getAccessToken,
@@ -116,4 +172,5 @@ export {
   normalizeRole,
   setAccessToken,
   setSession,
+  updateSessionPreferredLanguage,
 };

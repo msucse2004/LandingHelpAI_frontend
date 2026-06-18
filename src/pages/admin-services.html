@@ -449,9 +449,9 @@
                       <div class="admin-services__service-editor-panel" id="manageServiceIntakePanel" data-service-editor-panel="intake" hidden>
                         <div class="admin-services__intake-intro">
                           <p class="lhai-help admin-services__intake-lead" id="manageServiceIntakeLead"
-                            data-i18n="common.admin_services.intake.builder_lead">Stack blocks from top to bottom—customers see them in this order. Add customer questions as Questions blocks (one step can hold one or many inputs). Mix with notices, images, and rich text.</p>
+                            data-i18n="common.admin_services.intake.builder_lead">Stack blocks from top to bottom—customers see them in this order. Add customer questions as Questions blocks (one step can hold one or many inputs). Use Description blocks for intros, images, and formatted text.</p>
                           <p class="lhai-help admin-services__intake-flow-guide u-mt-2" id="manageServiceIntakeFlowGuide"
-                            data-i18n="common.admin_services.intake.flow_guide">Typical flow: intro notice → image → questions block (single or multi-field) → optional conditional notice (Visibility) → closing summary. Reorder with ↑↓.</p>
+                            data-i18n="common.admin_services.intake.flow_guide">Typical flow: intro description → questions block (single or multi-field) → optional conditional description (Visibility) → closing summary. Reorder with ↑↓.</p>
                           <p class="lhai-help admin-services__intake-hint" id="manageServiceIntakeHint" hidden></p>
                           <div class="admin-services__intake-preset-row u-flex u-gap-2 u-mt-2" style="flex-wrap:wrap;align-items:center;">
                             <span class="lhai-help u-m-0" data-i18n="common.admin_services.intake.presets_label">Starter</span>
@@ -466,9 +466,7 @@
                             <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakePreviewBtn" data-i18n="common.admin_services.intake.preview_open" data-i18n-title="common.admin_services.intake.preview_tooltip" title="Open a read-only preview of this intake flow.">Preview</button>
                             <span class="lhai-help u-m-0 u-align-self-center" data-i18n="common.admin_services.intake.add_blocks_label">Add blocks</span>
                             <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddQuestionGroupBtn" data-i18n="common.admin_services.intake.add_questions">+ Questions</button>
-                            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddNoticeBtn" data-i18n="common.admin_services.intake.add_notice">+ Notice</button>
-                            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddImageBtn" data-i18n="common.admin_services.intake.add_image">+ Image</button>
-                            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddRichTextBtn" data-i18n="common.admin_services.intake.add_rich_text">+ Rich text</button>
+                            <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddDescriptionBtn" data-i18n="common.admin_services.intake.add_description">+ Description</button>
                             <button type="button" class="lhai-button lhai-button--secondary lhai-button--compact" id="manageServiceIntakeAddDividerBtn" data-i18n="common.admin_services.intake.add_divider">+ Divider</button>
                           </div>
                         </div>
@@ -494,8 +492,8 @@
                               <input class="lhai-input" id="manageServiceIntakeSideTitleInput" type="text" maxlength="300" autocomplete="off" />
                               <div id="manageServiceIntakeSideQuestionGroupMount" class="admin-services__intake-side-qgroup" hidden></div>
                               <div id="manageServiceIntakeSideBodySection">
-                                <p class="lhai-label u-mt-2" id="manageServiceIntakeSideBodyLabel" data-i18n="common.admin_services.intake.side_body">Body / message</p>
-                                <p class="lhai-help u-mb-2" data-i18n="common.admin_services.intake.side_body_rich_hint">Use the toolbar for bold, lists, colors, and links. Plain text still works.</p>
+                                <p class="lhai-label u-mt-2" id="manageServiceIntakeSideBodyLabel" data-i18n="common.admin_services.intake.side_body">Body</p>
+                                <p class="lhai-help u-mb-2" data-i18n="common.admin_services.intake.side_body_rich_hint">Use the toolbar for formatting, links, and inline images. Add a featured image below if you want a large visual above the text.</p>
                                 <div id="manageServiceIntakeSideBodyQuillHost" class="admin-intake-body-editor-host" aria-labelledby="manageServiceIntakeSideBodyLabel"></div>
                                 <textarea class="lhai-textarea" id="manageServiceIntakeSideBody" rows="12" maxlength="8000" hidden aria-hidden="true"></textarea>
                               </div>

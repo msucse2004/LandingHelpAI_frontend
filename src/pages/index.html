@@ -1,23 +1,31 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title data-i18n="common.home.meta.title">Landing Help AI</title>
+  <title data-i18n="common.home.meta.title" data-i18n-default="Landing Help AI">Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" />
   <link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" />
   <link rel="stylesheet" href="../assets/css/components.css" />
   <link rel="stylesheet" href="../assets/css/utilities.css" />
 </head>
-<body>
+<body class="lhai-public-page" data-lhai-i18n-domains="common">
   <main class="lhai-container">
     <section class="lhai-page-header">
-      <div><h1 class="lhai-title" data-i18n="common.home.hero.title">Landing Help AI</h1><p class="lhai-subtitle" data-i18n="common.home.hero.subtitle">Landing Help AI Agent와 업무 실행 워크플로 플랫폼입니다.</p></div>
-      <div class="u-flex u-gap-2"><a class="lhai-button lhai-button--secondary" href="services.html" data-i18n="common.home.hero.cta.services">서비스 보기</a><a class="lhai-button lhai-button--primary" href="survey-start.html" data-i18n="common.home.hero.cta.get_started">견적신청</a></div>
+      <div>
+        <h1 class="lhai-title" data-i18n="common.home.hero.title" data-i18n-default="Landing Help AI">Landing Help AI</h1>
+        <p class="lhai-subtitle" data-i18n="common.home.hero.subtitle" data-i18n-default="Restricted AI guide and execution workflow platform for landing in the U.S.">Restricted AI guide and execution workflow platform for landing in the U.S.</p>
+      </div>
+      <div class="u-flex u-gap-2">
+        <a class="lhai-button lhai-button--secondary" href="services.html" data-i18n="common.home.hero.cta.services" data-i18n-default="View services">View services</a>
+        <a class="lhai-button lhai-button--primary" href="survey-start.html" data-i18n="common.home.hero.cta.get_started" data-i18n-default="Quote request">Quote request</a>
+      </div>
     </section>
-    <section class="lhai-card"><p data-i18n="common.home.body.placeholder">온보딩 단계, 진행 개요, 신뢰 안내 등이 이 영역에 표시됩니다.</p></section>
+    <section class="lhai-card">
+      <p data-i18n="common.home.body.placeholder" data-i18n-default="Onboarding steps, progress overview, and trust guidance appear in this area.">Onboarding steps, progress overview, and trust guidance appear in this area.</p>
+    </section>
   </main>
-  <script type="module" src="../assets/js/pages/index.js"></script>
+  <script type="module" src="../assets/js/core/public-page-language-boot.js" data-i18n-domains="common"></script>
 </body>
 </html>

@@ -21,6 +21,13 @@ import {
   normalizeInvoiceStatus,
 } from "./invoice-detail-action-state-logic.js";
 
+/**
+ * Step 9 — data vs UI labels:
+ * - Invoice/quote titles, party names, line items, API transition messages: raw API text.
+ * - Payment status: `statusLabel` maps known enums; unknown enum code shown as-is (not via `t()`).
+ * - Service row titles (`row.title`) stay raw; only synthetic `admin_fee` row uses a UI label key.
+ */
+
 function qs(selector) {
   return document.querySelector(selector);
 }
@@ -58,7 +65,7 @@ function statusLabel(status) {
   const key = customerInvoiceStatusLabelKey(st);
   const tr = t(key, "");
   if (tr && tr !== key) return tr;
-  return t("customer.invoice.status._fallback", st || "—");
+  return st || "—";
 }
 
 function looksLikeUuid(str) {

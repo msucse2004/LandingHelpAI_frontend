@@ -1,5 +1,6 @@
 import { authApi } from "../core/api.js";
-import { setAccessToken, setSession } from "../core/auth.js";
+import { applyAuthLoginResult } from "../core/auth.js";
+import { t } from "../core/i18n-client.js";
 
 const form = document.getElementById("loginForm");
 const statusEl = document.getElementById("loginStatus");
@@ -19,16 +20,9 @@ if (form) {
     };
 
     try {
-      setStatus("로그인 중…");
+      setStatus(t("common.loading", "Loading…"));
       const result = await authApi.login(payload);
-      setAccessToken(result.access_token);
-      const displayId = String(result.username || payload.login_id || "").trim();
-      setSession({
-        userId: result.user_id,
-        role: result.role,
-        email: result.email,
-        username: displayId,
-      });
+      applyAuthLoginResult(result);
       setStatus(`${result.role} 역할로 로그인했습니다. 이동 중…`);
       const roleKey = String(result.role || "").trim().toLowerCase().replace(/-/g, "_");
       const adminDashboardRoles = new Set(["super_admin", "admin", "supervisor"]);

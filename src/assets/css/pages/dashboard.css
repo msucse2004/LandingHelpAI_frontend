@@ -65,10 +65,23 @@ body[data-lhai-page="customer-dashboard"] .lhai-dashboard-hero__title {
 
 body[data-lhai-page="customer-dashboard"] .lhai-dashboard-hero__text {
   margin: 0 0 var(--lhai-space-3);
-  color: var(--lhai-color-text-muted, #cbd5e1);
+  color: #e8eef4;
   font-size: 0.95rem;
   line-height: 1.45;
   max-width: 48rem;
+}
+
+body[data-lhai-page="customer-dashboard"] .lhai-dashboard-hero--idle {
+  background: linear-gradient(
+    135deg,
+    rgba(148, 163, 184, 0.2) 0%,
+    rgba(30, 41, 59, 0.94) 55%
+  );
+  border-color: rgba(148, 163, 184, 0.38);
+}
+
+body[data-lhai-page="customer-dashboard"] .lhai-dashboard-hero--idle .lhai-dashboard-hero__eyebrow {
+  color: rgba(226, 232, 240, 0.88);
 }
 
 body[data-lhai-page="customer-dashboard"] .lhai-dashboard-hero__actions {
@@ -84,7 +97,10 @@ body[data-lhai-page="customer-dashboard"] .lhai-dashboard-hero__actions .lhai-bu
 }
 
 body[data-lhai-page="customer-dashboard"] .lhai-dashboard-hero__actions .lhai-button--secondary {
-  opacity: 0.92;
+  color: #f1f5f9;
+  border-color: rgba(226, 232, 240, 0.45);
+  background: rgba(15, 23, 42, 0.35);
+  opacity: 0.95;
 }
 
 body[data-lhai-page="customer-dashboard"] .lhai-dashboard-hero__meta {

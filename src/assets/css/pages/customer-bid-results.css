@@ -746,6 +746,17 @@
   color: #92400e;
 }
 
+.lhai-cbr-confirm-notice {
+  margin: var(--lhai-space-3) 0 0;
+  padding: var(--lhai-space-3);
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  border-radius: var(--lhai-radius-sm, 6px);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--lhai-color-text);
+}
+
 /* Empty state — no global "Empty:" prefix on this page */
 .lhai-cbr-page .lhai-state--empty::before {
   content: none;

@@ -42,6 +42,7 @@ export function renderPartnerMessagesContentHtml(opts = {}) {
 
   return renderPartnerPageContentHtml({
     title: "메시지함",
+    titleI18nKey: "messages.title",
     subtitle,
     bodyHtml,
   });

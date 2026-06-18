@@ -26,14 +26,39 @@ import {
 import { coerceToIsoDateInputValue, effectiveIntakeInputType, intakeRequiredFieldError, intakeRequiredFieldErrorForInputType, isCurrencyUsdInputType, isEffectivelyEmptyIntakeHelpText, normalizeIntakeFormPromptUiPayload, normalizePrefillInputScalar, prefillCandidateOptionLabel, prefillUsesTextInputNotDropdown, renderCurrencyUsdInputControlsHtml, resolveIntakeFieldInitialValue, shouldHideIntakeBlockTitle } from "../intake/intake-form-presentation.js";
 import { formatMessageTimestamp, resolveBackendMediaUrl, safeText } from "../core/utils.js";
 import { getRealtimeStatus, subscribeRealtimeEvents } from "../core/realtime-client.js";
+import { logRealtimeDiagnostics, mountRealtimeDiagnosticBadge } from "../core/realtime-diagnostics.js";
+import {
+  completeLatencyForMessagesAfterLoad,
+  getMessagesPollingIntervalsForDebug,
+  markDetailFetchFinished,
+  markDetailFetchStarted,
+  markMessageCreatedHandlerStarted,
+} from "../core/realtime-message-latency.js";
+import {
+  claimMessageCreatedRealtimeEvent,
+  releaseMessageCreatedRealtimeEvent,
+} from "../core/messages-realtime-dedupe.js";
+import {
+  canRunMessagesSafetySyncTick,
+  messagesFallbackPollIntervalMs,
+  messagesRealtimeLifecycleFromDetail,
+  MESSAGES_SAFETY_SYNC_MS_MIN,
+  messagesSafetyPollIntervalMs,
+  shouldRunMessagesFallbackPoll,
+  shouldUseMessagesSafetyPolling,
+} from "../core/messages-realtime-policy.js";
 import {
   buildCustomerBidResultsHref,
   isBiddingBidUpdatedPayload,
   isBiddingRealtimeSseEvent,
   normalizeBidUpdatedPayload,
+  bidUpdatedToastAllowed,
+  resolveBiddingEventKind,
   showBidUpdatedToast,
 } from "../core/bid-realtime.js";
 import { t } from "../core/i18n-client.js";
+import { formatLocalizedDataReadout, localizedEnumLabel, localizedStatus } from "../core/i18n-dynamic.js";
+import { applyI18nToDom, initPageI18nAndApplyDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
 import { bindMessageAiFeedback, buildAiFeedbackHtml } from "./message-ai-feedback.js";
 import {
   buildCustomerBidResultsPageHref,
@@ -53,6 +78,35 @@ import {
 } from "../lib/catalog-rec-service-item-id.js";
 import { loadBiddingNotificationDebugInto } from "./admin-bidding-notification-debug-ui.js";
 import { buildIntakeDispatchDiagnosticsHtml } from "./messages-intake-diagnostics-ui.js";
+
+/**
+ * Step 9 — data vs UI labels:
+ * - Message bodies/titles: prefer `display_body` / `display_title`; user/API text is never passed through `t()`.
+ * - Enum/status chips: localize display via `localizedEnumLabel`; keep raw codes in data attributes / logic.
+ */
+
+/** @type {Record<string, string>} */
+const MESSAGE_TYPE_LABEL_FALLBACKS = {
+  SYSTEM: "System",
+  ADMIN: "Admin",
+  AI: "AI",
+  PAYMENT: "Payment",
+  DOCUMENT: "Document",
+  CHAT: "Chat",
+  TEXT: "Text",
+  WORKFLOW_CARD: "Workflow",
+};
+
+/** @param {string | null | undefined} rawType */
+function messageTypeDisplayLabel(rawType) {
+  return localizedEnumLabel("messages.message_type", rawType, MESSAGE_TYPE_LABEL_FALLBACKS);
+}
+
+/** Workflow `card_json` state fields — display API values as-is unless backend adds display_* fields. */
+/** @param {string | null | undefined} raw */
+function workflowCardStateDisplayValue(raw) {
+  return String(raw ?? "").trim();
+}
 
 /** @param {unknown} s */
 function escapeHtml(s) {
@@ -79,14 +133,23 @@ function isMessagesDebugRealtime() {
   }
 }
 
-function messagesRtDebug(...args) {
+function messagesRtDebug(message, detail) {
   if (!isMessagesDebugRealtime()) return;
-  try {
-    // eslint-disable-next-line no-console
-    console.info("[lhai][messages-realtime]", ...args);
-  } catch {
-    /* ignore */
-  }
+  logRealtimeDiagnostics("messages-realtime", String(message || ""), detail ?? null);
+}
+
+/**
+ * @param {{ refreshSource?: string; reason?: string }} options
+ * @returns {"sse" | "fallback-poll" | "safety-sync" | string | null}
+ */
+function resolveMessagesRefreshSource(options = {}) {
+  const explicit = String(options.refreshSource || "").trim();
+  if (explicit) return explicit;
+  const reason = String(options.reason || "").trim();
+  if (reason === "fallback-poll") return "fallback-poll";
+  if (reason === "safety-sync") return "safety-sync";
+  if (reason.startsWith("message.created")) return "sse";
+  return reason || null;
 }
 
 function logCustomerMessagesPageThreadLoad() {
@@ -150,6 +213,8 @@ let partnerInboxMode = false;
 /** 같은 스레드에서만 유지되는 고객 견적 패널 스냅샷 */
 /** @type {Record<string, unknown> | null} */
 let customerBidPanelSnapshot = null;
+/** @type {Array<Record<string, unknown>>} */
+let cachedThreadsForUi = [];
 /** @type {ReturnType<typeof setInterval> | null} */
 let customerBidCountdownTimer = null;
 
@@ -311,12 +376,12 @@ function renderQuoteProposedLinksHtml(message) {
   if (qid) {
     const href = `quote-detail.html?quote_id=${encodeURIComponent(qid)}`;
     parts.push(
-      `<a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${href}">견적 보기</a>`
+      `<a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${href}">${escapeHtml(t("messages.cta.view_quote", "View quote"))}</a>`
     );
   }
   if (pdfUrl) {
     parts.push(
-      `<a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${pdfUrl}" target="_blank" rel="noopener">PDF 다운로드/보기 (Download/View PDF)</a>`
+      `<a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${pdfUrl}" target="_blank" rel="noopener">${escapeHtml(t("messages.cta.pdf_download", "Download/View PDF"))}</a>`
     );
   }
   if (!parts.length) return "";
@@ -336,12 +401,12 @@ function renderInvoiceSentLinksHtml(message) {
   if (invoiceId) {
     const href = `invoice-detail.html?invoice_id=${encodeURIComponent(invoiceId)}`;
     parts.push(
-      `<a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${href}">청구서 보기</a>`
+      `<a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${href}">${escapeHtml(t("messages.cta.view_invoice", "View invoice"))}</a>`
     );
   }
   if (pdfUrl) {
     parts.push(
-      `<a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${pdfUrl}" target="_blank" rel="noopener">PDF 다운로드/보기 (Download/View PDF)</a>`
+      `<a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${pdfUrl}" target="_blank" rel="noopener">${escapeHtml(t("messages.cta.pdf_download", "Download/View PDF"))}</a>`
     );
   }
   if (!parts.length) return "";
@@ -357,7 +422,7 @@ function renderPaymentCompletedLinksHtml(message) {
     String(message.linked_invoice_id || "").trim() || extractInvoiceIdFromText(message.body);
   if (!invoiceId) return "";
   const href = `invoice-detail.html?invoice_id=${encodeURIComponent(invoiceId)}`;
-  return `<div class="lhai-quote-proposed-links"><a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${href}">관련 청구서 (Invoice)</a></div>`;
+  return `<div class="lhai-quote-proposed-links"><a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${href}">${escapeHtml(t("messages.cta.related_invoice", "Related invoice"))}</a></div>`;
 }
 
 /** 정착 일정 고객 공개 알림 — 앱 내 `schedule.html` 버튼 (`linked_schedule_id` 또는 본문 URL) */
@@ -367,7 +432,7 @@ function renderScheduleReleasedLinksHtml(message) {
     String(message.linked_schedule_id || "").trim() || extractScheduleIdFromText(message.body);
   if (!sid) return "";
   const href = `schedule.html?schedule_id=${encodeURIComponent(sid)}`;
-  return `<div class="lhai-quote-proposed-links"><a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${href}">일정 보기</a></div>`;
+  return `<div class="lhai-quote-proposed-links"><a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${href}">${escapeHtml(t("messages.cta.view_schedule", "View schedule"))}</a></div>`;
 }
 
 /** 본문 끝의 "일정 보기:\\nURL" 블록은 버튼과 중복되므로 표시용 본문에서 제거 */
@@ -392,7 +457,7 @@ function threadRowHasUnread(row) {
  */
 function threadCustomerDisplayLabel(profileRef) {
   const raw = String(profileRef || "").trim();
-  if (!raw) return "고객 식별 없음";
+  if (!raw) return t("messages.thread.no_customer_id", "No customer ID");
   const low = raw.toLowerCase();
   if (low.startsWith("profile::")) {
     const tail = raw.slice(9).trim();
@@ -419,7 +484,7 @@ function sortOperatorInboxThreads(list) {
 function threadServiceDisplayTitle(row) {
   const cat = String(row?.service_catalog_title || "").trim();
   if (cat) return cat;
-  return String(row?.title || "").trim() || "서비스";
+  return String(row?.title || "").trim() || t("messages.thread.default_service", "Service");
 }
 
 /** 구매 시점 스냅샷·API 헤더 필드 우선 (목록·상세 공통). */
@@ -467,10 +532,10 @@ function handlerBadgeLabel(handlerType) {
 /** 상세 헤더 부제(한국어) — 담당 방식 */
 function handlerSubtitleKo(handlerType) {
   const h = String(handlerType || "").toUpperCase();
-  if (h === "AI_AGENT") return "담당: AI Agent (제한형 안내)";
-  if (h === "HUMAN_AGENT") return "담당: 운영 담당자";
-  if (h === "SYSTEM") return "담당: 시스템 알림";
-  return "담당: 안내 방식 확인 중";
+  if (h === "AI_AGENT") return t("messages.handler.subtitle.ai_agent", "Handler: AI Agent (limited guidance)");
+  if (h === "HUMAN_AGENT") return t("messages.handler.subtitle.human_agent", "Handler: operations team");
+  if (h === "SYSTEM") return t("messages.handler.subtitle.system", "Handler: system notification");
+  return t("messages.handler.subtitle.unknown", "Handler: confirming guidance mode");
 }
 
 /**
@@ -483,7 +548,7 @@ function threadListBadgesHtml(row, options = {}) {
   const role = normalizeThreadRole(row);
   const parts = [];
   if (role === "ADMIN") {
-    parts.push(`<span class="lhai-thread-badge lhai-thread-badge--admin">고객센터</span>`);
+    parts.push(`<span class="lhai-thread-badge lhai-thread-badge--admin">${escapeHtml(t("messages.thread.customer_center", "Customer center"))}</span>`);
     const h = handlerBadgeLabel(row.handler_type);
     if (h) parts.push(`<span class="lhai-thread-badge lhai-thread-badge--muted">${safeText(h)}</span>`);
   } else {
@@ -514,6 +579,25 @@ function pickDefaultThreadId(threads) {
   return String(threads[0].thread_id || "");
 }
 
+/** @type {Set<string>} */
+const showOriginalMessageIds = new Set();
+
+function messageHasLocalizedDisplay(message) {
+  const display = String(message?.display_body ?? "").trim();
+  const original = String(message?.body ?? "").trim();
+  return Boolean(display && original && display !== original);
+}
+
+function messageViewerText(message) {
+  const id = String(message?.id || "").trim();
+  const original = scheduleReleasedMessageDisplayBody(message);
+  if (id && showOriginalMessageIds.has(id)) {
+    return original;
+  }
+  const display = String(message?.display_body ?? "").trim();
+  return display || original;
+}
+
 function scheduleReleasedMessageDisplayBody(message) {
   let b = String(message?.body || "");
   if (!isScheduleReleasedToCustomerMessage(message)) return b;
@@ -542,11 +626,11 @@ function renderThreadListRow(row) {
   const headline = isAdmin ? safeText(row.title) : safeText(serviceThreadListHeadline(row));
   const lastType = String(row.message_type || "").trim();
   const customerIdBlock = operatorInboxMode
-    ? `<div class="lhai-message-item__customer-id"><span class="lhai-message-item__customer-id-label">고객</span> ${safeText(threadCustomerDisplayLabel(String(row.customer_profile_id || "")))}</div>`
+    ? `<div class="lhai-message-item__customer-id"><span class="lhai-message-item__customer-id-label">${escapeHtml(t("messages.thread.customer_label", "Customer"))}</span> ${safeText(threadCustomerDisplayLabel(String(row.customer_profile_id || "")))}</div>`
     : "";
   const unreadPill =
     operatorInboxMode && rowUnread
-      ? `<span class="lhai-message-item__unread-pill" title="미읽음">미읽음</span>`
+      ? `<span class="lhai-message-item__unread-pill" title="${escapeHtml(t("messages.thread.unread_title", "Unread"))}">${escapeHtml(t("messages.thread.unread", "Unread"))}</span>`
       : "";
   return `
       <article class="${itemCls}" data-thread-id="${safeText(row.thread_id)}" data-thread-role="${safeText(role)}" data-customer-profile-id="${safeText(row.customer_profile_id || "")}">
@@ -561,7 +645,7 @@ function renderThreadListRow(row) {
         <div class="lhai-message-item__title-row">
           <h3 class="lhai-message-item__title">${headline}</h3>
         </div>
-        ${lastType ? `<div class="u-text-muted lhai-message-item__last-type">최근 유형 · ${safeText(lastType)}</div>` : ""}
+        ${lastType ? `<div class="u-text-muted lhai-message-item__last-type">${escapeHtml(formatLocalizedDataReadout("messages.thread.recent_type", "Recent type: {value}", messageTypeDisplayLabel(lastType)))}</div>` : ""}
         <p class="u-text-muted lhai-message-item__preview">${safeText(row.preview)}</p>
       </article>
     `;
@@ -624,7 +708,7 @@ function renderThreadList(threads = []) {
       container.innerHTML = `<div class="lhai-state lhai-state--error" role="alert">${safeText(threadListLoadError)}</div>`;
       return;
     }
-    container.innerHTML = `<div class="lhai-state lhai-state--empty">대화가 없습니다.</div>`;
+    container.innerHTML = `<div class="lhai-state lhai-state--empty">${escapeHtml(t("messages.list.empty", "No conversations yet."))}</div>`;
     return;
   }
   const adminRows = threads.filter((t) => normalizeThreadRole(t) === "ADMIN");
@@ -632,12 +716,12 @@ function renderThreadList(threads = []) {
   const blocks = [];
   if (adminRows.length) {
     blocks.push(
-      `<div class="lhai-thread-list__group" role="group" aria-label="고객센터"><div class="lhai-thread-list__group-label">고객센터 · 전역 지원</div>${adminRows.map(renderThreadListRow).join("")}</div>`
+      `<div class="lhai-thread-list__group" role="group" aria-label="${escapeHtml(t("messages.list.group.admin_aria", "Customer center"))}"><div class="lhai-thread-list__group-label">${escapeHtml(t("messages.list.group.admin_label", "Customer center · Global support"))}</div>${adminRows.map(renderThreadListRow).join("")}</div>`
     );
   }
   if (serviceRows.length) {
     blocks.push(
-      `<div class="lhai-thread-list__group" role="group" aria-label="서비스별 대화"><div class="lhai-thread-list__group-label">서비스별 대화</div>${serviceRows.map(renderThreadListRow).join("")}</div>`
+      `<div class="lhai-thread-list__group" role="group" aria-label="${escapeHtml(t("messages.list.group.service_aria", "Service conversations"))}"><div class="lhai-thread-list__group-label">${escapeHtml(t("messages.list.group.service_label", "Service conversations"))}</div>${serviceRows.map(renderThreadListRow).join("")}</div>`
     );
   }
   container.innerHTML = blocks.length ? blocks.join("") : threads.map(renderThreadListRow).join("");
@@ -653,6 +737,62 @@ function isChatScrollNearBottom(wrap, thresholdPx = 120) {
 function scrollChatToBottom() {
   const wrap = document.querySelector("#messageChatScroll");
   if (wrap) wrap.scrollTop = wrap.scrollHeight;
+}
+
+/** 현재 thread 기준 하단 미확인 신규 메시지 수(위로 스크롤한 상태에서 realtime 도착). */
+let chatNewMessagesBelowCount = 0;
+let chatScrollStateThreadId = "";
+let chatScrollListenersWired = false;
+
+function resetChatNewMessagesBelowState() {
+  chatNewMessagesBelowCount = 0;
+  updateChatNewMessagesBelowIndicator();
+}
+
+function updateChatNewMessagesBelowIndicator() {
+  const btn = document.querySelector("#messageChatNewBelow");
+  if (!(btn instanceof HTMLButtonElement)) return;
+  const n = Math.max(0, Number(chatNewMessagesBelowCount) || 0);
+  if (n <= 0) {
+    btn.hidden = true;
+    btn.setAttribute("aria-hidden", "true");
+    return;
+  }
+  const label =
+    n === 1
+      ? t("messages.chat.new_below_one", "1 new message")
+      : localizedStatus("messages.chat.new_below_many", "{count} new messages", { count: n });
+  btn.textContent = label;
+  btn.hidden = false;
+  btn.setAttribute("aria-hidden", "false");
+}
+
+function ensureChatScrollRealtimeUxWired() {
+  if (chatScrollListenersWired) return;
+  chatScrollListenersWired = true;
+  document.addEventListener("click", (event) => {
+    const btn = event.target instanceof Element ? event.target.closest("#messageChatNewBelow") : null;
+    if (!(btn instanceof HTMLButtonElement)) return;
+    event.preventDefault();
+    resetChatNewMessagesBelowState();
+    scrollChatToBottom();
+  });
+  document.addEventListener(
+    "scroll",
+    (event) => {
+      const wrap = event.target;
+      if (!(wrap instanceof HTMLElement) || wrap.id !== "messageChatScroll") return;
+      if (isChatScrollNearBottom(wrap)) resetChatNewMessagesBelowState();
+    },
+    true,
+  );
+}
+
+function syncChatScrollThreadContext() {
+  const tid = String(selectedThreadId || "").trim();
+  if (tid === chatScrollStateThreadId) return;
+  chatScrollStateThreadId = tid;
+  resetChatNewMessagesBelowState();
 }
 
 /** @param {unknown} raw */
@@ -737,16 +877,16 @@ function renderPrefillCandidatesDropdownHtml(row, suffix, ariaLabel) {
     })
     .join("");
   const manualOpt = allowManual
-    ? `<option value="${escapeHtml(PREFILL_MANUAL_VALUE)}">${escapeHtml("직접 입력하기")}</option>`
+    ? `<option value="${escapeHtml(PREFILL_MANUAL_VALUE)}">${escapeHtml(t("messages.intake.prefill.enter_manually", "Enter manually"))}</option>`
     : "";
   const manualHidden = allowManual ? " hidden" : "";
   return `<div class="lhai-chat-form-prompt__prefill-dropdown" data-lhai-prefill-dropdown>
     <select class="lhai-chat-form-prompt__input lhai-chat-form-prompt__select lhai-chat-form-prompt__prefill-select" aria-label="${escapeHtml(ariaLabel)}" data-lhai-prefill-select>
-      <option value="">${escapeHtml("선택하세요")}</option>
+      <option value="">${escapeHtml(t("messages.intake.select_placeholder", "Please select"))}</option>
       ${optHtml}
       ${manualOpt}
     </select>
-    <input type="text" class="lhai-chat-form-prompt__input lhai-chat-form-prompt__text lhai-chat-form-prompt__prefill-manual"${manualHidden} maxlength="4000" placeholder="${escapeHtml("직접 입력")}" aria-label="${escapeHtml(ariaLabel)}" />
+    <input type="text" class="lhai-chat-form-prompt__input lhai-chat-form-prompt__text lhai-chat-form-prompt__prefill-manual"${manualHidden} maxlength="4000" placeholder="${escapeHtml(t("messages.intake.prefill.manual_placeholder", "Enter value"))}" aria-label="${escapeHtml(ariaLabel)}" />
   </div>`;
 }
 
@@ -762,15 +902,15 @@ function renderPrefillConfirmHtml(row, suffix, ariaLabel) {
   const display = plab ? `${pv} (${plab})` : pv;
   const name = `lhai-intake-pf-confirm-${suffix}`;
   return `<div class="lhai-chat-form-prompt__prefill-confirm" data-lhai-prefill-confirm data-prefill-value="${escapeHtml(pv)}" data-prefill-source="${escapeHtml(String(row.prefill_source || ""))}">
-    <p class="lhai-chat-form-prompt__prefill-confirm-text">${escapeHtml("저장된 값")}: <strong>${escapeHtml(display)}</strong></p>
+    <p class="lhai-chat-form-prompt__prefill-confirm-text">${escapeHtml(t("messages.intake.prefill.saved_value", "Saved value"))}: <strong>${escapeHtml(display)}</strong></p>
     <div class="lhai-chat-form-prompt__radio-group" role="radiogroup" aria-label="${escapeHtml(ariaLabel)}">
       <label class="lhai-chat-form-prompt__radio-label" for="${escapeHtml(`${name}-y`)}">
         <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(`${name}-y`)}" value="yes" class="lhai-chat-form-prompt__radio lhai-chat-form-prompt__prefill-confirm-radio" checked />
-        <span>${escapeHtml("맞습니다")}</span>
+        <span>${escapeHtml(t("messages.intake.prefill.confirm_yes", "That's correct"))}</span>
       </label>
       <label class="lhai-chat-form-prompt__radio-label" for="${escapeHtml(`${name}-n`)}">
         <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(`${name}-n`)}" value="no" class="lhai-chat-form-prompt__radio lhai-chat-form-prompt__prefill-confirm-radio" />
-        <span>${escapeHtml("다른 값으로 변경")}</span>
+        <span>${escapeHtml(t("messages.intake.prefill.change_value", "Use a different value"))}</span>
       </label>
     </div>
     <div class="lhai-chat-form-prompt__prefill-confirm-alt" hidden>
@@ -809,18 +949,18 @@ function togglePrefillConfirmAlt(root) {
  */
 function collectPrefillCandidatesFromSection(sec, fieldLabel = "") {
   if (!(sec instanceof HTMLElement)) {
-    return { ok: false, error: "입력란을 찾을 수 없습니다." };
+    return { ok: false, error: t("messages.intake.error.input_not_found", "Could not find the input field.") };
   }
   const sel = sec.querySelector(".lhai-chat-form-prompt__prefill-select");
   if (!(sel instanceof HTMLSelectElement)) {
-    return { ok: false, error: "선택 항목을 찾을 수 없습니다." };
+    return { ok: false, error: t("messages.intake.error.select_not_found", "Could not find the selection field.") };
   }
   const v = String(sel.value || "").trim();
   if (!v) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "select") };
   if (v === PREFILL_MANUAL_VALUE) {
     const manual = sec.querySelector(".lhai-chat-form-prompt__prefill-manual");
     if (!(manual instanceof HTMLInputElement)) {
-      return { ok: false, error: "직접 입력란을 찾을 수 없습니다." };
+      return { ok: false, error: t("messages.intake.error.manual_input_not_found", "Could not find the manual input field.") };
     }
     const mv = String(manual.value || "").trim();
     if (!mv) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "input") };
@@ -840,11 +980,11 @@ function collectPrefillCandidatesFromSection(sec, fieldLabel = "") {
  */
 function collectPrefillConfirmFromSection(sec, fieldLabel = "") {
   if (!(sec instanceof HTMLElement)) {
-    return { ok: false, error: "확인 항목을 찾을 수 없습니다." };
+    return { ok: false, error: t("messages.intake.error.confirm_not_found", "Could not find the confirmation field.") };
   }
   const wrap = sec.querySelector("[data-lhai-prefill-confirm]");
   if (!(wrap instanceof HTMLElement)) {
-    return { ok: false, error: "확인 항목을 찾을 수 없습니다." };
+    return { ok: false, error: t("messages.intake.error.confirm_not_found", "Could not find the confirmation field.") };
   }
   const yes = wrap.querySelector('.lhai-chat-form-prompt__prefill-confirm-radio[value="yes"]');
   if (!(yes instanceof HTMLInputElement) || !yes.checked) {
@@ -858,7 +998,7 @@ function collectPrefillConfirmFromSection(sec, fieldLabel = "") {
   }
   const pv = String(wrap.getAttribute("data-prefill-value") || "").trim();
   const src = String(wrap.getAttribute("data-prefill-source") || "").trim();
-  if (!pv) return { ok: false, error: "저장된 값이 없습니다." };
+  if (!pv) return { ok: false, error: t("messages.intake.error.no_saved_value", "No saved value found.") };
   const out = { value: pv };
   if (src) out._prefill_source = src;
   return { ok: true, valueJson: out };
@@ -873,7 +1013,7 @@ function collectPrefillConfirmFromSection(sec, fieldLabel = "") {
  */
 function collectChildValueJson(childEl, cit, skipChild, fieldLabel = "") {
   if (!(childEl instanceof HTMLElement)) {
-    return { ok: false, error: "항목을 찾을 수 없습니다." };
+    return { ok: false, error: t("messages.intake.error.field_not_found", "Could not find the field.") };
   }
   if (childEl.querySelector("[data-lhai-prefill-dropdown]")) {
     return collectPrefillCandidatesFromSection(childEl, fieldLabel);
@@ -902,41 +1042,41 @@ function collectChildValueJson(childEl, cit, skipChild, fieldLabel = "") {
   }
   if (cit === "select") {
     const sel = childEl.querySelector("select.lhai-chat-form-prompt__select");
-    if (!(sel instanceof HTMLSelectElement)) return { ok: false, error: "항목을 찾을 수 없습니다." };
+    if (!(sel instanceof HTMLSelectElement)) return { ok: false, error: t("messages.intake.error.field_not_found", "Could not find the field.") };
     const v = String(sel.value || "").trim();
     if (!v) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "select") };
     return { ok: true, valueJson: { value: v } };
   }
   if (cit === "textarea") {
     const ta = childEl.querySelector("textarea.lhai-chat-form-prompt__textarea");
-    if (!(ta instanceof HTMLTextAreaElement)) return { ok: false, error: "입력란을 찾을 수 없습니다." };
+    if (!(ta instanceof HTMLTextAreaElement)) return { ok: false, error: t("messages.intake.error.input_not_found", "Could not find the input field.") };
     const v = String(ta.value || "").trim();
     return { ok: true, valueJson: { value: v } };
   }
   if (cit === "date") {
     const inp = childEl.querySelector("input.lhai-chat-form-prompt__date");
-    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "날짜 입력을 찾을 수 없습니다." };
+    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: t("messages.intake.error.date_not_found", "Could not find the date input.") };
     const v = String(inp.value || "").trim();
     if (!v) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "date") };
     return { ok: true, valueJson: { value: v } };
   }
   if (isCurrencyUsdInputType(cit)) {
     const inp = childEl.querySelector('input[type="number"].lhai-chat-form-prompt__currency-usd, .lhai-intake-currency-usd input[type="number"]');
-    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "금액 입력란을 찾을 수 없습니다." };
+    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: t("messages.intake.error.amount_not_found", "Could not find the amount field.") };
     const v = String(inp.value || "").trim();
     if (!v) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "input") };
     const n = Number(v);
-    if (!Number.isFinite(n) || n < 0) return { ok: false, error: "올바른 금액을 입력해 주세요." };
+    if (!Number.isFinite(n) || n < 0) return { ok: false, error: t("messages.intake.error.invalid_amount", "Please enter a valid amount.") };
     return { ok: true, valueJson: { value: v, currency: "USD" } };
   }
   if (cit === "number") {
     const inp = childEl.querySelector("input.lhai-chat-form-prompt__number");
-    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "입력란을 찾을 수 없습니다." };
+    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: t("messages.intake.error.input_not_found", "Could not find the input field.") };
     const v = String(inp.value || "").trim();
     return { ok: true, valueJson: { value: v } };
   }
   const inp = childEl.querySelector("input.lhai-chat-form-prompt__text");
-  if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "입력란을 찾을 수 없습니다." };
+  if (!(inp instanceof HTMLInputElement)) return { ok: false, error: t("messages.intake.error.input_not_found", "Could not find the input field.") };
   const v = String(inp.value || "").trim();
   return { ok: true, valueJson: { value: v } };
 }
@@ -957,7 +1097,7 @@ function renderQuestionGroupControlsHtml(up, messageId) {
         const lab = String(ch.label || "").trim();
         const help = String(ch.help_text || "").trim();
         const req = Boolean(ch.required);
-        const reqHtml = req ? ` <abbr class="lhai-chat-form-prompt__req" title="필수">*</abbr>` : "";
+        const reqHtml = req ? ` <abbr class="lhai-chat-form-prompt__req" title="${escapeHtml(t("messages.intake.required", "Required"))}">*</abbr>` : "";
         const cit =
           effectiveIntakeInputType(ch) === "date" ? "date" : normalizeIntakeInputType(ch.input_type);
         const options = Array.isArray(ch.options) ? /** @type {Array<Record<string, unknown>>} */ (ch.options) : [];
@@ -984,7 +1124,7 @@ function renderQuestionGroupControlsHtml(up, messageId) {
             })
             .join("");
           inner = `<select class="lhai-chat-form-prompt__input lhai-chat-form-prompt__select" aria-label="${escapeHtml(lab)}"${selectLocked}>
-      <option value="">${escapeHtml("선택하세요")}</option>
+      <option value="">${escapeHtml(t("messages.intake.select_placeholder", "Please select"))}</option>
       ${optHtml}
     </select>`;
         } else if (cit === "radio") {
@@ -1009,11 +1149,11 @@ function renderQuestionGroupControlsHtml(up, messageId) {
           inner = `<div class="lhai-chat-form-prompt__radio-group" role="radiogroup" aria-label="${escapeHtml(lab)}">
       <label class="lhai-chat-form-prompt__radio-label" for="${escapeHtml(`${name}-y`)}">
         <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(`${name}-y`)}" value="yes" class="lhai-chat-form-prompt__radio" />
-        <span>${escapeHtml("예")}</span>
+        <span>${escapeHtml(t("messages.intake.yes", "Yes"))}</span>
       </label>
       <label class="lhai-chat-form-prompt__radio-label" for="${escapeHtml(`${name}-n`)}">
         <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(`${name}-n`)}" value="no" class="lhai-chat-form-prompt__radio" />
-        <span>${escapeHtml("아니오")}</span>
+        <span>${escapeHtml(t("messages.intake.no", "No"))}</span>
       </label>
     </div>`;
         } else if (cit === "multi_select") {
@@ -1100,7 +1240,7 @@ function renderFormPromptControlsHtml(up, messageId) {
       })
       .join("");
     return `<select class="lhai-chat-form-prompt__input lhai-chat-form-prompt__select" aria-label="${escapeHtml(String(up.label || ""))}"${selectLocked}>
-      <option value="">${escapeHtml("선택하세요")}</option>
+      <option value="">${escapeHtml(t("messages.intake.select_placeholder", "Please select"))}</option>
       ${optHtml}
     </select>`;
   }
@@ -1127,11 +1267,11 @@ function renderFormPromptControlsHtml(up, messageId) {
     return `<div class="lhai-chat-form-prompt__radio-group" role="radiogroup" aria-label="${escapeHtml(String(up.label || ""))}">
       <label class="lhai-chat-form-prompt__radio-label" for="${escapeHtml(`${name}-y`)}">
         <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(`${name}-y`)}" value="yes" class="lhai-chat-form-prompt__radio" />
-        <span>${escapeHtml("예")}</span>
+        <span>${escapeHtml(t("messages.intake.yes", "Yes"))}</span>
       </label>
       <label class="lhai-chat-form-prompt__radio-label" for="${escapeHtml(`${name}-n`)}">
         <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(`${name}-n`)}" value="no" class="lhai-chat-form-prompt__radio" />
-        <span>${escapeHtml("아니오")}</span>
+        <span>${escapeHtml(t("messages.intake.no", "No"))}</span>
       </label>
     </div>`;
   }
@@ -1201,41 +1341,41 @@ function collectScalarPromptFromSection(sec, st) {
   }
   if (it === "select") {
     const sel = sec.querySelector("select.lhai-chat-form-prompt__select");
-    if (!(sel instanceof HTMLSelectElement)) return { ok: false, error: "항목을 찾을 수 없습니다." };
+    if (!(sel instanceof HTMLSelectElement)) return { ok: false, error: t("messages.intake.error.field_not_found", "Could not find the field.") };
     const v = String(sel.value || "").trim();
     if (!v) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "select") };
     return { ok: true, valueJson: { value: v } };
   }
   if (it === "textarea") {
     const ta = sec.querySelector("textarea.lhai-chat-form-prompt__textarea");
-    if (!(ta instanceof HTMLTextAreaElement)) return { ok: false, error: "입력란을 찾을 수 없습니다." };
+    if (!(ta instanceof HTMLTextAreaElement)) return { ok: false, error: t("messages.intake.error.input_not_found", "Could not find the input field.") };
     const v = String(ta.value || "").trim();
     return { ok: true, valueJson: { value: v } };
   }
   if (it === "date") {
     const inp = sec.querySelector("input.lhai-chat-form-prompt__date");
-    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "날짜 입력을 찾을 수 없습니다." };
+    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: t("messages.intake.error.date_not_found", "Could not find the date input.") };
     const v = String(inp.value || "").trim();
     if (!v) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "date") };
     return { ok: true, valueJson: { value: v } };
   }
   if (isCurrencyUsdInputType(it)) {
     const inp = sec.querySelector('input[type="number"].lhai-chat-form-prompt__currency-usd, .lhai-intake-currency-usd input[type="number"]');
-    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "금액 입력란을 찾을 수 없습니다." };
+    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: t("messages.intake.error.amount_not_found", "Could not find the amount field.") };
     const v = String(inp.value || "").trim();
     if (!v) return { ok: false, error: intakeRequiredFieldError(fieldLabel, "input") };
     const n = Number(v);
-    if (!Number.isFinite(n) || n < 0) return { ok: false, error: "올바른 금액을 입력해 주세요." };
+    if (!Number.isFinite(n) || n < 0) return { ok: false, error: t("messages.intake.error.invalid_amount", "Please enter a valid amount.") };
     return { ok: true, valueJson: { value: v, currency: "USD" } };
   }
   if (it === "number") {
     const inp = sec.querySelector("input.lhai-chat-form-prompt__number");
-    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "입력란을 찾을 수 없습니다." };
+    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: t("messages.intake.error.input_not_found", "Could not find the input field.") };
     const v = String(inp.value || "").trim();
     return { ok: true, valueJson: { value: v } };
   }
   const inp = sec.querySelector("input.lhai-chat-form-prompt__text");
-  if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "입력란을 찾을 수 없습니다." };
+  if (!(inp instanceof HTMLInputElement)) return { ok: false, error: t("messages.intake.error.input_not_found", "Could not find the input field.") };
   const v = String(inp.value || "").trim();
   return { ok: true, valueJson: { value: v } };
 }
@@ -1289,7 +1429,7 @@ function renderFormPromptInteractive(m, up) {
   const it = normalizeIntakeInputType(up.input_type);
   const domInputType = effectiveIntakeInputType(up) === "date" ? "date" : it;
   const reqHtml = required
-    ? ` <abbr class="lhai-chat-form-prompt__req" title="필수">*</abbr>`
+    ? ` <abbr class="lhai-chat-form-prompt__req" title="${escapeHtml(t("messages.intake.required", "Required"))}">*</abbr>`
     : "";
 
   const blocksHtml = renderIntakeContentBlocksHtml(up);
@@ -1309,7 +1449,10 @@ function renderFormPromptInteractive(m, up) {
   if (Boolean(up.prefill_blocked)) {
     const msg =
       String(up.prefill_block_message || "").trim() ||
-      "이 단계를 진행하려면 프로필에 필요한 정보가 먼저 채워져 있어야 합니다. 설정에서 입력한 뒤 다시 시도해 주세요.";
+      t(
+        "messages.intake.error.profile_required",
+        "Profile information must be filled in before continuing. Update your settings and try again."
+      );
     return `${blocksHtml}<div class="lhai-chat-form-prompt lhai-chat-form-prompt--blocked" data-lhai-intake-form data-message-id="${escapeHtml(mid)}" data-session-id="${escapeHtml(sessionId)}" data-thread-id="${escapeHtml(threadId)}" data-field-id="${escapeHtml(fieldId)}" data-input-type="${escapeHtml(domInputType)}">
     ${labelLine}
     ${!isEffectivelyEmptyIntakeHelpText(helpText) ? `<div class="lhai-chat-form-prompt__help">${escapeHtml(helpText)}</div>` : ""}
@@ -1324,8 +1467,8 @@ function renderFormPromptInteractive(m, up) {
     <div class="lhai-chat-form-prompt__controls">${controlsInner}</div>
     <div class="lhai-chat-form-prompt__error" role="alert" hidden></div>
     <div class="lhai-chat-form-prompt__actions">
-      <button type="button" class="lhai-button lhai-button--primary lhai-chat-form-prompt__submit" data-lhai-intake-submit>${escapeHtml("제출")}</button>
-      ${!required && it !== "intake_multi" ? `<button type="button" class="lhai-button lhai-button--secondary lhai-chat-form-prompt__skip" data-lhai-intake-skip>${escapeHtml("건너뛰기")}</button>` : ""}
+      <button type="button" class="lhai-button lhai-button--primary lhai-chat-form-prompt__submit" data-lhai-intake-submit>${escapeHtml(t("messages.intake.submit", "Submit"))}</button>
+      ${!required && it !== "intake_multi" ? `<button type="button" class="lhai-button lhai-button--secondary lhai-chat-form-prompt__skip" data-lhai-intake-skip>${escapeHtml(t("messages.intake.skip", "Skip"))}</button>` : ""}
     </div>
   </div>`;
 }
@@ -1340,17 +1483,17 @@ function renderFormPromptOperatorReadonly(up) {
   const steps = Array.isArray(up.steps) ? /** @type {Array<Record<string, unknown>>} */ (up.steps) : [];
   const groupMeta =
     it === "question_group" && children.length
-      ? `<p class="u-text-muted lhai-chat-form-prompt__meta">${escapeHtml(`하위 질문 ${children.length}개`)}</p>`
+      ? `<p class="u-text-muted lhai-chat-form-prompt__meta">${escapeHtml(localizedStatus("messages.intake.meta.sub_questions", "{count} sub-questions", { count: children.length }))}</p>`
       : "";
   const multiMeta =
     it === "intake_multi" && steps.length
-      ? `<p class="u-text-muted lhai-chat-form-prompt__meta">${escapeHtml(`통합 단계 ${steps.length}개`)}</p>`
+      ? `<p class="u-text-muted lhai-chat-form-prompt__meta">${escapeHtml(localizedStatus("messages.intake.meta.combined_steps", "{count} combined steps", { count: steps.length }))}</p>`
       : "";
   return `${blocksHtml}<div class="lhai-chat-form-prompt lhai-chat-form-prompt--readonly">
     <div class="lhai-chat-form-prompt__label">${escapeHtml(label)}</div>
     ${!isEffectivelyEmptyIntakeHelpText(helpText) ? `<div class="lhai-chat-form-prompt__help">${escapeHtml(helpText)}</div>` : ""}
-    <p class="lhai-chat-form-prompt__readonly-note u-text-muted">${escapeHtml("운영 보기에서는 인테이크 응답을 제출할 수 없습니다.")}</p>
-    <p class="u-text-muted lhai-chat-form-prompt__meta">${escapeHtml(`입력 유형: ${it}`)}</p>
+    <p class="lhai-chat-form-prompt__readonly-note u-text-muted">${escapeHtml(t("messages.intake.readonly_note", "Intake responses cannot be submitted in operator view."))}</p>
+    <p class="u-text-muted lhai-chat-form-prompt__meta">${escapeHtml(formatLocalizedDataReadout("messages.intake.meta.input_type", "Input type: {value}", String(it || "").trim()))}</p>
     ${groupMeta}
     ${multiMeta}
   </div>`;
@@ -1389,7 +1532,7 @@ function collectIntakeValueJson(container, inputType, skip) {
   if (skip) {
     const itSkip = normalizeIntakeInputType(inputType);
     if (itSkip === "intake_multi") {
-      return { ok: false, error: "통합 인테이크는 건너뛸 수 없습니다." };
+      return { ok: false, error: t("messages.intake.error.intake_multi_skip", "Combined intake cannot be skipped.") };
     }
     if (itSkip === "question_group") {
       return { ok: true, valueJson: { group_skipped: true } };
@@ -1410,7 +1553,7 @@ function collectIntakeValueJson(container, inputType, skip) {
       if (!sfid) continue;
       const sec = /** @type {HTMLElement | null} */ (container.querySelector(`[data-intake-step-field-id="${sfid}"]`));
       if (!(sec instanceof HTMLElement)) {
-        return { ok: false, error: "입력 단계를 찾을 수 없습니다." };
+        return { ok: false, error: t("messages.intake.error.step_not_found", "Could not find the input step.") };
       }
       const stIt = normalizeIntakeInputType(st.input_type);
       if (stIt === "question_group") {
@@ -1424,13 +1567,13 @@ function collectIntakeValueJson(container, inputType, skip) {
           const cit =
             effectiveIntakeInputType(ch) === "date" ? "date" : normalizeIntakeInputType(ch.input_type);
           const sub = collectChildValueJson(cel, cit, false, ch.label);
-          if (!sub.ok) return { ok: false, error: sub.error || "입력을 확인해 주세요." };
+          if (!sub.ok) return { ok: false, error: sub.error || t("messages.intake.error.check_input", "Please check your input.") };
           group_answers[cid] = /** @type {Record<string, unknown>} */ (sub.valueJson || {});
         }
         batch_updates.push({ field_id: sfid, value_json: { group_answers } });
       } else {
         const sub = collectScalarPromptFromSection(sec, st);
-        if (!sub.ok) return { ok: false, error: sub.error || "입력을 확인해 주세요." };
+        if (!sub.ok) return { ok: false, error: sub.error || t("messages.intake.error.check_input", "Please check your input.") };
         batch_updates.push({ field_id: sfid, value_json: /** @type {Record<string, unknown>} */ (sub.valueJson || {}) });
       }
     }
@@ -1448,7 +1591,7 @@ function collectIntakeValueJson(container, inputType, skip) {
       const cit =
         effectiveIntakeInputType(ch) === "date" ? "date" : normalizeIntakeInputType(ch.input_type);
       const sub = collectChildValueJson(cel, cit, false, ch.label);
-      if (!sub.ok) return { ok: false, error: sub.error || "입력을 확인해 주세요." };
+      if (!sub.ok) return { ok: false, error: sub.error || t("messages.intake.error.check_input", "Please check your input.") };
       group_answers[cid] = /** @type {Record<string, unknown>} */ (sub.valueJson || {});
     }
     return { ok: true, valueJson: { group_answers } };
@@ -1478,26 +1621,26 @@ function collectIntakeValueJson(container, inputType, skip) {
   }
   if (it === "select") {
     const sel = container.querySelector("select.lhai-chat-form-prompt__select");
-    if (!(sel instanceof HTMLSelectElement)) return { ok: false, error: "항목을 찾을 수 없습니다." };
+    if (!(sel instanceof HTMLSelectElement)) return { ok: false, error: t("messages.intake.error.field_not_found", "Could not find the field.") };
     const v = String(sel.value || "").trim();
     if (!v) return { ok: false, error: intakeRequiredFieldError(rootLabel, "select") };
     return { ok: true, valueJson: { value: v } };
   }
   if (it === "textarea") {
     const ta = container.querySelector("textarea.lhai-chat-form-prompt__textarea");
-    if (!(ta instanceof HTMLTextAreaElement)) return { ok: false, error: "입력란을 찾을 수 없습니다." };
+    if (!(ta instanceof HTMLTextAreaElement)) return { ok: false, error: t("messages.intake.error.input_not_found", "Could not find the input field.") };
     const v = String(ta.value || "").trim();
     return { ok: true, valueJson: { value: v } };
   }
   if (it === "date") {
     const inp = container.querySelector("input.lhai-chat-form-prompt__date");
-    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "날짜 입력을 찾을 수 없습니다." };
+    if (!(inp instanceof HTMLInputElement)) return { ok: false, error: t("messages.intake.error.date_not_found", "Could not find the date input.") };
     const v = String(inp.value || "").trim();
     if (!v) return { ok: false, error: intakeRequiredFieldError(rootLabel, "date") };
     return { ok: true, valueJson: { value: v } };
   }
   const inp = container.querySelector("input.lhai-chat-form-prompt__text");
-  if (!(inp instanceof HTMLInputElement)) return { ok: false, error: "입력란을 찾을 수 없습니다." };
+  if (!(inp instanceof HTMLInputElement)) return { ok: false, error: t("messages.intake.error.input_not_found", "Could not find the input field.") };
   const v = String(inp.value || "").trim();
   return { ok: true, valueJson: { value: v } };
 }
@@ -1518,7 +1661,7 @@ async function runIntakePromptSubmit(formRoot, skip) {
   setIntakeFormError(formRoot, "");
   const collected = collectIntakeValueJson(formRoot, inputType, skip);
   if (!collected.ok) {
-    setIntakeFormError(formRoot, collected.error || "입력을 확인해 주세요.");
+    setIntakeFormError(formRoot, collected.error || t("messages.intake.error.check_input", "Please check your input."));
     return;
   }
   const valueJson = /** @type {Record<string, unknown> | undefined} */ (collected.valueJson);
@@ -1533,7 +1676,7 @@ async function runIntakePromptSubmit(formRoot, skip) {
       const sfid = String(st.field_id || "").trim();
       const sec = /** @type {HTMLElement | null} */ (formRoot.querySelector(`[data-intake-step-field-id="${sfid}"]`));
       if (!(sec instanceof HTMLElement)) {
-        setIntakeFormError(formRoot, "입력 단계를 찾을 수 없습니다.");
+        setIntakeFormError(formRoot, t("messages.intake.error.step_not_found", "Could not find the input step."));
         return;
       }
       const stIt = normalizeIntakeInputType(st.input_type);
@@ -1547,7 +1690,7 @@ async function runIntakePromptSubmit(formRoot, skip) {
             effectiveIntakeInputType(ch) === "date" ? "date" : normalizeIntakeInputType(ch.input_type);
           const sub = collectChildValueJson(childEl, cit, false, ch.label);
           if (!sub.ok) {
-            setIntakeFormError(formRoot, sub.error || "입력을 확인해 주세요.");
+            setIntakeFormError(formRoot, sub.error || t("messages.intake.error.check_input", "Please check your input."));
             return;
           }
           const vj = /** @type {Record<string, unknown>} */ (sub.valueJson || {});
@@ -1559,7 +1702,7 @@ async function runIntakePromptSubmit(formRoot, skip) {
       } else if (st.required) {
         const sub = collectScalarPromptFromSection(sec, st);
         if (!sub.ok) {
-          setIntakeFormError(formRoot, sub.error || "입력을 확인해 주세요.");
+          setIntakeFormError(formRoot, sub.error || t("messages.intake.error.check_input", "Please check your input."));
           return;
         }
         const vj = /** @type {Record<string, unknown>} */ (sub.valueJson || {});
@@ -1593,7 +1736,7 @@ async function runIntakePromptSubmit(formRoot, skip) {
         effectiveIntakeInputType(ch) === "date" ? "date" : normalizeIntakeInputType(ch.input_type);
       const sub = collectChildValueJson(childEl, cit, false, ch.label);
       if (!sub.ok) {
-        setIntakeFormError(formRoot, sub.error || "입력을 확인해 주세요.");
+        setIntakeFormError(formRoot, sub.error || t("messages.intake.error.check_input", "Please check your input."));
         return;
       }
       const vj = /** @type {Record<string, unknown>} */ (sub.valueJson || {});
@@ -1624,7 +1767,7 @@ async function runIntakePromptSubmit(formRoot, skip) {
 
   const cp = operatorInboxMode ? threadOwnerProfileId : customerProfileId;
   if (!String(cp || "").trim() || !String(threadId || "").trim() || !String(sessionId || "").trim()) {
-    setIntakeFormError(formRoot, "세션 정보가 부족합니다. 페이지를 새로고침해 주세요.");
+    setIntakeFormError(formRoot, t("messages.intake.error.session_insufficient", "Session information is incomplete. Please refresh the page."));
     return;
   }
 
@@ -1646,7 +1789,7 @@ async function runIntakePromptSubmit(formRoot, skip) {
     }
     await loadThreadMessages();
   } catch (err) {
-    const msg = err && typeof err.message === "string" ? err.message : "제출에 실패했습니다.";
+    const msg = err && typeof err.message === "string" ? err.message : t("messages.intake.error.submit_failed", "Submission failed.");
     setIntakeFormError(formRoot, msg);
   } finally {
     intakePromptSubmitting.delete(mid);
@@ -1686,7 +1829,7 @@ function renderWorkflowPublicResponseBlock(publicResponse) {
     typeof publicResponse === "object" ? JSON.stringify(publicResponse, null, 2) : String(publicResponse);
   if (!String(text).trim()) return "";
   return `<div class="lhai-workflow-card__extra">
-    <div class="lhai-workflow-card__extra-label u-text-muted">회신 상세</div>
+    <div class="lhai-workflow-card__extra-label u-text-muted">${escapeHtml(t("messages.workflow.response_detail", "Response details"))}</div>
     <pre class="lhai-workflow-card__json" tabindex="0">${escapeHtml(text)}</pre>
   </div>`;
 }
@@ -1703,8 +1846,8 @@ function renderWorkflowCardBubble(m, up) {
     .trim()
     .toUpperCase() || "WORKFLOW";
   const sk = String(m.workflow_step_key || (up && up.workflow_step_key) || cj.workflow_step_key || "").trim();
-  const title = String(m.title || "").trim();
-  const body = String(m.body || "").trim();
+  const title = String(m.display_title || m.title || "").trim();
+  const body = String(m.display_body || m.body || "").trim();
   const wfId = String(
     m.workflow_instance_id ||
       (up && up.workflow_instance_id) ||
@@ -1718,9 +1861,33 @@ function renderWorkflowCardBubble(m, up) {
   const custLine = String(cj.customer_status || cj.intake_state || "").trim();
   const stepLine = String(cj.current_step || "").trim();
   const stateParts = [];
-  if (statusLine) stateParts.push(`상태: ${statusLine}`);
-  if (custLine) stateParts.push(`고객 단계: ${custLine}`);
-  if (stepLine && stepLine !== sk) stateParts.push(`단계: ${stepLine}`);
+  if (statusLine) {
+    stateParts.push(
+      formatLocalizedDataReadout(
+        "messages.workflow.state_status",
+        "Status: {value}",
+        workflowCardStateDisplayValue(statusLine)
+      )
+    );
+  }
+  if (custLine) {
+    stateParts.push(
+      formatLocalizedDataReadout(
+        "messages.workflow.state_customer",
+        "Customer step: {value}",
+        workflowCardStateDisplayValue(custLine)
+      )
+    );
+  }
+  if (stepLine && stepLine !== sk) {
+    stateParts.push(
+      formatLocalizedDataReadout(
+        "messages.workflow.state_step",
+        "Step: {value}",
+        workflowCardStateDisplayValue(stepLine)
+      )
+    );
+  }
   const stateRow =
     stateParts.length > 0
       ? `<div class="lhai-workflow-card__state-row" role="status">${escapeHtml(stateParts.join(" · "))}</div>`
@@ -1735,14 +1902,14 @@ function renderWorkflowCardBubble(m, up) {
         actionsHtml = `<div class="lhai-workflow-card__actions">
         <button type="button" class="lhai-button lhai-button--primary lhai-workflow-card__action" data-lhai-wf-action="intake_start" data-service-instance="${escapeHtml(
           instC
-        )}" data-service-item-id="${escapeHtml(itemC)}">답변 시작하기</button>
+        )}" data-service-item-id="${escapeHtml(itemC)}">${escapeHtml(t("messages.workflow.start_answers", "Start answering"))}</button>
       </div>`;
       }
     } else if (ct === "EMAIL_PARTNER_RESPONSE") {
       const oid = String(cj.partner_offer_id || cj.offer_id || "").trim();
       if (oid && wfId) {
         actionsHtml = `<div class="lhai-workflow-card__actions">
-          <button type="button" class="lhai-button lhai-button--primary lhai-workflow-card__action" data-lhai-wf-action="select_offer" data-wf-id="${escapeHtml(wfId)}" data-offer-id="${escapeHtml(oid)}">이 견적 선택하기</button>
+          <button type="button" class="lhai-button lhai-button--primary lhai-workflow-card__action" data-lhai-wf-action="select_offer" data-wf-id="${escapeHtml(wfId)}" data-offer-id="${escapeHtml(oid)}">${escapeHtml(t("messages.workflow.select_offer", "Select this quote"))}</button>
         </div>`;
       }
     } else if (ct === "OFFER_SELECTION") {
@@ -1764,7 +1931,7 @@ function renderWorkflowCardBubble(m, up) {
             return `<li class="lhai-workflow-card__offer">
               <div class="lhai-workflow-card__offer-head"><strong>${pname}</strong>${priceEl}</div>
               <div class="lhai-workflow-card__offer-summary u-text-muted">${sum}</div>
-              <button type="button" class="lhai-button lhai-button--secondary lhai-workflow-card__action" data-lhai-wf-action="select_offer" data-wf-id="${escapeHtml(wfId)}" data-offer-id="${escapeHtml(oid)}">이 견적 선택하기</button>
+              <button type="button" class="lhai-button lhai-button--secondary lhai-workflow-card__action" data-lhai-wf-action="select_offer" data-wf-id="${escapeHtml(wfId)}" data-offer-id="${escapeHtml(oid)}">${escapeHtml(t("messages.workflow.select_offer", "Select this quote"))}</button>
             </li>`;
           })
           .filter(Boolean)
@@ -1808,8 +1975,8 @@ async function runWorkflowIntakeStart(btn) {
     instFromBtn || pickWorkflowStr(meta, "service_instance_id", "serviceInstanceId") || ""
   ).trim();
   const missing = [];
-  if (!cp) missing.push("고객 프로필");
-  if (!tid) missing.push("스레드 ID");
+  if (!cp) missing.push(t("messages.alert.missing.customer_profile", "Customer profile"));
+  if (!tid) missing.push(t("messages.alert.missing.thread_id", "Thread ID"));
   if (missing.length) {
     console.warn("[lhai:intake_start] launch context incomplete", {
       missing,
@@ -1820,8 +1987,11 @@ async function runWorkflowIntakeStart(btn) {
       detailThreadLoaded: Boolean(currentThreadDetailThread),
     });
     window.alert(
-      `인테이크를 시작할 수 없습니다. 다음 정보가 없습니다: ${missing.join(", ")}.\n` +
-        "메시지함을 새로고침한 뒤 다시 시도해 주세요. 문제가 계속되면 운영팀에 문의해 주세요."
+      localizedStatus(
+        "messages.alert.intake_start_missing",
+        "Cannot start intake. Missing: {items}.\nRefresh the inbox and try again. If the problem continues, contact support.",
+        { items: missing.join(", ") }
+      )
     );
     return;
   }
@@ -1831,14 +2001,17 @@ async function runWorkflowIntakeStart(btn) {
     window.alert(
       t(
         "common.messages.workflow.mapping_repair_needed",
-        "서비스 연결 정보가 누락되었습니다. 관리자에게 서비스 매핑 복구를 요청하세요."
+        "Service mapping information is missing. Ask an administrator to repair the service mapping."
       )
     );
     return;
   }
   if (!instId) {
     window.alert(
-      "서비스 인스턴스 정보가 누락되었습니다. 메시지함을 새로고침한 뒤 다시 시도해 주세요. 문제가 계속되면 운영팀에 문의해 주세요."
+      t(
+        "messages.alert.service_instance_missing",
+        "Service instance information is missing. Refresh the inbox and try again. If the problem continues, contact support."
+      )
     );
     return;
   }
@@ -1853,7 +2026,7 @@ async function runWorkflowIntakeStart(btn) {
     await loadThreadMessages();
     syncWorkflowSummaryStrip();
   } catch (err) {
-    const msg = err && typeof err.message === "string" ? err.message : "인테이크를 시작하지 못했습니다.";
+    const msg = err && typeof err.message === "string" ? err.message : t("messages.alert.intake_start_failed", "Could not start intake.");
     window.alert(msg);
   } finally {
     btn.disabled = false;
@@ -1879,7 +2052,7 @@ async function runWorkflowSelectOffer(btn, workflowInstanceId, offerId) {
     await loadThreadMessages();
     syncWorkflowSummaryStrip();
   } catch (err) {
-    const msg = err && typeof err.message === "string" ? err.message : "선택 처리에 실패했습니다.";
+    const msg = err && typeof err.message === "string" ? err.message : t("messages.alert.select_failed", "Selection failed.");
     window.alert(msg);
   } finally {
     btn.disabled = false;
@@ -1923,10 +2096,14 @@ function renderChatBubbles(options = {}) {
   const stream = document.querySelector("#messageChatStream");
   if (!stream) return;
   const scrollIfNearBottom = Boolean(options.scrollIfNearBottom);
+  const forceScrollToBottom = Boolean(options.forceScrollToBottom);
   const wrap = document.querySelector("#messageChatScroll");
-  const stickToBottom = !scrollIfNearBottom || (wrap instanceof HTMLElement && isChatScrollNearBottom(wrap));
+  const stickToBottom =
+    forceScrollToBottom ||
+    !scrollIfNearBottom ||
+    (wrap instanceof HTMLElement && isChatScrollNearBottom(wrap));
   if (!currentThreadMessages.length) {
-    stream.innerHTML = `<div class="lhai-chat-empty">이 대화에 메시지가 없습니다.</div>`;
+    stream.innerHTML = `<div class="lhai-chat-empty">${escapeHtml(t("messages.chat.empty", "No messages in this conversation."))}</div>`;
     requestAnimationFrame(() => {
       if (stickToBottom) scrollChatToBottom();
     });
@@ -1960,14 +2137,16 @@ function renderChatBubbles(options = {}) {
       ]
         .filter(Boolean)
         .join(" ");
+      const resolvedTitle = isPartnerIntakeSummary
+        ? t("messages.bubble.partner_intake_title", "Customer application")
+        : String(m.display_title || m.title || "").trim();
       const showTitle =
         !mine &&
-        (Boolean(m.title) || isPartnerIntakeSummary) &&
+        (Boolean(resolvedTitle) || isPartnerIntakeSummary) &&
         !isForm &&
         !isIntakeContent &&
         !isWorkflowCard &&
         !isBidComparisonEntry;
-      const resolvedTitle = isPartnerIntakeSummary ? "고객 신청서" : String(m.title || "");
       const titleLine = showTitle ? `<div class="lhai-chat-bubble__title">${escapeHtml(resolvedTitle)}</div>` : "";
 
       let formBlock = "";
@@ -1982,14 +2161,18 @@ function renderChatBubbles(options = {}) {
         formBlock = renderBidComparisonEntryBubbleHtml(meta);
       }
 
+      const msgId = String(m.id || "").trim();
+      const viewerBody = messageViewerText(m);
+      const viewOriginalToggle = messageHasLocalizedDisplay(m)
+        ? `<button type="button" class="lhai-chat-bubble__view-original" data-message-id="${escapeHtml(msgId)}" aria-pressed="${showOriginalMessageIds.has(msgId) ? "true" : "false"}">${showOriginalMessageIds.has(msgId) ? escapeHtml(t("messages.view_translation", "View translation")) : escapeHtml(t("messages.view_original", "View original"))}</button>`
+        : "";
       const bodyBlock =
         (isForm || isIntakeContent || isWorkflowCard || isBidComparisonEntry) &&
         (up || isWorkflowCard || isBidComparisonEntry)
           ? formBlock
-          : `<p class="lhai-chat-bubble__body">${escapeHtml(String(scheduleReleasedMessageDisplayBody(m)))}</p>`;
-
+          : `<p class="lhai-chat-bubble__body">${escapeHtml(String(viewerBody))}</p>${viewOriginalToggle}`;
       return `
-      <div class="lhai-chat-row ${mine ? "lhai-chat-row--mine" : "lhai-chat-row--them"}">
+      <div class="lhai-chat-row ${mine ? "lhai-chat-row--mine" : "lhai-chat-row--them"}"${msgId ? ` data-message-id="${escapeHtml(msgId)}"` : ""}>
         <div class="lhai-chat-bubble ${bubbleClass}">
           ${titleLine}
           ${bodyBlock}
@@ -2031,14 +2214,14 @@ async function refreshBiddingNotificationDebugPanel(threadId, opts = {}) {
   const loading = document.querySelector("#lhaiBiddingNotifyDebugLoading");
   const runBtn = document.querySelector("#lhaiBiddingNotifyDebugRunBtn");
   if (!tid) {
-    wrap.innerHTML = `<p class="u-text-muted">스레드를 선택하면 비딩 시작 이메일 진단을 불러옵니다.</p>`;
-    if (fromUser) showIntakeDispatchDiagToast("스레드를 먼저 선택해 주세요.");
+    wrap.innerHTML = `<p class="u-text-muted">${escapeHtml(t("messages.diag.select_thread_for_email", "Select a thread to load bidding-start email diagnostics."))}</p>`;
+    if (fromUser) showIntakeDispatchDiagToast(t("messages.diag.select_thread", "Please select a thread first."));
     return;
   }
   if (runBtn instanceof HTMLButtonElement) runBtn.disabled = true;
   if (loading instanceof HTMLElement) {
     loading.hidden = false;
-    loading.textContent = "불러오는 중…";
+    loading.textContent = t("messages.loading", "Loading…");
   }
   try {
     await loadBiddingNotificationDebugInto(wrap, {
@@ -2049,17 +2232,17 @@ async function refreshBiddingNotificationDebugPanel(threadId, opts = {}) {
     const refreshedAt = new Date().toLocaleString("ko-KR");
     const stamp = wrap.querySelector(".lhai-bid-notify-debug__refreshed-at");
     if (stamp instanceof HTMLElement) {
-      stamp.textContent = `마지막 갱신: ${refreshedAt}`;
+      stamp.textContent = localizedStatus("messages.diag.last_refreshed", "Last refreshed: {time}", { time: refreshedAt });
     } else {
       wrap.insertAdjacentHTML(
         "beforeend",
-        `<p class="lhai-help lhai-bid-notify-debug__refreshed-at u-mt-2">마지막 갱신: ${escapeHtml(refreshedAt)}</p>`
+        `<p class="lhai-help lhai-bid-notify-debug__refreshed-at u-mt-2">${escapeHtml(localizedStatus("messages.diag.last_refreshed", "Last refreshed: {time}", { time: refreshedAt }))}</p>`
       );
     }
     if (fromUser) {
       const hasErr = wrap.querySelector(".lhai-state--error");
       showIntakeDispatchDiagToast(
-        hasErr ? "이메일 진단을 불러오지 못했습니다." : "비딩 시작 이메일 진단을 불러왔습니다."
+        hasErr ? t("messages.diag.email_load_failed", "Could not load email diagnostics.") : t("messages.diag.email_loaded", "Bidding-start email diagnostics loaded.")
       );
     }
   } finally {
@@ -2074,14 +2257,14 @@ async function runIntakeDispatchDiagnosticsLoad() {
   const loading = document.querySelector("#lhaiIntakeDispatchDiagLoading");
   const runBtn = document.querySelector("#lhaiIntakeDispatchDiagRunBtn");
   if (!tid) {
-    showIntakeDispatchDiagToast("스레드를 먼저 선택해 주세요.");
+    showIntakeDispatchDiagToast(t("messages.diag.select_thread", "Please select a thread first."));
     return;
   }
   if (!(body instanceof HTMLElement)) return;
   if (runBtn instanceof HTMLButtonElement) runBtn.disabled = true;
   if (loading instanceof HTMLElement) {
     loading.hidden = false;
-    loading.textContent = "불러오는 중…";
+    loading.textContent = t("messages.loading", "Loading…");
   }
   body.innerHTML = "";
   try {
@@ -2100,17 +2283,17 @@ async function runIntakeDispatchDiagnosticsLoad() {
         }
         try {
           await navigator.clipboard.writeText(out);
-          showIntakeDispatchDiagToast("진단 전체(JSON)가 복사되었습니다");
+          showIntakeDispatchDiagToast(t("messages.diag.json_copied", "Full diagnostics JSON copied."));
         } catch {
-          showIntakeDispatchDiagToast("복사에 실패했습니다");
+          showIntakeDispatchDiagToast(t("messages.diag.copy_failed", "Copy failed."));
         }
       });
     }
-    showIntakeDispatchDiagToast("파트너 배정 진단을 불러왔습니다.");
+    showIntakeDispatchDiagToast(t("messages.diag.partner_loaded", "Partner assignment diagnostics loaded."));
   } catch (e) {
     const msg = e && typeof e.message === "string" ? e.message : String(e);
     body.innerHTML = `<p class="lhai-state lhai-state--error">${escapeHtml(msg)}</p>`;
-    showIntakeDispatchDiagToast("진단을 불러오지 못했습니다.");
+    showIntakeDispatchDiagToast(t("messages.diag.load_failed", "Could not load diagnostics."));
   } finally {
     if (runBtn instanceof HTMLButtonElement) runBtn.disabled = false;
     if (loading instanceof HTMLElement) loading.hidden = true;
@@ -2118,8 +2301,11 @@ async function runIntakeDispatchDiagnosticsLoad() {
 }
 
 const CUSTOMER_BIDDING_WORKFLOW_TYPES = new Set(["PARTNER_BIDDING", "CUSTOMER_SELECTS_PARTNER"]);
-const BIDDING_POST_INTRO_TEXT_KO =
-  "조건에 맞는 파트너들에게 견적 요청을 보냈습니다. 파트너들의 제안이 도착하면 이곳에서 비교하고 선택할 수 있습니다.";
+const BIDDING_POST_INTRO_TEXT_KO = () =>
+  t(
+    "messages.bidding.intro",
+    "We sent quote requests to matching partners. When proposals arrive, you can compare and choose one here."
+  );
 
 function workflowTypeUpperFromSummary(wf) {
   return wf && typeof wf === "object" ? String(wf.workflow_type || "").trim().toUpperCase() : "";
@@ -2159,8 +2345,10 @@ function syncCustomerComposerBidGate() {
   if (note instanceof HTMLElement) {
     if (lock) {
       note.hidden = false;
-      note.textContent =
-        "파트너를 선택하기 전에는 비딩 파트너와의 메시지를 시작할 수 없습니다. 아래 견적 카드에서 한 명을 선택해 주세요.";
+      note.textContent = t(
+        "messages.bidding.composer_lock",
+        "You cannot message bidding partners until you select one below from the quote cards."
+      );
     } else {
       note.hidden = true;
       note.textContent = "";
@@ -2200,7 +2388,7 @@ function formatCustomerBidIncludedItems(raw) {
  */
 function renderCustomerBidCardHtml(bid, requestStatus) {
   const bidId = String(bid.bid_id || "").trim();
-  const name = String(bid.partner_display_name || "").trim() || "파트너";
+  const name = String(bid.partner_display_name || "").trim() || t("messages.bidding.partner_default", "Partner");
   const priceLine = formatCustomerBidPriceLine(bid.price_amount, bid.price_currency);
   const eta = String(bid.estimated_time || "").trim() || "—";
   const included = formatCustomerBidIncludedItems(bid.included_items);
@@ -2212,21 +2400,21 @@ function renderCustomerBidCardHtml(bid, requestStatus) {
     .filter(Boolean)
     .join(" ");
   const btn = showSelect
-    ? `<div class="lhai-customer-bid-card__actions"><button type="button" class="lhai-button lhai-button--primary" data-lhai-select-bid="${escapeHtml(bidId)}">이 파트너 선택</button></div>`
+    ? `<div class="lhai-customer-bid-card__actions"><button type="button" class="lhai-button lhai-button--primary" data-lhai-select-bid="${escapeHtml(bidId)}">${escapeHtml(t("messages.bidding.select_partner", "Select this partner"))}</button></div>`
     : isClosed
-      ? `<p class="lhai-customer-bid-card__state u-text-muted">선택된 파트너입니다.</p>`
-      : `<p class="lhai-customer-bid-card__state u-text-muted">선택할 수 없습니다.</p>`;
+      ? `<p class="lhai-customer-bid-card__state u-text-muted">${escapeHtml(t("messages.bidding.partner_selected", "This partner is selected."))}</p>`
+      : `<p class="lhai-customer-bid-card__state u-text-muted">${escapeHtml(t("messages.bidding.not_selectable", "Cannot select."))}</p>`;
   const msgBody = pmsg ? escapeHtml(pmsg).replace(/\n/g, "<br />") : "—";
   return `
     <article class="${cardClass}">
       <div class="lhai-customer-bid-card__name">${escapeHtml(name)}</div>
       <dl class="lhai-customer-bid-card__dl">
-        <div><dt>가격</dt><dd>${escapeHtml(priceLine)}</dd></div>
-        <div><dt>예상 처리 시간</dt><dd>${escapeHtml(eta)}</dd></div>
-        <div><dt>포함 항목</dt><dd>${escapeHtml(included)}</dd></div>
+        <div><dt>${escapeHtml(t("messages.bidding.price_label", "Price"))}</dt><dd>${escapeHtml(priceLine)}</dd></div>
+        <div><dt>${escapeHtml(t("messages.bidding.eta_label", "Estimated turnaround"))}</dt><dd>${escapeHtml(eta)}</dd></div>
+        <div><dt>${escapeHtml(t("messages.bidding.included_label", "Included items"))}</dt><dd>${escapeHtml(included)}</dd></div>
       </dl>
       <div class="lhai-customer-bid-card__partner-msg">
-        <div class="lhai-customer-bid-card__partner-msg-label">파트너 메시지</div>
+        <div class="lhai-customer-bid-card__partner-msg-label">${escapeHtml(t("messages.bidding.partner_message_label", "Partner message"))}</div>
         <div class="lhai-customer-bid-card__partner-msg-body">${msgBody}</div>
       </div>
       ${btn}
@@ -2239,7 +2427,9 @@ function renderCustomerSelectedOfferCardHtml(snap) {
     snap.selected_offer_summary && typeof snap.selected_offer_summary === "object"
       ? /** @type {Record<string, unknown>} */ (snap.selected_offer_summary)
       : null;
-  const title = sel ? String(sel.title || sel.vehicle_title || "Selected offer").trim() : "Selected offer";
+  const title = sel
+    ? String(sel.title || sel.vehicle_title || t("messages.bidding.selected_offer_default", "Selected offer")).trim()
+    : t("messages.bidding.selected_offer_default", "Selected offer");
   const total = sel ? formatMoney(sel.estimated_total, String(sel.currency || "USD")) : "—";
   const partner = sel ? String(sel.partner_name || "").trim() : "";
   const thumb = sel ? String(sel.thumbnail_url || "").trim() : "";
@@ -2249,15 +2439,15 @@ function renderCustomerSelectedOfferCardHtml(snap) {
     ? `<img class="lhai-messages-selected-offer__thumb" src="${escapeHtml(thumb)}" alt="" loading="lazy" />`
     : `<div class="lhai-messages-selected-offer__thumb lhai-messages-selected-offer__thumb--empty" aria-hidden="true"></div>`;
   return `
-    <div class="lhai-messages-selected-offer" role="region" aria-label="Selected offer">
+    <div class="lhai-messages-selected-offer" role="region" aria-label="${escapeHtml(t("messages.bidding.selected_offer_default", "Selected offer"))}">
       ${thumbHtml}
       <div class="lhai-messages-selected-offer__body">
         <p class="lhai-messages-selected-offer__title">${escapeHtml(title)}</p>
         <p class="lhai-messages-selected-offer__meta">${escapeHtml(total)}${partner ? ` · ${escapeHtml(partner)}` : ""}</p>
-        <p class="lhai-messages-selected-offer__hint">Your selected partner has been added to this conversation.</p>
+        <p class="lhai-messages-selected-offer__hint">${escapeHtml(t("messages.bidding.selected_offer_hint", "Your selected partner has been added to this conversation."))}</p>
         <div class="lhai-messages-car-bid-banner__actions">
-          <button type="button" class="lhai-button lhai-button--secondary" data-lhai-focus-composer>Open conversation</button>
-          <a class="lhai-button lhai-button--ghost" href="${escapeHtml(href)}">View offer details</a>
+          <button type="button" class="lhai-button lhai-button--secondary" data-lhai-focus-composer>${escapeHtml(t("messages.bidding.open_conversation", "Open conversation"))}</button>
+          <a class="lhai-button lhai-button--ghost" href="${escapeHtml(href)}">${escapeHtml(t("messages.bidding.view_offer_details", "View offer details"))}</a>
         </div>
       </div>
     </div>`;
@@ -2282,33 +2472,33 @@ function renderCustomerCarBidBannerHtml(snap) {
 
   if (phase === "CUSTOMER_SELECTED") {
     return `
-      <div class="lhai-messages-car-bid-banner lhai-messages-car-bid-banner--selected" role="region" aria-label="Partner selected">
-        <p class="lhai-messages-car-bid-banner__title">Partner selected</p>
+      <div class="lhai-messages-car-bid-banner lhai-messages-car-bid-banner--selected" role="region" aria-label="${escapeHtml(t("messages.bidding.partner_selected_aria", "Partner selected"))}">
+        <p class="lhai-messages-car-bid-banner__title">${escapeHtml(t("messages.bidding.partner_selected_title", "Partner selected"))}</p>
         ${renderCustomerSelectedOfferCardHtml(snap)}
       </div>`;
   }
 
   if (phase === "EXPIRED") {
     return `
-      <div class="lhai-messages-car-bid-banner lhai-messages-car-bid-banner--expired" role="region" aria-label="비딩 종료">
-        <p class="lhai-messages-car-bid-banner__title">비딩이 종료되었습니다.</p>
-        <p class="lhai-messages-car-bid-banner__desc">현재까지 도착한 제안 중 하나를 선택해 주세요.</p>
+      <div class="lhai-messages-car-bid-banner lhai-messages-car-bid-banner--expired" role="region" aria-label="${escapeHtml(t("messages.bidding.car.expired_aria", "Bidding ended"))}">
+        <p class="lhai-messages-car-bid-banner__title">${escapeHtml(t("messages.bidding.car.expired_title", "Bidding has ended."))}</p>
+        <p class="lhai-messages-car-bid-banner__desc">${escapeHtml(t("messages.bidding.car.expired_desc", "Please select one of the proposals received so far."))}</p>
         <div class="lhai-messages-car-bid-banner__actions">
-          <a class="lhai-button lhai-button--primary" href="${escapeHtml(href)}">제안 선택하기</a>
+          <a class="lhai-button lhai-button--primary" href="${escapeHtml(href)}">${escapeHtml(t("messages.bidding.car.select_offer", "Choose a proposal"))}</a>
         </div>
       </div>`;
   }
 
   return `
-    <div class="lhai-messages-car-bid-banner" role="region" aria-label="자동차 구매 견적">
-      <p class="lhai-messages-car-bid-banner__title">자동차 구매 견적 진행 중</p>
+    <div class="lhai-messages-car-bid-banner" role="region" aria-label="${escapeHtml(t("messages.bidding.car.in_progress_aria", "Car purchase quotes"))}">
+      <p class="lhai-messages-car-bid-banner__title">${escapeHtml(t("messages.bidding.car.in_progress_title", "Car purchase quotes in progress"))}</p>
       <dl class="lhai-messages-car-bid-banner__stats">
-        <div><dt>도착한 제안</dt><dd>${escapeHtml(String(offerCount))}개</dd></div>
-        <div><dt>최근 업데이트</dt><dd>${escapeHtml(recent)}</dd></div>
-        <div><dt>비딩 마감까지</dt><dd id="messageCarBidCountdown">${escapeHtml(countdown)}</dd></div>
+        <div><dt>${escapeHtml(t("messages.bidding.car.offers_received", "Proposals received"))}</dt><dd>${escapeHtml(String(offerCount))}</dd></div>
+        <div><dt>${escapeHtml(t("messages.bidding.car.recent_update", "Latest update"))}</dt><dd>${escapeHtml(recent)}</dd></div>
+        <div><dt>${escapeHtml(t("messages.bidding.car.deadline", "Time until bidding closes"))}</dt><dd id="messageCarBidCountdown">${escapeHtml(countdown)}</dd></div>
       </dl>
       <div class="lhai-messages-car-bid-banner__actions">
-        <a class="lhai-button lhai-button--primary" href="${escapeHtml(href)}">견적 비교하기</a>
+        <a class="lhai-button lhai-button--primary" href="${escapeHtml(href)}">${escapeHtml(t("messages.bidding.car.compare", "Compare quotes"))}</a>
       </div>
     </div>`;
 }
@@ -2319,37 +2509,37 @@ function renderBidComparisonEntryBubbleHtml(meta) {
   const href = buildCustomerBidResultsPageHref(wid, selectedThreadId);
   return `
     <div class="lhai-chat-bubble lhai-chat-bubble--bid-entry">
-      <div class="lhai-chat-bubble__title">${escapeHtml("자동차 견적 요청이 시작되었습니다")}</div>
-      <p class="lhai-chat-bubble__body">${escapeHtml("파트너들이 견적을 제출하면 견적 비교 화면에서 확인할 수 있습니다.")}</p>
+      <div class="lhai-chat-bubble__title">${escapeHtml(t("messages.bidding.car.entry_title", "Car quote request started"))}</div>
+      <p class="lhai-chat-bubble__body">${escapeHtml(t("messages.bidding.car.entry_body", "When partners submit quotes, you can review them on the compare-quotes screen."))}</p>
       <p class="lhai-messages-bid-entry__cta">
-        <a class="lhai-button lhai-button--primary" href="${escapeHtml(href)}">견적 비교 화면 열기</a>
+        <a class="lhai-button lhai-button--primary" href="${escapeHtml(href)}">${escapeHtml(t("messages.bidding.car.open_compare", "Open compare-quotes screen"))}</a>
       </p>
     </div>`;
 }
 
 function renderCustomerBidPanelInnerHtml() {
   const snap = customerBidPanelSnapshot;
-  const intro = `<p class="lhai-customer-bid-panel__intro">${escapeHtml(BIDDING_POST_INTRO_TEXT_KO)}</p>`;
-  const head = `<div class="lhai-customer-bid-panel__head"><h3 class="lhai-customer-bid-panel__title">파트너 견적</h3></div>`;
+  const intro = `<p class="lhai-customer-bid-panel__intro">${escapeHtml(BIDDING_POST_INTRO_TEXT_KO())}</p>`;
+  const head = `<div class="lhai-customer-bid-panel__head"><h3 class="lhai-customer-bid-panel__title">${escapeHtml(t("messages.bidding.panel_title", "Partner quotes"))}</h3></div>`;
   const showFlash =
     Boolean(customerBidSelectBannerThreadId) &&
     customerBidSelectBannerThreadId === selectedThreadId &&
     Date.now() < customerBidSelectBannerUntil;
   const flash = showFlash
-    ? `<div class="lhai-customer-bid-panel__flash" role="status">파트너 선택 완료</div>`
+    ? `<div class="lhai-customer-bid-panel__flash" role="status">${escapeHtml(t("messages.bidding.select_complete", "Partner selected"))}</div>`
     : "";
   if (!snap || typeof snap !== "object") {
-    return `${head}${intro}${flash}<p class="lhai-state lhai-state--error">견적 정보를 불러오지 못했습니다.</p>`;
+    return `${head}${intro}${flash}<p class="lhai-state lhai-state--error">${escapeHtml(t("messages.bidding.load_failed", "Could not load quote information."))}</p>`;
   }
   const status = String(snap.status || "OPEN").trim().toUpperCase();
   const bids = Array.isArray(snap.bids) ? snap.bids : [];
   const doneLine =
     status === "CUSTOMER_SELECTED"
-      ? `<p class="lhai-customer-bid-panel__selected-msg">이미 선택 완료되었습니다.</p>`
+      ? `<p class="lhai-customer-bid-panel__selected-msg">${escapeHtml(t("messages.bidding.already_selected", "You have already completed your selection."))}</p>`
       : "";
   const empty =
     status === "OPEN" && bids.length === 0
-      ? `<p class="lhai-customer-bid-panel__empty">아직 도착한 견적이 없습니다. 파트너가 견적을 제출하면 이곳에 표시됩니다.</p>`
+      ? `<p class="lhai-customer-bid-panel__empty">${escapeHtml(t("messages.bidding.empty", "No quotes have arrived yet. They will appear here when partners submit."))}</p>`
       : "";
   const cards = bids.map((b) => renderCustomerBidCardHtml(b, status)).join("");
   return `${head}${intro}${flash}${doneLine}${empty}<div class="lhai-customer-bid-panel__cards">${cards}</div>`;
@@ -2357,8 +2547,8 @@ function renderCustomerBidPanelInnerHtml() {
 
 /** @param {string} message */
 function renderCustomerBidPanelErrorHtml(message) {
-  const intro = `<p class="lhai-customer-bid-panel__intro">${escapeHtml(BIDDING_POST_INTRO_TEXT_KO)}</p>`;
-  const head = `<div class="lhai-customer-bid-panel__head"><h3 class="lhai-customer-bid-panel__title">파트너 견적</h3></div>`;
+  const intro = `<p class="lhai-customer-bid-panel__intro">${escapeHtml(BIDDING_POST_INTRO_TEXT_KO())}</p>`;
+  const head = `<div class="lhai-customer-bid-panel__head"><h3 class="lhai-customer-bid-panel__title">${escapeHtml(t("messages.bidding.panel_title", "Partner quotes"))}</h3></div>`;
   return `${head}${intro}<p class="lhai-state lhai-state--error">${escapeHtml(message)}</p>`;
 }
 
@@ -2409,7 +2599,7 @@ async function refreshCustomerBidPanel() {
   try {
     rawBidSnapshot = await customerBidsApi.listByServiceRequest(wid);
   } catch (err) {
-    const msg = err && typeof err.message === "string" ? err.message : "견적 정보를 불러오지 못했습니다.";
+    const msg = err && typeof err.message === "string" ? err.message : t("messages.bidding.load_failed", "Could not load quote information.");
     customerBidPanelSnapshot = null;
     if (banner instanceof HTMLElement) {
       banner.hidden = false;
@@ -2464,6 +2654,14 @@ async function refreshCustomerBidPanel() {
     return;
   }
 
+  paintCustomerBidPanelFromSnapshot(bidSnapshot);
+  syncCustomerComposerBidGate();
+}
+
+/** @param {Record<string, unknown>} bidSnapshot */
+function paintCustomerBidPanelFromSnapshot(bidSnapshot) {
+  const banner = document.querySelector("#messageCarBidBanner");
+  const panel = document.querySelector("#messageBidResultsPanel");
   const phase = resolveCustomerBidDisplayPhase(
     String(bidSnapshot.status || "OPEN"),
     bidSnapshot.expires_at != null ? String(bidSnapshot.expires_at) : "",
@@ -2497,7 +2695,16 @@ async function refreshCustomerBidPanel() {
     panel.hidden = false;
     setInnerHtmlIfChanged(panel, renderCustomerBidPanelInnerHtml());
   }
-  syncCustomerComposerBidGate();
+}
+
+function repaintCustomerBidPanelFromSnapshot() {
+  if (!isCustomerServiceBiddingThreadContext()) return;
+  const bidSnapshot =
+    customerBidPanelSnapshot && typeof customerBidPanelSnapshot === "object"
+      ? /** @type {Record<string, unknown>} */ (customerBidPanelSnapshot)
+      : null;
+  if (!bidSnapshot) return;
+  paintCustomerBidPanelFromSnapshot(bidSnapshot);
 }
 
 /** @param {HTMLButtonElement} btn */
@@ -2516,7 +2723,7 @@ async function handleCustomerSelectBidClick(btn) {
     customerBidSelectBannerUntil = Date.now() + 20000;
     await loadThreadMessages();
   } catch (err) {
-    const msg = err && typeof err.message === "string" ? err.message : "선택 처리에 실패했습니다.";
+    const msg = err && typeof err.message === "string" ? err.message : t("messages.alert.select_failed", "Selection failed.");
     window.alert(msg);
     allSelect?.forEach((el) => {
       if (el instanceof HTMLButtonElement) el.disabled = false;
@@ -2530,7 +2737,7 @@ function renderMessageDetailShell(threadMeta) {
   if (!container) return;
   if (!selectedThreadId) {
     container.className = "lhai-message-detail lhai-state lhai-state--empty";
-    container.innerHTML = "왼쪽에서 대화를 선택하세요.";
+    container.innerHTML = escapeHtml(t("messages.detail.select_thread", "Select a conversation on the left."));
     return;
   }
   const isAdminChannel = threadMeta
@@ -2539,11 +2746,11 @@ function renderMessageDetailShell(threadMeta) {
   const operatorContextBanner =
     operatorInboxMode && threadMeta
       ? isAdminChannel
-        ? `<div class="lhai-thread-detail-banner lhai-messages-ai-scope u-mb-2" role="region" aria-label="운영 안내">
-             운영 화면: <strong>고객센터(전역 지원)</strong> 스레드입니다. 계정 단위 문의·안내에 회신합니다.
+        ? `<div class="lhai-thread-detail-banner lhai-messages-ai-scope u-mb-2" role="region" aria-label="${escapeHtml(t("messages.banner.operator.aria", "Operator notice"))}">
+             ${escapeHtml(t("messages.banner.operator.admin", "Operator view: Customer center (global support) thread. Reply to account-wide inquiries and guidance."))}
            </div>`
-        : `<div class="lhai-thread-detail-banner lhai-thread-detail-banner--service lhai-messages-ai-scope u-mb-2" role="region" aria-label="운영 안내">
-             운영 화면: <strong>서비스 전용</strong> 스레드입니다. 해당 서비스 계약·진행 범위의 문의에 회신합니다.
+        : `<div class="lhai-thread-detail-banner lhai-thread-detail-banner--service lhai-messages-ai-scope u-mb-2" role="region" aria-label="${escapeHtml(t("messages.banner.operator.aria", "Operator notice"))}">
+             ${escapeHtml(t("messages.banner.operator.service", "Operator view: Service-only thread. Reply within this service contract and progress scope."))}
            </div>`
       : "";
   const showIntakeDiag =
@@ -2551,49 +2758,49 @@ function renderMessageDetailShell(threadMeta) {
   const intakeDiagBlock = showIntakeDiag
     ? `<section class="lhai-card lhai-intake-diag-panel u-mb-2" id="lhaiIntakeDispatchDiagWrap" aria-labelledby="lhaiIntakeDiagHeading">
         <div class="lhai-intake-diag-panel__head" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.5rem">
-          <h3 id="lhaiIntakeDiagHeading" class="lhai-card__title" style="margin:0;font-size:1rem">파트너 배정 진단</h3>
-          <button type="button" class="lhai-button lhai-button--secondary" id="lhaiIntakeDispatchDiagRunBtn" data-lhai-action="load-intake-dispatch-diag">진단 불러오기</button>
+          <h3 id="lhaiIntakeDiagHeading" class="lhai-card__title" style="margin:0;font-size:1rem">${escapeHtml(t("messages.diag.partner_assignment_title", "Partner assignment diagnostics"))}</h3>
+          <button type="button" class="lhai-button lhai-button--secondary" id="lhaiIntakeDispatchDiagRunBtn" data-lhai-action="load-intake-dispatch-diag">${escapeHtml(t("messages.diag.load", "Load diagnostics"))}</button>
         </div>
-        <p class="lhai-help u-mt-1" id="lhaiIntakeDispatchDiagLoading" hidden>불러오는 중…</p>
+        <p class="lhai-help u-mt-1" id="lhaiIntakeDispatchDiagLoading" hidden>${escapeHtml(t("messages.loading", "Loading…"))}</p>
         <div id="lhaiIntakeDispatchDiagBody" class="lhai-intake-diag-body u-mt-2"></div>
       </section>
       <section class="lhai-card lhai-intake-diag-panel u-mb-2" id="lhaiBiddingNotifyDebugWrap" aria-labelledby="lhaiBiddingNotifyDebugHeading">
         <div class="lhai-intake-diag-panel__head" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.5rem">
-          <h3 id="lhaiBiddingNotifyDebugHeading" class="lhai-card__title" style="margin:0;font-size:1rem">비딩 시작 이메일 진단</h3>
-          <button type="button" class="lhai-button lhai-button--secondary" id="lhaiBiddingNotifyDebugRunBtn" data-lhai-action="load-bidding-email-diag">이메일 진단 불러오기</button>
+          <h3 id="lhaiBiddingNotifyDebugHeading" class="lhai-card__title" style="margin:0;font-size:1rem">${escapeHtml(t("messages.diag.bidding_email_title", "Bidding-start email diagnostics"))}</h3>
+          <button type="button" class="lhai-button lhai-button--secondary" id="lhaiBiddingNotifyDebugRunBtn" data-lhai-action="load-bidding-email-diag">${escapeHtml(t("messages.diag.load_email", "Load email diagnostics"))}</button>
         </div>
-        <p class="lhai-help u-mt-1">관리자 로그인 세션으로 API를 호출합니다(주소창 직접 호출 아님). intake 제출 후 파트너 bidding started 메일 발송 여부를 확인합니다.</p>
-        <p class="lhai-help u-mt-1" id="lhaiBiddingNotifyDebugLoading" hidden>불러오는 중…</p>
+        <p class="lhai-help u-mt-1">${escapeHtml(t("messages.diag.bidding_email_help", "Calls the API with your admin session (not a direct URL). Verifies whether partner bidding-started emails were sent after intake submission."))}</p>
+        <p class="lhai-help u-mt-1" id="lhaiBiddingNotifyDebugLoading" hidden>${escapeHtml(t("messages.loading", "Loading…"))}</p>
         <div id="lhaiBiddingNotifyDebugBody" class="lhai-intake-diag-body u-mt-2"></div>
       </section>`
     : "";
   const customerExtras =
     !operatorInboxMode && isAdminChannel
-      ? `<div class="lhai-thread-detail-banner lhai-messages-ai-scope u-mb-2" role="region" aria-label="채널 안내">
-           이 스레드는 <strong>고객센터(운영 지원)</strong> 전용입니다. 계정 또는 진행 일반 문의를 남겨 주세요.
-           서비스별 진행·AI 안내는 왼쪽 목록의 <strong>해당 서비스</strong> 대화를 이용해 주세요.
+      ? `<div class="lhai-thread-detail-banner lhai-messages-ai-scope u-mb-2" role="region" aria-label="${escapeHtml(t("messages.banner.channel.aria", "Channel notice"))}">
+           ${escapeHtml(t("messages.banner.channel.admin", "This thread is for Customer center (operations support) only. Post account or general progress inquiries here. For service-specific progress or AI guidance, use the matching service conversation in the list on the left."))}
          </div>
          <div class="lhai-messages-ai-escalation u-mb-2">
-           <button type="button" class="lhai-button lhai-button--secondary" id="lhaiEscalateToOpsBtn">운영자에게 요청</button>
-           <button type="button" class="lhai-button lhai-button--secondary" id="lhaiEscalateInPersonBtn">대면 지원 요청</button>
+           <button type="button" class="lhai-button lhai-button--secondary" id="lhaiEscalateToOpsBtn">${escapeHtml(t("messages.escalate.to_ops", "Request operator help"))}</button>
+           <button type="button" class="lhai-button lhai-button--secondary" id="lhaiEscalateInPersonBtn">${escapeHtml(t("messages.escalate.in_person", "Request in-person support"))}</button>
          </div>`
       : !operatorInboxMode
-        ? `<div class="lhai-thread-detail-banner lhai-thread-detail-banner--service lhai-messages-ai-scope u-mb-2" role="region" aria-label="채널 안내">
-             이 대화는 <strong>선택하신 서비스</strong>에 한정됩니다. 진행 일정·산출물·해당 서비스 범위의 내용만 남겨 주시면 더 정확히 안내됩니다.
-             계정 전체·견적·청구 등 일반 문의는 왼쪽 목록의 <strong>고객센터</strong> 스레드를 이용해 주세요.
+        ? `<div class="lhai-thread-detail-banner lhai-thread-detail-banner--service lhai-messages-ai-scope u-mb-2" role="region" aria-label="${escapeHtml(t("messages.banner.channel.aria", "Channel notice"))}">
+             ${escapeHtml(t("messages.banner.channel.service", "This conversation is limited to your selected service. Messages about schedule, deliverables, and this service scope are answered most accurately here. For account-wide, quote, or billing questions, use the Customer center thread in the list on the left."))}
              <div class="lhai-messages-service-actions">
-               <button type="button" class="lhai-button lhai-button--secondary" id="lhaiEscalateServiceToAdminBtn">고객센터로 연결 요청</button>
+               <button type="button" class="lhai-button lhai-button--secondary" id="lhaiEscalateServiceToAdminBtn">${escapeHtml(t("messages.escalate.to_customer_center", "Request link to customer center"))}</button>
              </div>
            </div>`
         : "";
-  const placeholder = partnerInboxMode ? "고객에게 보낼 메시지를 입력하세요." : "메시지를 입력하세요";
-  const sendLabel = "보내기";
+  const placeholder = partnerInboxMode
+    ? t("messages.compose.partner", "Type a message to send to the customer…")
+    : t("messages.compose", "Type a message…");
+  const sendLabel = t("messages.send", "Send");
 
   container.className = "lhai-message-detail lhai-message-detail--chat";
   container.innerHTML = `
     <div class="lhai-chat-header">
       <p id="messageChatEyebrow" class="lhai-chat-header__eyebrow" aria-hidden="true"></p>
-      <div id="messageChatHeaderBadges" class="lhai-chat-header__badge-row" aria-label="스레드 유형"></div>
+      <div id="messageChatHeaderBadges" class="lhai-chat-header__badge-row" aria-label="${escapeHtml(t("messages.header.thread_type_aria", "Thread type"))}"></div>
       <div class="lhai-service-header__primary" id="messageChatServicePrimary">
         <h3 id="messageChatTitle" class="lhai-service-header__title"></h3>
         <span id="messageChatDeliveryBadge" class="lhai-service-header__delivery-badge" hidden></span>
@@ -2604,19 +2811,23 @@ function renderMessageDetailShell(threadMeta) {
     ${intakeDiagBlock}
     ${customerExtras}
     <div id="messageWorkflowSummary" class="lhai-thread-workflow-summary" hidden></div>
-    <section id="messageCarBidBanner" class="lhai-messages-car-bid-banner-wrap u-mb-2" hidden aria-label="자동차 구매 견적 안내"></section>
-    <section id="messageBidResultsPanel" class="lhai-customer-bid-panel u-mb-2" hidden aria-label="파트너 견적 비교"></section>
+    <section id="messageCarBidBanner" class="lhai-messages-car-bid-banner-wrap u-mb-2" hidden aria-label="${escapeHtml(t("messages.bidding.car.banner_aria", "Car purchase quote notice"))}"></section>
+    <section id="messageBidResultsPanel" class="lhai-customer-bid-panel u-mb-2" hidden aria-label="${escapeHtml(t("messages.bidding.panel_aria", "Partner quote comparison"))}"></section>
     <div id="messageChatScroll" class="lhai-chat-scroll" role="log" aria-live="polite">
       <div id="messageChatStream" class="lhai-chat-stream"></div>
+      <button type="button" id="messageChatNewBelow" class="lhai-chat-new-below" hidden aria-hidden="true">
+        ${safeText(t("messages.chat.new_below_one", "1 new message"))}
+      </button>
     </div>
     <p id="messageBidComposerLockNote" class="lhai-chat-composer__bid-lock-note u-text-muted u-mb-1" hidden></p>
     <form id="messageChatForm" class="lhai-chat-composer" autocomplete="off">
       <label class="lhai-chat-composer__field">
-        <textarea id="messageChatInput" class="lhai-chat-composer__input" rows="2" placeholder="${safeText(placeholder)}" maxlength="4000" aria-label="메시지 입력"></textarea>
+        <textarea id="messageChatInput" class="lhai-chat-composer__input" rows="2" data-i18n-placeholder="messages.compose" placeholder="${safeText(placeholder)}" maxlength="4000" data-i18n-aria-label="messages.compose" aria-label="${escapeHtml(t("messages.compose", "Type a message…"))}"></textarea>
       </label>
       <button type="submit" class="lhai-button lhai-button--primary lhai-chat-composer__send">${safeText(sendLabel)}</button>
     </form>
   `;
+  applyI18nToDom(container);
   syncChatHeader(threadMeta);
   if (showIntakeDiag) {
     void refreshBiddingNotificationDebugPanel(selectedThreadId);
@@ -2652,52 +2863,52 @@ function syncChatHeader(threadMeta) {
 
   if (operatorInboxMode) {
     badges.innerHTML = threadListBadgesHtml(threadMeta, detailBadgeOpts);
-    eyebrow.textContent = role === "ADMIN" ? "고객센터 (운영 보기)" : "서비스 (운영 보기)";
+    eyebrow.textContent = role === "ADMIN" ? t("messages.header.operator.admin_eyebrow", "Customer center (operator view)") : t("messages.header.operator.service_eyebrow", "Service (operator view)");
     eyebrow.hidden = false;
     if (role === "ADMIN") {
-      titleEl.textContent = String(threadMeta.title || "고객센터");
+      titleEl.textContent = String(threadMeta.title || t("messages.thread.customer_center", "Customer center"));
       applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, "");
     } else {
       titleEl.textContent = serviceThreadDisplayName(threadMeta);
       applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, deliveryModeBadgeLabel(threadMeta));
     }
     if (role === "ADMIN") {
-      subtitle.textContent = "고객의 계정 단위 문의·안내를 다루는 스레드입니다.";
+      subtitle.textContent = t("messages.header.operator.admin_subtitle", "Thread for account-wide customer inquiries and guidance.");
     } else if (isInPersonServiceThread(threadMeta)) {
       const summary = String(threadMeta.agent_assignment_summary || "").trim();
       const nameOnly = String(threadMeta.assigned_agent_name || "").trim();
       if (summary) subtitle.textContent = summary;
-      else if (nameOnly) subtitle.textContent = `담당 Agent: ${nameOnly}`;
-      else subtitle.textContent = "담당 배정 대기 중입니다.";
+      else if (nameOnly) subtitle.textContent = localizedStatus("messages.header.agent_assigned", "Assigned agent: {name}", { name: nameOnly });
+      else subtitle.textContent = t("messages.header.agent_pending", "Waiting for agent assignment.");
     } else {
-      subtitle.textContent = "고객의 특정 서비스 계약·진행을 다루는 스레드입니다.";
+      subtitle.textContent = t("messages.header.operator.service_subtitle", "Thread for a specific service contract and progress.");
     }
     return;
   }
 
   if (partnerInboxMode) {
     badges.innerHTML = "";
-    eyebrow.textContent = "파트너 메시지함";
+    eyebrow.textContent = t("messages.header.partner.eyebrow", "Partner inbox");
     eyebrow.hidden = false;
     titleEl.textContent = serviceThreadDisplayName(threadMeta);
     applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, "");
-    subtitle.textContent = "배정된 고객 서비스 thread를 확인하고 고객과 대화할 수 있습니다.";
+    subtitle.textContent = t("messages.header.partner.subtitle", "Review assigned customer service threads and chat with customers.");
     return;
   }
 
   badges.innerHTML = threadListBadgesHtml(threadMeta, detailBadgeOpts);
 
   if (role === "ADMIN") {
-    eyebrow.textContent = "고객센터";
+    eyebrow.textContent = t("messages.thread.customer_center", "Customer center");
     eyebrow.hidden = false;
-    titleEl.textContent = String(threadMeta.title || "고객센터");
+    titleEl.textContent = String(threadMeta.title || t("messages.thread.customer_center", "Customer center"));
     applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, "");
-    subtitle.textContent = "운영·견적·청구·결제·일반 문의를 위한 채널입니다.";
+    subtitle.textContent = t("messages.header.customer.admin_subtitle", "Channel for operations, quotes, billing, payments, and general inquiries.");
     return;
   }
 
   const dm = deliveryModeBadgeLabel(threadMeta);
-  eyebrow.textContent = dm ? "" : "서비스";
+  eyebrow.textContent = dm ? "" : t("messages.header.customer.service_eyebrow", "Service");
   eyebrow.hidden = !String(eyebrow.textContent || "").trim();
   titleEl.textContent = serviceThreadDisplayName(threadMeta);
   applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, dm);
@@ -2706,12 +2917,12 @@ function syncChatHeader(threadMeta) {
     const summary = String(threadMeta.agent_assignment_summary || "").trim();
     const nameOnly = String(threadMeta.assigned_agent_name || "").trim();
     if (summary) subtitle.textContent = summary;
-    else if (nameOnly) subtitle.textContent = `담당 Agent: ${nameOnly}`;
-    else subtitle.textContent = "담당 배정 대기 중입니다.";
+    else if (nameOnly) subtitle.textContent = localizedStatus("messages.header.agent_assigned", "Assigned agent: {name}", { name: nameOnly });
+    else subtitle.textContent = t("messages.header.agent_pending", "Waiting for agent assignment.");
   } else {
     subtitle.textContent =
       dm === "AI Agent"
-        ? "이 서비스는 AI Agent가 제한된 범위에서 안내합니다."
+        ? t("messages.header.customer.ai_agent_subtitle", "This service is guided by AI Agent within a limited scope.")
         : handlerSubtitleKo(threadMeta.handler_type);
   }
 }
@@ -2728,35 +2939,27 @@ function threadMessagesListSignature(msgs) {
   return `${n}:${String(last?.id || "")}:${String(last?.created_at || "")}:${unreadN}`;
 }
 
-/** @param {Record<string, unknown>} d */
-function messagesRealtimeLifecycleFromDetail(d) {
-  const life = String(d?.lifecycle || "").trim();
-  if (life) return life;
-  if (d?.connected && !d?.fallback) return "connected";
-  if (d?.connecting) return "connecting";
-  if (d?.fallback) return "fallback";
-  return "disconnected";
-}
-
-/** Step 8: 짧은 폴링은 SSE ``fallback`` 이고 탭이 보일 때만. */
-function shouldRunMessagesFallbackPoll(d) {
-  const life = messagesRealtimeLifecycleFromDetail(d);
-  if (life === "connected" || life === "connecting") return false;
-  if (life !== "fallback") return false;
-  if (typeof document !== "undefined" && document.visibilityState !== "visible") return false;
-  return true;
-}
-
 async function loadThreadMessages(options = {}) {
   const realtime = Boolean(options.realtime);
   const dispatchHeaderOnMarkRead = Boolean(options.dispatchHeaderOnMarkRead);
+  const skipInlineListBadgeSync = Boolean(options.skipInlineListBadgeSync);
   const silentIfUnchanged = Boolean(options.silentIfUnchanged);
+  const refreshSource = resolveMessagesRefreshSource(options);
+  const traceMessageId = String(options.traceMessageId || "").trim();
+  syncChatScrollThreadContext();
+  const prevMessages = Array.isArray(currentThreadMessages) ? currentThreadMessages : [];
+  const prevMessageIdSet = new Set(
+    prevMessages.map((m) => String(m?.id || "").trim()).filter(Boolean),
+  );
+  if (traceMessageId) {
+    markDetailFetchStarted(traceMessageId, { refreshSource: refreshSource || "sse" });
+  }
   let savedComposer = null;
   if (realtime) {
     const ta = document.querySelector("#messageChatInput");
     if (ta instanceof HTMLTextAreaElement) {
       savedComposer = ta.value;
-      messagesRtDebug("composer snapshot for realtime refresh", String(savedComposer.length), "chars");
+      messagesRtDebug("composer snapshot for realtime refresh", { chars: String(savedComposer.length) });
     }
   }
 
@@ -2867,11 +3070,17 @@ async function loadThreadMessages(options = {}) {
   /* Partner/operator: thread-level unread is cleared on detail fetch; message rows may be
    * unchanged so the signature matches and we must not return before list/header badge sync. */
   if (sigUnchanged && !partnerInboxMode && !operatorInboxMode) {
-    messagesRtDebug("fallback tick skipped unchanged thread messages");
+    messagesRtDebug("fallback tick skipped unchanged thread messages", {
+      refresh_source: refreshSource,
+      polling_intervals: getMessagesPollingIntervalsForDebug(),
+    });
     await refreshCustomerBidPanel();
     return;
   }
-  messagesRtDebug("markRead count", markedReadCount, { customerPath: !operatorInboxMode && !partnerInboxMode });
+  messagesRtDebug("markRead count", {
+    markedReadCount,
+    customerPath: !operatorInboxMode && !partnerInboxMode,
+  });
   const listBadgeSyncReason =
     partnerInboxMode && selectedThreadId
       ? "partner-thread-read"
@@ -2879,7 +3088,7 @@ async function loadThreadMessages(options = {}) {
         ? "customer-mark-read"
         : "";
 
-  if (listBadgeSyncReason) {
+  if (listBadgeSyncReason && !skipInlineListBadgeSync) {
     await refreshThreadListOnly({ syncHeader: true, reloadCurrentMessages: false, reason: listBadgeSyncReason });
     window.dispatchEvent(
       new CustomEvent("lhai:messages-changed", {
@@ -2888,13 +3097,40 @@ async function loadThreadMessages(options = {}) {
     );
   }
 
-  renderChatBubbles(realtime ? { scrollIfNearBottom: true } : {});
+  if (realtime && selectedThreadId) {
+    const wrap = document.querySelector("#messageChatScroll");
+    const nearBottom = !(wrap instanceof HTMLElement) || isChatScrollNearBottom(wrap);
+    const incomingNew = (Array.isArray(currentThreadMessages) ? currentThreadMessages : []).filter(
+      (m) => {
+        const id = String(m?.id || "").trim();
+        return id && !prevMessageIdSet.has(id);
+      },
+    );
+    if (incomingNew.length && !nearBottom) {
+      chatNewMessagesBelowCount += incomingNew.length;
+      renderChatBubbles({ scrollIfNearBottom: false });
+      updateChatNewMessagesBelowIndicator();
+    } else {
+      if (incomingNew.length) resetChatNewMessagesBelowState();
+      renderChatBubbles({ scrollIfNearBottom: true, forceScrollToBottom: Boolean(incomingNew.length) });
+    }
+  } else {
+    renderChatBubbles({});
+  }
   if (savedComposer != null) {
     const ta2 = document.querySelector("#messageChatInput");
     if (ta2 instanceof HTMLTextAreaElement) {
       ta2.value = savedComposer;
       messagesRtDebug("composer restored after realtime refresh");
     }
+  }
+  if (traceMessageId) {
+    markDetailFetchFinished(traceMessageId);
+  }
+  if (refreshSource) {
+    completeLatencyForMessagesAfterLoad(prevMessageIdSet, currentThreadMessages, {
+      refreshSource,
+    });
   }
   if (dispatchHeaderOnMarkRead) {
     const alreadySynced = Boolean(listBadgeSyncReason);
@@ -2933,7 +3169,7 @@ async function fetchThreadsListForMessagesPage() {
           });
   } catch (err) {
     const msg = err && typeof err.message === "string" ? err.message : "";
-    threadListLoadError = msg || "대화 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
+    threadListLoadError = msg || t("messages.list.load_failed", "Could not load conversations. Please try again shortly.");
     threads = [];
   }
 
@@ -3021,14 +3257,11 @@ function threadHasMessageId(messageId) {
   return arr.some((m) => String(m?.id || "") === String(messageId));
 }
 
-/** 동시에 같은 ``message_id``로 핸들러가 겹치는 것만 막는다(영구 무시 dedupe 아님). */
-const messagesRealtimeMessageCreatedLocks = new Set();
-
 let messagesFallbackPollTimer = null;
-const MESSAGES_FALLBACK_POLL_MS = 12_000;
-/** SSE 연결 시 detail·목록 안전망(이벤트 유실 대비). 토스트 없음, composer 보존은 loadThreadMessages(realtime) 경로. */
-const MESSAGES_SAFETY_SYNC_MS = 30_000;
+let messagesFallbackPollIntervalActive = 0;
+const MESSAGES_FALLBACK_POLL_MS_DEFAULT = 8_000;
 let messagesSafetyPollTimer = null;
+let messagesSafetyPollIntervalActive = 0;
 let messagesRealtimeUnsub = null;
 let messagesRealtimeStatusBound = false;
 let messagesPageVisibilityBound = false;
@@ -3039,30 +3272,37 @@ function ensureMessagesPageVisibilityBinding() {
   if (typeof document === "undefined" || messagesPageVisibilityBound) return;
   messagesPageVisibilityBound = true;
   document.addEventListener("visibilitychange", () => {
-    messagesRtDebug("messages page visibility", document.visibilityState);
+    messagesRtDebug("messages page visibility", { state: document.visibilityState });
     onMessagesRealtimeStatus({ detail: getRealtimeStatus() });
   });
 }
 
-function startMessagesFallbackPolling() {
-  if (messagesFallbackPollTimer != null) return;
-  messagesRtDebug("fallback polling start", MESSAGES_FALLBACK_POLL_MS, "ms");
+/**
+ * @param {number} [intervalMs]
+ */
+function startMessagesFallbackPolling(intervalMs) {
+  const ms = Math.max(5_000, Number(intervalMs) || MESSAGES_FALLBACK_POLL_MS_DEFAULT);
+  if (messagesFallbackPollTimer != null && messagesFallbackPollIntervalActive === ms) return;
+  stopMessagesFallbackPolling();
+  messagesFallbackPollIntervalActive = ms;
+  messagesRtDebug("fallback polling start", { interval_ms: ms });
   messagesFallbackPollTimer = window.setInterval(() => {
     void (async () => {
-      messagesRtDebug("fallback tick");
+      messagesRtDebug("fallback tick", { thread_id: selectedThreadId });
       await refreshThreadListOnly({
         syncHeader: true,
         reloadCurrentMessages: true,
         reason: "fallback-poll",
       });
     })();
-  }, MESSAGES_FALLBACK_POLL_MS);
+  }, ms);
 }
 
 function stopMessagesFallbackPolling() {
   if (messagesFallbackPollTimer == null) return;
   window.clearInterval(messagesFallbackPollTimer);
   messagesFallbackPollTimer = null;
+  messagesFallbackPollIntervalActive = 0;
   messagesRtDebug("fallback stopped");
 }
 
@@ -3070,33 +3310,49 @@ function stopMessagesSafetyPolling() {
   if (messagesSafetyPollTimer == null) return;
   window.clearInterval(messagesSafetyPollTimer);
   messagesSafetyPollTimer = null;
+  messagesSafetyPollIntervalActive = 0;
   messagesRtDebug("safety polling stop");
 }
 
 /**
- * SSE connected 전용: 30초마다 현재 스레드 detail + 목록 동기화(유실 보정). 폴백 폴링과 별도.
+ * SSE connected 전용: 누락된 message.created 보정(정상 수신 시 SSE가 즉시 refresh). 폴백 폴링과 별도.
  * @param {number} [intervalMs]
  */
 function startMessagesSafetyPolling(intervalMs) {
-  const ms = Math.max(10_000, Number(intervalMs) || MESSAGES_SAFETY_SYNC_MS);
-  if (messagesSafetyPollTimer != null) {
+  const ms = Math.max(
+    MESSAGES_SAFETY_SYNC_MS_MIN,
+    Number(intervalMs) || messagesSafetyPollIntervalMs(),
+  );
+  if (messagesSafetyPollTimer != null && messagesSafetyPollIntervalActive === ms) {
     return;
   }
-  messagesRtDebug("safety polling start", ms, "ms");
+  stopMessagesSafetyPolling();
+  messagesSafetyPollIntervalActive = ms;
+  messagesRtDebug("safety polling start", { interval_ms: ms, purpose: "missed-sse-backstop" });
   messagesSafetyPollTimer = window.setInterval(() => {
     void (async () => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
-        messagesRtDebug("safety tick skipped: document not visible");
-        return;
-      }
       const tid = String(selectedThreadId || "").trim();
-      if (!tid) {
-        messagesRtDebug("safety tick skipped: no selectedThreadId");
+      if (
+        !canRunMessagesSafetySyncTick({
+          selectedThreadId: tid,
+          documentVisible: typeof document !== "undefined" && document.visibilityState === "visible",
+        })
+      ) {
+        if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+          messagesRtDebug("safety tick skipped: document not visible");
+        } else {
+          messagesRtDebug("safety tick skipped: no selectedThreadId");
+        }
         return;
       }
       const nBefore = Array.isArray(currentThreadMessages) ? currentThreadMessages.length : 0;
       messagesRtDebug("safety tick", { thread_id: tid, message_count_before: nBefore });
-      await loadThreadMessages({ realtime: true, silentIfUnchanged: true });
+      await loadThreadMessages({
+        realtime: true,
+        silentIfUnchanged: true,
+        reason: "safety-sync",
+        refreshSource: "safety-sync",
+      });
       const nAfter = Array.isArray(currentThreadMessages) ? currentThreadMessages.length : 0;
       messagesRtDebug("current thread refreshed (safety-sync)", {
         thread_id: tid,
@@ -3120,27 +3376,37 @@ function onMessagesRealtimeStatus(ev) {
   const sseConnected = life === "connected" || (!life && connected && !fallback);
   const runFallback = shouldRunMessagesFallbackPoll(d);
 
-  messagesRtDebug("realtime-status", { lifecycle: life, sseConnected, fallbackPoll: runFallback });
+  const pollMs = messagesFallbackPollIntervalMs(d);
+  messagesRtDebug("realtime-status", {
+    lifecycle: life,
+    sse_connected: sseConnected,
+    fallback_poll: runFallback,
+    fallback_interval_ms: runFallback ? pollMs : null,
+  });
 
-  if (sseConnected) {
+  if (shouldUseMessagesSafetyPolling(d)) {
     stopMessagesFallbackPolling();
     if (messagesLastFallbackPollDesired !== "safety") {
-      messagesRtDebug("realtime connected — fallback poll stopped, safety polling on");
+      const safetyMs = messagesSafetyPollIntervalMs();
+      messagesRtDebug("realtime connected — fallback poll stopped, safety polling on", {
+        safety_interval_ms: safetyMs,
+        polling_intervals: getMessagesPollingIntervalsForDebug(),
+      });
       messagesLastFallbackPollDesired = "safety";
     }
-    startMessagesSafetyPolling(MESSAGES_SAFETY_SYNC_MS);
+    startMessagesSafetyPolling(messagesSafetyPollIntervalMs());
   } else {
     stopMessagesSafetyPolling();
     if (runFallback) {
       if (messagesLastFallbackPollDesired !== "run") {
-        messagesRtDebug("realtime fallback — safety polling off, fallback polling on");
+        messagesRtDebug("realtime degraded — safety off, fallback polling on", { lifecycle: life });
         messagesLastFallbackPollDesired = "run";
       }
-      startMessagesFallbackPolling();
+      startMessagesFallbackPolling(pollMs);
     } else {
       stopMessagesFallbackPolling();
       if (messagesLastFallbackPollDesired !== "stop") {
-        messagesRtDebug("realtime disconnected/connecting — safety and fallback polling off", life);
+        messagesRtDebug("realtime polling off (hidden tab or stopped)", { lifecycle: life });
         messagesLastFallbackPollDesired = "stop";
       }
     }
@@ -3154,9 +3420,10 @@ function onMessagesRealtimeStatus(ev) {
 async function refreshThreadListOnly(options = {}) {
   const syncHeader = options.syncHeader !== false;
   const reloadCurrentMessages = Boolean(options.reloadCurrentMessages);
-  messagesRtDebug("list refresh start", options.reason || "");
+  messagesRtDebug("list refresh start", { reason: options.reason || "" });
   const threads = await fetchThreadsListForMessagesPage();
   const threadsForUi = operatorInboxMode ? threads : dedupeThreadsForMessagesList(threads, selectedThreadId);
+  cachedThreadsForUi = threadsForUi;
   renderThreadList(threadsForUi);
   if (syncHeader && selectedThreadId) {
     const threadMeta = findThreadMetaInList(threads);
@@ -3172,25 +3439,74 @@ async function refreshThreadListOnly(options = {}) {
       realtime: true,
       dispatchHeaderOnMarkRead: true,
       silentIfUnchanged: options.reason === "fallback-poll",
+      reason: options.reason,
+      refreshSource: resolveMessagesRefreshSource({ reason: options.reason }),
     });
     messagesRtDebug("detail refresh done (fallback poll)");
   }
-  messagesRtDebug("list refresh done", options.reason || "");
+  messagesRtDebug("list refresh done", { reason: options.reason || "" });
+}
+
+/**
+ * Same-thread ``message.created``: thread list/header sync after bubbles (non-blocking).
+ * @param {string} reason
+ * @param {string} threadId
+ */
+function scheduleMessageCreatedListHeaderSync(reason, threadId) {
+  void (async () => {
+    try {
+      messagesRtDebug("list/header sync start (deferred after bubbles)", {
+        reason,
+        thread_id: threadId,
+      });
+      await refreshThreadListOnly({ syncHeader: true, reloadCurrentMessages: false, reason });
+      if (threadId) {
+        window.dispatchEvent(
+          new CustomEvent("lhai:messages-changed", {
+            detail: { reason, thread_id: threadId },
+          }),
+        );
+      }
+      messagesRtDebug("list/header sync done (deferred)", { reason, thread_id: threadId });
+    } catch (err) {
+      messagesRtDebug("list/header sync failed (bubbles already rendered)", {
+        reason,
+        thread_id: threadId,
+        error: String(err?.message || err),
+      });
+    }
+  })();
 }
 
 async function handleMessageCreatedRealtime({ threadId, messageId, sameThread, sel }) {
-  const runDetailAndList = async (reason) => {
-    await loadThreadMessages({ realtime: true, dispatchHeaderOnMarkRead: true });
-    await refreshThreadListOnly({ syncHeader: true, reloadCurrentMessages: false, reason });
+  /** CHAT / AI / SYSTEM — ``message.created`` 단일 이벤트; 타입별 분기 없음. */
+  if (messageId) {
+    markMessageCreatedHandlerStarted(messageId);
+  }
+  /** A: detail fetch + bubble render first; B–D: list/header deferred (void). */
+  const runSameThreadDetailFirst = async (reason) => {
+    await loadThreadMessages({
+      realtime: true,
+      dispatchHeaderOnMarkRead: false,
+      skipInlineListBadgeSync: true,
+      reason,
+      refreshSource: "sse",
+      traceMessageId: messageId || undefined,
+    });
+    scheduleMessageCreatedListHeaderSync(reason, sel);
     return threadHasMessageId(messageId);
   };
 
   if (sameThread) {
     const nBefore = Array.isArray(currentThreadMessages) ? currentThreadMessages.length : 0;
-    messagesRtDebug("detail refresh start (same thread)", { message_count_before: nBefore });
-    let visible = await runDetailAndList("message.created");
+    messagesRtDebug("detail refresh start (same thread, bubbles first)", {
+      message_count_before: nBefore,
+      refresh_source: "sse",
+      message_id: messageId || null,
+    });
+    let visible = await runSameThreadDetailFirst("message.created");
     const nAfter = Array.isArray(currentThreadMessages) ? currentThreadMessages.length : 0;
-    messagesRtDebug("current thread refreshed", {
+    messagesRtDebug("current thread refreshed (bubbles)", {
       reason: "message.created",
       message_count_before: nBefore,
       message_count_after: nAfter,
@@ -3199,25 +3515,48 @@ async function handleMessageCreatedRealtime({ threadId, messageId, sameThread, s
     if (!messageId || visible) {
       return;
     }
+    messagesRtDebug("message.created retry scheduled", {
+      message_id: messageId,
+      delay_ms: 800,
+      attempt: 1,
+    });
     console.info("[lhai][messages-realtime] message.created not visible after refresh, scheduling retry", messageId);
     await new Promise((r) => setTimeout(r, 800));
     if (String(selectedThreadId || "").trim() !== sel) {
-      messagesRtDebug("message.created retry aborted (thread switched)");
+      messagesRtDebug("message.created retry aborted (thread switched)", { message_id: messageId, attempt: 1 });
       return;
     }
-    visible = await runDetailAndList("message.created-retry-800");
+    visible = await runSameThreadDetailFirst("message.created-retry-800");
+    messagesRtDebug("message.created retry result", {
+      message_id: messageId,
+      attempt: 1,
+      delay_ms: 800,
+      message_id_visible: visible,
+    });
     if (!messageId || visible) {
       return;
     }
+    messagesRtDebug("message.created retry scheduled", {
+      message_id: messageId,
+      delay_ms: 2000,
+      attempt: 2,
+    });
     console.info("[lhai][messages-realtime] message.created not visible after refresh, scheduling retry", messageId);
     await new Promise((r) => setTimeout(r, 2000));
     if (String(selectedThreadId || "").trim() !== sel) {
-      messagesRtDebug("message.created retry aborted (thread switched)");
+      messagesRtDebug("message.created retry aborted (thread switched)", { message_id: messageId, attempt: 2 });
       return;
     }
-    await runDetailAndList("message.created-retry-2000");
+    const visibleFinal = await runSameThreadDetailFirst("message.created-retry-2000");
+    messagesRtDebug("message.created retry result", {
+      message_id: messageId,
+      attempt: 2,
+      delay_ms: 2000,
+      message_id_visible: visibleFinal,
+    });
     return;
   }
+  /* 다른 thread: 목록·unread 배지만 갱신. 현재 대화는 유지. messages.html에서는 토스트 없음(app-header 동일 정책). */
   messagesRtDebug("list refresh start (other thread)");
   await refreshThreadListOnly({ syncHeader: true, reloadCurrentMessages: false, reason: "message.created-other" });
   messagesRtDebug("list refresh done");
@@ -3234,23 +3573,27 @@ async function handleMessagesRealtimeEvent(detail) {
   const msgCountBefore = Array.isArray(currentThreadMessages) ? currentThreadMessages.length : 0;
   messagesRtDebug("event received", {
     type,
-    threadId,
-    messageId,
-    sameThread,
+    thread_id: threadId,
+    message_id: messageId,
+    selected_thread_id: sel,
+    same_thread: sameThread,
+    will_refresh_detail: sameThread,
+    will_refresh_list_only: Boolean(threadId && !sameThread),
     message_count_before: msgCountBefore,
   });
 
   if (type === "message.created") {
     const mid = messageId;
-    if (mid && messagesRealtimeMessageCreatedLocks.has(mid)) {
-      messagesRtDebug("message.created skipped (in-flight duplicate)", mid);
+    if (mid && !claimMessageCreatedRealtimeEvent(mid)) {
+      messagesRtDebug("message.created skipped (duplicate event)", { message_id: mid });
       return;
     }
-    if (mid) messagesRealtimeMessageCreatedLocks.add(mid);
+    let handled = false;
     try {
       await handleMessageCreatedRealtime({ threadId, messageId: mid, sameThread, sel });
+      handled = true;
     } finally {
-      if (mid) messagesRealtimeMessageCreatedLocks.delete(mid);
+      releaseMessageCreatedRealtimeEvent(mid, handled);
     }
     return;
   }
@@ -3268,12 +3611,20 @@ async function handleMessagesRealtimeEvent(detail) {
     if (matchThread || matchWf) {
       messagesRtDebug("bid.updated — refresh bid banner only (no stream reload)");
       await refreshCustomerBidPanel();
-    } else if (typeof document !== "undefined" && document.visibilityState === "visible") {
+    } else if (
+      typeof document !== "undefined" &&
+      document.visibilityState === "visible" &&
+      bidUpdatedToastAllowed(resolveBiddingEventKind(bidPayload))
+    ) {
       const href = buildCustomerBidResultsHref(wfId, evtThreadId);
+      const eventKind = resolveBiddingEventKind(bidPayload);
       showBidUpdatedToast({
-        title: "견적이 업데이트되었습니다.",
-        cta: "견적 보기",
+        title: t("messages.alert.quote_updated", "Quote updated."),
+        cta: t("messages.cta.view_quote", "View quote"),
         href,
+        threadId: evtThreadId,
+        bidRequestId: bidPayload.bid_request_id,
+        eventKind,
       });
     }
     window.dispatchEvent(
@@ -3285,13 +3636,15 @@ async function handleMessagesRealtimeEvent(detail) {
   }
 
   if (type === "unread.changed" || type === "thread.updated") {
-    messagesRtDebug("list refresh start", type);
+    messagesRtDebug("list refresh start", { type });
     await refreshThreadListOnly({ syncHeader: true, reloadCurrentMessages: false, reason: type });
-    messagesRtDebug("list refresh done", type);
+    messagesRtDebug("list refresh done", { type });
   }
 }
 
 function wireMessagesPageRealtime() {
+  mountRealtimeDiagnosticBadge(getRealtimeStatus());
+  ensureChatScrollRealtimeUxWired();
   if (messagesRealtimeUnsub) {
     try {
       messagesRealtimeUnsub();
@@ -3309,6 +3662,80 @@ function wireMessagesPageRealtime() {
   onMessagesRealtimeStatus({ detail: getRealtimeStatus() });
 }
 
+function updateMessagesPageSubtitle() {
+  const subtitle = document.querySelector(".lhai-subtitle");
+  if (!subtitle) return;
+  subtitle.textContent = operatorInboxMode
+    ? t(
+        "messages.page.subtitle.operator",
+        "Customer-center (ADMIN) and service (SERVICE) threads are shown separately by customer. Check thread type and handler mode in the list, then select one."
+      )
+    : partnerInboxMode
+      ? t("messages.page.subtitle.partner", "Review assigned customer service threads and chat with customers.")
+      : t(
+          "messages.page.subtitle.customer",
+          "Customer center (global) and service conversations are separated. In service threads you can see contract context and handler mode (AI, operations, or system)."
+        );
+}
+
+function readMessagesDetailPreserveState() {
+  const scroll = document.querySelector("#messageChatScroll");
+  const input = document.querySelector("#messageChatInput");
+  const workflow = document.querySelector("#messageWorkflowSummary");
+  return {
+    intakeDiagHtml: document.querySelector("#lhaiIntakeDispatchDiagBody")?.innerHTML ?? null,
+    biddingDbgHtml: document.querySelector("#lhaiBiddingNotifyDebugBody")?.innerHTML ?? null,
+    workflowHtml: workflow?.innerHTML ?? null,
+    workflowHidden: workflow?.hidden ?? true,
+    scrollTop: scroll instanceof HTMLElement ? scroll.scrollTop : 0,
+    inputValue: input instanceof HTMLTextAreaElement ? input.value : "",
+  };
+}
+
+/** @param {ReturnType<typeof readMessagesDetailPreserveState>} preserve */
+function restoreMessagesDetailPreserveState(preserve) {
+  if (!preserve) return;
+  const intakeBody = document.querySelector("#lhaiIntakeDispatchDiagBody");
+  if (intakeBody && preserve.intakeDiagHtml != null) intakeBody.innerHTML = preserve.intakeDiagHtml;
+  const biddingBody = document.querySelector("#lhaiBiddingNotifyDebugBody");
+  if (biddingBody && preserve.biddingDbgHtml != null) biddingBody.innerHTML = preserve.biddingDbgHtml;
+  const workflow = document.querySelector("#messageWorkflowSummary");
+  if (workflow && preserve.workflowHtml != null) {
+    workflow.innerHTML = preserve.workflowHtml;
+    workflow.hidden = preserve.workflowHidden;
+  }
+  const input = document.querySelector("#messageChatInput");
+  if (input instanceof HTMLTextAreaElement && preserve.inputValue) input.value = preserve.inputValue;
+  const scroll = document.querySelector("#messageChatScroll");
+  if (scroll instanceof HTMLElement) scroll.scrollTop = preserve.scrollTop;
+}
+
+function refreshMessagesPageI18n() {
+  applyI18nToDom(document);
+  updateMessagesPageSubtitle();
+
+  if (cachedThreadsForUi.length) {
+    renderThreadList(cachedThreadsForUi);
+  }
+
+  const detail = document.querySelector("#messageDetailContainer");
+  const chatMode = detail?.classList.contains("lhai-message-detail--chat");
+  const preserve = chatMode ? readMessagesDetailPreserveState() : null;
+
+  if (!selectedThreadId) {
+    renderMessageDetailShell(null);
+    return;
+  }
+
+  renderMessageDetailShell(currentThreadHeaderMeta);
+  if (preserve) restoreMessagesDetailPreserveState(preserve);
+  renderChatBubbles({ scrollIfNearBottom: false });
+  repaintCustomerBidPanelFromSnapshot();
+  syncCustomerComposerBidGate();
+}
+
+wireDynamicPageI18nRefresh(refreshMessagesPageI18n);
+
 async function refresh() {
   const threads = await fetchThreadsListForMessagesPage();
   reconcileMessagesPageSelectionAfterListFetch(threads);
@@ -3319,6 +3746,7 @@ async function refresh() {
       : null;
   selectedThreadRole = threadMeta ? normalizeThreadRole(threadMeta) : "";
   const threadsForUi = operatorInboxMode ? threads : dedupeThreadsForMessagesList(threads, selectedThreadId);
+  cachedThreadsForUi = threadsForUi;
   renderThreadList(threadsForUi);
   renderMessageDetailShell(threadMeta);
   await loadThreadMessages();
@@ -3333,10 +3761,10 @@ async function escalateToCustomerCenter(body) {
       customerProfileId,
       title: "요청",
     });
-    window.alert("이 대화에 요청을 남겼습니다. 운영팀이 같은 스레드에서 답변드립니다.");
+    window.alert(t("messages.alert.request_submitted", "Your request was posted in this conversation. The operations team will reply in the same thread."));
     await refresh();
   } catch (err) {
-    const msg = err && typeof err.message === "string" ? err.message : "전송에 실패했습니다.";
+    const msg = err && typeof err.message === "string" ? err.message : t("messages.alert.send_failed", "Send failed.");
     window.alert(msg);
   }
 }
@@ -3346,7 +3774,10 @@ async function escalateServiceThreadToAdminChannel() {
   if (operatorInboxMode || !customerProfileId || !selectedThreadId) return;
   if (String(selectedThreadRole || "").toUpperCase() !== "SERVICE") return;
   const memo = window.prompt(
-    "고객센터 스레드에 함께 남길 메모(선택). 비우면 연결 요청만 기록됩니다.",
+    t(
+      "messages.alert.admin_link_prompt",
+      "Optional note to add on the customer-center thread. Leave blank to record the link request only."
+    ),
     "",
   );
   if (memo === null) return;
@@ -3356,11 +3787,14 @@ async function escalateServiceThreadToAdminChannel() {
       note: String(memo).trim(),
     });
     window.alert(
-      "고객센터 스레드에 연결 요청을 남겼습니다. 왼쪽 목록의 「고객센터」 대화에서 확인할 수 있습니다."
+      t(
+        "messages.alert.admin_link_submitted",
+        "Your link request was posted on the customer-center thread. Open the Customer center conversation in the list on the left."
+      )
     );
     await refresh();
   } catch (err) {
-    const msg = err && typeof err.message === "string" ? err.message : "요청에 실패했습니다.";
+    const msg = err && typeof err.message === "string" ? err.message : t("messages.alert.request_failed", "Request failed.");
     window.alert(msg);
   }
 }
@@ -3387,7 +3821,7 @@ async function onComposerSubmit(event) {
     }
     await refresh();
   } catch (err) {
-    const msg = err && typeof err.message === "string" ? err.message : "전송에 실패했습니다.";
+    const msg = err && typeof err.message === "string" ? err.message : t("messages.alert.send_failed", "Send failed.");
     window.alert(msg);
   } finally {
     chatSendLocked = false;
@@ -3406,7 +3840,7 @@ async function mountMessagesPageShell() {
     document.body.classList.add("lhai-partner-shell-pending");
     await mountPartnerShell(app, {
       pageKey: "messages",
-      documentTitle: "메시지함 - Landing Help AI",
+      documentTitle: t("messages.page.document_title", "Messages - Landing Help AI"),
       contentHtml: renderPartnerMessagesContentHtml({ partner: true }),
       mainExtraClass: "lhai-partner-messages",
     });
@@ -3426,6 +3860,7 @@ async function initMessagesPage() {
   syncHeaderRoleBadge();
   try {
     await mountMessagesPageShell();
+    await initPageI18nAndApplyDom(["common", "nav", "messages"], document);
   } catch {
     try {
       await mountMessagesSidebar();
@@ -3449,11 +3884,7 @@ async function initMessagesPage() {
   }
   const subtitle = document.querySelector(".lhai-subtitle");
   if (subtitle) {
-    subtitle.textContent = operatorInboxMode
-      ? "고객별 고객센터(ADMIN)와 서비스별(SERVICE) 스레드가 구분되어 표시됩니다. 목록에서 스레드 유형·담당 방식을 확인한 뒤 선택하세요."
-      : partnerInboxMode
-        ? "배정된 고객 서비스 thread를 확인하고 고객과 대화할 수 있습니다."
-        : "고객센터(전역)와 서비스별 대화가 구분되어 있습니다. 서비스 스레드에서는 해당 계약/서비스 맥락의 메시지와 담당 방식(AI·운영·시스템)을 확인할 수 있습니다.";
+    updateMessagesPageSubtitle();
   }
 
   const initialThreadId = applyMessagesPageQuery();
@@ -3513,6 +3944,17 @@ async function initMessagesPage() {
 
   detail?.addEventListener("click", (event) => {
     const t = event.target;
+    const viewOriginalBtn = t instanceof Element ? t.closest(".lhai-chat-bubble__view-original") : null;
+    if (viewOriginalBtn instanceof HTMLButtonElement) {
+      event.preventDefault();
+      const mid = String(viewOriginalBtn.getAttribute("data-message-id") || "").trim();
+      if (mid) {
+        if (showOriginalMessageIds.has(mid)) showOriginalMessageIds.delete(mid);
+        else showOriginalMessageIds.add(mid);
+        renderChatBubbles({ scrollIfNearBottom: false });
+      }
+      return;
+    }
     const focusComposer = t instanceof Element ? t.closest("[data-lhai-focus-composer]") : null;
     if (focusComposer instanceof HTMLButtonElement) {
       event.preventDefault();

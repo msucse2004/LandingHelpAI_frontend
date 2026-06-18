@@ -651,8 +651,8 @@ async function runPartnerBidRequestPage() {
     }
   }
 
-  /** @param {boolean} [showToast] */
-  async function refreshPartnerBidDetail(showToast = false) {
+  /** @param {boolean} [showToast] @param {string} [toastEventKind] */
+  async function refreshPartnerBidDetail(showToast = false, toastEventKind = "") {
     try {
       const next = await partnerThreadsApi.bidRequestDetail(bidRequestId);
       latestDetail = /** @type {Record<string, unknown>} */ (next);
@@ -700,10 +700,14 @@ async function runPartnerBidRequestPage() {
         document.visibilityState === "visible"
       ) {
         const href = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        const tid = String(latestDetail?.thread_id ?? "").trim();
         showBidUpdatedToast({
           title: "비딩 정보가 업데이트되었습니다.",
           cta: "확인",
           href,
+          threadId: tid,
+          bidRequestId,
+          eventKind: toastEventKind || "BID_UPDATED",
         });
       }
     } catch (err) {
@@ -781,7 +785,7 @@ async function runPartnerBidRequestPage() {
       if (!refreshKinds.includes(kind)) return;
       const showToast =
         kind === BIDDING_EVENT_KINDS.BID_SUBMITTED || kind === BIDDING_EVENT_KINDS.BID_UPDATED;
-      void refreshPartnerBidDetail(showToast);
+      void refreshPartnerBidDetail(showToast, kind);
     });
   } catch (err) {
     logPartnerBidError("page init failed", err);

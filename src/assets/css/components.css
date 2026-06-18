@@ -389,7 +389,149 @@ button.lhai-button[hidden] {
 .lhai-topbar__right {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--lhai-space-3);
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.lhai-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--lhai-space-2);
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+}
+
+.lhai-topbar__language-slot {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+/* Global UI language switcher — header slot + public floating */
+.lhai-language-switcher {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
+.lhai-language-switcher__select {
+  width: auto;
+  min-width: 8.75rem;
+  max-width: 12rem;
+  margin: 0;
+  padding: 6px 10px;
+  font-size: var(--lhai-font-size-xs);
+  line-height: var(--lhai-line-height-tight);
+  border-radius: var(--lhai-radius-md);
+  border: 1px solid var(--lhai-color-border);
+  background: var(--lhai-color-surface);
+  color: var(--lhai-color-text);
+  box-shadow: inset 0 1px 2px var(--lhai-panel-06);
+}
+
+.lhai-language-switcher__select:hover {
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.lhai-language-switcher__select:focus-visible {
+  outline: 2px solid var(--lhai-color-primary);
+  outline-offset: 2px;
+  border-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+.lhai-topbar__language-slot .lhai-language-switcher__select {
+  min-height: 40px;
+  max-width: 11rem;
+}
+
+#lhai-language-switcher-floating-root {
+  position: fixed;
+  top: max(var(--lhai-space-3), env(safe-area-inset-top, 0px));
+  right: max(var(--lhai-space-3), env(safe-area-inset-right, 0px));
+  z-index: 50;
+  pointer-events: none;
+}
+
+.lhai-language-switcher--floating {
+  position: relative;
+  pointer-events: auto;
+  padding: var(--lhai-space-2);
+  border: 1px solid var(--lhai-color-border);
+  border-radius: var(--lhai-radius-md);
+  background: var(--lhai-color-surface);
+  box-shadow: var(--lhai-shadow-sm);
+}
+
+body.lhai-has-floating-language-switcher.lhai-public-page {
+  scroll-padding-top: calc(var(--lhai-space-6) + 2.5rem);
+}
+
+body.lhai-has-floating-language-switcher.lhai-public-page .lhai-container {
+  padding-top: calc(var(--lhai-space-6) + var(--lhai-space-2));
+}
+
+@media (max-width: 640px) {
+  .lhai-topbar__right {
+    gap: var(--lhai-space-2);
+  }
+
+  .lhai-topbar__actions {
+    gap: var(--lhai-space-1);
+  }
+
+  .lhai-language-switcher__select {
+    min-width: 6.25rem;
+    max-width: 8.25rem;
+    padding: 5px 8px;
+    font-size: 0.75rem;
+  }
+
+  .lhai-topbar__language-slot .lhai-language-switcher__select {
+    min-height: 36px;
+    max-width: 7.5rem;
+  }
+
+  #lhai-language-switcher-floating-root {
+    top: max(var(--lhai-space-2), env(safe-area-inset-top, 0px));
+    right: max(var(--lhai-space-2), env(safe-area-inset-right, 0px));
+  }
+
+  body.lhai-has-floating-language-switcher.lhai-public-page .lhai-container {
+    padding-top: calc(var(--lhai-space-5) + var(--lhai-space-1));
+  }
+
+  .lhai-brand {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+}
+
+.lhai-language-switcher__warning {
+  margin: var(--lhai-space-1) 0 0;
+  max-width: 14rem;
+  font-size: var(--lhai-font-size-xs);
+  color: var(--lhai-status-warning);
+}
+
+.lhai-language-switcher--floating .lhai-language-switcher__warning {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: var(--lhai-space-1);
+  padding: var(--lhai-space-1) var(--lhai-space-2);
+  border-radius: var(--lhai-radius-sm);
+  background: var(--lhai-color-surface);
+  border: 1px solid var(--lhai-color-border);
+  box-shadow: var(--lhai-shadow-sm);
+  z-index: 1;
 }
 
 /* Admin topbar: messages shortcut (left of Admin menu) */
@@ -825,6 +967,38 @@ a.lhai-table__link:hover {
 
 .lhai-dialog--error .lhai-dialog__title {
   color: var(--lhai-status-warning, #ffcc66);
+}
+
+/* Dev-only: ``mountRealtimeDiagnosticBadge()`` when LHAI_DEBUG_REALTIME=1 */
+.lhai-realtime-diagnostic-badge {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 1190;
+  max-width: min(280px, calc(100vw - 24px));
+  padding: 6px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--lhai-color-text);
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  border-radius: var(--lhai-radius-sm);
+  box-shadow: var(--lhai-shadow-md);
+  pointer-events: none;
+}
+
+.lhai-realtime-diagnostic-badge[data-lifecycle="connected"] {
+  border-color: rgba(34, 197, 94, 0.55);
+}
+
+.lhai-realtime-diagnostic-badge[data-lifecycle="fallback"] {
+  border-color: rgba(251, 191, 36, 0.65);
+}
+
+.lhai-realtime-diagnostic-badge[data-lifecycle="disconnected"],
+.lhai-realtime-diagnostic-badge[data-lifecycle="connecting"] {
+  border-color: rgba(248, 113, 113, 0.55);
 }
 
 .lhai-message-toast-root {

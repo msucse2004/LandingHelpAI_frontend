@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title data-i18n="common.service_flow.page_title">견적신청 — Landing Help AI</title>
+  <title data-i18n="common.service_flow.page_title" data-i18n-default="Quote request — Landing Help AI">Quote request — Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" />
   <link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" />
@@ -10,19 +10,19 @@
   <link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/survey-start.css" />
 </head>
-<body class="page-service-flow">
+<body class="page-service-flow lhai-public-page" data-lhai-i18n-domains="common,survey">
   <main class="lhai-container lhai-container--survey">
     <section class="lhai-page-header">
       <div>
-        <h1 class="lhai-title" data-i18n="common.service_flow.heading">견적신청</h1>
-        <p class="lhai-subtitle" data-i18n="common.service_flow.subtitle">
-          기본 정보를 알려 주신 뒤 도움이 필요한 영역과 서비스를 선택해 주세요. 이 단계에서는 가격이 표시되지 않습니다.
+        <h1 class="lhai-title" data-i18n="common.service_flow.heading" data-i18n-default="Quote request">Quote request</h1>
+        <p class="lhai-subtitle" data-i18n="common.service_flow.subtitle" data-i18n-default="Share basic information, then choose areas and services where you need help. Prices are not shown in this step.">
+          Share basic information, then choose areas and services where you need help. Prices are not shown in this step.
         </p>
       </div>
     </section>
 
     <section class="lhai-card lhai-card--center lhai-container__card service-flow__card">
-      <div class="service-flow__progress" aria-label="진행 단계" role="region">
+      <div class="service-flow__progress" data-i18n-aria-label="common.service_flow.progress_aria_label" data-i18n-default="Progress steps" aria-label="Progress steps" role="region">
         <div class="service-flow__progress-bar" aria-hidden="true">
           <div class="service-flow__progress-fill" id="sfProgressFill"></div>
         </div>
@@ -30,81 +30,80 @@
       </div>
 
       <div id="sfStepCategory" class="service-flow__step" hidden>
-        <h2 class="service-flow__step-title" data-i18n="common.service_flow.step_category">2. 어떤 영역에서 도움이 필요하신가요?</h2>
-        <p class="lhai-help" data-i18n="common.service_flow.help_category">해당되는 항목을 모두 선택해 주세요. 여러 영역을 선택할 수 있습니다.</p>
-        <p class="lhai-help service-flow__step-note" id="sfCategoryStepNote">
-          해당되는 항목을 모두 선택해 주세요. 여러 개를 선택할 수 있고, 선택한 항목 기준으로 다음 질문이 달라집니다.
+        <h2 class="service-flow__step-title" data-i18n="common.service_flow.step_category" data-i18n-default="2. Which areas do you need help with?">2. Which areas do you need help with?</h2>
+        <p class="lhai-help" data-i18n="common.service_flow.help_category" data-i18n-default="Select all that apply. You can choose multiple areas.">Select all that apply. You can choose multiple areas.</p>
+        <p class="lhai-help service-flow__step-note" id="sfCategoryStepNote" data-i18n="common.service_flow.category_note_detail" data-i18n-default="Select all that apply. Next questions depend on your selections.">
+          Select all that apply. Next questions depend on your selections.
         </p>
-        <p class="lhai-help service-flow__step-note" id="sfCategorySelectedCount" aria-live="polite">0개 선택됨</p>
+        <p class="lhai-help service-flow__step-note" id="sfCategorySelectedCount" aria-live="polite" data-i18n="common.service_flow.category_selected_count" data-i18n-default="0 selected">0 selected</p>
         <div id="sfCategoryGrid" class="service-flow__category-grid" role="list"></div>
       </div>
 
       <div id="sfStepCommonInfo" class="service-flow__step">
-        <h2 class="service-flow__step-title">1. 기본 정보를 알려주세요</h2>
-        <p class="lhai-help">
-          이후 견적·일정 안내를 더 빠르고 정확하게 연결하기 위한 공통 정보입니다.
-          로그인 정보(이름/생년월일/이메일)도 함께 확인해 주세요.
+        <h2 class="service-flow__step-title" data-i18n="common.service_flow.step_common_title" data-i18n-default="1. Tell us basic information">1. Tell us basic information</h2>
+        <p class="lhai-help" data-i18n="common.service_flow.step_common_intro" data-i18n-default="Common details help us connect quotes and scheduling faster. Confirm your login profile fields too.">
+          Common details help us connect quotes and scheduling faster. Confirm your login profile fields too.
         </p>
         <form id="sfCommonInfoForm" class="lhai-form service-flow__common-form" novalidate>
           <div class="service-flow__profile-basic">
-            <h3 class="lhai-help" style="margin: 0 0 8px; font-weight: 900;">기본 프로필 정보</h3>
-            <p class="lhai-help" style="margin: 0 0 16px;">
-              로그인된 계정에서 가능한 경우 자동으로 채워집니다. 필요한 경우 사용자가 직접 수정할 수 있어요.
+            <h3 class="lhai-help" style="margin: 0 0 8px; font-weight: 900;" data-i18n="common.service_flow.profile_section_title" data-i18n-default="Basic profile">Basic profile</h3>
+            <p class="lhai-help" style="margin: 0 0 16px;" data-i18n="common.service_flow.profile_autofill_hint" data-i18n-default="Filled from your account when possible. You can edit any field.">
+              Filled from your account when possible. You can edit any field.
             </p>
 
             <div class="service-flow__field">
-              <label class="lhai-label" for="sfProfileFirstName">First name</label>
-              <p class="lhai-help">견적·후속 안내 메시지에 사용됩니다.</p>
+              <label class="lhai-label" for="sfProfileFirstName" data-i18n="common.service_flow.profile_first_name_label" data-i18n-default="First name">First name</label>
+              <p class="lhai-help" data-i18n="common.service_flow.profile_first_name_help" data-i18n-default="Used in quote and follow-up messages.">Used in quote and follow-up messages.</p>
               <input class="lhai-input" id="sfProfileFirstName" type="text" />
             </div>
 
             <div class="service-flow__field">
-              <label class="lhai-label" for="sfProfileLastName">Last name</label>
-              <p class="lhai-help">견적·후속 안내 메시지에 사용됩니다.</p>
+              <label class="lhai-label" for="sfProfileLastName" data-i18n="common.service_flow.profile_last_name_label" data-i18n-default="Last name">Last name</label>
+              <p class="lhai-help" data-i18n="common.service_flow.profile_last_name_help" data-i18n-default="Used in quote and follow-up messages.">Used in quote and follow-up messages.</p>
               <input class="lhai-input" id="sfProfileLastName" type="text" />
             </div>
 
             <div class="service-flow__field">
-              <label class="lhai-label" for="sfProfileBirthDate">생년월일</label>
-              <p class="lhai-help">진행 단계에서 신원 확인 흐름을 매끄럽게 하기 위해 필요합니다.</p>
+              <label class="lhai-label" for="sfProfileBirthDate" data-i18n="common.service_flow.profile_birth_date_label" data-i18n-default="Date of birth">Date of birth</label>
+              <p class="lhai-help" data-i18n="common.service_flow.profile_birth_date_help" data-i18n-default="Helps smooth identity verification in later steps.">Helps smooth identity verification in later steps.</p>
               <input class="lhai-input" id="sfProfileBirthDate" type="date" />
             </div>
 
             <div class="service-flow__field">
-              <label class="lhai-label" for="sfProfileEmail">이메일</label>
-              <p class="lhai-help">견적 요청 관련 확인 메일 안내에 사용됩니다.</p>
+              <label class="lhai-label" for="sfProfileEmail" data-i18n="common.service_flow.profile_email_label" data-i18n-default="Email">Email</label>
+              <p class="lhai-help" data-i18n="common.service_flow.profile_email_help" data-i18n-default="Used for quote request confirmation emails.">Used for quote request confirmation emails.</p>
               <input class="lhai-input" id="sfProfileEmail" type="email" />
-              <p class="lhai-help" style="margin-top: 8px;">
-                이메일을 바꾸면 이 단계에서의 안내/요청 정보만 달라질 수 있어요. 계정 설정(로그인 정보)은 별도로 변경될 수 있습니다.
+              <p class="lhai-help" style="margin-top: 8px;" data-i18n="common.service_flow.profile_email_change_note" data-i18n-default="Changing email here may only affect guidance in this step. Login credentials are updated separately in account settings.">
+                Changing email here may only affect guidance in this step. Login credentials are updated separately in account settings.
               </p>
             </div>
           </div>
 
           <div class="service-flow__field">
-            <label class="lhai-label" for="sfCommonEntryDate">입국(또는 시작) 예정일</label>
-            <p class="lhai-help">접근 시점과 일정 가이드를 맞추는 데 사용됩니다.</p>
+            <label class="lhai-label" for="sfCommonEntryDate" data-i18n="common.service_flow.entry_date_label" data-i18n-default="Planned entry (or start) date">Planned entry (or start) date</label>
+            <p class="lhai-help" data-i18n="common.service_flow.entry_date_help" data-i18n-default="Used to align timing and scheduling guidance.">Used to align timing and scheduling guidance.</p>
             <input class="lhai-input" id="sfCommonEntryDate" type="date" />
           </div>
           <div class="service-flow__field">
-            <label class="lhai-label" for="sfCommonAdultCount">만 18세 이상 인원</label>
-            <p class="lhai-help">함께 이동·신청에 포함되는 <strong>전체 인원</strong> 기준입니다. 본인만 해당되면 성인 <strong>1</strong>, 미성년 <strong>0</strong>으로 두면 됩니다.</p>
-            <input class="lhai-input" id="sfCommonAdultCount" type="number" min="0" step="1" placeholder="예: 2" inputmode="numeric" autocomplete="off" />
+            <label class="lhai-label" for="sfCommonAdultCount" data-i18n="common.service_flow.adult_count_label" data-i18n-default="People aged 18 and over">People aged 18 and over</label>
+            <p class="lhai-help" data-i18n="common.service_flow.adult_count_help" data-i18n-default="Total people included in travel and applications. If only you apply, use 1 adult and 0 minors.">Total people included in travel and applications. If only you apply, use 1 adult and 0 minors.</p>
+            <input class="lhai-input" id="sfCommonAdultCount" type="number" min="0" step="1" placeholder="e.g. 2" data-i18n-placeholder="common.service_flow.adult_count_placeholder" data-i18n-default="e.g. 2" inputmode="numeric" autocomplete="off" />
           </div>
           <div class="service-flow__field">
-            <label class="lhai-label" for="sfCommonMinorCount">만 18세 이하 인원</label>
-            <p class="lhai-help">미성년 인원 수를 입력해 주세요. 1명 이상이면 아래에 나이 입력이 열립니다.</p>
-            <input class="lhai-input" id="sfCommonMinorCount" type="number" min="0" step="1" placeholder="예: 1" inputmode="numeric" autocomplete="off" />
+            <label class="lhai-label" for="sfCommonMinorCount" data-i18n="common.service_flow.minor_count_label" data-i18n-default="People under 18">People under 18</label>
+            <p class="lhai-help" data-i18n="common.service_flow.minor_count_help" data-i18n-default="Enter the number of minors. If one or more, age fields appear below.">Enter the number of minors. If one or more, age fields appear below.</p>
+            <input class="lhai-input" id="sfCommonMinorCount" type="number" min="0" step="1" placeholder="e.g. 1" data-i18n-placeholder="common.service_flow.minor_count_placeholder" data-i18n-default="e.g. 1" inputmode="numeric" autocomplete="off" />
           </div>
           <div class="service-flow__field" id="sfCommonMinorAgesWrap" hidden>
-            <label class="lhai-label">만 18세 이하 나이</label>
-            <p class="lhai-help">미성년 인원 각각의 나이를 입력해 주세요.</p>
+            <label class="lhai-label" data-i18n="common.service_flow.minor_ages_label" data-i18n-default="Ages under 18">Ages under 18</label>
+            <p class="lhai-help" data-i18n="common.service_flow.minor_ages_help" data-i18n-default="Enter each minor's age.">Enter each minor's age.</p>
             <div id="sfCommonMinorAgesList"></div>
           </div>
           <div class="service-flow__field">
-            <label class="lhai-label" for="sfCommonTargetState">정착 희망 주(State)</label>
-            <p class="lhai-help">주별 규정과 진행 방식이 달라 추천 방향에 반영됩니다.</p>
+            <label class="lhai-label" for="sfCommonTargetState" data-i18n="common.service_flow.target_state_label" data-i18n-default="Preferred state">Preferred state</label>
+            <p class="lhai-help" data-i18n="common.service_flow.target_state_help" data-i18n-default="State rules and process paths affect recommendations.">State rules and process paths affect recommendations.</p>
             <select class="lhai-select" id="sfCommonTargetState">
-              <option value="">선택</option>
+              <option value="" data-i18n="common.service_flow.select_placeholder" data-i18n-default="Select">Select</option>
               <option value="AL">Alabama (AL)</option>
               <option value="AK">Alaska (AK)</option>
               <option value="AZ">Arizona (AZ)</option>
@@ -159,72 +158,70 @@
             </select>
           </div>
           <div class="service-flow__field">
-            <label class="lhai-label" for="sfCommonTargetCity">정착 희망 도시명</label>
-            <p class="lhai-help">현지 서비스·일정·안내 범위를 맞추기 위해 필요합니다.</p>
-            <input class="lhai-input" id="sfCommonTargetCity" type="text" placeholder="예: Raleigh" />
+            <label class="lhai-label" for="sfCommonTargetCity" data-i18n="common.service_flow.target_city_label" data-i18n-default="Preferred city">Preferred city</label>
+            <p class="lhai-help" data-i18n="common.service_flow.target_city_help" data-i18n-default="Helps match local services, scheduling, and guidance scope.">Helps match local services, scheduling, and guidance scope.</p>
+            <input class="lhai-input" id="sfCommonTargetCity" type="text" placeholder="e.g. Raleigh" data-i18n-placeholder="common.service_flow.target_city_placeholder" data-i18n-default="e.g. Raleigh" />
           </div>
           <div class="service-flow__field">
-            <label class="lhai-label" for="sfCommonPreferredLanguage">선호 언어</label>
-            <p class="lhai-help">안내 문구와 커뮤니케이션 톤을 맞추는 데 사용됩니다.</p>
+            <label class="lhai-label" for="sfCommonPreferredLanguage" data-i18n="common.service_flow.preferred_language_label" data-i18n-default="Preferred language">Preferred language</label>
+            <p class="lhai-help" data-i18n="common.service_flow.preferred_language_help" data-i18n-default="Used to match guidance tone and communication.">Used to match guidance tone and communication.</p>
             <select class="lhai-select" id="sfCommonPreferredLanguage">
-              <option value="">선택</option>
-              <option value="ko">한국어</option>
-              <option value="en">영어</option>
-              <option value="mix">혼합(한국어+영어)</option>
-              <option value="other">기타</option>
+              <option value="" data-i18n="common.service_flow.select_placeholder" data-i18n-default="Select">Select</option>
+              <option value="ko" data-i18n="common.service_flow.preferred_language_ko" data-i18n-default="Korean">Korean</option>
+              <option value="en" data-i18n="common.service_flow.preferred_language_en" data-i18n-default="English">English</option>
+              <option value="mix" data-i18n="common.service_flow.preferred_language_mix" data-i18n-default="Mixed (Korean + English)">Mixed (Korean + English)</option>
+              <option value="other" data-i18n="common.service_flow.preferred_language_other" data-i18n-default="Other">Other</option>
             </select>
           </div>
         </form>
       </div>
 
       <div id="sfStepServices" class="service-flow__step" hidden>
-        <h2 class="service-flow__step-title">3. 이 영역에서 받을 서비스를 선택하세요</h2>
-        <p class="lhai-help service-flow__services-lead">
-          선택하신 영역을 한 번에 하나씩 안내합니다.
-        </p>
-        <p class="lhai-help service-flow__services-lead">
-          이 영역에서 도움이 필요한 서비스를 선택해 주세요.
+        <h2 class="service-flow__step-title" data-i18n="common.service_flow.step_services_title" data-i18n-default="3. Choose services in this area">3. Choose services in this area</h2>
+        <p class="lhai-help service-flow__services-lead" data-i18n="common.service_flow.step_services_lead" data-i18n-default="We guide one area at a time. Choose the services you need in this area.">
+          We guide one area at a time. Choose the services you need in this area.
         </p>
         <div class="service-flow__services-substep">
-          <p class="lhai-help service-flow__services-substep-index" id="sfServicesSubstepIndex" aria-live="polite">영역 1 / 1</p>
+          <p class="lhai-help service-flow__services-substep-index" id="sfServicesSubstepIndex" aria-live="polite" data-i18n="common.service_flow.services_substep_index" data-i18n-default="Area 1 / 1">Area 1 / 1</p>
           <h3 class="service-flow__services-substep-title" id="sfServicesCurrentCategoryTitle">-</h3>
           <p class="lhai-help service-flow__services-substep-desc" id="sfServicesCurrentCategoryDesc" hidden></p>
           <p class="lhai-help service-flow__services-substep-help" id="sfServicesCurrentCategoryHelp" hidden></p>
-          <div class="service-flow__services-substep-nav" role="group" aria-label="서비스 단계 내 영역 이동">
-            <button type="button" class="lhai-button lhai-button--secondary" id="sfServicesPrevCategoryBtn">이전 영역</button>
-            <button type="button" class="lhai-button lhai-button--secondary" id="sfServicesNextCategoryBtn">다음 카테고리</button>
+          <div class="service-flow__services-substep-nav" role="group" data-i18n-aria-label="common.service_flow.services_nav_aria_label" data-i18n-default="Move between areas in the services step" aria-label="Move between areas in the services step">
+            <button type="button" class="lhai-button lhai-button--secondary" id="sfServicesPrevCategoryBtn" data-i18n="common.service_flow.services_prev_category" data-i18n-default="Previous area">Previous area</button>
+            <button type="button" class="lhai-button lhai-button--secondary" id="sfServicesNextCategoryBtn" data-i18n="common.service_flow.services_next_category" data-i18n-default="Next category">Next category</button>
           </div>
         </div>
         <div id="sfMixedDeliveryNote" class="service-flow__mixed-note" hidden></div>
-        <div id="sfServiceList" class="service-flow__service-list" role="group" aria-label="서비스 목록"></div>
-        <p class="lhai-help" id="sfServiceHint" data-i18n="common.service_flow.service_hint">서비스를 하나 이상 선택해 주세요.</p>
+        <div id="sfServiceList" class="service-flow__service-list" role="group" data-i18n-aria-label="common.service_flow.services_list_aria_label" data-i18n-default="Service list" aria-label="Service list"></div>
+        <p class="lhai-help" id="sfServiceHint" data-i18n="common.service_flow.service_hint" data-i18n-default="Select at least one service.">Select at least one service.</p>
       </div>
 
       <div id="sfStepReview" class="service-flow__step" hidden>
-        <p class="service-flow__summary-kicker" data-i18n="common.service_flow.summary_kicker">최종 확인</p>
-        <h2 class="service-flow__step-title" data-i18n="common.service_flow.step_summary">제출 전 요청 내용을 확인해 주세요</h2>
-        <p class="lhai-help service-flow__summary-lead" data-i18n="common.service_flow.help_summary">
-          답변을 정리해 두었으니, 제출 전에 한 번 더 살펴보세요.
+        <p class="service-flow__summary-kicker" data-i18n="common.service_flow.summary_kicker" data-i18n-default="Almost there">Almost there</p>
+        <h2 class="service-flow__step-title" data-i18n="common.service_flow.step_summary" data-i18n-default="Your selections & details">Your selections & details</h2>
+        <p class="lhai-help service-flow__summary-lead" data-i18n="common.service_flow.help_summary" data-i18n-default="Here's what you chose and the information you shared so we can help you. This is not a quote or a bill — just a clear recap before the next step.">
+          Here's what you chose and the information you shared so we can help you. This is not a quote or a bill — just a clear recap before the next step.
         </p>
-        <p class="lhai-help service-flow__summary-disclaimer" data-i18n="common.service_flow.summary_not_quote">
-          제출 직전 확인 화면입니다.
+        <p class="lhai-help service-flow__summary-disclaimer" data-i18n="common.service_flow.summary_not_quote" data-i18n-default="Pricing and formal scope come later (for example in a quote), not on this screen.">
+          Pricing and formal scope come later (for example in a quote), not on this screen.
         </p>
         <div id="sfReviewBody" class="service-flow__review"></div>
       </div>
 
-      <div class="survey-actions service-flow__actions" role="group" aria-label="단계 이동">
-        <button type="button" class="lhai-button lhai-button--secondary" id="sfBackBtn" data-i18n="common.service_flow.btn_back">이전</button>
-        <button type="button" class="lhai-button lhai-button--primary" id="sfNextBtn" data-i18n="common.service_flow.btn_next">다음</button>
+      <div class="survey-actions service-flow__actions" role="group" data-i18n-aria-label="common.service_flow.actions_aria_label" data-i18n-default="Step navigation" aria-label="Step navigation">
+        <button type="button" class="lhai-button lhai-button--secondary" id="sfBackBtn" data-i18n="common.service_flow.btn_back" data-i18n-default="Back">Back</button>
+        <button type="button" class="lhai-button lhai-button--primary" id="sfNextBtn" data-i18n="common.service_flow.btn_next" data-i18n-default="Next">Next</button>
       </div>
       <p class="lhai-help" id="sfStatus" role="status" aria-live="polite"></p>
 
       <p class="lhai-help u-mt-3">
-        <span data-i18n="common.service_flow.legacy_note">이전 설문(분기형) 흐름이 필요하신가요?</span>
-        <a href="survey-branching.html" data-i18n="common.service_flow.legacy_link">분기형 설문 열기</a>
+        <span data-i18n="common.service_flow.legacy_note" data-i18n-default="Need the older branching survey flow?">Need the older branching survey flow?</span>
+        <a href="survey-branching.html" data-i18n="common.service_flow.legacy_link" data-i18n-default="Open branching survey">Open branching survey</a>
       </p>
     </section>
   </main>
 
+  <script type="module" src="../assets/js/core/public-page-language-boot.js" data-i18n-domains="common,survey"></script>
   <script type="module" src="../assets/js/pages/survey-start.js?v=20260519a"></script>
 </body>
 </html>

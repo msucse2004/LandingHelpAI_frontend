@@ -14,13 +14,23 @@
       <section class="lhai-page-header">
         <div>
           <h1 class="lhai-title">내 정보</h1>
-          <p class="lhai-subtitle">로그인 세션에 저장된 값입니다. 서버 프로필 API 연동 시 이 화면을 확장하세요.</p>
+          <p class="lhai-subtitle">로그인 세션 정보와 UI 선호 언어를 확인·수정할 수 있습니다.</p>
         </div>
       </section>
       <section class="lhai-card">
         <h2 class="lhai-card__title">세션</h2>
         <dl class="lhai-detail-dl" id="profileDl"></dl>
         <p class="lhai-help u-mt-3" id="profileEmpty" hidden>로그인 정보가 없습니다. <a href="login.html">로그인</a>하세요.</p>
+      </section>
+      <section class="lhai-card">
+        <h2 class="lhai-card__title">선호 언어 (UI)</h2>
+        <form id="adminProfilePrefForm" class="lhai-form" novalidate>
+          <label class="lhai-label" for="adminProfilePreferredLanguage">앱 화면 언어</label>
+          <select class="lhai-select" id="adminProfilePreferredLanguage" required></select>
+          <p class="lhai-help u-mt-2">관리자 화면과 안내 문구에 사용할 언어입니다. 상단 언어 메뉴와 동일한 설정입니다.</p>
+          <button type="submit" class="lhai-button lhai-button--primary u-mt-2">언어 저장</button>
+          <p class="lhai-help u-mt-2" id="adminProfilePrefStatus" role="status" aria-live="polite"></p>
+        </form>
       </section>
     </main>
   </div>

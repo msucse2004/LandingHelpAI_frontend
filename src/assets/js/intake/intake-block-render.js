@@ -1,5 +1,5 @@
 /**
- * Shared HTML for Customer Intake content blocks (notice, image, rich_text, divider).
+ * Shared HTML for Customer Intake content blocks (description, legacy notice/image/rich_text, divider).
  *
  * Single source for block **markup** — used by admin preview, customer `form_prompt` embeds (when
  * present), and `intake_content_block` thread messages via `intake-runtime-view.js`.
@@ -32,8 +32,9 @@ const INTAKE_BODY_PURIFY = {
     "blockquote",
     "pre",
     "code",
+    "img",
   ],
-  ALLOWED_ATTR: ["href", "target", "rel", "class", "style"],
+  ALLOWED_ATTR: ["href", "target", "rel", "class", "style", "src", "alt", "loading", "decoding", "width", "height"],
   ALLOW_DATA_ATTR: false,
   ADD_ATTR: ["target"],
 };
@@ -45,7 +46,27 @@ const INTAKE_BODY_PURIFY = {
 export function sanitizeIntakeBodyHtml(raw) {
   const s = String(raw ?? "").trim();
   if (!s) return "";
-  return DOMPurify.sanitize(s, INTAKE_BODY_PURIFY);
+  const clean = DOMPurify.sanitize(s, INTAKE_BODY_PURIFY);
+  return rewriteIntakeBodyInlineMediaUrls(clean);
+}
+
+/** Resolve relative upload paths in Quill inline ``<img src>`` for customer/admin display. */
+export function rewriteIntakeBodyInlineMediaUrls(html) {
+  const s = String(html ?? "").trim();
+  if (!s || typeof DOMParser === "undefined") return s;
+  try {
+    const doc = new DOMParser().parseFromString(`<div>${s}</div>`, "text/html");
+    const root = doc.body?.firstElementChild;
+    if (!root) return s;
+    root.querySelectorAll("img[src]").forEach((img) => {
+      const src = String(img.getAttribute("src") || "").trim();
+      const resolved = src ? resolveBackendMediaUrl(src) : "";
+      if (resolved) img.setAttribute("src", resolved);
+    });
+    return root.innerHTML;
+  } catch {
+    return s;
+  }
 }
 
 /** @param {unknown} s */
@@ -116,12 +137,14 @@ export function renderIntakeContentBlocksArray(contentBlocks, opts = {}) {
         ? `<h4 class="lhai-intake-block__title">${escapeHtml(title)}</h4>`
         : "";
     const bodySafe = isEffectivelyEmptyIntakeHelpText(body) ? "" : sanitizeIntakeBodyHtml(body);
-    const richCls = bt === "rich_text" ? "lhai-intake-block__body--rich" : "";
+    const isRichBody =
+      bt === "description" || bt === "rich_text" || (bodySafe && bodySafe.includes("<"));
+    const richCls = isRichBody ? "lhai-intake-block__body--rich" : "";
     const bodyHtml = bodySafe
       ? `<div class="lhai-intake-block__body lhai-intake-block__body--html ${richCls}">${bodySafe}</div>`
       : "";
 
-    if (bt === "notice" || bt === "image" || bt === "rich_text") {
+    if (bt === "description" || bt === "notice" || bt === "image" || bt === "rich_text") {
       if (!titleHtml && !mediaHtml && !bodyHtml) continue;
       parts.push(`<section class="${baseCls}">${titleHtml}${mediaHtml}${bodyHtml}</section>`);
     }

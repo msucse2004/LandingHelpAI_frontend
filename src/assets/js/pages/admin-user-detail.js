@@ -2,6 +2,10 @@ import { getCurrentRole, getCurrentUserId } from "../core/auth.js";
 import { adminApi, invoiceApi, messagesApi, quoteApi } from "../core/api.js";
 import { protectCurrentPage } from "../core/guards.js";
 import { canManageLowerTierRole, mayShowAccountDeleteButton } from "../core/role-tiers.js";
+import {
+  SUPPORTED_LANGUAGE_OPTIONS,
+  getSupportedLanguageDisplayLabel,
+} from "../core/preferred-language.js";
 import { formatDate, formatMoney } from "../core/utils.js";
 
 const detailAlert = document.getElementById("detailAlert");
@@ -292,6 +296,20 @@ function buildProfileDdHtml(d, canEdit) {
     pushStatic("성별", String(d.gender || "—"));
   }
 
+  const prefLang = String(d.preferred_language_code || "en").trim();
+  if (edit) {
+    const optHtml = SUPPORTED_LANGUAGE_OPTIONS.map((o) => {
+      const sel = o.code === prefLang ? " selected" : "";
+      return `<option value="${escapeHtml(o.code)}"${sel}>${escapeHtml(getSupportedLanguageDisplayLabel(o.code))}</option>`;
+    }).join("");
+    chunks.push({
+      label: "선호 언어 (UI)",
+      html: `<dd class="lhai-detail-dl__dd"><select class="lhai-select" id="profileFld_preferred_language_code">${optHtml}</select></dd>`,
+    });
+  } else {
+    pushStatic("선호 언어 (UI)", getSupportedLanguageDisplayLabel(prefLang));
+  }
+
   pushStatic("계정 생성 시각", d.created_at ? String(d.created_at) : "—");
 
   return chunks
@@ -363,12 +381,14 @@ async function saveProfileFromCard() {
   const fn = document.getElementById("profileFld_full_name");
   const dob = document.getElementById("profileFld_date_of_birth");
   const g = document.getElementById("profileFld_gender");
-  if (!fn || !dob || !g) return;
+  const langEl = document.getElementById("profileFld_preferred_language_code");
+  if (!fn || !dob || !g || !langEl) return;
 
   /** @type {Record<string, string>} */
   const patch = {
     full_name: fn.value.trim(),
     gender: g.value,
+    preferred_language_code: langEl.value,
   };
   const dobVal = dob.value.trim();
   if (dobVal) patch.date_of_birth = dobVal;

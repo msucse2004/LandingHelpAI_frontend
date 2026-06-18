@@ -6,13 +6,16 @@
  */
 import { canAccessAdminShell } from "./role-tiers.js";
 import { t } from "./i18n-client.js";
-import { applyI18nToDom, initCommonI18nAndApplyDom } from "./i18n-dom.js";
+import { appPageLanguageReady } from "./app-page-i18n-boot.js";
+import { applyI18nToDom } from "./i18n-dom.js";
 import { syncHeaderRoleBadge } from "./role-header-badge.js";
 import { initAccountMenus } from "./admin-user-menu.js";
 import { initLogoutButtons } from "./logout-button.js";
+import { refreshLanguageSwitcherPlacement } from "./language-switcher.js";
 import { getAccessToken, getCurrentRole, getCustomerMessagingProfileId } from "./auth.js";
 import { messagesApi, partnerThreadsApi } from "./api.js";
-import { startRealtimeClient, subscribeRealtimeEvents, getRealtimeStatus, realtimeDebugLive } from "./realtime-client.js";
+import { startRealtimeClient, subscribeRealtimeEvents, getRealtimeStatus } from "./realtime-client.js";
+import { logRealtimeDiagnostics, mountRealtimeDiagnosticBadge, realtimeDebugLive } from "./realtime-diagnostics.js";
 import {
   buildCustomerBidResultsHref,
   isBiddingBidUpdatedPayload,
@@ -20,11 +23,24 @@ import {
   isCustomerBidResultsHtmlPage,
   isCustomerDashboardHtmlPage,
   normalizeBidUpdatedPayload,
+  resolveBiddingEventKind,
   showBidUpdatedToast,
 } from "./bid-realtime.js";
+import {
+  evaluateHeaderBidToastDecision,
+  evaluateHeaderMessageToastDecision,
+} from "./header-realtime-toast-policy.js";
+import {
+  normalizeRealtimeMessageType,
+  reserveMessageActionToastDedupe,
+  resolveMessageCreatedToastCopy,
+  shouldSuppressPollingInboxToast,
+  showGlobalRealtimeInboxToast,
+  tryAcquireRealtimeMessageToast,
+} from "./realtime-inbox-toast.js";
 import { ROLES } from "./config.js";
 import { pageKeyFromLocation, resolvePartnerHeaderLinks } from "../config/partner-nav-config.js";
-import { renderAppHeaderMarkup } from "../components/app-header-markup.js";
+import { renderAppHeaderMarkup, TOPBAR_LANGUAGE_SLOT_ID } from "../components/app-header-markup.js";
 
 /**
  * @returns {{ brand: string, profileHref: string, passwordHref: string, messagesIsCurrent: boolean, adminShell: boolean }}
@@ -81,32 +97,8 @@ let lastHeaderMailUnreadCount = null;
 let headerMailBadgePollTimer = null;
 let headerMailBadgePollMs = HEADER_MAIL_BADGE_POLL_MS;
 
-const REALTIME_TOAST_DEDUPE_MS = 10_000;
-const recentRealtimeMessageToasts = new Map();
-
-/** 폴링 경로 ``showNewMessageArrivalToast``가 realtime 인박스 토스트 직후 중복되지 않도록 합니다. */
-let lastRealtimeInboxToastWallMs = 0;
-const POLLING_TOAST_AFTER_REALTIME_MS = 15_000;
-
 let headerRealtimeUnsub = null;
 let headerRealtimeStatusWired = false;
-
-function pruneRealtimeToastDedupe() {
-  const now = Date.now();
-  for (const [k, ts] of recentRealtimeMessageToasts) {
-    if (now - ts > REALTIME_TOAST_DEDUPE_MS) recentRealtimeMessageToasts.delete(k);
-  }
-}
-
-/** 최근 창 안에 동일 ``message_id`` 토스트가 있으면 false. 성공 시 슬롯을 잡습니다. */
-function tryAcquireRealtimeToastSlot(messageId) {
-  if (!messageId) return true;
-  pruneRealtimeToastDedupe();
-  const t = recentRealtimeMessageToasts.get(messageId);
-  if (t != null && Date.now() - t < REALTIME_TOAST_DEDUPE_MS) return false;
-  recentRealtimeMessageToasts.set(messageId, Date.now());
-  return true;
-}
 
 function isMessagesHtmlPage() {
   try {
@@ -128,13 +120,8 @@ function isOwnRealtimeActor(actorTypeRaw) {
   return a === "CUSTOMER";
 }
 
-function rtDebug(...args) {
-  if (!realtimeDebugLive()) return;
-  try {
-    console.info("[lhai][header-realtime]", ...args);
-  } catch {
-    /* ignore */
-  }
+function rtDebug(message, detail) {
+  logRealtimeDiagnostics("header-realtime", String(message || ""), detail ?? null);
 }
 
 function clearHeaderMailBadgePoll() {
@@ -173,58 +160,15 @@ function onRealtimeStatus(ev) {
   const sseConnected = life === "connected" || (!life && connected && !fallback);
   if (sseConnected) {
     setHeaderMailBadgePollIntervalMs(HEADER_MAIL_BADGE_POLL_MS_SSE);
-    rtDebug("realtime connected, polling reduced", HEADER_MAIL_BADGE_POLL_MS_SSE, "ms", d);
+    rtDebug("realtime connected, polling reduced", { interval_ms: HEADER_MAIL_BADGE_POLL_MS_SSE, status: d });
   } else {
     setHeaderMailBadgePollIntervalMs(HEADER_MAIL_BADGE_POLL_MS);
-    rtDebug("realtime fallback, polling enabled", life || "(legacy)", HEADER_MAIL_BADGE_POLL_MS, "ms", d);
+    rtDebug("realtime fallback, polling enabled", {
+      lifecycle: life || "(legacy)",
+      interval_ms: HEADER_MAIL_BADGE_POLL_MS,
+      status: d,
+    });
   }
-}
-
-/**
- * realtime 전용 인박스 토스트(폴링 ``showNewMessageArrivalToast``와 구분).
- * 제목·본문·CTA는 Step 5 요구사항 고정 문구(기본값) + i18n 키 확장.
- */
-function showRealtimeInboxToast() {
-  let root = document.querySelector("#lhai-message-toast-root");
-  if (!(root instanceof HTMLElement)) {
-    root = document.createElement("div");
-    root.id = "lhai-message-toast-root";
-    root.className = "lhai-message-toast-root";
-    document.body.appendChild(root);
-  }
-  const title = escapeHtmlForToast(
-    t("common.header.realtime_inbox_toast_title", "새 메시지가 도착했습니다"),
-  );
-  const body = escapeHtmlForToast(
-    t("common.header.realtime_inbox_toast_body", "메시지함에서 확인해 주세요."),
-  );
-  const cta = escapeHtmlForToast(t("common.header.realtime_inbox_toast_cta", "메시지함 열기"));
-  const closeLabel = escapeHtmlForToast(t("common.header.message_toast_close", "닫기"));
-  const closeAria = escapeHtmlForToast(t("common.header.message_toast_close_aria", "알림 닫기"));
-  root.innerHTML = `
-    <div class="lhai-message-toast" role="status" aria-live="polite">
-      <div class="lhai-message-toast__title">${title}</div>
-      <div class="lhai-message-toast__body">${body}</div>
-      <a class="lhai-message-toast__cta" href="messages.html">${cta}</a>
-      <button type="button" class="lhai-message-toast__close" aria-label="${closeAria}">${closeLabel}</button>
-    </div>
-  `.trim();
-  root.classList.add("is-visible");
-  lastRealtimeInboxToastWallMs = Date.now();
-  const close = root.querySelector(".lhai-message-toast__close");
-  close?.addEventListener("click", () => {
-    root?.classList.remove("is-visible");
-    window.setTimeout(() => {
-      if (root) root.innerHTML = "";
-    }, 180);
-  });
-  window.setTimeout(() => {
-    if (!root) return;
-    root.classList.remove("is-visible");
-    window.setTimeout(() => {
-      if (root) root.innerHTML = "";
-    }, 180);
-  }, 12_000);
 }
 
 function wireHeaderRealtimeHandlers() {
@@ -256,31 +200,49 @@ function wireHeaderRealtimeHandlers() {
 
       // unread.changed: 배지만 갱신(토스트는 message.created 전용 — messages.html 포함).
       if (type === "message.created" || type === "unread.changed") {
-        rtDebug("badge refresh", type, "reason: realtime event → suppressPopup true");
+        rtDebug("badge refresh", { type, reason: "realtime event → suppressPopup true" });
         await refreshHeaderMailUnreadBadgeWithPopup({ suppressPopup: true });
       } else if (type === "thread.updated") {
-        rtDebug("badge refresh", type, "reason: thread.updated (optional) → suppressPopup true");
+        rtDebug("badge refresh", { type, reason: "thread.updated (optional) → suppressPopup true" });
         await refreshHeaderMailUnreadBadgeWithPopup({ suppressPopup: true });
       }
 
+      // bid.updated / bidding.event: 화면 state 갱신은 각 페이지 리스너가 담당. 헤더는 비전용 화면에서만 견적 토스트.
       if (isBiddingRealtimeSseEvent(event) && getCurrentRole() === ROLES.CUSTOMER) {
         const bidPayload = normalizeBidUpdatedPayload(event);
         if (isBiddingBidUpdatedPayload(bidPayload)) {
-          const onDedicatedPage =
-            isMessagesHtmlPage() || isCustomerBidResultsHtmlPage() || isCustomerDashboardHtmlPage();
-          if (
-            !onDedicatedPage &&
-            typeof document !== "undefined" &&
-            document.visibilityState === "visible"
-          ) {
+          const eventKind = resolveBiddingEventKind(bidPayload);
+          const tid = String(bidPayload.thread_id || "").trim();
+          const brId = String(bidPayload.bid_request_id || "").trim();
+          const bidToastDecision = evaluateHeaderBidToastDecision({
+            isMessagesPage: isMessagesHtmlPage(),
+            isCustomerBidResultsPage: isCustomerBidResultsHtmlPage(),
+            isCustomerDashboardPage: isCustomerDashboardHtmlPage(),
+            isCustomerRole: true,
+            documentVisible:
+              typeof document !== "undefined" && document.visibilityState === "visible",
+            eventKind,
+          });
+          if (bidToastDecision.show) {
             const wid = String(
               bidPayload.workflow_instance_id || bidPayload.service_request_id || "",
             ).trim();
-            const tid = String(bidPayload.thread_id || "").trim();
-            showBidUpdatedToast({
-              title: "견적이 업데이트되었습니다.",
-              cta: "견적 보기",
-              href: buildCustomerBidResultsHref(wid, tid),
+            const showBidToastWhenReady = () => {
+              showBidUpdatedToast({
+                title: "견적이 업데이트되었습니다.",
+                cta: "견적 보기",
+                href: buildCustomerBidResultsHref(wid, tid),
+                threadId: tid,
+                bidRequestId: brId,
+                eventKind,
+              });
+            };
+            window.setTimeout(showBidToastWhenReady, 450);
+          } else if (bidToastDecision.suppressReason) {
+            rtDebug("bid toast skipped", {
+              reason: bidToastDecision.suppressReason,
+              eventKind,
+              threadId: tid,
             });
           }
         }
@@ -288,25 +250,50 @@ function wireHeaderRealtimeHandlers() {
 
       if (type !== "message.created") return;
 
-      if (isMessagesHtmlPage()) {
-        rtDebug("realtime toast suppressed reason: messages page", { messageId });
+      const eventCode = String(
+        payload.event_code ?? data.event_code ?? "",
+      ).trim();
+
+      reserveMessageActionToastDedupe({ threadId, eventCode });
+
+      const toastDecision = evaluateHeaderMessageToastDecision({
+        isMessagesPage: isMessagesHtmlPage(),
+        isCustomerBidResultsPage:
+          getCurrentRole() === ROLES.CUSTOMER && isCustomerBidResultsHtmlPage(),
+        documentVisible:
+          typeof document !== "undefined" && document.visibilityState === "visible",
+        isOwnActor: isOwnRealtimeActor(actorType),
+      });
+      if (!toastDecision.show) {
+        rtDebug("realtime toast suppressed", {
+          reason: toastDecision.suppressReason,
+          messageId,
+        });
         return;
       }
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
-        rtDebug("realtime toast suppressed reason: document not visible", { messageId });
-        return;
-      }
-      if (isOwnRealtimeActor(actorType)) {
-        rtDebug("realtime toast suppressed reason: own actor", { actorType });
-        return;
-      }
-      if (!tryAcquireRealtimeToastSlot(messageId)) {
-        rtDebug("realtime toast suppressed reason: duplicate", { messageId });
+      if (!tryAcquireRealtimeMessageToast({ messageId, threadId, eventCode })) {
+        rtDebug("realtime toast suppressed reason: duplicate", { messageId, eventCode });
         return;
       }
 
-      rtDebug("realtime toast shown", { messageId, actorType });
-      showRealtimeInboxToast();
+      const role = getCurrentRole();
+      const messageType = normalizeRealtimeMessageType(payload, data);
+      const toastCopy = resolveMessageCreatedToastCopy({
+        messageType,
+        actorType,
+        eventCode,
+        payload,
+        data,
+        threadId,
+        role,
+      });
+      rtDebug("realtime toast shown", {
+        messageId,
+        actorType,
+        messageType,
+        eventCode: eventCode || null,
+      });
+      showGlobalRealtimeInboxToast(toastCopy);
     })();
   });
 
@@ -456,7 +443,7 @@ async function refreshHeaderMailUnreadBadgeWithPopup({ suppressPopup = false } =
   ) {
     if (isMessagesHtmlPage()) {
       rtDebug("polling toast suppressed reason: messages page", { old: prev, new: count });
-    } else if (Date.now() - lastRealtimeInboxToastWallMs < POLLING_TOAST_AFTER_REALTIME_MS) {
+    } else if (shouldSuppressPollingInboxToast()) {
       rtDebug("polling toast suppressed reason: recent realtime inbox toast wall", {
         old: prev,
         new: count,
@@ -500,6 +487,8 @@ export function mountAppHeader(rootSelector = "#lhai-app-header-root") {
   return mountAppHeaderAsync(rootSelector);
 }
 
+export { TOPBAR_LANGUAGE_SLOT_ID };
+
 async function mountAppHeaderAsync(rootSelector = "#lhai-app-header-root") {
   const root = document.querySelector(rootSelector);
   if (!root) return;
@@ -509,7 +498,7 @@ async function mountAppHeaderAsync(rootSelector = "#lhai-app-header-root") {
   root.innerHTML = renderAppHeaderMarkup(shell);
 
   try {
-    await initCommonI18nAndApplyDom(document);
+    await appPageLanguageReady;
     applyI18nToDom(root);
     const brandEl = root.querySelector(".lhai-brand");
     if (brandEl) brandEl.textContent = resolveAppHeaderShell().brand;
@@ -521,12 +510,14 @@ async function mountAppHeaderAsync(rootSelector = "#lhai-app-header-root") {
   syncHeaderRoleBadge();
   initAccountMenus(root);
   initLogoutButtons(root);
+  refreshLanguageSwitcherPlacement();
   wireHeaderMailBadgeListeners();
   wireHeaderRealtimeHandlers();
   void refreshHeaderMailUnreadBadgeWithPopup({ suppressPopup: true });
   if (getAccessToken()) {
     try {
       startRealtimeClient();
+      mountRealtimeDiagnosticBadge(getRealtimeStatus());
     } catch (e) {
       console.error("[lhai] realtime client start failed", e);
     }
@@ -536,3 +527,19 @@ async function mountAppHeaderAsync(rootSelector = "#lhai-app-header-root") {
 void mountAppHeaderAsync().catch((err) => {
   console.error("[lhai] app-header mount failed", err);
 });
+
+function refreshAppHeaderTranslations() {
+  const root = document.querySelector("#lhai-app-header-root");
+  if (!root) return;
+  applyI18nToDom(root);
+  const brandEl = root.querySelector(".lhai-brand");
+  if (brandEl) brandEl.textContent = resolveAppHeaderShell().brand;
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("lhai:language-changed", () => {
+    refreshAppHeaderTranslations();
+  });
+}
+
+export { refreshAppHeaderTranslations };

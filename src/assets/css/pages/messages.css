@@ -353,6 +353,33 @@
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.lhai-chat-new-below {
+  position: sticky;
+  bottom: var(--lhai-space-2);
+  align-self: center;
+  z-index: 2;
+  margin-top: auto;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid rgb(40 90 140 / 0.35);
+  border-radius: 999px;
+  background: rgb(15 28 42 / 0.92);
+  color: #f4f8fc;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.22);
+}
+
+.lhai-chat-new-below:hover,
+.lhai-chat-new-below:focus-visible {
+  background: rgb(25 48 72 / 0.96);
+  outline: 2px solid rgb(120 170 220 / 0.55);
+  outline-offset: 2px;
 }
 
 .lhai-chat-stream {
@@ -396,14 +423,23 @@
 }
 
 .lhai-chat-bubble--them {
-  /* 상대/시스템: rem 상한 제거 — 스크롤 영역 전체 너비 사용 (줄 수·세로 스크롤 감소) */
-  max-width: 100%;
-  width: 100%;
+  /* 일반 CHAT/SYSTEM: 보내는 버블과 동일하게 내용 길이에 맞춤 */
+  max-width: min(88%, 26rem);
+  width: fit-content;
   box-sizing: border-box;
   background: #ffffff;
   color: #000000;
   border: 1px solid rgb(0 0 0 / 0.08);
   border-top-left-radius: 4px;
+}
+
+/* 폼·인테이크·워크플로·비딩 카드는 폼 컨트롤·CTA 때문에 가로 전체 사용 */
+.lhai-chat-bubble--them.lhai-chat-bubble--form-prompt,
+.lhai-chat-bubble--them.lhai-chat-bubble--intake-content,
+.lhai-chat-bubble--them.lhai-chat-bubble--workflow-card,
+.lhai-chat-bubble--them.lhai-chat-bubble--bid-entry {
+  max-width: 100%;
+  width: 100%;
 }
 
 .lhai-chat-bubble--me {
@@ -763,6 +799,24 @@
   font-weight: 600;
   color: #000000;
   margin-bottom: var(--lhai-space-1);
+}
+
+.lhai-chat-bubble__view-original {
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lhai-color-primary);
+  font-size: var(--lhai-font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.lhai-chat-bubble__view-original:hover {
+  color: var(--lhai-color-text);
 }
 
 .lhai-chat-bubble__body {

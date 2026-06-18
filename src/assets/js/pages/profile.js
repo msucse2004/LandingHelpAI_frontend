@@ -4,7 +4,7 @@ import { mountPartnerShell } from "../layouts/partner-shell.js";
 
 import { mountCustomerInboxShell } from "../layouts/customer-inbox-shell.js";
 
-import { applyI18nToDom } from "../core/i18n-dom.js";
+import { applyI18nToDom, applyLanguageChangeToPage } from "../core/i18n-dom.js";
 
 import { getSession, setSession, getCurrentRole } from "../core/auth.js";
 
@@ -12,7 +12,13 @@ import { ROLES } from "../core/config.js";
 
 import { getCurrentRoleTierLabelKo, protectCurrentPage } from "../core/guards.js";
 
-import { userCustomerApi } from "../core/api.js";
+import { userCustomerApi, userPreferencesApi } from "../core/api.js";
+
+import {
+  getEffectiveLanguage,
+  populateSupportedLanguageSelect,
+  savePreferredLanguage,
+} from "../core/preferred-language.js";
 
 import { renderPartnerProfileContentHtml } from "./partner-profile-content.js";
 
@@ -45,6 +51,8 @@ function getProfileFormElements() {
     emailInput: document.getElementById("pfEmail"),
 
     phoneNumberInput: document.getElementById("pfPhoneNumber"),
+
+    preferredLanguageInput: document.getElementById("pfPreferredLanguage"),
 
     currentPasswordInput: document.getElementById("pfCurrentPassword"),
 
@@ -232,6 +240,18 @@ async function main() {
     els.phoneNumberInput.required = true;
   }
 
+  if (els.preferredLanguageInput) {
+    populateSupportedLanguageSelect(els.preferredLanguageInput, getEffectiveLanguage());
+    try {
+      const prefs = await userPreferencesApi.getMyPreferences();
+      if (prefs?.preferred_language_code) {
+        populateSupportedLanguageSelect(els.preferredLanguageInput, prefs.preferred_language_code);
+      }
+    } catch {
+      /* session / guest storage already applied */
+    }
+  }
+
   try {
 
     const me = await userCustomerApi.getMeBasicInfo();
@@ -274,6 +294,8 @@ async function main() {
 
     const phone_number = (els.phoneNumberInput?.value || "").trim();
 
+    const preferred_language_code = (els.preferredLanguageInput?.value || "").trim();
+
     const isCustomer = getCurrentRole() !== ROLES.PARTNER;
 
     if (!first_name || !last_name || !email) {
@@ -289,6 +311,26 @@ async function main() {
         message: "이름(First/Last)과 이메일을 모두 입력해 주세요.",
 
       });
+
+      return;
+
+    }
+
+    if (!preferred_language_code) {
+
+      setStatus(els, "");
+
+      showProfileFeedback(els, {
+
+        ok: false,
+
+        title: "입력 확인",
+
+        message: "선호 언어(UI)를 선택해 주세요.",
+
+      });
+
+      els.preferredLanguageInput?.focus();
 
       return;
 
@@ -362,15 +404,20 @@ async function main() {
 
       });
 
-      setSession({
-
-        ...s,
-
-        email: updated.email || email,
-
-      });
-
       applyBasicInfoToForm(els, updated);
+
+      const prefsResult = await userPreferencesApi.patchMyPreferences({
+        preferred_language_code,
+      });
+      const langCode = savePreferredLanguage(
+        prefsResult?.preferred_language_code || preferred_language_code
+      );
+      setSession({
+        ...getSession(),
+        email: updated.email || email,
+        preferred_language_code: langCode,
+      });
+      await applyLanguageChangeToPage(langCode);
 
       try {
         const fresh = await userCustomerApi.getMeBasicInfo();

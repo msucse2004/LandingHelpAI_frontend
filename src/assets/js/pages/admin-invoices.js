@@ -4,6 +4,11 @@ import { loadSidebar } from "../components/sidebar.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
 import { formatDate, formatMoney, safeText } from "../core/utils.js";
 
+/**
+ * Admin invoice list — Step 9: list rows show API data raw (`service_name`, `status`, ids).
+ * UI chrome i18n is via HTML `data-i18n*` only; dynamic list values are never passed through `t()`.
+ */
+
 /** @type {Array<Record<string, unknown>>} */
 let invoicesCache = [];
 

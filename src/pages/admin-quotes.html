@@ -1,38 +1,43 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>견적 관리 - Landing Help AI</title>
+  <title data-i18n="admin.quotes.page_title" data-i18n-default="Quote management - Landing Help AI">Quote management - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/admin-quotes.css" />
 </head>
-<body>
-    <div id="lhai-app-header-root"></div>
+<body data-lhai-i18n-domains="common,nav,admin">
+  <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial admin-sidebar.html --></aside>
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" data-i18n-default="Admin menu" aria-label="Admin menu"></aside>
     <main class="lhai-main">
-      <section class="lhai-page-header"><div><h1 class="lhai-title">견적</h1><p class="lhai-subtitle">견적 대기·승인·제안 흐름을 관리합니다.</p></div></section>
+      <section class="lhai-page-header">
+        <div>
+          <h1 class="lhai-title" data-i18n="admin.quotes.title" data-i18n-default="Quotes">Quotes</h1>
+          <p class="lhai-subtitle" data-i18n="admin.quotes.subtitle" data-i18n-default="Manage pending, approved, and proposed quote flows.">Manage pending, approved, and proposed quote flows.</p>
+        </div>
+      </section>
 
       <section class="lhai-card lhai-admin-quote-prep-banner u-mb-4" id="adminQuotePrepBanner" hidden></section>
 
       <section class="lhai-grid">
         <article class="lhai-card lhai-quote-list">
           <div class="lhai-admin-quotes__toolbar">
-            <h2 class="lhai-card__title lhai-admin-quotes__title">견적 목록</h2>
+            <h2 class="lhai-card__title lhai-admin-quotes__title" data-i18n="admin.quotes.list.title" data-i18n-default="Quote list">Quote list</h2>
             <div class="lhai-admin-quotes__filter">
-              <label class="lhai-label lhai-admin-quotes__filter-label" for="adminQuoteStatusFilter">상태로 조회</label>
+              <label class="lhai-label lhai-admin-quotes__filter-label" for="adminQuoteStatusFilter" data-i18n="admin.quotes.filter.label" data-i18n-default="Filter by status">Filter by status</label>
               <select class="lhai-select lhai-admin-quotes__select" id="adminQuoteStatusFilter" aria-describedby="adminQuoteStatusFilterHelp">
-                <option value="">전체</option>
-                <option value="DRAFT">초안 (DRAFT)</option>
-                <option value="PROPOSED">제안됨 (PROPOSED)</option>
-                <option value="APPROVED">승인됨 (APPROVED)</option>
-                <option value="REJECTED">거절 (REJECTED)</option>
-                <option value="EXPIRED">만료 (EXPIRED)</option>
+                <option value="" data-i18n="admin.quotes.filter.all" data-i18n-default="All">All</option>
+                <option value="DRAFT" data-i18n="admin.quotes.filter.draft" data-i18n-default="Draft (DRAFT)">Draft (DRAFT)</option>
+                <option value="PROPOSED" data-i18n="admin.quotes.filter.proposed" data-i18n-default="Proposed (PROPOSED)">Proposed (PROPOSED)</option>
+                <option value="APPROVED" data-i18n="admin.quotes.filter.approved" data-i18n-default="Approved (APPROVED)">Approved (APPROVED)</option>
+                <option value="REJECTED" data-i18n="admin.quotes.filter.rejected" data-i18n-default="Rejected (REJECTED)">Rejected (REJECTED)</option>
+                <option value="EXPIRED" data-i18n="admin.quotes.filter.expired" data-i18n-default="Expired (EXPIRED)">Expired (EXPIRED)</option>
               </select>
             </div>
           </div>
-          <p class="lhai-help u-mb-2" id="adminQuoteStatusFilterHelp">상태를 바꾸면 해당 견적만 불러옵니다. 필터는 주소의 <code>?status=</code>와 맞춰 저장되므로 링크로 공유할 수 있습니다.</p>
+          <p class="lhai-help u-mb-2" id="adminQuoteStatusFilterHelp" data-i18n="admin.quotes.filter.help" data-i18n-default="Changing status loads only matching quotes. The filter syncs with ?status= in the URL so you can share links.">Changing status loads only matching quotes. The filter syncs with <code>?status=</code> in the URL so you can share links.</p>
           <div id="adminQuoteList"></div>
         </article>
       </section>

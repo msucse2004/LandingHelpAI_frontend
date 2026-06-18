@@ -1,23 +1,27 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>이메일 인증 - Landing Help AI</title>
+  <title data-i18n="auth.verify_email.page_title" data-i18n-default="Verify email - Landing Help AI">Verify email - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
 </head>
-<body>
+<body class="lhai-public-page" data-lhai-i18n-domains="common,auth">
   <main class="lhai-container">
     <section class="lhai-card lhai-card--center">
-      <h1 class="lhai-title">이메일 인증</h1>
-      <p class="lhai-subtitle">가입 시 받은 이메일의 링크로 오셨다면 토큰이 자동으로 채워집니다. 메일이 없으면 토큰을 직접 입력하세요.</p>
+      <h1 class="lhai-title" data-i18n="auth.verify_email.title" data-i18n-default="Verify email">Verify email</h1>
+      <p class="lhai-subtitle" data-i18n="auth.verify_email.subtitle" data-i18n-default="If you opened the link from your signup email, the token is filled automatically. Otherwise enter the token from the email.">If you opened the link from your signup email, the token is filled automatically. Otherwise enter the token from the email.</p>
       <form class="lhai-form" id="verifyEmailForm">
-        <label class="lhai-label" for="token">인증 토큰</label>
+        <label class="lhai-label" for="token" data-i18n="auth.verify_email.token_label" data-i18n-default="Verification token">Verification token</label>
         <input class="lhai-input" id="token" name="token" type="text" required />
-        <button class="lhai-button lhai-button--primary" type="submit">인증 완료</button>
+        <button class="lhai-button lhai-button--primary" type="submit" data-i18n="auth.verify_email.submit" data-i18n-default="Complete verification">Complete verification</button>
       </form>
-      <p class="lhai-help" id="verifyStatus">토큰을 입력하세요.</p>
-      <p class="u-mt-2"><a href="login.html">로그인</a> · <a href="signup.html">회원가입</a></p>
+      <p class="lhai-help" id="verifyStatus" data-i18n="auth.verify_email.initial_status" data-i18n-default="Enter a token.">Enter a token.</p>
+      <p class="u-mt-2">
+        <a href="login.html" data-i18n="auth.verify_email.link_login" data-i18n-default="Sign in">Sign in</a>
+        ·
+        <a href="signup.html" data-i18n="auth.verify_email.link_signup" data-i18n-default="Create account">Create account</a>
+      </p>
     </section>
     <dialog id="verifyResultDialog" class="lhai-dialog" aria-labelledby="verifyResultTitle">
       <div class="lhai-dialog__inner">
@@ -25,12 +29,13 @@
         <div class="lhai-dialog__body" id="verifyResultBody"></div>
         <div class="lhai-dialog__actions">
           <form method="dialog">
-            <button type="submit" class="lhai-button lhai-button--primary" id="verifyResultCloseBtn" value="close">확인</button>
+            <button type="submit" class="lhai-button lhai-button--primary" id="verifyResultCloseBtn" value="close" data-i18n="auth.verify_email.confirm_btn" data-i18n-default="OK">OK</button>
           </form>
         </div>
       </div>
     </dialog>
   </main>
+  <script type="module" src="../assets/js/core/public-page-language-boot.js" data-i18n-domains="common,auth"></script>
   <script type="module" src="../assets/js/pages/verify-email.js"></script>
 </body>
 </html>

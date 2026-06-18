@@ -34,8 +34,8 @@ const APP_CONFIG = {
   preferBackendAuth: true,
   /** 카탈로그/목업에서 AI 견적 초안 기본 단가가 없을 때 쓰는 USD 기본값(백엔드 catalog_defaults 와 맞출 것). */
   defaultAiGuideUnitPriceUsd: 9.99,
-  /** 견적·청구에 포함되는 플랫폼 Admin Fee 기본 단가(USD). */
-  defaultAdminFeeUsd: 39.99,
+  /** 견적·청구 Admin Fee 기본 비율(서비스 단가 합계 대비). */
+  defaultAdminFeeRate: 0.04,
 };
 
 const ROLES = {

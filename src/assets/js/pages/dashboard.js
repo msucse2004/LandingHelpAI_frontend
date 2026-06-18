@@ -2,14 +2,24 @@ import { customerCasesApi, dashboardApi, timelineApi } from "../core/api.js";
 import {
   DASHBOARD_EMPTY,
   buildCustomerBidResultsPageHref,
+  dashboardRuntimeResolveTouches,
   documentsNeedCustomerAttention,
   getActiveCarBid,
   hasSelectedCarOffer,
+  localizeCaseQueueStatus,
+  localizeDashboardStatusText,
+  localizeTimelineStepTitle,
+  customerCaseDisplayTitle,
+  customerCaseDisplaySubtitle,
+  customerCaseDisplayStatusLabel,
+  customerCaseStatusLabel,
   normalizeChecklistSummary,
+  normalizeTimelineStepStatus,
   resolveActiveCarBidCompareHref,
   resolveDashboardActionHero,
   resolveQuoteBidSummaryModel,
   summarizeDocumentCounts,
+  buildMergedRecentUpdates,
 } from "./dashboard-logic.js";
 import { getCurrentRole, getCustomerMessagingProfileId } from "../core/auth.js";
 import { ROLES } from "../core/config.js";
@@ -17,8 +27,11 @@ import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { patchState } from "../core/state.js";
 import { loadSidebar } from "../components/sidebar.js";
 import { applyCustomerQuoteNavFromAggregate } from "../components/customer-quote-nav.js";
-import { t } from "../core/i18n-client.js";
-import { initCommonI18nAndApplyDom } from "../core/i18n-dom.js";
+import { t, flushRuntimeMissingKeysAfterPageApply } from "../core/i18n-client.js";
+import { localizedStatus } from "../core/i18n-dynamic.js";
+import { appPageLanguageReady } from "../core/app-page-i18n-boot.js";
+import { wireDynamicPageI18nRefresh, applyI18nToDom } from "../core/i18n-dom.js";
+import { getEffectiveLanguage } from "../core/preferred-language.js";
 
 function qs(selector) {
   return document.querySelector(selector);
@@ -56,24 +69,12 @@ function customerCaseStatusBadgeClass(item) {
   return "lhai-case-badge--open";
 }
 
-function customerCaseStatusLabel(item) {
-  const kind = String(item?.case_kind || "");
-  if (kind === "messaging") {
-    return item.unread ? "새 메시지" : "진행 중";
-  }
-  const tab = String(item?.queue_tab || "").toLowerCase();
-  if (tab === "resolved") return "완료";
-  if (tab === "waiting_customer") return "고객 확인 대기";
-  if (tab === "action_required") return "운영 확인 중";
-  const raw = String(item?.case_status || item?.queue_status || "").trim();
-  if (raw) return raw.replace(/_/g, " ");
-  return "진행 중";
-}
-
 /** @param {ReturnType<typeof resolveDashboardActionHero>} hero */
 function paintDashboardActionHero(hero) {
   const target = qs("#dashboardActionHero");
   if (!target || !hero) return;
+  target.className =
+    hero.variant === "idle" ? "lhai-dashboard-hero lhai-dashboard-hero--idle" : "lhai-dashboard-hero";
   const badges = (hero.badges || [])
     .map((b) => {
       const cls =
@@ -126,40 +127,7 @@ function statusItemClass(state) {
 
 /** @param {string} raw */
 function compactDashboardStatusText(raw) {
-  const v = String(raw || "").trim();
-  if (!v) return "—";
-  const exact = {
-    "Active — delivery in progress": "진행 중",
-    "Awaiting payment": "결제 대기",
-    "Quote pending your approval": "견적 검토",
-    "Quote approved — billing next": "견적 승인",
-    "Quote in progress": "견적 준비",
-    "Request under review": "검토 중",
-    "Getting started": "시작 전",
-    Paid: "완료",
-    "Payment due": "결제 필요",
-    "No invoice yet": "청구 전",
-    "Before payment": "결제 전",
-    "Not scheduled": "미정",
-    "Not scheduled yet": "미정",
-    "After payment": "결제 후",
-    "After quote approval": "견적 승인 후",
-    "Draft / TBD": "준비 중",
-    "No documents yet": "없음",
-    DRAFT: "초안",
-    CONFIRMED: "확정",
-    SENT: "발송됨",
-  };
-  if (exact[v]) return exact[v];
-  const approvedNeed = v.match(/^(\d+)\s+approved,\s*(\d+)\s+need attention$/i);
-  if (approvedNeed) {
-    const a = approvedNeed[1];
-    const n = approvedNeed[2];
-    return Number(n) > 0 ? `${a}개 승인 · ${n}건 확인` : `${a}개 승인됨`;
-  }
-  const stripped = v.replace(/\s*·\s*비딩\s+.+$/u, "").trim();
-  if (stripped.length <= 28) return stripped;
-  return `${stripped.slice(0, 26)}…`;
+  return localizeDashboardStatusText(raw);
 }
 
 /** @param {Record<string, { label?: string, value?: string, state?: string }>} cardByKey */
@@ -186,7 +154,7 @@ function buildDashboardStatusSummaryItems(aggregate) {
   const items = [
     {
       key: "service",
-      label: "서비스",
+      label: t("dashboard.summary.service", "Service"),
       value: statusCardValue(cardByKey, "service", aggregate?.current_service_status),
       state: cardByKey.service?.state,
     },
@@ -195,22 +163,31 @@ function buildDashboardStatusSummaryItems(aggregate) {
   if (bid && bid.is_expired !== true) {
     const offerCount = Math.max(0, Number(bid.offer_count) || 0);
     const rl = String(bid.remaining_label || "").trim();
-    let quoteValue = "견적 접수 중";
+    let quoteValue = t("dashboard.summary.quote_accepting", "Accepting quotes");
     let quoteState = "info";
     if (hasSelectedCarOffer(bid)) {
-      quoteValue = "파트너 선택됨";
+      quoteValue = t("dashboard.summary.partner_selected", "Partner selected");
       quoteState = "success";
     } else if (offerCount > 0) {
-      quoteValue = `제안 ${offerCount}개 도착`;
+      quoteValue = localizedStatus("dashboard.summary.offers_arrived", "{count} proposals received", {
+        count: offerCount,
+      });
       quoteState = "info";
     } else if (rl) {
-      quoteValue = rl.includes("남음") ? `비딩 ${rl}` : `비딩 ${rl} 남음`;
+      quoteValue = localizedStatus("dashboard.summary.bidding_remaining", "Bidding · {remaining} left", {
+        remaining: rl,
+      });
     }
-    items.push({ key: "quote", label: "견적", value: quoteValue, state: quoteState });
-  } else if (/quote|견적|approval|비딩/i.test(statusCardValue(cardByKey, "service", ""))) {
     items.push({
       key: "quote",
-      label: "견적",
+      label: t("dashboard.summary.quote", "Quote"),
+      value: quoteValue,
+      state: quoteState,
+    });
+  } else if (/quote|견적|approval|비딩|bidding/i.test(statusCardValue(cardByKey, "service", ""))) {
+    items.push({
+      key: "quote",
+      label: t("dashboard.summary.quote", "Quote"),
       value: statusCardValue(cardByKey, "service"),
       state: cardByKey.service?.state,
     });
@@ -218,30 +195,40 @@ function buildDashboardStatusSummaryItems(aggregate) {
 
   items.push({
     key: "payment",
-    label: "결제",
+    label: t("dashboard.summary.payment", "Payment"),
     value: compactDashboardStatusText(aggregate?.payment_status || cardByKey.payment?.value),
     state: cardByKey.payment?.state,
   });
 
   let docValue = statusCardValue(cardByKey, "documents");
+  let docNeedsAttention = false;
   if (docs.length > 0) {
     const approved = docs.filter((d) => String(d?.status || "").toUpperCase() === "APPROVED").length;
     const pending = docs.filter((d) => {
       const st = String(d?.status || "").toUpperCase();
       return st === "REQUESTED" || st === "REJECTED";
     }).length;
-    docValue = pending > 0 ? `${approved}개 승인 · ${pending}건 확인` : approved > 0 ? `${approved}개 승인됨` : "등록됨";
+    docNeedsAttention = pending > 0;
+    docValue =
+      pending > 0
+        ? localizedStatus("dashboard.summary.docs_approved_need", "{approved} approved · {count} need review", {
+            approved,
+            count: pending,
+          })
+        : approved > 0
+          ? localizedStatus("dashboard.summary.docs_approved_only", "{approved} approved", { approved })
+          : t("dashboard.summary.docs_registered", "Registered");
   }
   items.push({
     key: "documents",
-    label: "문서",
+    label: t("dashboard.summary.documents", "Documents"),
     value: docValue,
-    state: cardByKey.documents?.state || (docValue.includes("확인") ? "warning" : "neutral"),
+    state: cardByKey.documents?.state || (docNeedsAttention ? "warning" : "neutral"),
   });
 
   items.push({
     key: "schedule",
-    label: "일정",
+    label: t("dashboard.summary.schedule", "Schedule"),
     value: compactDashboardStatusText(scheduleRaw || cardByKey.schedule?.value),
     state: cardByKey.schedule?.state,
   });
@@ -255,7 +242,7 @@ function renderDashboardStatusSummary(aggregate) {
   if (!target) return;
   const items = buildDashboardStatusSummaryItems(aggregate);
   if (!items.length) {
-    target.innerHTML = `${cardHead("내 진행 상태", "", "")}${dashMuted(DASHBOARD_EMPTY.status)}`;
+    target.innerHTML = `${cardHead(t("dashboard.card.status_title", "My progress"), "", "")}${dashMuted(DASHBOARD_EMPTY.status)}`;
     return;
   }
   const rows = items
@@ -267,7 +254,7 @@ function renderDashboardStatusSummary(aggregate) {
     </div>`,
     )
     .join("");
-  target.innerHTML = `${cardHead("내 진행 상태", "messages.html", "메시지함")}<div class="lhai-dashboard-summary-grid" role="list">${rows}</div>`;
+  target.innerHTML = `${cardHead(t("dashboard.card.status_title", "My progress"), "messages.html", t("dashboard.link.messages", "Messages"))}<div class="lhai-dashboard-summary-grid" role="list">${rows}</div>`;
 }
 
 /** @param {Record<string, unknown>} aggregate */
@@ -294,7 +281,7 @@ function renderDashboardQuoteSummary(aggregate) {
     ? `<p class="lhai-dashboard-quote-card__deadline">${escHtml(model.deadlineLine)}</p>`
     : "";
   section.innerHTML = `
-    ${cardHead("견적 비교", "", "")}
+    ${cardHead(t("dashboard.card.quote_compare_title", "Quote comparison"), "", "")}
     <h3 class="lhai-dashboard-quote-card__title">${escHtml(model.title)}</h3>
     <p class="lhai-dashboard-quote-card__text">${escHtml(model.text)}</p>
     ${deadlineHtml}
@@ -303,32 +290,18 @@ function renderDashboardQuoteSummary(aggregate) {
 }
 
 /** @param {string} status */
-function normalizeTimelineStepStatus(status) {
-  const s = String(status || "").toLowerCase();
-  if (s === "done" || s === "completed") return "done";
-  if (s === "in_progress" || s === "active") return "in_progress";
-  return "pending";
+function normalizeTimelineStepStatusLocal(status) {
+  return normalizeTimelineStepStatus(status);
 }
 
 /** @param {{ title?: string, status?: string }} item */
 function compactTimelineStepLabel(item) {
-  const title = String(item.title || "").trim();
-  const st = normalizeTimelineStepStatus(item.status);
-  const byTitle = {
-    "service request received": "요청 접수",
-    "quote review and approval": st === "done" ? "견적 승인" : "견적 검토",
-    "invoice payment": st === "done" ? "결제 완료" : st === "in_progress" ? "결제 진행" : "결제",
-    "schedule and delivery": st === "done" ? "일정 확정" : "일정/서비스 진행",
-  };
-  const key = title.toLowerCase();
-  if (byTitle[key]) return byTitle[key];
-  if (title.length <= 24) return title;
-  return `${title.slice(0, 22)}…`;
+  return localizeTimelineStepTitle(item);
 }
 
 /** @param {string} status */
 function compactTimelineStepModifier(status) {
-  const st = normalizeTimelineStepStatus(status);
+  const st = normalizeTimelineStepStatusLocal(status);
   if (st === "done") return "lhai-dashboard-stepper__item--done";
   if (st === "in_progress") return "lhai-dashboard-stepper__item--active";
   return "lhai-dashboard-stepper__item--pending";
@@ -336,17 +309,17 @@ function compactTimelineStepModifier(status) {
 
 /** @param {string} status */
 function compactTimelineStepMarker(status) {
-  const st = normalizeTimelineStepStatus(status);
+  const st = normalizeTimelineStepStatusLocal(status);
   if (st === "pending") return "○";
   return "●";
 }
 
 /** @param {string} status */
 function compactTimelineDetailStatusLabel(status) {
-  const st = normalizeTimelineStepStatus(status);
-  if (st === "done") return "완료";
-  if (st === "in_progress") return "진행 중";
-  return "예정";
+  const st = normalizeTimelineStepStatusLocal(status);
+  if (st === "done") return t("dashboard.timeline.status_done", "Done");
+  if (st === "in_progress") return t("dashboard.timeline.status_in_progress", "In progress");
+  return t("dashboard.timeline.status_pending", "Upcoming");
 }
 
 /** @param {Array<{ title?: string, due_date?: string, dueDate?: string, status?: string }>} timelineItems */
@@ -355,7 +328,7 @@ function renderCompactProgressStepper(timelineItems = []) {
   if (!target) return;
   const list = (Array.isArray(timelineItems) ? timelineItems : []).slice(0, 5);
   if (!list.length) {
-    target.innerHTML = `${cardHead("진행 단계", "schedule.html", "일정")}${dashMuted(DASHBOARD_EMPTY.progress)}`;
+    target.innerHTML = `${cardHead(t("dashboard.card.progress_title", "Progress steps"), "schedule.html", t("dashboard.link.schedule", "Schedule"))}${dashMuted(DASHBOARD_EMPTY.progress)}`;
     return;
   }
 
@@ -373,180 +346,18 @@ function renderCompactProgressStepper(timelineItems = []) {
     .map((item) => {
       const due = String(item.due_date || item.dueDate || "").trim();
       const duePart = due ? ` · ${escHtml(due)}` : "";
-      return `<li><span class="lhai-dashboard-stepper__detail-title">${escHtml(item.title || "")}</span><span class="u-text-muted">${escHtml(compactTimelineDetailStatusLabel(item.status))}${duePart}</span></li>`;
+      return `<li><span class="lhai-dashboard-stepper__detail-title">${escHtml(localizeTimelineStepTitle(item))}</span><span class="u-text-muted">${escHtml(compactTimelineDetailStatusLabel(item.status))}${duePart}</span></li>`;
     })
     .join("");
 
   target.innerHTML = `
-    ${cardHead("진행 단계", "schedule.html", "일정")}
-    <ol class="lhai-dashboard-stepper" aria-label="진행 단계 요약">${compactSteps}</ol>
+    ${cardHead(t("dashboard.card.progress_title", "Progress steps"), "schedule.html", t("dashboard.link.schedule", "Schedule"))}
+    <ol class="lhai-dashboard-stepper" aria-label="${escHtml(t("dashboard.card.progress_aria", "Progress summary"))}">${compactSteps}</ol>
     <details class="lhai-dashboard-stepper__more">
-      <summary>자세히 보기</summary>
+      <summary>${escHtml(t("dashboard.link.show_details", "Show details"))}</summary>
       <ul class="lhai-dashboard-stepper__details-list">${detailRows}</ul>
     </details>
   `;
-}
-
-/** @param {string} dateLike */
-function formatRecentUpdateTimestamp(dateLike) {
-  if (!dateLike) return "";
-  const date = new Date(dateLike);
-  if (Number.isNaN(date.getTime())) return "";
-  try {
-    return new Intl.DateTimeFormat("ko-KR", {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(date);
-  } catch {
-    return "";
-  }
-}
-
-/** @param {string} text */
-function shortenUpdateText(text, max = 96) {
-  const v = String(text || "").trim().replace(/\s+/g, " ");
-  if (!v) return "";
-  return v.length <= max ? v : `${v.slice(0, max - 1)}…`;
-}
-
-/** @param {string} line @param {number} index */
-function activityLineToRecentUpdate(line, index) {
-  const raw = String(line || "").trim();
-  if (!raw) return null;
-  const lower = raw.toLowerCase();
-  const sortAt = Date.now() - (index + 1) * 3_600_000;
-
-  if (lower.includes("invoice is paid") || lower.includes("at least one invoice is paid")) {
-    return {
-      id: `act:paid:${index}`,
-      title: "결제가 완료되었습니다",
-      description: "서비스 진행 단계로 이동했습니다.",
-      sortAt,
-      timestamp: "",
-    };
-  }
-  if (lower.includes("complete payment")) {
-    return {
-      id: `act:pay-due:${index}`,
-      title: "결제가 필요합니다",
-      description: "청구서를 확인하고 결제를 완료해 주세요.",
-      sortAt,
-      timestamp: "",
-    };
-  }
-  if (lower.includes("latest quote") && lower.includes("proposed")) {
-    return {
-      id: `act:quote-proposed:${index}`,
-      title: "견적이 도착했습니다",
-      description: "견적 내용을 검토해 주세요.",
-      sortAt,
-      timestamp: "",
-    };
-  }
-  if (lower.includes("latest quote") && lower.includes("approved")) {
-    return {
-      id: `act:quote-approved:${index}`,
-      title: "견적이 승인되었습니다",
-      description: "청구서 발행을 기다려 주세요.",
-      sortAt,
-      timestamp: "",
-    };
-  }
-  if (lower.includes("latest invoice") && lower.includes("sent")) {
-    return {
-      id: `act:invoice-sent:${index}`,
-      title: "청구서가 발송되었습니다",
-      description: "메시지함에서 결제를 진행할 수 있습니다.",
-      sortAt,
-      timestamp: "",
-    };
-  }
-  if (/bid|bidding|car purchase|vehicle/i.test(raw)) {
-    return {
-      id: `act:bid:${index}`,
-      title: "자동차 견적 요청이 시작되었습니다",
-      description: "파트너 제안이 도착하면 알려 드립니다.",
-      sortAt,
-      timestamp: "",
-    };
-  }
-  if (/intake|required|checklist|survey/i.test(raw)) {
-    return {
-      id: `act:intake:${index}`,
-      title: "필수 정보 입력이 완료되었습니다",
-      description: "다음 단계 안내를 확인해 주세요.",
-      sortAt,
-      timestamp: "",
-    };
-  }
-
-  return {
-    id: `act:raw:${index}`,
-    title: "서비스 업데이트",
-    description: shortenUpdateText(raw),
-    sortAt,
-    timestamp: "",
-  };
-}
-
-/** @param {{ title?: string, description?: string }} item */
-function recentUpdateDedupeKey(item) {
-  return `${String(item.title || "").trim()}|${String(item.description || "").trim()}`.toLowerCase();
-}
-
-/** @param {Record<string, unknown>} aggregate */
-function buildMergedRecentUpdates(aggregate) {
-  const backendRows = Array.isArray(aggregate?.recent_updates) ? aggregate.recent_updates : [];
-  if (backendRows.length) {
-    return backendRows.slice(0, 3).map((row, index) => {
-      const createdAt = row?.timestamp;
-      const sortAt = new Date(createdAt || 0).getTime();
-      return {
-        id: String(row?.id || `upd:${index}`),
-        title: String(row?.title || "업데이트").trim() || "업데이트",
-        description: shortenUpdateText(row?.description),
-        sortAt: Number.isFinite(sortAt) ? sortAt : 0,
-        timestamp: formatRecentUpdateTimestamp(createdAt),
-      };
-    });
-  }
-
-  /** @type {Array<{ id: string, title: string, description: string, sortAt: number, timestamp: string }>} */
-  const items = [];
-
-  for (const message of Array.isArray(aggregate?.recent_messages) ? aggregate.recent_messages : []) {
-    const title = String(message.title || "메시지").trim();
-    const description = shortenUpdateText(message.preview);
-    const createdAt = message.created_at;
-    const sortAt = new Date(createdAt || 0).getTime();
-    items.push({
-      id: `msg:${message.id || title}`,
-      title,
-      description,
-      sortAt: Number.isFinite(sortAt) ? sortAt : 0,
-      timestamp: formatRecentUpdateTimestamp(createdAt),
-    });
-  }
-
-  const activity = Array.isArray(aggregate?.recent_activity) ? aggregate.recent_activity : [];
-  activity.forEach((line, index) => {
-    const parsed = activityLineToRecentUpdate(line, index);
-    if (parsed) items.push(parsed);
-  });
-
-  const seen = new Set();
-  return items
-    .sort((a, b) => b.sortAt - a.sortAt)
-    .filter((item) => {
-      const key = recentUpdateDedupeKey(item);
-      if (!key || key === "|") return false;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 3);
 }
 
 /** @param {Record<string, unknown>} aggregate */
@@ -556,7 +367,7 @@ function renderRecentUpdates(aggregate) {
 
   const rows = buildMergedRecentUpdates(aggregate);
   if (!rows.length) {
-    target.innerHTML = `${cardHead("최근 업데이트", "messages.html", "메시지함 열기")}${dashMuted(DASHBOARD_EMPTY.recentUpdates)}`;
+    target.innerHTML = `${cardHead(t("dashboard.card.recent_updates_title", "Recent updates"), "messages.html", t("dashboard.link.open_messages", "Open messages"))}${dashMuted(DASHBOARD_EMPTY.recentUpdates)}`;
     return;
   }
 
@@ -576,7 +387,7 @@ function renderRecentUpdates(aggregate) {
     })
     .join("");
 
-  target.innerHTML = `${cardHead("최근 업데이트", "messages.html", "메시지함 열기")}<ul class="lhai-dashboard-updates-list">${html}</ul>`;
+  target.innerHTML = `${cardHead(t("dashboard.card.recent_updates_title", "Recent updates"), "messages.html", t("dashboard.link.open_messages", "Open messages"))}<ul class="lhai-dashboard-updates-list">${html}</ul>`;
 }
 
 /** @param {Record<string, unknown>} [aggregate] */
@@ -584,11 +395,15 @@ function renderDocumentsCompact(aggregate = {}) {
   const target = qs("#dashboardDocumentsCompact");
   if (!target) return;
   const { approved, needsAttention, total } = summarizeDocumentCounts(aggregate);
-  const statLine = `승인됨 ${approved}개 · 확인 필요 ${needsAttention}개`;
+  const statLine = localizedStatus(
+    "dashboard.documents.stat_line",
+    "{approved} approved · {needsAttention} need review",
+    { approved, needsAttention }
+  );
   const hint =
     total === 0 ? `<p class="lhai-dashboard-compact-hint">${escHtml(DASHBOARD_EMPTY.documents)}</p>` : "";
   target.innerHTML = `
-    ${cardHead("문서", "documents.html", "문서 보기")}
+    ${cardHead(t("dashboard.card.documents_title", "Documents"), "documents.html", t("dashboard.link.view_documents", "View documents"))}
     <p class="lhai-dashboard-compact-stat">${escHtml(statLine)}</p>
     ${hint}
   `;
@@ -601,7 +416,11 @@ function renderChecklistCompact(summary) {
   const total = Number(summary?.total) || 0;
   const completed = Number(summary?.completed) || 0;
   const requiredLeft = Number(summary?.required_remaining) || 0;
-  const statLine = `완료 ${completed}개 · 남은 필수 ${requiredLeft}개`;
+  const statLine = localizedStatus(
+    "dashboard.checklist.stat_line",
+    "{completed} done · {requiredLeft} required left",
+    { completed, requiredLeft }
+  );
 
   let hint = "";
   if (total === 0) {
@@ -611,7 +430,7 @@ function renderChecklistCompact(summary) {
   }
 
   target.innerHTML = `
-    ${cardHead("체크리스트", "", "")}
+    ${cardHead(t("dashboard.card.checklist_title", "Checklist"), "", "")}
     <p class="lhai-dashboard-compact-stat">${escHtml(statLine)}</p>
     ${hint ? `<p class="lhai-dashboard-compact-hint">${escHtml(hint)}</p>` : ""}
   `;
@@ -628,18 +447,19 @@ function renderCasesCompact(items) {
   });
   const top = rows.slice(0, 4);
   if (!top.length) {
-    target.innerHTML = `${cardHead("서비스 문의", "cases.html", "문의 시작")}${dashMuted(DASHBOARD_EMPTY.cases)}`;
+    target.innerHTML = `${cardHead(t("dashboard.card.cases_title", "Service inquiries"), "cases.html", t("dashboard.link.start_inquiry", "Start inquiry"))}${dashMuted(DASHBOARD_EMPTY.cases)}`;
     return;
   }
   const html = top
     .map((c) => {
       const href = `case-detail.html?case_id=${encodeURIComponent(c.case_id)}`;
-      const label = customerCaseStatusLabel(c);
+      const title = customerCaseDisplayTitle(c);
+      const label = customerCaseDisplayStatusLabel(c);
       const badgeClass = customerCaseStatusBadgeClass(c);
-      return `<li><a href="${escHtml(href)}"><span class="lhai-dashboard-case-list__title">${escHtml(c.title || "문의")}</span><span class="lhai-case-badge ${badgeClass}">${escHtml(label)}</span></a></li>`;
+      return `<li><a href="${escHtml(href)}"><span class="lhai-dashboard-case-list__title">${escHtml(title)}</span><span class="lhai-case-badge ${badgeClass}">${escHtml(label)}</span></a></li>`;
     })
     .join("");
-  target.innerHTML = `${cardHead("서비스 문의", "cases.html", "전체 보기")}<ul class="lhai-dashboard-case-list">${html}</ul>`;
+  target.innerHTML = `${cardHead(t("dashboard.card.cases_title", "Service inquiries"), "cases.html", t("dashboard.link.view_all_cases", "View all"))}<ul class="lhai-dashboard-case-list">${html}</ul>`;
 }
 
 function removeLegacyDashboardAiButton() {
@@ -717,10 +537,10 @@ function bindDashboardCrossTabRefreshAfterDevReset() {
 
 function renderDashboardError() {
   paintDashboardActionHero({
-    eyebrow: "안내",
-    title: "대시보드를 불러오지 못했습니다",
-    text: t("common.dashboard.load_error", "잠시 후 다시 시도해 주세요."),
-    primary: { label: "새로고침", href: "dashboard.html" },
+    eyebrow: t("dashboard.error.eyebrow", "Notice"),
+    title: t("dashboard.error.title", "Could not load dashboard"),
+    text: t("dashboard.error.text", "Please try again in a moment."),
+    primary: { label: t("dashboard.error.refresh", "Refresh"), href: "dashboard.html" },
     secondary: null,
     badges: [],
     meta: null,
@@ -741,6 +561,86 @@ function renderDashboardView(aggregate, timelineItems, checklist, caseItems) {
 
 let dashboardBidUpdateListenerBound = false;
 
+/** @type {{ aggregate: Record<string, unknown>; timelineItems: unknown[]; checklistSummary: Record<string, unknown>; caseItems: Array<Record<string, unknown>> } | null} */
+let dashboardViewCache = null;
+/** @type {string | null} */
+let dashboardCasesViewerLocale = null;
+let dashboardLanguageCaseRefetchPending = false;
+let dashboardLanguageCaseRefetchBound = false;
+
+function setDashboardViewCache(aggregate, sections = {}) {
+  dashboardViewCache = {
+    aggregate: aggregate ?? {},
+    timelineItems: Array.isArray(sections.timelineItems) ? sections.timelineItems : [],
+    checklistSummary: sections.checklist ?? normalizeChecklistSummary(aggregate ?? {}),
+    caseItems: Array.isArray(sections.caseItems) ? sections.caseItems : [],
+  };
+  dashboardCasesViewerLocale = getEffectiveLanguage();
+}
+
+/** Rerender cached dashboard sections for static UI keys (no case API refetch). */
+function refreshDashboardStaticPageI18n() {
+  if (!dashboardViewCache) return;
+  if (dashboardLanguageCaseRefetchPending) return;
+  const { aggregate, timelineItems, checklistSummary, caseItems } = dashboardViewCache;
+  renderDashboardPageSections(aggregate, {
+    timelineItems,
+    checklist: checklistSummary,
+    caseItems,
+  });
+  const dashboardRoot = document.querySelector(".lhai-dashboard");
+  if (dashboardRoot) {
+    applyI18nToDom(dashboardRoot);
+  }
+  scheduleDashboardRuntimeI18nFlush();
+}
+
+async function refetchDashboardCaseItemsForLanguage() {
+  if (!dashboardViewCache) return;
+  dashboardCasesViewerLocale = getEffectiveLanguage();
+  try {
+    const caseItems = await customerCasesApi.list();
+    dashboardViewCache.caseItems = Array.isArray(caseItems) ? caseItems : [];
+  } catch {
+    /* keep cached case rows */
+  }
+}
+
+async function handleDashboardLanguageChanged() {
+  if (!dashboardViewCache) return;
+  dashboardLanguageCaseRefetchPending = true;
+  try {
+    await refetchDashboardCaseItemsForLanguage();
+  } finally {
+    dashboardLanguageCaseRefetchPending = false;
+  }
+  if (!dashboardViewCache) return;
+  renderCasesCompact(dashboardViewCache.caseItems);
+  refreshDashboardStaticPageI18n();
+}
+
+function bindDashboardLanguageCaseRefetch() {
+  if (dashboardLanguageCaseRefetchBound) return;
+  dashboardLanguageCaseRefetchBound = true;
+  window.addEventListener("lhai:language-changed", () => {
+    void handleDashboardLanguageChanged();
+  });
+}
+
+function refreshDashboardPageI18n() {
+  refreshDashboardStaticPageI18n();
+}
+
+function scheduleDashboardRuntimeI18nFlush() {
+  void flushRuntimeMissingKeysAfterPageApply();
+}
+
+bindDashboardLanguageCaseRefetch();
+
+wireDynamicPageI18nRefresh(refreshDashboardStaticPageI18n, {
+  shouldRefresh: (detail) => dashboardRuntimeResolveTouches(detail?.keys),
+});
+
 function bindDashboardBidUpdateListener(customerProfileId, getContext) {
   if (dashboardBidUpdateListenerBound) return;
   dashboardBidUpdateListenerBound = true;
@@ -750,6 +650,12 @@ function bindDashboardBidUpdateListener(customerProfileId, getContext) {
       try {
         const aggregate = await dashboardApi.getAggregate(customerProfileId);
         const ctx = typeof getContext === "function" ? await getContext() : {};
+        if (dashboardViewCache) {
+          dashboardViewCache.aggregate = aggregate;
+          if (Array.isArray(ctx.cases)) {
+            dashboardViewCache.caseItems = ctx.cases;
+          }
+        }
         refreshDashboardBidSections(aggregate, ctx);
       } catch {
         /* ignore */
@@ -766,7 +672,7 @@ async function initDashboardPage() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
   bindDashboardCrossTabRefreshAfterDevReset();
-  await initCommonI18nAndApplyDom(document);
+  await appPageLanguageReady;
   await loadSidebar("#sidebar", "customer");
 
   const customerProfileId = getCustomerMessagingProfileId();
@@ -787,7 +693,10 @@ async function initDashboardPage() {
     ]);
     checklistSummary = normalizeChecklistSummary(dashboardAggregate);
   } catch {
+    setDashboardViewCache({}, { timelineItems: [], checklist: {}, caseItems: [] });
     renderDashboardError();
+    refreshDashboardPageI18n();
+    scheduleDashboardRuntimeI18nFlush();
     return;
   }
 
@@ -803,17 +712,18 @@ async function initDashboardPage() {
 
   syncDashboardBrowserStorageFromAggregate(dashboardAggregate);
 
-  removeLegacyDashboardAiButton();
-  const hero = renderDashboardActionHero(dashboardAggregate, { cases: caseItems });
-  renderDashboardStatusSummary(dashboardAggregate);
-  renderDashboardQuoteSummary(dashboardAggregate);
-  renderCompactProgressStepper(timelineItems);
-  renderRecentUpdates(dashboardAggregate);
-  renderDocumentsCompact(dashboardAggregate);
-  renderChecklistCompact(checklistSummary);
-  renderCasesCompact(caseItems);
-  updateDashboardHeaderSubtitle(hero.title);
-  applyCustomerQuoteNavFromAggregate(dashboardAggregate, document);
+  setDashboardViewCache(dashboardAggregate, {
+    timelineItems,
+    checklist: checklistSummary,
+    caseItems,
+  });
+  renderDashboardPageSections(dashboardAggregate, {
+    timelineItems,
+    checklist: checklistSummary,
+    caseItems,
+  });
+  refreshDashboardPageI18n();
+  scheduleDashboardRuntimeI18nFlush();
 
   bindDashboardBidUpdateListener(customerProfileId, async () => ({
     cases: await customerCasesApi.list(),
@@ -827,6 +737,7 @@ export {
   renderDashboardView,
   renderDashboardPageSections,
   refreshDashboardBidSections,
+  refreshDashboardPageI18n,
   renderDashboardActionHero,
   resolveDashboardActionHero,
   renderDashboardStatusSummary,
@@ -845,5 +756,11 @@ export {
   documentsNeedCustomerAttention,
   getActiveCarBid,
   hasSelectedCarOffer,
+  localizeDashboardStatusText,
+  localizeTimelineStepTitle,
+  customerCaseDisplayTitle,
+  customerCaseDisplaySubtitle,
+  customerCaseDisplayStatusLabel,
+  customerCaseStatusLabel,
   DASHBOARD_EMPTY,
 };

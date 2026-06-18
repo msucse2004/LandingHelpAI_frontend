@@ -1,6 +1,5 @@
 import { serviceCatalogBrowseApi } from "../core/api.js";
 import { t } from "../core/i18n-client.js";
-import { initCommonI18nAndApplyDom } from "../core/i18n-dom.js";
 import { safeText } from "../core/utils.js";
 import { isCatalogRecServiceItemUuidString } from "../lib/catalog-rec-service-item-id.js";
 
@@ -100,7 +99,6 @@ async function loadCatalog(categoryId = "") {
 }
 
 async function initServicesPage() {
-  await initCommonI18nAndApplyDom(document);
   await loadCatalog("");
 
   if (categoryFilterEl) {

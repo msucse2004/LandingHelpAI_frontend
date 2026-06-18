@@ -2,7 +2,7 @@ import { loadSidebar } from "../components/sidebar.js";
 import { adminOperationsApi } from "../core/api.js";
 import { getAccessToken, getSession } from "../core/auth.js";
 import { protectCurrentPage } from "../core/guards.js";
-import { initCommonI18nAndApplyDom } from "../core/i18n-dom.js";
+import { appPageLanguageReady } from "../core/app-page-i18n-boot.js";
 import {
   OPS_QUEUE_TABS,
   filterQueueItemsByTab,
@@ -738,7 +738,7 @@ function bindEvents() {
 
 async function init() {
   if (!protectCurrentPage()) return;
-  await initCommonI18nAndApplyDom(document);
+  await appPageLanguageReady;
   await loadSidebar("#sidebar", "admin");
   renderQueueTabs();
   bindEvents();

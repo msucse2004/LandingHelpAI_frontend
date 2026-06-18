@@ -1,29 +1,30 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>아이디 찾기 - Landing Help AI</title>
+  <title data-i18n="auth.find_username.page_title" data-i18n-default="Find username - Landing Help AI">Find username - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
 </head>
-<body>
+<body class="lhai-public-page" data-lhai-i18n-domains="common,auth">
   <main class="lhai-container">
     <section class="lhai-card lhai-card--center">
       <header class="lhai-page-header">
         <div>
-          <h1 class="lhai-title">아이디 찾기</h1>
-          <p class="lhai-subtitle">가입 시 등록한 이메일 주소를 입력하면, 해당 계정이 있을 경우 아이디를 메일로 보내 드립니다.</p>
+          <h1 class="lhai-title" data-i18n="auth.find_username.title" data-i18n-default="Find username">Find username</h1>
+          <p class="lhai-subtitle" data-i18n="auth.find_username.subtitle" data-i18n-default="Enter the email you used at signup. If an account exists, we will email your username.">Enter the email you used at signup. If an account exists, we will email your username.</p>
         </div>
       </header>
       <form class="lhai-form" id="findUsernameForm">
-        <label class="lhai-label" for="email">이메일</label>
+        <label class="lhai-label" for="email" data-i18n="common.labels.email" data-i18n-default="Email">Email</label>
         <input class="lhai-input" id="email" name="email" type="email" autocomplete="email" required placeholder="example@email.com" />
-        <button class="lhai-button lhai-button--primary" type="submit">아이디 안내 메일 보내기</button>
+        <button class="lhai-button lhai-button--primary" type="submit" data-i18n="auth.find_username.submit" data-i18n-default="Send username email">Send username email</button>
       </form>
       <p class="lhai-help" id="findUsernameStatus" role="status" aria-live="polite"></p>
-      <p class="u-mt-2"><a href="login.html">로그인으로 돌아가기</a></p>
+      <p class="u-mt-2"><a href="login.html" data-i18n="auth.find_username.back_login" data-i18n-default="Back to sign in">Back to sign in</a></p>
     </section>
   </main>
+  <script type="module" src="../assets/js/core/public-page-language-boot.js" data-i18n-domains="common,auth"></script>
   <script type="module" src="../assets/js/pages/find-username.js"></script>
 </body>
 </html>

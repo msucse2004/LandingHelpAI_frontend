@@ -227,6 +227,24 @@ export function ensureOffersLinkedRequestIndexes(offers, vehicleRequests) {
  * @param {Record<string, unknown>} offer
  * @param {{ linkedRequestIndex?: number|null, isAlternative?: boolean }} opts
  */
+/** @param {unknown} value */
+export function optionalNumberInputValue(value) {
+  if (value == null || value === "") return "";
+  const n = Number(value);
+  return Number.isFinite(n) ? n : "";
+}
+
+/**
+ * New offer tab — blank fields only. Optionally links to a customer vehicle request #.
+ * @param {{ linkedRequestIndex?: number|null, isAlternative?: boolean }} [opts]
+ */
+export function createBlankCarOfferForAdd(opts = {}) {
+  return createEmptyCarOffer({
+    linkedRequestIndex: opts.linkedRequestIndex ?? null,
+    isAlternative: Boolean(opts.isAlternative),
+  });
+}
+
 export function createEmptyCarOffer(opts = {}) {
   const isAlt = Boolean(opts.isAlternative);
   return {
@@ -246,11 +264,11 @@ export function createEmptyCarOffer(opts = {}) {
     exterior_color: "",
     location: "",
     vehicle_price: null,
-    estimated_tax_fees: 0,
-    dealer_fee: 0,
-    partner_service_fee: 0,
-    delivery_fee: 0,
-    estimated_total: 0,
+    estimated_tax_fees: null,
+    dealer_fee: null,
+    partner_service_fee: null,
+    delivery_fee: null,
+    estimated_total: null,
     estimated_total_manual_override: false,
     currency: "USD",
     available_timeline: "",

@@ -1,38 +1,38 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Admin Customers - Landing Help AI</title>
+  <title data-i18n="admin.customers.page_title" data-i18n-default="Admin Customers - Landing Help AI">Admin Customers - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/admin-customer-detail.css" />
 </head>
-<body>
+<body data-lhai-i18n-domains="common,nav,admin">
   <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar"></aside>
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" data-i18n-default="Admin menu" aria-label="Admin menu"></aside>
     <main class="lhai-main">
       <section class="lhai-page-header">
         <div>
-          <h1 class="lhai-title">Customers</h1>
-          <p class="lhai-subtitle">고객을 선택하면 Customer 360 상세 화면으로 이동합니다.</p>
+          <h1 class="lhai-title" data-i18n="admin.customers.title" data-i18n-default="Customers">Customers</h1>
+          <p class="lhai-subtitle" data-i18n="admin.customers.subtitle" data-i18n-default="Select a customer to open the Customer 360 detail view.">Select a customer to open the Customer 360 detail view.</p>
         </div>
       </section>
       <section class="lhai-card">
-        <h2 class="lhai-card__title">Customer list</h2>
-        <p class="lhai-help u-mb-2">분석 API에 등록된 고객 프로필입니다. 위험 보드와 동일한 소스를 사용합니다.</p>
+        <h2 class="lhai-card__title" data-i18n="admin.customers.list.title" data-i18n-default="Customer list">Customer list</h2>
+        <p class="lhai-help u-mb-2" data-i18n="admin.customers.list.help" data-i18n-default="Customer profiles registered in the analytics API. Same source as the risk board.">Customer profiles registered in the analytics API. Same source as the risk board.</p>
         <div id="adminCustomersList">
-          <div class="lhai-state">목록을 불러오는 중…</div>
+          <div class="lhai-state" data-i18n="admin.customers.list.loading" data-i18n-default="Loading list…">Loading list…</div>
         </div>
       </section>
       <section class="lhai-card u-mt-3">
-        <h2 class="lhai-card__title">직접 열기</h2>
-        <p class="lhai-help u-mb-2">프로필 ID(UUID 또는 legacy <code>profile::email</code>)를 입력하세요.</p>
+        <h2 class="lhai-card__title" data-i18n="admin.customers.open_direct.title" data-i18n-default="Open directly">Open directly</h2>
+        <p class="lhai-help u-mb-2" data-i18n="admin.customers.open_direct.help" data-i18n-default="Enter a profile ID (UUID or legacy profile::email).">Enter a profile ID (UUID or legacy <code>profile::email</code>).</p>
         <form id="adminCustomersOpenForm" class="ac360-open-form">
-          <label class="lhai-label" for="adminCustomersProfileId">customer_profile_id</label>
+          <label class="lhai-label" for="adminCustomersProfileId" data-i18n="admin.customers.open_direct.field_label" data-i18n-default="customer_profile_id">customer_profile_id</label>
           <div class="ac360-open-form__row">
-            <input class="lhai-input" type="text" id="adminCustomersProfileId" name="customer_profile_id" placeholder="uuid 또는 profile::user@example.com" autocomplete="off" />
-            <button type="submit" class="lhai-button lhai-button--primary">Customer 360 열기</button>
+            <input class="lhai-input" type="text" id="adminCustomersProfileId" name="customer_profile_id" data-i18n-placeholder="admin.customers.open_direct.placeholder" data-i18n-default="uuid or profile::user@example.com" placeholder="uuid or profile::user@example.com" autocomplete="off" />
+            <button type="submit" class="lhai-button lhai-button--primary" data-i18n="admin.customers.open_direct.submit" data-i18n-default="Open Customer 360">Open Customer 360</button>
           </div>
         </form>
       </section>

@@ -1,10 +1,9 @@
 import { loadSidebar } from "../components/sidebar.js";
-import { initCommonI18nAndApplyDom } from "../core/i18n-dom.js";
+import { appPageLanguageReady } from "../core/app-page-i18n-boot.js";
 
 async function initCustomerStaticShell() {
-  await initCommonI18nAndApplyDom(document);
+  await appPageLanguageReady;
   await loadSidebar("#sidebar", "customer");
 }
 
 void initCustomerStaticShell();
-

@@ -6,7 +6,7 @@ function formatMoney(amount, currency = "USD") {
   }
 }
 
-export const DEFAULT_ADMIN_FEE_USD = 39.99;
+export const DEFAULT_ADMIN_FEE_RATE = 0.04;
 export const ADMIN_FEE_LINE_TITLE = "Admin Fee";
 
 export const QUOTE_STATUS_LABELS = {
@@ -73,7 +73,44 @@ export function sumServiceUnitPrices(unitPriceMap) {
   return Math.round(sum * 100) / 100;
 }
 
-export function normalizeAdminFee(value, defaultFee = DEFAULT_ADMIN_FEE_USD) {
+/** @param {Record<string, unknown>} unitPriceMap */
+export function flattenUnitPriceMap(unitPriceMap) {
+  if (!unitPriceMap || typeof unitPriceMap !== "object") return {};
+  const out = {};
+  for (const [key, val] of Object.entries(unitPriceMap)) {
+    const id = String(key || "").trim();
+    if (!id) continue;
+    let n;
+    if (val && typeof val === "object" && "amount" in val) {
+      n = Number(val.amount);
+    } else {
+      n = Number(val);
+    }
+    if (Number.isFinite(n) && n >= 0) out[id] = Math.round(n * 100) / 100;
+  }
+  return out;
+}
+
+export function computeDefaultAdminFee(unitPriceMap) {
+  const services = sumServiceUnitPrices(flattenUnitPriceMap(unitPriceMap));
+  return Math.round(services * DEFAULT_ADMIN_FEE_RATE * 100) / 100;
+}
+
+export function readQuotePricingUnitPrices(quote) {
+  const rd = quote?.request_details && typeof quote.request_details === "object" ? quote.request_details : {};
+  const qp = rd.quote_pricing && typeof rd.quote_pricing === "object" ? rd.quote_pricing : {};
+  const raw = qp.service_unit_prices && typeof qp.service_unit_prices === "object" ? qp.service_unit_prices : {};
+  const out = {};
+  for (const [key, val] of Object.entries(raw)) {
+    const id = String(key || "").trim();
+    if (!id) continue;
+    const n = Number(val);
+    if (Number.isFinite(n) && n >= 0) out[id] = Math.round(n * 100) / 100;
+  }
+  return out;
+}
+
+export function normalizeAdminFee(value, defaultFee = 0) {
   if (value == null || value === "") {
     return Math.round(Math.max(0, Number(defaultFee) || 0) * 100) / 100;
   }
@@ -84,13 +121,23 @@ export function normalizeAdminFee(value, defaultFee = DEFAULT_ADMIN_FEE_USD) {
   return Math.round(n * 100) / 100;
 }
 
-export function readAdminFeeFromQuote(quote, defaultFee = DEFAULT_ADMIN_FEE_USD) {
+export function resolveAdminFeeForEditor(adminFee, unitPriceMap) {
+  const defaultFee = computeDefaultAdminFee(unitPriceMap);
+  return normalizeAdminFee(adminFee, defaultFee);
+}
+
+export function readAdminFeeFromQuote(quote, unitPriceMap = null) {
   const rd = quote?.request_details && typeof quote.request_details === "object" ? quote.request_details : {};
   const qp = rd.quote_pricing && typeof rd.quote_pricing === "object" ? rd.quote_pricing : {};
+  const flattened = flattenUnitPriceMap(unitPriceMap);
+  const prices =
+    unitPriceMap && typeof unitPriceMap === "object" && Object.keys(flattened).length
+      ? flattened
+      : readQuotePricingUnitPrices(quote);
   if (qp.admin_fee != null) {
     return normalizeAdminFee(qp.admin_fee, 0);
   }
-  return normalizeAdminFee(null, defaultFee);
+  return computeDefaultAdminFee(prices);
 }
 
 export function computeQuoteTotal(unitPriceMap, adminFee) {
@@ -127,7 +174,7 @@ export function shouldOpenProposeConfirmModal(clientErrors) {
  */
 export function buildQuoteEditorPayloadFromEditor(editor) {
   const unitPriceMap = editor?.unitPriceMap && typeof editor.unitPriceMap === "object" ? editor.unitPriceMap : {};
-  const adminFee = normalizeAdminFee(editor?.adminFee, DEFAULT_ADMIN_FEE_USD);
+  const adminFee = resolveAdminFeeForEditor(editor?.adminFee, unitPriceMap);
   return {
     service_name: String(editor?.serviceName || "").trim(),
     estimated_cost: computeQuoteTotal(unitPriceMap, adminFee),
@@ -158,7 +205,7 @@ export function buildCustomerPreviewStateFromEditor(input) {
   const quote = input?.quote && typeof input.quote === "object" ? input.quote : {};
   const selectedServices = Array.isArray(input?.selectedServices) ? input.selectedServices : [];
   const unitPriceMap = input?.unitPriceMap && typeof input.unitPriceMap === "object" ? input.unitPriceMap : {};
-  const adminFee = normalizeAdminFee(input?.adminFee, DEFAULT_ADMIN_FEE_USD);
+  const adminFee = resolveAdminFeeForEditor(input?.adminFee, unitPriceMap);
   const noteRaw = String(input?.customerNote || "").trim();
   const name = customerDisplayNameFromQuote(quote);
   const subtitle = name ? `${name}님을 위한 Landing Help AI 견적서` : "고객님을 위한 Landing Help AI 견적서";

@@ -66,6 +66,25 @@ test("createEmptyCarOffer sets linked index and alternative flag", async () => {
   assert.equal(alt.offer_kind, "ALTERNATIVE");
 });
 
+test("createBlankCarOfferForAdd does not copy prior vehicle fields", async () => {
+  const m = await importFresh(logicPath);
+  const blank = m.createBlankCarOfferForAdd({ linkedRequestIndex: 1, isAlternative: false });
+  assert.equal(blank.linked_request_index, 1);
+  assert.equal(blank.make, "");
+  assert.equal(blank.model, "");
+  assert.equal(blank.year, null);
+  assert.equal(blank.mileage, null);
+  assert.equal(blank.location, "");
+  assert.equal(blank.estimated_tax_fees, null);
+});
+
+test("optionalNumberInputValue renders empty for null and zero fees", async () => {
+  const m = await importFresh(logicPath);
+  assert.equal(m.optionalNumberInputValue(null), "");
+  assert.equal(m.optionalNumberInputValue(0), 0);
+  assert.equal(m.optionalNumberInputValue(150), 150);
+});
+
 test("resolveDefaultLinkedRequestIndex uses first vehicle request or 1", async () => {
   const m = await importFresh(logicPath);
   assert.equal(m.resolveDefaultLinkedRequestIndex([]), 1);

@@ -9,6 +9,10 @@ const logicPath = path.join(
 );
 
 async function importFresh(modulePath) {
+  globalThis.window = {
+    localStorage: { getItem: () => null },
+    location: { hostname: "localhost", port: "8000", protocol: "http:" },
+  };
   const url = pathToFileURL(modulePath);
   url.searchParams.set("t", String(Date.now() + Math.random()));
   return import(url.href);

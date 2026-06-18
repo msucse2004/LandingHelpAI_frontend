@@ -75,6 +75,10 @@ export const RANK_BASIS_LABELS_EN = {
 export const EXPIRED_AVAILABILITY_BADGE =
   "Bidding ended — availability needs confirmation";
 
+/** Shown when customer confirms a vehicle offer selection. */
+export const VEHICLE_BID_SELECT_AVAILABILITY_NOTICE =
+  "제안된 차량은 다른 구매자에게 먼저 판매될 수 있습니다. 선택하셔도 실제 구매 가능 여부와 가격은 파트너와 반드시 확인해 주세요.";
+
 /** @param {unknown} snap */
 export function isProductOfferListResponse(snap) {
   if (!snap || typeof snap !== "object") return false;
@@ -159,13 +163,21 @@ export function resolveCustomerBidActions(snap) {
  * @param {Record<string, unknown>} offer
  * @param {Record<string, unknown> | null | undefined} [snap]
  */
+function vehicleBidSelectNoticeHtml() {
+  return `<p class="lhai-cbr-confirm-notice" role="note">${escapeHtml(VEHICLE_BID_SELECT_AVAILABILITY_NOTICE)}</p>`;
+}
+
 export function buildCustomerBidSelectConfirmContent(phase, offer, snap) {
   const title = offer?.title ? String(offer.title) : formatOfferTitle(offer);
   const total = formatMoney(offer.estimated_total, offer.currency || "USD");
+  const vehicleNotice =
+    offer && typeof offer === "object" && isVehicleOffer(/** @type {Record<string, unknown>} */ (offer))
+      ? vehicleBidSelectNoticeHtml()
+      : "";
   if (phase === "EXPIRED") {
     return {
       modalTitle: "Select this offer?",
-      bodyHtml: `<p>This bidding round has ended. This vehicle may still be available, but price and availability should be confirmed with the partner. Do you want to select this offer and start a conversation?</p>`,
+      bodyHtml: `<p>This bidding round has ended. This vehicle may still be available, but price and availability should be confirmed with the partner. Do you want to select this offer and start a conversation?</p>${vehicleNotice}`,
       warnText: "",
       submitLabel: "Select and contact partner",
     };
@@ -176,7 +188,7 @@ export function buildCustomerBidSelectConfirmContent(phase, offer, snap) {
     modalTitle: "제안 선택 확인",
     bodyHtml: `<p><strong>${escapeHtml(title)}</strong> 제안을 선택하시겠습니까?</p>
     <p>예상 총액 ${escapeHtml(total)}</p>
-    <p class="u-text-muted">선택 후에는 해당 파트너와 메시지로 협의가 진행됩니다.</p>`,
+    <p class="u-text-muted">선택 후에는 해당 파트너와 메시지로 협의가 진행됩니다.</p>${vehicleNotice}`,
     warnText: countdown
       ? `비딩 마감까지 ${escapeHtml(countdown)} 남았습니다. 지금 선택하면 다른 파트너의 추가 제안을 받기 어려울 수 있습니다.`
       : "",
@@ -903,10 +915,14 @@ function titleStatusLabelKo(raw) {
 }
 
 function accidentLabelKo(raw) {
-  const u = String(raw || "").trim().toUpperCase();
-  if (u === "NONE" || u === "NO") return "사고 이력 없음";
-  if (u === "YES" || u === "REPORTED") return "사고 이력 있음";
-  return String(raw || "").trim() || "";
+  const s = String(raw || "").trim();
+  const low = s.toLowerCase();
+  const u = s.toUpperCase();
+  if (u === "NONE" || u === "NO" || low === "no accident reported") return "사고 이력 없음";
+  if (low.includes("minor accident")) return "경미한 사고 이력";
+  if (low.includes("major accident")) return "중대 사고 이력";
+  if (u === "YES" || u === "REPORTED" || s === "Accident reported") return "사고 이력 있음";
+  return s || "";
 }
 
 export function formatOfferRelationLabel(offer) {

@@ -15,6 +15,7 @@ import {
   resolvePartnerPageKey,
 } from "../config/partner-nav-config.js";
 import { initI18nDomains, t } from "../core/i18n-client.js";
+import { getEffectiveLanguage } from "../core/preferred-language.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
 
 export {
@@ -124,7 +125,7 @@ export async function loadPartnerSidebar(activeKey) {
   const target = document.querySelector("#sidebar");
   if (!target) return;
 
-  const lang = document.documentElement.lang || "ko";
+  const lang = getEffectiveLanguage();
   await initI18nDomains(["common"], lang);
   target.innerHTML = renderPartnerNavHtml((label) => label);
   applyI18nToDom(target);

@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title data-i18n="localization.page.document_title" data-i18n-default="Localization - Landing Help AI Admin">Localization - Landing Help AI Admin</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/admin-localization.css" />
+</head>
+<body data-lhai-i18n-domains="common,nav,localization">
+  <div id="lhai-app-header-root"></div>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" data-i18n-default="Admin menu" aria-label="Admin menu"></aside>
+    <main class="lhai-main" id="main">
+      <section class="lhai-page-header">
+        <div>
+          <h1 class="lhai-title" data-i18n="localization.page.title" data-i18n-default="Localization">Localization</h1>
+          <p class="lhai-subtitle" data-i18n="localization.page.subtitle" data-i18n-default="Browse and filter the UI string catalog and import or export via Excel. Use the Missing Translations tab for empty cells.">
+            Browse and filter the UI string catalog and import or export via Excel. Use the Missing Translations tab for empty cells.
+          </p>
+        </div>
+      </section>
+
+      <p class="lhai-help" id="localizationPageAlert" role="status" aria-live="polite"></p>
+
+      <div class="admin-localization__top-tabs" id="localizationTabs" role="tablist" data-i18n-aria-label="localization.tabs.aria_label" data-i18n-default="Localization sections" aria-label="Localization sections">
+        <button type="button" class="admin-localization__tab-btn is-active" data-panel="panel-ui-strings" role="tab" aria-selected="true" data-i18n="localization.tabs.ui_strings" data-i18n-default="UI Strings">UI Strings</button>
+        <button type="button" class="admin-localization__tab-btn" data-panel="panel-missing" role="tab" aria-selected="false" data-i18n="localization.tabs.missing_translations" data-i18n-default="Missing Translations">Missing Translations</button>
+        <button type="button" class="admin-localization__tab-btn" data-panel="panel-import-export" role="tab" aria-selected="false" data-i18n="localization.tabs.import_export" data-i18n-default="Import / Export">Import / Export</button>
+      </div>
+
+      <div class="admin-localization__tab-panels" id="localizationPanels">
+        <section class="admin-localization__tab-panel" id="panel-ui-strings">
+          <section class="lhai-card u-mb-3" aria-labelledby="localizationFiltersTitle">
+            <h2 class="lhai-card__title" id="localizationFiltersTitle" data-i18n="localization.filters.title" data-i18n-default="Filter">Filter</h2>
+            <div class="admin-localization__filters">
+              <div>
+                <label class="lhai-label" for="filterDomain" data-i18n="localization.filters.domain" data-i18n-default="Domain">Domain</label>
+                <select class="lhai-select" id="filterDomain" name="filterDomain">
+                  <option value="" data-i18n="localization.filters.all" data-i18n-default="All">All</option>
+                </select>
+              </div>
+              <div class="admin-localization__filter-search">
+                <label class="lhai-label" for="filterSearch" data-i18n="localization.filters.search_key_text" data-i18n-default="Search (key / text)">Search (key / text)</label>
+                <input class="lhai-input" id="filterSearch" name="filterSearch" type="search" data-i18n-placeholder="localization.filters.search_placeholder" data-i18n-default="e.g. common.save or Save" placeholder="e.g. common.save or Save" autocomplete="off" />
+              </div>
+              <div>
+                <label class="lhai-label" for="filterLanguage" data-i18n="localization.filters.language" data-i18n-default="Language">Language</label>
+                <select class="lhai-select" id="filterLanguage" name="filterLanguage">
+                  <option value="" data-i18n="localization.filters.all" data-i18n-default="All">All</option>
+                  <option value="en">en</option>
+                  <option value="es">es</option>
+                  <option value="ko">ko</option>
+                  <option value="zh-Hans">zh-Hans</option>
+                  <option value="zh-Hant">zh-Hant</option>
+                  <option value="ja">ja</option>
+                </select>
+              </div>
+              <div class="admin-localization__filter-missing">
+                <label class="lhai-label admin-localization__checkbox-label" for="filterMissingOnly">
+                  <input type="checkbox" id="filterMissingOnly" name="filterMissingOnly" />
+                  <span data-i18n="localization.filters.missing_only" data-i18n-default="Missing only">Missing only</span>
+                </label>
+              </div>
+              <div class="admin-localization__filter-actions">
+                <button type="button" class="lhai-button lhai-button--secondary" id="localizationFilterResetBtn" data-i18n="localization.actions.reset_filters" data-i18n-default="Reset filters">Reset filters</button>
+                <button type="button" class="lhai-button lhai-button--primary" id="localizationRefreshBtn" data-i18n="localization.actions.refresh" data-i18n-default="Refresh">Refresh</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="lhai-card u-mb-3" id="localizationValidationCard" hidden>
+            <h2 class="lhai-card__title" id="localizationValidationTitle" data-i18n="localization.validation.title" data-i18n-default="Translation validation">Translation validation</h2>
+            <p class="lhai-help u-mb-2" id="localizationValidationPlaceholderAlert" hidden role="alert"></p>
+            <div class="admin-localization__validation-summary" id="localizationValidationSummary" aria-labelledby="localizationValidationTitle"></div>
+            <p class="lhai-help u-mb-2" id="localizationValidationStatus" aria-live="polite"></p>
+            <div class="lhai-table-wrap admin-localization__table-wrap">
+              <table class="lhai-table admin-localization__table admin-localization__validation-table" data-i18n-aria-label="localization.validation.issues_table_aria" data-i18n-default="Validation issues" aria-label="Validation issues">
+                <thead>
+                  <tr>
+                    <th scope="col" data-i18n="localization.validation.table.severity" data-i18n-default="severity">severity</th>
+                    <th scope="col" data-i18n="localization.validation.table.code" data-i18n-default="code">code</th>
+                    <th scope="col" data-i18n="localization.validation.table.key" data-i18n-default="key">key</th>
+                    <th scope="col" data-i18n="localization.validation.table.message" data-i18n-default="message">message</th>
+                  </tr>
+                </thead>
+                <tbody id="localizationValidationIssuesBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="lhai-card u-mb-3" id="localizationCanonicalizationCard" hidden>
+            <h2 class="lhai-card__title" id="localizationCanonicalizationTitle" data-i18n="localization.canonicalization.title" data-i18n-default="Canonical key cleanup">Canonical key cleanup</h2>
+            <p class="lhai-help u-mb-2" data-i18n="localization.canonicalization.description" data-i18n-default="Merge duplicate English UI strings into canonical keys. Legacy keys are kept as aliases; nothing is deleted.">
+              Merge duplicate English UI strings into canonical keys. Legacy keys are kept as aliases; nothing is deleted.
+            </p>
+            <p class="lhai-help u-mb-2 admin-localization__canonicalization-dry-run" id="localizationCanonicalizationDryRunNote" hidden data-i18n="localization.canonicalization.dry_run_note" data-i18n-default="Dry run — no database changes were made.">
+              Dry run — no database changes were made.
+            </p>
+            <div class="admin-localization__validation-summary" id="localizationCanonicalizationSummary" aria-labelledby="localizationCanonicalizationTitle"></div>
+            <p class="lhai-help u-mb-2" id="localizationCanonicalizationStatus" aria-live="polite"></p>
+            <p class="lhai-help u-mb-2 admin-localization__canonicalization-errors" id="localizationCanonicalizationErrors" hidden role="alert"></p>
+            <h3 class="admin-localization__subsection-title" data-i18n="localization.canonicalization.groups_heading" data-i18n-default="Duplicate groups">Duplicate groups</h3>
+            <div class="lhai-table-wrap admin-localization__table-wrap u-mb-3">
+              <table class="lhai-table admin-localization__table admin-localization__canonicalization-table" data-i18n-aria-label="localization.canonicalization.groups_table_aria" data-i18n-default="Duplicate groups plan" aria-label="Duplicate groups plan">
+                <thead>
+                  <tr>
+                    <th scope="col" data-i18n="localization.canonicalization.table.canonical_key" data-i18n-default="canonical key">canonical key</th>
+                    <th scope="col" data-i18n="localization.canonicalization.table.source_text" data-i18n-default="source text">source text</th>
+                    <th scope="col" data-i18n="localization.canonicalization.table.duplicate_keys" data-i18n-default="duplicate keys">duplicate keys</th>
+                    <th scope="col" data-i18n="localization.canonicalization.table.aliases_to_create" data-i18n-default="aliases to create">aliases to create</th>
+                    <th scope="col" data-i18n="localization.canonicalization.table.translations_to_merge" data-i18n-default="translations to merge">translations to merge</th>
+                  </tr>
+                </thead>
+                <tbody id="localizationCanonicalizationGroupsBody"></tbody>
+              </table>
+            </div>
+            <h3 class="admin-localization__subsection-title" data-i18n="localization.canonicalization.conflicts_heading" data-i18n-default="Conflicts">Conflicts</h3>
+            <div class="lhai-table-wrap admin-localization__table-wrap">
+              <table class="lhai-table admin-localization__table admin-localization__canonicalization-table" data-i18n-aria-label="localization.canonicalization.conflicts_table_aria" data-i18n-default="Translation merge conflicts" aria-label="Translation merge conflicts">
+                <thead>
+                  <tr>
+                    <th scope="col" data-i18n="localization.canonicalization.table.canonical_key" data-i18n-default="canonical key">canonical key</th>
+                    <th scope="col" data-i18n="localization.canonicalization.table.language" data-i18n-default="language">language</th>
+                    <th scope="col" data-i18n="localization.canonicalization.table.chosen_key" data-i18n-default="chosen key">chosen key</th>
+                    <th scope="col" data-i18n="localization.canonicalization.table.chosen_value" data-i18n-default="chosen value">chosen value</th>
+                    <th scope="col" data-i18n="localization.canonicalization.table.rejected" data-i18n-default="rejected">rejected</th>
+                  </tr>
+                </thead>
+                <tbody id="localizationCanonicalizationConflictsBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="lhai-card">
+            <p class="lhai-help u-mb-2" id="localizationLoadStatus" aria-live="polite"></p>
+            <div class="lhai-table-wrap admin-localization__table-wrap">
+              <table class="lhai-table admin-localization__table admin-localization__table--catalog" data-i18n-aria-label="localization.table.catalog_aria_label" data-i18n-default="UI strings catalog" aria-label="UI strings catalog">
+                <thead>
+                  <tr>
+                    <th scope="col" class="admin-localization__col-key" data-i18n="localization.table.key" data-i18n-default="key">key</th>
+                    <th scope="col" class="admin-localization__col-lang" data-i18n="localization.table.lang_en" data-i18n-default="en">en</th>
+                    <th scope="col" class="admin-localization__col-lang" data-i18n="localization.table.lang_es" data-i18n-default="es">es</th>
+                    <th scope="col" class="admin-localization__col-lang" data-i18n="localization.table.lang_ko" data-i18n-default="ko">ko</th>
+                    <th scope="col" class="admin-localization__col-lang" data-i18n="localization.table.lang_zh_hans" data-i18n-default="zh-Hans">zh-Hans</th>
+                    <th scope="col" class="admin-localization__col-lang" data-i18n="localization.table.lang_zh_hant" data-i18n-default="zh-Hant">zh-Hant</th>
+                    <th scope="col" class="admin-localization__col-lang" data-i18n="localization.table.lang_ja" data-i18n-default="ja">ja</th>
+                  </tr>
+                </thead>
+                <tbody id="localizationTableBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="admin-localization__tab-panel" id="panel-missing" hidden>
+          <section class="lhai-card u-mb-3">
+            <h2 class="lhai-card__title" data-i18n="localization.tabs.missing_translations" data-i18n-default="Missing Translations">Missing Translations</h2>
+            <p class="lhai-help" data-i18n="localization.messages.missing_description" data-i18n-default="Shows keys missing a translation in at least one language. Pick a language filter to narrow to that locale.">
+              Shows keys missing a translation in at least one language. Pick a language filter to narrow to that locale.
+            </p>
+            <div class="admin-localization__filters admin-localization__filters--compact">
+              <div>
+                <label class="lhai-label" for="missingFilterDomain" data-i18n="localization.filters.domain" data-i18n-default="Domain">Domain</label>
+                <select class="lhai-select" id="missingFilterDomain" name="missingFilterDomain">
+                  <option value="" data-i18n="localization.filters.all" data-i18n-default="All">All</option>
+                </select>
+              </div>
+              <div class="admin-localization__filter-search">
+                <label class="lhai-label" for="missingFilterSearch" data-i18n="localization.filters.search" data-i18n-default="Search">Search</label>
+                <input class="lhai-input" id="missingFilterSearch" name="missingFilterSearch" type="search" data-i18n-placeholder="localization.filters.search_placeholder" data-i18n-default="e.g. common.save or Save" placeholder="e.g. common.save or Save" autocomplete="off" />
+              </div>
+              <div>
+                <label class="lhai-label" for="missingFilterLanguage" data-i18n="localization.filters.language" data-i18n-default="Language">Language</label>
+                <select class="lhai-select" id="missingFilterLanguage" name="missingFilterLanguage">
+                  <option value="" data-i18n="localization.filters.any_missing" data-i18n-default="All (any missing)">All (any missing)</option>
+                  <option value="en">en</option>
+                  <option value="es">es</option>
+                  <option value="ko">ko</option>
+                  <option value="zh-Hans">zh-Hans</option>
+                  <option value="zh-Hant">zh-Hant</option>
+                  <option value="ja">ja</option>
+                </select>
+              </div>
+              <div class="admin-localization__filter-actions">
+                <button type="button" class="lhai-button lhai-button--secondary" id="missingAutoTranslateBtn" data-i18n-title="localization.actions.auto_translate_title" data-i18n-default="Fill missing translations from English using the configured translation API." title="Fill missing translations from English using the configured translation API.">
+                  <span data-i18n="localization.actions.auto_translate_current_filter" data-i18n-default="Auto translate current filter">Auto translate current filter</span>
+                </button>
+                <button type="button" class="lhai-button lhai-button--primary" id="missingRefreshBtn" data-i18n="localization.actions.refresh" data-i18n-default="Refresh">Refresh</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="lhai-card">
+            <p class="lhai-help u-mb-2" id="missingLoadStatus" aria-live="polite"></p>
+            <div class="lhai-table-wrap admin-localization__table-wrap">
+              <table class="lhai-table admin-localization__table admin-localization__table--catalog" data-i18n-aria-label="localization.table.missing_aria_label" data-i18n-default="Missing translations" aria-label="Missing translations">
+                <thead>
+                  <tr>
+                    <th scope="col" class="admin-localization__col-key" data-i18n="localization.table.key" data-i18n-default="key">key</th>
+                    <th scope="col" class="admin-localization__col-lang" data-i18n="localization.table.lang_en" data-i18n-default="en">en</th>
+                    <th scope="col" class="admin-localization__col-lang" data-i18n="localization.table.lang_es" data-i18n-default="es">es</th>
+                    <th scope="col" class="admin-localization__col-lang" data-i18n="localization.table.lang_ko" data-i18n-default="ko">ko</th>
+                    <th scope="col" class="admin-localization__col-lang" data-i18n="localization.table.lang_zh_hans" data-i18n-default="zh-Hans">zh-Hans</th>
+                    <th scope="col" class="admin-localization__col-lang" data-i18n="localization.table.lang_zh_hant" data-i18n-default="zh-Hant">zh-Hant</th>
+                    <th scope="col" class="admin-localization__col-lang" data-i18n="localization.table.lang_ja" data-i18n-default="ja">ja</th>
+                  </tr>
+                </thead>
+                <tbody id="missingTableBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="admin-localization__tab-panel" id="panel-import-export" hidden>
+          <section class="lhai-card admin-localization__import-card">
+            <h2 class="lhai-card__title" data-i18n="localization.import.title" data-i18n-default="Import Excel">Import Excel</h2>
+            <p class="lhai-help" data-i18n="localization.import.description" data-i18n-default="Upload a .xlsx file to upsert keys and translations. Existing rows not in the file are not deleted. Empty cells do not overwrite by default.">
+              Upload a .xlsx file to upsert keys and translations. Existing rows not in the file are not deleted. Empty cells do not overwrite by default.
+            </p>
+            <div class="admin-localization__import-form">
+              <label class="lhai-label" for="importFileInput" data-i18n="localization.import.workbook_label" data-i18n-default="Workbook (.xlsx)">Workbook (.xlsx)</label>
+              <input class="lhai-input" id="importFileInput" name="importFileInput" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+              <label class="lhai-label admin-localization__checkbox-label" for="importClearEmpty">
+                <input type="checkbox" id="importClearEmpty" name="importClearEmpty" />
+                <span data-i18n="localization.import.clear_empty" data-i18n-default="Clear existing values when translation cells are empty">Clear existing values when translation cells are empty</span>
+              </label>
+              <div class="admin-localization__import-actions">
+                <button type="button" class="lhai-button lhai-button--primary" id="importSubmitBtn" data-i18n="localization.actions.upload_import" data-i18n-default="Upload &amp; Import">Upload &amp; Import</button>
+              </div>
+            </div>
+            <pre class="admin-localization__import-summary" id="importSummary" hidden></pre>
+          </section>
+
+          <section class="lhai-card">
+            <h2 class="lhai-card__title" data-i18n="localization.export.title" data-i18n-default="Export Excel">Export Excel</h2>
+            <p class="lhai-help" data-i18n="localization.export.description" data-i18n-default="Download the full UI string catalog as Excel. Use as an import template.">
+              Download the full UI string catalog as Excel. Use as an import template.
+            </p>
+            <button type="button" class="lhai-button lhai-button--secondary" id="localizationExportBtn" data-i18n="localization.actions.download_export" data-i18n-default="Download export">Download export</button>
+          </section>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/app-header.js"></script>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/admin-static-shell.js"></script>
+  <script type="module" src="../assets/js/pages/admin-localization.js"></script>
+</body>
+</html>

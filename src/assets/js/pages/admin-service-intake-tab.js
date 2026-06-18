@@ -1,5 +1,5 @@
 /**
- * Customer Intake Builder tab — ordered blocks (questions + notices/images/rich text/dividers) via admin service-intake API.
+ * Customer Intake Builder tab — ordered blocks (questions, description, dividers) via admin service-intake API.
  * Overview: `LandingHelpAI_backend/docs/customer_intake_builder.md`.
  */
 import { initAdminIntakePreview } from "../intake/admin-intake-preview.js";
@@ -19,7 +19,7 @@ import {
 } from "./admin-service-workflow-tab.js";
 import { t } from "../core/i18n-client.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
-import { qs, qsa, safeText } from "../core/utils.js";
+import { qs, qsa, resolveBackendMediaUrl, safeText } from "../core/utils.js";
 
 function esc(v) {
   return safeText(v);
@@ -363,6 +363,8 @@ let msiLastOpenedContentBlockId = "";
 let msiSideEditorSnapshot = null;
 /** Set only by the Save button click handler; blocks accidental API writes on dismiss. */
 let msiSideSaveRequested = false;
+/** Bumped on Cancel / × / backdrop / block switch so in-flight Save cannot commit after dismiss. */
+let msiSideEditorSession = 0;
 /** Suppress intake list clicks right after dismiss (avoids ghost clicks on Save / Edit under the cursor). */
 let msiSideDismissGuardUntil = 0;
 /** Deep copy of the legacy field dialog field when it opens; restored on Cancel / Escape / backdrop. */
@@ -415,12 +417,54 @@ function msiEnsureBodyQuill() {
         ["bold", "italic", "underline", "strike"],
         [{ list: "ordered" }, { list: "bullet" }],
         [{ color: [] }, { background: [] }],
-        ["link"],
+        ["link", "image"],
         ["clean"],
       ],
     },
   });
+  const toolbar = msiBodyQuill.getModule("toolbar");
+  if (toolbar && typeof toolbar.addHandler === "function") {
+    toolbar.addHandler("image", () => {
+      void msiQuillInsertImageFromUpload(msiBodyQuill);
+    });
+  }
   return msiBodyQuill;
+}
+
+/** @param {import("quill").default | null} quill */
+async function msiQuillInsertImageFromUpload(quill) {
+  if (!quill) return;
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/jpeg,image/png,image/gif,image/webp";
+  input.onchange = () => {
+    void (async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const statusEl = qs("#manageServiceIntakeStatus");
+      try {
+        if (statusEl) statusEl.textContent = t("common.admin_services.intake.side_media_uploading", "업로드 중…");
+        const res = await serviceIntakeAdminApi.uploadIntakeContentImage(file);
+        const u = res && typeof res.media_url === "string" ? resolveBackendMediaUrl(res.media_url.trim()) : "";
+        if (!u) throw new Error("Invalid upload response");
+        const range = quill.getSelection(true);
+        const index = range && typeof range.index === "number" ? range.index : quill.getLength();
+        quill.insertEmbed(index, "image", u, "user");
+        quill.setSelection(index + 1, 0, "silent");
+        if (statusEl) {
+          statusEl.textContent = t(
+            "common.admin_services.intake.side_body_image_inserted",
+            "Image added to body. Click Save to keep changes."
+          );
+        }
+      } catch (err) {
+        const msg = err && typeof err.message === "string" ? err.message : String(err);
+        if (statusEl) statusEl.textContent = msg;
+        window.alert(msg);
+      }
+    })();
+  };
+  input.click();
 }
 
 function msiSetSideBodyEditorHtml(html) {
@@ -581,23 +625,37 @@ function msiFieldForQuestionBlock(blockId) {
   return msiFields.find((f) => f.id === blockId) || null;
 }
 
-const MSI_CONTENT_BLOCK_TYPES = ["notice", "image", "rich_text", "divider", "question_group"];
+const MSI_CONTENT_BLOCK_TYPES = ["description", "divider", "question_group"];
+
+/** Legacy notice / image / rich_text rows use the same editor and display name. */
+const MSI_DESCRIPTION_LIKE_BLOCK_TYPES = new Set(["description", "notice", "image", "rich_text"]);
+
+function msiIsDescriptionLikeBlock(bt) {
+  return MSI_DESCRIPTION_LIKE_BLOCK_TYPES.has(String(bt || "").trim().toLowerCase());
+}
 
 function msiBlockTypeLabel(bt) {
-  const k = `common.admin_services.intake.block_type_${String(bt || "").replace(/-/g, "_")}`;
+  const raw = String(bt || "").trim().toLowerCase();
+  if (msiIsDescriptionLikeBlock(raw)) {
+    return t("common.admin_services.intake.block_type_description", "Description");
+  }
+  const k = `common.admin_services.intake.block_type_${raw.replace(/-/g, "_")}`;
   const fallbacks = {
     question: "Question",
     question_group: "Questions",
-    notice: "Notice",
-    image: "Image",
-    rich_text: "Rich text",
     divider: "Divider",
   };
-  return t(k, fallbacks[String(bt)] || String(bt || ""));
+  return t(k, fallbacks[raw] || raw || "");
 }
 
 /** One-line explanation for admins (cards, tooltips, side panel). */
 function msiBlockTypeHelp(bt) {
+  if (msiIsDescriptionLikeBlock(bt)) {
+    return t(
+      "common.admin_services.intake.block_type_description_help",
+      "Title, rich text (with inline images), and an optional featured image. Use Visibility to show only when a previous answer matches."
+    );
+  }
   const k = `common.admin_services.intake.block_type_${String(bt || "").replace(/-/g, "_")}_help`;
   const fallbacks = {
     question:
@@ -606,12 +664,6 @@ function msiBlockTypeHelp(bt) {
       "Customer questions in one step. Use one field for a single question, or several fields together (e.g. first + last name). Edit all fields inside this block.",
     bidding_question_group:
       "Partner bidding questions for CAR bid requests. Choose vehicle (make, model, …) or global (budget, timeline) scope in the editor.",
-    notice:
-      "Short message or callout—good for intros, tips, warnings, or text that should show only when a previous answer matches (Visibility).",
-    image:
-      "Visual step: diagram, screenshot, or photo. Add a URL or asset ID and alt text for accessibility.",
-    rich_text:
-      "Longer formatted text—use for summaries, checklists, or final instructions after questions.",
     divider:
       "Non-content spacer—separate sections without adding reading load.",
   };
@@ -653,7 +705,7 @@ async function msiApplyPhoneStylePreset() {
     if (!tmpl?.id) throw new Error("template");
 
     await serviceIntakeAdminApi.createBlock(tmpl.id, {
-      block_type: "notice",
+      block_type: "description",
       sort_order: order++,
       payload: {
         title: T("common.admin_services.intake.preset_phone_intro_title", "Before we start"),
@@ -673,7 +725,7 @@ async function msiApplyPhoneStylePreset() {
     });
 
     await serviceIntakeAdminApi.createBlock(tmpl.id, {
-      block_type: "image",
+      block_type: "description",
       sort_order: order++,
       payload: {
         title: T("common.admin_services.intake.preset_phone_image_title", "What this looks like"),
@@ -725,7 +777,7 @@ async function msiApplyPhoneStylePreset() {
     });
 
     await serviceIntakeAdminApi.createBlock(tmpl.id, {
-      block_type: "notice",
+      block_type: "description",
       sort_order: order++,
       payload: {
         title: T("common.admin_services.intake.preset_phone_cond_notice_title", "Because you chose Yes"),
@@ -765,7 +817,7 @@ async function msiApplyPhoneStylePreset() {
     });
 
     await serviceIntakeAdminApi.createBlock(tmpl.id, {
-      block_type: "notice",
+      block_type: "description",
       sort_order: order++,
       payload: {
         title: T("common.admin_services.intake.preset_phone_warn_title", "Important"),
@@ -785,7 +837,7 @@ async function msiApplyPhoneStylePreset() {
     });
 
     await serviceIntakeAdminApi.createBlock(tmpl.id, {
-      block_type: "rich_text",
+      block_type: "description",
       sort_order: order++,
       payload: {
         title: T("common.admin_services.intake.preset_phone_summary_title", "Summary & next steps"),
@@ -829,9 +881,7 @@ function msiSyncBiddingAddButtonsVisibility() {
 
 function msiWireIntakeBuilderHints() {
   const map = [
-    ["#manageServiceIntakeAddNoticeBtn", "notice"],
-    ["#manageServiceIntakeAddImageBtn", "image"],
-    ["#manageServiceIntakeAddRichTextBtn", "rich_text"],
+    ["#manageServiceIntakeAddDescriptionBtn", "description"],
     ["#manageServiceIntakeAddDividerBtn", "divider"],
     ["#manageServiceIntakeAddQuestionGroupBtn", "question_group"],
   ];
@@ -2093,9 +2143,15 @@ function msiArmSideDismissGuard() {
   msiSideDismissGuardUntil = Date.now() + 500;
 }
 
-/** Close side editor without persisting edits (Cancel, ×, backdrop). */
-function msiCancelSidePanel() {
+/** Invalidate pending Save and any async ``updateBlock`` started before dismiss. */
+function msiInvalidateSideEditorSave() {
   msiSideSaveRequested = false;
+  msiSideEditorSession += 1;
+}
+
+/** Close side editor without persisting edits (Cancel, ×, backdrop, Escape). */
+function msiCancelSidePanel() {
+  msiInvalidateSideEditorSave();
   msiArmSideDismissGuard();
   msiCloseSidePanel({ saved: false });
 }
@@ -2133,7 +2189,8 @@ function msiCancelFieldDialog() {
 function msiCloseSidePanel(opts = {}) {
   const saved = Boolean(opts && opts.saved);
   if (!saved) {
-    msiRestoreSideEditorFromSnapshot();
+    msiDiscardSideEditorChanges();
+    msiRenderFieldCards();
   } else {
     msiClearSideEditorSnapshot();
   }
@@ -2309,6 +2366,8 @@ function msiOpenSideEditor(block) {
   const nextBlockId = String(block.id || "").trim();
   const sameBlockOpen = formWasOpen && prevBlockId && prevBlockId === nextBlockId;
   if (formWasOpen && prevBlockId && !sameBlockOpen) {
+    msiInvalidateSideEditorSave();
+    msiArmSideDismissGuard();
     msiCloseSidePanel({ saved: false });
   }
   msiHideQuestionGroupSideEditor();
@@ -2349,7 +2408,10 @@ function msiOpenSideEditor(block) {
   }
   if (asset instanceof HTMLInputElement) asset.value = pl.media_asset_id || "";
   if (altIn instanceof HTMLInputElement) altIn.value = pl.alt_text || "";
-  if (mediaKind instanceof HTMLSelectElement) mediaKind.value = pl.media_kind || (bt === "image" ? "image" : "none");
+  if (mediaKind instanceof HTMLSelectElement) {
+    const hasFeatured = Boolean(String(pl.media_url || "").trim() || String(pl.media_asset_id || "").trim());
+    mediaKind.value = pl.media_kind || (bt === "image" || hasFeatured ? "image" : "none");
+  }
   if (mediaLayout instanceof HTMLSelectElement) mediaLayout.value = pl.media_layout || "default";
   if (cap instanceof HTMLInputElement) cap.value = pl.caption || "";
   if (style instanceof HTMLSelectElement) style.value = pl.style_variant || "default";
@@ -2386,9 +2448,7 @@ function msiOpenSideEditor(block) {
   }
   msiSideApplyVisibilityToUi(block.visibility_rule_json);
   msiSyncIntakeEditorFocusLayout(true);
-  if (!sameBlockOpen) {
-    msiCaptureSideEditorSnapshot(block);
-  }
+  msiCaptureSideEditorSnapshot(block);
 }
 
 function msiSyncIntakeEditorFocusLayout(forceOpen) {
@@ -2414,6 +2474,7 @@ const MSI_MEDIA_ASSET_ID_RE = /^[A-Za-z0-9._:@/-]{1,128}$/;
 
 async function msiSaveSideEditor() {
   if (!msiSideSaveRequested) return;
+  const saveSession = msiSideEditorSession;
   msiSideSaveRequested = false;
   const blockId = qs("#manageServiceIntakeSideBlockId")?.value?.trim();
   const block = msiBlocks.find((b) => b.id === blockId);
@@ -2447,10 +2508,13 @@ async function msiSaveSideEditor() {
     }
     try {
       await serviceIntakeAdminApi.updateBlock(blockId, { payload: pl, visibility_rule_json });
+      if (saveSession !== msiSideEditorSession) return;
       msiClearSideEditorSnapshot();
       await msiRefresh();
+      if (saveSession !== msiSideEditorSession) return;
       msiCloseSidePanel({ saved: true });
     } catch (err) {
+      if (saveSession !== msiSideEditorSession) return;
       const msg = err && typeof err.message === "string" ? err.message : String(err);
       if (statusEl) statusEl.textContent = msg;
       window.alert(msg);
@@ -2501,10 +2565,13 @@ async function msiSaveSideEditor() {
   const statusEl = qs("#manageServiceIntakeStatus");
   try {
     await serviceIntakeAdminApi.updateBlock(blockId, { payload: pl, visibility_rule_json });
+    if (saveSession !== msiSideEditorSession) return;
     msiClearSideEditorSnapshot();
     await msiRefresh();
+    if (saveSession !== msiSideEditorSession) return;
     msiCloseSidePanel({ saved: true });
   } catch (err) {
+    if (saveSession !== msiSideEditorSession) return;
     const msg = err && typeof err.message === "string" ? err.message : String(err);
     if (statusEl) statusEl.textContent = msg;
     window.alert(msg);
@@ -2529,29 +2596,7 @@ async function msiAddContentBlock(blockType, options = {}) {
     const tmpl = await msiEnsureTemplate(serviceItemId);
     if (!tmpl?.id) throw new Error("template");
     const defaults = {
-      notice: {
-        title: "",
-        body: "",
-        caption: "",
-        alt_text: "",
-        media_url: "",
-        media_asset_id: "",
-        media_kind: "none",
-        media_layout: "default",
-        style_variant: "default",
-      },
-      image: {
-        title: "",
-        media_url: "",
-        media_asset_id: "",
-        caption: "",
-        alt_text: "",
-        body: "",
-        media_kind: "image",
-        media_layout: "default",
-        style_variant: "default",
-      },
-      rich_text: {
+      description: {
         title: "",
         body: "",
         caption: "",
@@ -3337,9 +3382,7 @@ export function initManageServiceIntakeTab() {
     });
   });
 
-  qs("#manageServiceIntakeAddNoticeBtn")?.addEventListener("click", () => void msiAddContentBlock("notice"));
-  qs("#manageServiceIntakeAddImageBtn")?.addEventListener("click", () => void msiAddContentBlock("image"));
-  qs("#manageServiceIntakeAddRichTextBtn")?.addEventListener("click", () => void msiAddContentBlock("rich_text"));
+  qs("#manageServiceIntakeAddDescriptionBtn")?.addEventListener("click", () => void msiAddContentBlock("description"));
   qs("#manageServiceIntakeAddDividerBtn")?.addEventListener("click", () => void msiAddContentBlock("divider"));
   qs("#manageServiceIntakeAddQuestionGroupBtn")?.addEventListener("click", () => void msiAddContentBlock("question_group"));
   qs("#manageServiceIntakePresetPhoneBtn")?.addEventListener("click", () => void msiApplyPhoneStylePreset());
@@ -3370,6 +3413,11 @@ export function initManageServiceIntakeTab() {
     void msiSaveSideEditor();
   });
   qs("#manageServiceIntakeSideForm")?.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      msiCancelSidePanel();
+      return;
+    }
     if (e.key !== "Enter") return;
     if (e.target instanceof HTMLTextAreaElement) return;
     e.preventDefault();

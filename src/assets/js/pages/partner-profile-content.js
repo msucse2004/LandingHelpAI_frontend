@@ -52,6 +52,11 @@ export function renderPartnerProfileContentHtml(opts = {}) {
               placeholder="예: 010-1234-5678"
             />
           </div>
+          <div class="service-flow__field">
+            <label class="lhai-label" for="pfPreferredLanguage">선호 언어 (UI)</label>
+            <select class="lhai-select" id="pfPreferredLanguage" required aria-describedby="pfPreferredLanguageHint"></select>
+            <p class="lhai-help u-mt-2" id="pfPreferredLanguageHint">앱 화면과 안내 문구에 사용할 언어를 선택해 주세요.</p>
+          </div>
           <button type="submit" class="lhai-button lhai-button--primary">정보 저장</button>
         </form>
       </section>

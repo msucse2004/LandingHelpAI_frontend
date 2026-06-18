@@ -4,6 +4,11 @@ import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { formatDate, formatMessageTimestamp, safeText } from "../core/utils.js";
 import { loadSidebar } from "../components/sidebar.js";
 
+/**
+ * Admin customer 360 — Step 9: operator view shows API/DB values as-is (names, statuses, survey answers).
+ * Form labels are fixed English chrome; field values are never passed through `t()`.
+ */
+
 /** @typedef {Record<string, unknown>} JsonObj */
 
 const DEFAULT_LIMIT = 50;

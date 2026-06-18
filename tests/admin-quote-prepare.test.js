@@ -19,7 +19,10 @@ const draftQuote = {
   id: "q-1",
   status: "DRAFT",
   request_details: {
-    quote_pricing: { admin_fee: 39.99 },
+    quote_pricing: {
+      admin_fee: 8,
+      service_unit_prices: { "svc-1": 200 },
+    },
     survey_submission: {
       common_info: { profile_first_name: "Jane", profile_last_name: "Kim" },
       selected_services: [{ id: "svc-1", title: "Arrival Setup" }],
@@ -37,7 +40,7 @@ test("validateProposeFields blocks modal when required fields missing", async ()
   assert.deepEqual(zeroTotal.clientErrors, ["견적 총액(서비스 + Admin Fee, 0 초과)"]);
   assert.equal(m.shouldOpenProposeConfirmModal(zeroTotal.clientErrors), false);
 
-  const adminFeeOnly = m.validateProposeFields("Landing Package", 39.99);
+  const adminFeeOnly = m.validateProposeFields("Landing Package", 4);
   assert.deepEqual(adminFeeOnly.clientErrors, []);
   assert.equal(m.shouldOpenProposeConfirmModal(adminFeeOnly.clientErrors), true);
 
@@ -51,13 +54,13 @@ test("buildQuoteEditorPayloadFromEditor includes admin fee in total", async () =
   const payload = m.buildQuoteEditorPayloadFromEditor({
     serviceName: "Jane Kim Package",
     unitPriceMap: { "svc-1": 100, "svc-2": 49.995 },
-    adminFee: 39.99,
+    adminFee: 6,
     customerNote: "Welcome note",
     internalNotes: "internal",
   });
   assert.equal(payload.service_name, "Jane Kim Package");
-  assert.equal(payload.estimated_cost, 189.99);
-  assert.equal(payload.admin_fee, 39.99);
+  assert.equal(payload.estimated_cost, 155.99);
+  assert.equal(payload.admin_fee, 6);
   assert.deepEqual(payload.service_unit_prices, { "svc-1": 100, "svc-2": 49.995 });
   assert.equal(payload.customer_facing_note, "Welcome note");
   assert.equal(payload.internal_notes, "internal");
@@ -69,14 +72,14 @@ test("buildCustomerPreviewStateFromEditor reflects admin fee line and total", as
     quote: draftQuote,
     selectedServices: [{ id: "svc-1", title: "Arrival Setup" }],
     unitPriceMap: { "svc-1": 200 },
-    adminFee: 39.99,
+    adminFee: 8,
     customerNote: "We included airport pickup tips.",
   });
   assert.match(state.subtitle, /Jane Kim/);
   assert.equal(state.items.length, 2);
   assert.equal(state.items[1].title, "Admin Fee");
   assert.match(state.items[0].priceText, /200/);
-  assert.match(state.totalText, /239\.99/);
+  assert.match(state.totalText, /208/);
   assert.equal(state.note, "We included airport pickup tips.");
   assert.equal(state.noteEmpty, false);
 
@@ -84,18 +87,25 @@ test("buildCustomerPreviewStateFromEditor reflects admin fee line and total", as
     quote: draftQuote,
     selectedServices: [{ id: "svc-1", title: "Arrival Setup" }],
     unitPriceMap: { "svc-1": 75.5 },
-    adminFee: 39.99,
+    adminFee: 3.02,
     customerNote: "   ",
   });
   assert.equal(emptyNote.noteEmpty, true);
-  assert.match(emptyNote.totalText, /115\.49/);
+  assert.match(emptyNote.totalText, /78\.52/);
 });
 
-test("computeQuoteTotal and readAdminFeeFromQuote defaults", async () => {
+test("computeDefaultAdminFee and readAdminFeeFromQuote use four percent default", async () => {
   const m = await importFreshLogic();
-  assert.equal(m.computeQuoteTotal({ a: 10, b: 5 }, 39.99), 54.99);
-  assert.equal(m.readAdminFeeFromQuote({ request_details: {} }), 39.99);
-  assert.equal(m.readAdminFeeFromQuote(draftQuote), 39.99);
+  assert.equal(m.computeDefaultAdminFee({ a: 10, b: 5 }), 0.6);
+  assert.equal(m.computeQuoteTotal({ a: 10, b: 5 }, 0.6), 15.6);
+  assert.equal(m.readAdminFeeFromQuote({ request_details: {} }), 0);
+  assert.equal(
+    m.readAdminFeeFromQuote({
+      request_details: { quote_pricing: { service_unit_prices: { a: 100 } } },
+    }),
+    4,
+  );
+  assert.equal(m.readAdminFeeFromQuote(draftQuote), 8);
 });
 
 test("sumServiceUnitPrices rounds to cents", async () => {
@@ -143,9 +153,9 @@ test("proposeQuoteToCustomer calls update then transition then getDetail", async
   };
   const payload = {
     service_name: "Pkg",
-    estimated_cost: 138.99,
+    estimated_cost: 103.96,
     service_unit_prices: { a: 99 },
-    admin_fee: 39.99,
+    admin_fee: 4.96,
   };
   const result = await m.proposeQuoteToCustomer({
     qid: "q-99",
@@ -167,11 +177,10 @@ test("empty or missing survey_submission helpers do not throw", async () => {
     quote: { request_details: {} },
     selectedServices: [],
     unitPriceMap: {},
-    adminFee: 39.99,
+    adminFee: 0,
     customerNote: "",
   });
-  assert.equal(previewOnlyFee.items.length, 1);
-  assert.equal(previewOnlyFee.items[0].title, "Admin Fee");
+  assert.equal(previewOnlyFee.items.length, 0);
 });
 
 test("smoke: draft UI anchors exist in HTML", () => {
@@ -198,6 +207,7 @@ test("smoke: page JS wires validation, modal, admin fee, and readonly helpers", 
   assert.match(js, /renderRequestSummaryCard/);
   assert.match(js, /qpAdminFee/);
   assert.match(js, /getAdminFeeFromInput/);
+  assert.match(js, /computeDefaultAdminFee/);
   assert.doesNotMatch(js, /qpProposeLink[\s\S]{0,80}setAttribute\("disabled"/);
 });
 

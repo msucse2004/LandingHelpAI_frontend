@@ -5,7 +5,7 @@
 import { serviceCatalogBrowseApi, serviceIntakeCustomerApi, surveyCustomerApi, userCustomerApi } from "../core/api.js";
 import { getSession, getAccessToken, getCustomerMessagingProfileId } from "../core/auth.js";
 import { t } from "../core/i18n-client.js";
-import { initCommonI18nAndApplyDom } from "../core/i18n-dom.js";
+import { localizedStatus } from "../core/i18n-dynamic.js";
 import {
   augmentedPreviewFields,
   buildAnswerContext,
@@ -304,9 +304,9 @@ function categoryTitle(category) {
   const title = (category?.customer_title || "").trim();
   if (title) return title;
   const fallback = (category?.name || "").trim();
-  if (!fallback) return t("common.service_flow.unknown_category", "선택한 문제 영역");
+  if (!fallback) return t("common.service_flow.unknown_category", "Selected area");
   if (/^[a-z0-9_-]+$/i.test(fallback) || fallback.includes("pkg-") || fallback.includes("cat-")) {
-    return t("common.service_flow.unknown_category", "선택한 문제 영역");
+    return t("common.service_flow.unknown_category", "Selected area");
   }
   return fallback;
 }
@@ -315,9 +315,9 @@ function serviceTitle(serviceItem) {
   const title = (serviceItem?.customer_title || "").trim();
   if (title) return title;
   const fallback = (serviceItem?.name || "").trim();
-  if (!fallback) return t("common.service_flow.unknown_service", "선택 서비스");
+  if (!fallback) return t("common.service_flow.unknown_service", "Selected service");
   if (/^[a-z0-9_-]+$/i.test(fallback) || fallback.includes("addon-") || fallback.includes("module-")) {
-    return t("common.service_flow.unknown_service", "선택 서비스");
+    return t("common.service_flow.unknown_service", "Selected service");
   }
   return fallback;
 }
@@ -348,10 +348,10 @@ function summarizeDeliveryModes(modeSet) {
     );
   }
   if (hasAiOnly && !hasInPersonOnly && !hasHybrid && !hasGeneral) {
-    return t("common.service_flow.category_ai_only_short", "주로 Landing Help AI Agent 중심 서비스로 진행됩니다.");
+    return t("common.service_flow.category_ai_only_short", "Mostly AI-guided services in this area.");
   }
   if (hasInPersonOnly && !hasAiOnly && !hasHybrid && !hasGeneral) {
-    return t("common.service_flow.category_inperson_only_short", "주로 대면 지원형 서비스로 진행됩니다.");
+    return t("common.service_flow.category_inperson_only_short", "Mostly in-person support services in this area.");
   }
   return "";
 }
@@ -366,7 +366,7 @@ function categoryDeliveryMeta(modeSet) {
   if (mixed) {
     return {
       mode: "ai_plus_human",
-      badge: t("common.service_flow.category_mixed_badge", "AI + 선택 대면"),
+      badge: t("common.service_flow.category_mixed_badge", "AI + optional in-person"),
       explain: t(
         "common.service_flow.category_mixed_explain",
         "이 영역에는 여러 진행 방식이 섞여 있을 수 있습니다. 선택 전 각 서비스 카드를 확인해 주세요."
@@ -417,9 +417,10 @@ function updateProgress() {
   const pct = total <= 1 ? 0 : ((n - 1) / (total - 1)) * 100;
   if (fill) fill.style.width = `${Math.round(pct)}%`;
   if (label) {
-    label.textContent = t("common.service_flow.progress_label", "총 {total}단계 중 {current}단계")
-      .replace("{current}", String(n))
-      .replace("{total}", String(total));
+    label.textContent = localizedStatus("common.service_flow.progress_label", "Step {current} of {total}", {
+      current: n,
+      total,
+    });
   }
 }
 
@@ -442,20 +443,20 @@ function updateChrome() {
   if (back) {
     back.disabled = phase === "common_info" || submittingReview;
     back.textContent = phase === "review"
-      ? t("common.service_flow.btn_back_edit", "돌아가서 수정")
-      : t("common.service_flow.btn_back", "이전");
+      ? t("common.service_flow.btn_back_edit", "Back to edit")
+      : t("common.service_flow.btn_back", "Back");
   }
   const next = qs("#sfNextBtn");
   if (next) {
     next.disabled = (phase === "category" && selectedCategoryIds.length < 1) || submittingReview;
     if (phase === "review") {
       next.textContent = submittingReview
-        ? t("common.service_flow.btn_submitting_request", "요청 제출 중…")
-        : t("common.service_flow.btn_submit_request", "제출하기");
+        ? t("common.service_flow.btn_submitting_request", "Submitting request…")
+        : t("common.service_flow.btn_submit_request", "Submit request");
     } else if (phase === "services" && servicesCategoryIndex < servicesCategoryOrder.length - 1) {
-      next.textContent = t("common.service_flow.btn_next_category", "다음 카테고리");
+      next.textContent = t("common.service_flow.btn_next_category", "Next category");
     } else {
-      next.textContent = t("common.service_flow.btn_next", "다음");
+      next.textContent = t("common.service_flow.btn_next", "Next");
     }
   }
 }
@@ -464,7 +465,10 @@ function updateCategorySelectedCount() {
   const el = qs("#sfCategorySelectedCount");
   if (!el) return;
   const n = selectedCategoryIds.length;
-  el.textContent = n > 0 ? `${n}개 선택됨` : "0개 선택됨";
+  el.textContent =
+    n > 0
+      ? localizedStatus("common.service_flow.category_selected_count_dynamic", "{count} selected", { count: n })
+      : t("common.service_flow.category_selected_count", "0 selected");
 }
 
 /**
@@ -913,7 +917,7 @@ function renderInlineConditionalQuestions(serviceId) {
   return `
     <div class="service-flow__inline-questions">
       <p class="lhai-help service-flow__inline-questions-lead">${esc(
-        t("common.service_flow.inline_questions_lead", "이 서비스에 필요한 추가 질문입니다.")
+        t("common.service_flow.inline_questions_lead", "Additional questions required for this service.")
       )}</p>
       ${visible
         .map(
@@ -1201,7 +1205,7 @@ function renderServicesSubstepHeader() {
   if (idxEl) idxEl.textContent = total ? `영역 ${n} / ${total}` : "영역 0 / 0";
 
   const category = currentServicesCategory();
-  if (titleEl) titleEl.textContent = category ? categoryTitle(category) : t("common.service_flow.unknown_category", "선택한 문제 영역");
+  if (titleEl) titleEl.textContent = category ? categoryTitle(category) : t("common.service_flow.unknown_category", "Selected area");
 
   if (descEl) {
     const subtitle = (category?.customer_subtitle || "").trim();
@@ -1329,7 +1333,7 @@ function validateInlineConditionalRequired() {
     const aj = conditionalAnswersByItemId[q.id] || {};
     if (Array.isArray(aj.values) && aj.values.length > 0) continue;
     if (aj.value !== undefined && aj.value !== null && String(aj.value) !== "") continue;
-    return q.label || t("common.service_flow.required_question", "필수 추가 질문");
+    return q.label || t("common.service_flow.required_question", "Required follow-up question");
   }
   return "";
 }
@@ -1780,7 +1784,6 @@ function moveServicesCategory(delta) {
 }
 
 async function init() {
-  await initCommonI18nAndApplyDom(document);
   qs("#sfBackBtn")?.addEventListener("click", goBack);
   qs("#sfNextBtn")?.addEventListener("click", () => void goNext());
   qs("#sfCommonInfoForm")?.addEventListener("submit", (e) => {

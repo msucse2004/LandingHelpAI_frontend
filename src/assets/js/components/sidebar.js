@@ -7,8 +7,9 @@ import {
 import { loadPartnerSidebar } from "../layouts/partner-shell.js";
 import { adminDevApi } from "../core/api.js";
 import { canAccessAdminShell } from "../core/role-tiers.js";
-import { initI18nDomains, t } from "../core/i18n-client.js";
-import { applyI18nToDom } from "../core/i18n-dom.js";
+import { registerI18nDomains, t } from "../core/i18n-client.js";
+import { getEffectiveLanguage } from "../core/preferred-language.js";
+import { reapplyI18nAfterLanguageChange } from "../core/i18n-dom.js";
 import {
   applyCustomerQuoteNavFromAggregate,
   bindCustomerQuoteNavRefreshListeners,
@@ -141,6 +142,19 @@ function bindAdminDevResetQuotesInvoices(sidebarRoot) {
   });
 }
 
+/**
+ * Re-apply sidebar nav labels for the active UI language.
+ * @param {string | null | undefined} lang
+ * @param {ParentNode | null | undefined} [root]
+ */
+export function refreshSidebarI18n(lang, root = document.querySelector("#sidebar")) {
+  const target = root instanceof HTMLElement ? root : document.querySelector("#sidebar");
+  if (!target) return;
+  const activeLang = lang || getEffectiveLanguage();
+  registerI18nDomains(["common", "nav"]);
+  reapplyI18nAfterLanguageChange(activeLang, target, { domains: ["common", "nav"] });
+}
+
 async function loadSidebar(targetSelector = "#sidebar", variant = "customer") {
   const currentPath = window.location.pathname || "";
   const currentBase = basename(currentPath);
@@ -188,9 +202,7 @@ async function loadSidebar(targetSelector = "#sidebar", variant = "customer") {
     const res = await fetch(`../partials/${partialFile}`);
     if (!res.ok) throw new Error(`Sidebar load failed: ${res.status}`);
     target.innerHTML = await res.text();
-    const lang = document.documentElement.lang || "ko";
-    await initI18nDomains(["common"], lang);
-    applyI18nToDom(target);
+    refreshSidebarI18n(getEffectiveLanguage(), target);
     applyRoleBasedNavVisibility(target);
     applyActiveNavHighlight(target, variant);
     if (variant === "admin") {
@@ -212,5 +224,19 @@ async function mountMessagesSidebar() {
 }
 
 export { loadSidebar, mountMessagesSidebar };
+
+if (typeof document !== "undefined") {
+  const onSidebarLocaleRefresh = (event) => {
+    const lang = event?.detail?.language || getEffectiveLanguage();
+    refreshSidebarI18n(lang);
+    void refreshCustomerQuoteNavBadge();
+  };
+
+  document.addEventListener("lhai:language-changed", onSidebarLocaleRefresh);
+  window.addEventListener("lhai:i18n-runtime-resolved", () => {
+    refreshSidebarI18n(getEffectiveLanguage());
+    void refreshCustomerQuoteNavBadge();
+  });
+}
 
 

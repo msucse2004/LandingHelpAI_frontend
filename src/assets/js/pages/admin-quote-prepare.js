@@ -1,6 +1,5 @@
 import { loadSidebar } from "../components/sidebar.js";
 import { quoteApi, serviceCatalogAdminApi } from "../core/api.js";
-import { APP_CONFIG } from "../core/config.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
 import { formatSurveyAnswerForDisplay } from "../core/survey-answer-display.js";
@@ -9,6 +8,7 @@ import {
   ADMIN_FEE_LINE_TITLE,
   buildCustomerPreviewStateFromEditor,
   buildQuoteEditorPayloadFromEditor,
+  computeDefaultAdminFee,
   computeQuoteTotal,
   customerDisplayNameFromQuote,
   formatQuoteStatusLabel,
@@ -312,11 +312,13 @@ function getQuoteTotalFromInputs() {
 }
 
 function getAdminFeeFromInput() {
+  const prices = getServiceUnitPriceMapFromInputs();
+  const defaultFee = computeDefaultAdminFee(prices);
   const el = qs("#qpAdminFee");
   if (!(el instanceof HTMLInputElement)) {
-    return normalizeAdminFee(null, APP_CONFIG.defaultAdminFeeUsd);
+    return defaultFee;
   }
-  return normalizeAdminFee(el.value, APP_CONFIG.defaultAdminFeeUsd);
+  return normalizeAdminFee(el.value, defaultFee);
 }
 
 function buildQuoteEditorPayload() {
@@ -354,7 +356,7 @@ function renderSelectedServicePriceSummary(selectedServices, priceByServiceId, a
   if (!listEl || !totalEl) return;
 
   const rows = Array.isArray(selectedServices) ? selectedServices : [];
-  const adminFee = normalizeAdminFee(adminFeeAmount, APP_CONFIG.defaultAdminFeeUsd);
+  const adminFee = normalizeAdminFee(adminFeeAmount, computeDefaultAdminFee(priceByServiceId));
 
   if (emptyEl) emptyEl.hidden = rows.length > 0;
 
@@ -391,7 +393,7 @@ function renderSelectedServicePriceSummary(selectedServices, priceByServiceId, a
     .filter(Boolean)
     .join("");
 
-  const adminFeeValue = Number.isFinite(adminFee) ? adminFee : APP_CONFIG.defaultAdminFeeUsd;
+  const adminFeeValue = Number.isFinite(adminFee) ? adminFee : computeDefaultAdminFee(priceByServiceId);
 
   listEl.innerHTML = `
     <div class="lhai-quote-prep__price-card" role="region" aria-label="견적 항목">
@@ -404,7 +406,7 @@ function renderSelectedServicePriceSummary(selectedServices, priceByServiceId, a
       <div class="lhai-quote-prep__price-row lhai-quote-prep__price-row--admin-fee">
         <div class="lhai-quote-prep__price-main">
           <p class="lhai-quote-prep__price-title">${safeText(ADMIN_FEE_LINE_TITLE)}</p>
-          <p class="lhai-help lhai-quote-prep__price-admin-note">플랫폼 관리 수수료 · 견적·청구 총액에 포함</p>
+          <p class="lhai-help lhai-quote-prep__price-admin-note">플랫폼 관리 수수료 · 기본 서비스 합계의 4% · 견적·청구 총액에 포함</p>
         </div>
         <p class="lhai-quote-prep__price-subtitle" aria-hidden="true">—</p>
         <div class="lhai-quote-prep__price-input-wrap">
@@ -718,7 +720,7 @@ async function main() {
   renderRequest(quote, priceByServiceId);
   previewQuoteRef = quote;
   previewSelectedServicesRef = selectedServices;
-  renderSelectedServicePriceSummary(selectedServices, priceByServiceId, readAdminFeeFromQuote(quote, APP_CONFIG.defaultAdminFeeUsd));
+  renderSelectedServicePriceSummary(selectedServices, priceByServiceId, readAdminFeeFromQuote(quote, priceByServiceId));
   fillEditor(quote);
   renderCustomerPreview(quote, selectedServices);
 
@@ -758,7 +760,7 @@ async function main() {
       quote = refreshed;
       previewQuoteRef = refreshed;
       renderRequest(refreshed, priceByServiceId);
-      renderSelectedServicePriceSummary(selectedServices, priceByServiceId, readAdminFeeFromQuote(quote, APP_CONFIG.defaultAdminFeeUsd));
+      renderSelectedServicePriceSummary(selectedServices, priceByServiceId, readAdminFeeFromQuote(quote, priceByServiceId));
       fillEditor(refreshed);
       renderCustomerPreview(refreshed, selectedServices);
       applyQuoteEditorReadonlyState(refreshed);

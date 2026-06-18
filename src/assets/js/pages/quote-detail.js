@@ -22,6 +22,13 @@ import {
 } from "./quote-detail-decision-modal.js";
 import { isCatalogRecServiceItemUuidString } from "../lib/catalog-rec-service-item-id.js";
 
+/**
+ * Step 9 — data vs UI labels:
+ * - Quote titles, service names, notes, survey answers: API text as-is (`textContent` / `escapeHtml`).
+ * - Status enums: `customerFacingStatusLabel` maps known codes to UI strings; unknown stays raw.
+ * - Catalog scope/support ids: fixed keys only (`customer.quote.scope.*`); never pass arbitrary API text to `t()`.
+ */
+
 function qs(selector) {
   return document.querySelector(selector);
 }

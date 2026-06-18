@@ -1,10 +1,25 @@
 /**
  * In-app SSE client: connects to ``GET /api/realtime/events`` and fans out to subscribers + window events.
  * JWT is passed as ``access_token`` query (native EventSource cannot set Authorization header).
+ *
+ * Debug (dev): ``localStorage.setItem("LHAI_DEBUG_REALTIME", "1")`` — see
+ * ``LandingHelpAI_backend/docs/realtime_sse_debug.md``.
  */
 import { getAccessToken } from "./auth.js";
 import { resolveApiBaseUrl } from "./config.js";
+import {
+  logRealtimeDiagnostics,
+  mountRealtimeDiagnosticBadge,
+  realtimeDebugLive,
+  summarizeRealtimeEventDetail,
+} from "./realtime-diagnostics.js";
+import { recordSseMessageCreated } from "./realtime-message-latency.js";
 
+/**
+ * ``message.created`` — thread bubbles, unread badge, user-facing toasts (CHAT/AI/SYSTEM).
+ * ``bid.updated`` / ``bidding.event`` — bid state refresh on dashboard/bid-results/partner pages;
+ * global bid toasts only for non-overlap kinds (see realtime-toast-dedupe.js).
+ */
 const EVENT_NAMES = [
   "message.created",
   "thread.updated",
@@ -57,21 +72,9 @@ function deriveRealtimeLifecycle() {
   return "disconnected";
 }
 
-function debugRealtime() {
-  try {
-    return (
-      window.localStorage?.getItem("LHAI_DEBUG_REALTIME") === "1" ||
-      window.localStorage?.getItem("LHAI_DEBUG_LIVE_MESSAGES") === "1"
-    );
-  } catch {
-    return false;
-  }
-}
-
 function dlog(...args) {
-  if (!debugRealtime()) return;
-  // eslint-disable-next-line no-console
-  console.info("[lhai realtime]", ...args);
+  if (!realtimeDebugLive()) return;
+  logRealtimeDiagnostics("realtime", args.map(String).join(" "), null);
 }
 
 function shouldLogError() {
@@ -126,7 +129,7 @@ function notifySubscribers(detail) {
     try {
       fn(detail);
     } catch (e) {
-      if (debugRealtime()) console.error("[lhai realtime] subscriber error", e);
+      if (realtimeDebugLive()) console.error("[lhai realtime] subscriber error", e);
     }
   });
 }
@@ -145,7 +148,18 @@ function wireNamedEvent(name) {
       id: ev.lastEventId || "",
       data,
     };
-    dlog("realtime event received", detail.type, detail.id);
+    if (realtimeDebugLive()) {
+      const sum = summarizeRealtimeEventDetail(detail);
+      logRealtimeDiagnostics("realtime", "event received", {
+        type: sum.type,
+        event_id: detail.id,
+        thread_id: sum.thread_id,
+        message_id: sum.message_id,
+      });
+      if (name === "message.created" && sum.message_id) {
+        recordSseMessageCreated(sum.message_id);
+      }
+    }
     notifySubscribers(detail);
     window.dispatchEvent(new CustomEvent(WINDOW_REALTIME, { detail }));
   });
@@ -289,6 +303,7 @@ export function startRealtimeClient(options = {}) {
   ensureVisibilityWiring();
   clearReconnectTimer();
   status.reconnectAttempt = 0;
+  mountRealtimeDiagnosticBadge({ ...status, lifecycle: deriveRealtimeLifecycle() });
   openEventSource();
 }
 
@@ -332,7 +347,4 @@ export function getRealtimeLifecycle() {
   return deriveRealtimeLifecycle();
 }
 
-/** True when ``LHAI_DEBUG_REALTIME`` or ``LHAI_DEBUG_LIVE_MESSAGES`` is set (for header / toast diagnostics). */
-export function realtimeDebugLive() {
-  return debugRealtime();
-}
+export { realtimeDebugLive } from "./realtime-diagnostics.js";

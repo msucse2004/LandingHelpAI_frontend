@@ -311,6 +311,7 @@ const authApi = {
         role: "customer",
         email: payload.login_id?.includes("@") ? payload.login_id : "mock@example.com",
         username: payload.login_id?.includes("@") ? "" : payload.login_id,
+        preferred_language_code: "en",
         mocked: true,
       };
     }
@@ -1888,6 +1889,82 @@ const adminApi = {
 const adminDevApi = {
   async resetQuotesAndInvoices() {
     return await tryBackendPost("/api/admin/dev/reset-quotes-and-invoices", {});
+  },
+};
+
+/** Admin UI string catalog (Localization page). /api/admin/i18n/strings/... */
+const adminI18nStringsApi = {
+  async listDomains() {
+    const body = await tryBackendGet("/api/i18n/domains");
+    return Array.isArray(body?.domains) ? body.domains : [];
+  },
+  async listStrings(params = {}) {
+    const q = new URLSearchParams();
+    q.set("view", String(params.view || "canonical"));
+    if (params.domain) q.set("domain", String(params.domain));
+    if (params.search) q.set("search", String(params.search));
+    if (params.missing_only) q.set("missing_only", "true");
+    if (params.language) q.set("language", String(params.language));
+    if (params.limit != null) q.set("limit", String(params.limit));
+    if (params.offset != null) q.set("offset", String(params.offset));
+    const qs = q.toString();
+    return await tryBackendGet(`/api/admin/i18n/strings${qs ? `?${qs}` : ""}`);
+  },
+  async exportExcel() {
+    const response = await fetch(`${APP_CONFIG.apiBaseUrl}/api/admin/i18n/strings/export-excel`, {
+      headers: withAuthHeaders({}),
+    });
+    if (!response.ok) {
+      if (response.status === 401) {
+        handleUnauthorized();
+        throw new Error("인증이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요.");
+      }
+      let detail = `Export failed (${response.status})`;
+      try {
+        const payload = await response.json();
+        detail = formatFastApiDetail(payload?.detail) || detail;
+      } catch {
+        /* response may not be JSON */
+      }
+      throw new Error(detail);
+    }
+    const blob = await response.blob();
+    let filename = "ui_strings_export.xlsx";
+    const cd = response.headers.get("Content-Disposition") || "";
+    const match = /filename="([^"]+)"/i.exec(cd);
+    if (match?.[1]) filename = match[1];
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.rel = "noopener";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  },
+  async importExcel(file, { clearEmptyTranslations = false } = {}) {
+    const fd = new FormData();
+    fd.append("file", file, file.name || "ui_strings.xlsx");
+    fd.append("clear_empty_translations", clearEmptyTranslations ? "true" : "false");
+    return await tryBackendPostFormData("/api/admin/i18n/strings/import-excel", fd);
+  },
+  async validateCatalog() {
+    return await tryBackendGet("/api/admin/i18n/strings/validate");
+  },
+  async previewCanonicalization() {
+    return await tryBackendGet("/api/admin/i18n/strings/canonicalization/preview");
+  },
+  async applyCanonicalization() {
+    return await tryBackendPost("/api/admin/i18n/strings/canonicalization/apply", {});
+  },
+  async autoTranslateMissing({ domain, targetLanguageCodes, limit = 2, publish = false } = {}) {
+    return await tryBackendPost("/api/admin/i18n/strings/auto-translate-missing", {
+      domain: domain || null,
+      target_language_codes: targetLanguageCodes,
+      limit,
+      publish,
+    });
   },
 };
 
@@ -4073,6 +4150,16 @@ const userCustomerApi = {
   },
 };
 
+/** Logged-in UI language preference. */
+const userPreferencesApi = {
+  async getMyPreferences() {
+    return await tryBackendGet("/api/users/me/preferences");
+  },
+  async patchMyPreferences(payload) {
+    return await tryBackendPatch("/api/users/me/preferences", payload);
+  },
+};
+
 // Customer survey APIs (need-diagnosis with conditional branching).
 // Endpoints live under: /api/surveys/...
 const surveyCustomerApi = {
@@ -4782,6 +4869,7 @@ const surveyCustomerApi = {
 export {
   APP_CONFIG,
   adminApi,
+  adminI18nStringsApi,
   adminOperationsApi,
   partnerEmailReviewAdminApi,
   adminDevApi,
@@ -4809,6 +4897,7 @@ export {
   customerWorkflowsApi,
   customerBidsApi,
   userCustomerApi,
+  userPreferencesApi,
   surveyCustomerApi,
   paymentApi,
   emailLogsApi,

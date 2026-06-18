@@ -1,4 +1,17 @@
 import { authApi } from "../core/api.js";
+import { t } from "../core/i18n-client.js";
+import {
+  DEFAULT_LANGUAGE_CODE,
+  getEffectiveLanguage,
+  populateSupportedLanguageSelect,
+  savePreferredLanguage,
+} from "../core/preferred-language.js";
+import {
+  syncSignupPreferredLanguageSelectors,
+  wireSignupPreferredLanguageSync,
+} from "../core/language-switcher.js";
+
+const SIGNUP_LANGUAGE_FIELD_NAME = "preferred_language_code";
 
 const form = document.getElementById("signupForm");
 const statusEl = document.getElementById("signupStatus");
@@ -30,20 +43,46 @@ const partnerProfileSection = document.getElementById("partnerProfileSection");
 const partnerProfileName = document.getElementById("partnerProfileName");
 const partnerProfileState = document.getElementById("partnerProfileState");
 const partnerProfileCity = document.getElementById("partnerProfileCity");
+const preferredLanguageSelect = document.getElementById("preferredLanguage");
+
+/**
+ * Resolve signup payload language; defaults to ``en`` when unset or invalid.
+ * @param {FormData} formData
+ * @returns {string}
+ */
+function resolveSignupPreferredLanguageCode(formData) {
+  const raw = formData.get(SIGNUP_LANGUAGE_FIELD_NAME);
+  if (raw == null || String(raw).trim() === "") {
+    return savePreferredLanguage(DEFAULT_LANGUAGE_CODE);
+  }
+  return savePreferredLanguage(String(raw).trim());
+}
+
+function initSignupPreferredLanguageField() {
+  if (!(preferredLanguageSelect instanceof HTMLSelectElement)) return;
+  const initialCode = getEffectiveLanguage();
+  populateSupportedLanguageSelect(preferredLanguageSelect, initialCode);
+  syncSignupPreferredLanguageSelectors(initialCode);
+  wireSignupPreferredLanguageSync();
+}
 
 const urlParams = new URLSearchParams(window.location.search);
 let activeInviteToken = (urlParams.get("invite") || urlParams.get("invitation_token") || "").trim();
 let inviteFlowBlocked = false;
 
-const ROLE_LABEL_KO = {
-  customer: "고객",
-  partner: "파트너",
-  agent: "에이전트",
-  supervisor: "슈퍼바이저",
-  headquarters_staff: "본사 스태프",
-  admin: "관리자",
-  super_admin: "최고 관리자",
-};
+function roleDisplayLabel(roleName) {
+  const role = String(roleName || "").trim();
+  const labels = {
+    customer: t("auth.signup.role_label.customer", "Customer"),
+    partner: t("auth.signup.role_label.partner", "Partner"),
+    agent: t("auth.signup.role_label.agent", "Agent"),
+    supervisor: t("auth.signup.role_label.supervisor", "Supervisor"),
+    headquarters_staff: t("auth.signup.role_label.headquarters_staff", "Headquarters staff"),
+    admin: t("auth.signup.role_label.admin", "Admin"),
+    super_admin: t("auth.signup.role_label.super_admin", "Super admin"),
+  };
+  return labels[role] || role;
+}
 
 const USERNAME_PATTERN = /^[-a-zA-Z0-9_.]+$/;
 /** 가입 API 중복 호출 방지(이중 제출·이벤트 리스너 중복 시 인증 메일 반복 발송 방지) */
@@ -535,7 +574,7 @@ async function initInviteFlow() {
       roleNameSelect.innerHTML = "";
       const opt = document.createElement("option");
       opt.value = p.role_name || "customer";
-      opt.textContent = `${p.role_name} (${ROLE_LABEL_KO[p.role_name] || p.role_name})`;
+      opt.textContent = `${p.role_name} (${roleDisplayLabel(p.role_name)})`;
       opt.selected = true;
       roleNameSelect.appendChild(opt);
       roleNameSelect.disabled = true;
@@ -559,7 +598,7 @@ async function initInviteFlow() {
       }
     }
     if (inviteBannerBody) {
-      const roleLabel = ROLE_LABEL_KO[p.role_name] || p.role_name;
+      const roleLabel = roleDisplayLabel(p.role_name);
       let partnerBlock = "";
       if (partnerSignupRequired && p.partner_type_label) {
         partnerBlock = `<br />🏷️ 초대된 파트너 업무 유형: <strong>${p.partner_type_label}</strong>
@@ -656,6 +695,8 @@ if (form) {
       return;
     }
 
+    const preferredLanguageCode = resolveSignupPreferredLanguageCode(formData);
+
     const payload = {
       username: String(formData.get("username") || "").trim(),
       first_name: String(formData.get("firstName") || "").trim(),
@@ -666,6 +707,7 @@ if (form) {
       password_confirm: passwordConfirm,
       birth_date: birthDate,
       gender,
+      preferred_language_code: preferredLanguageCode,
       role_name: activeInviteToken ? String(formData.get("roleName") || "customer") : "customer",
     };
     if (activeInviteToken) {
@@ -808,6 +850,7 @@ function refreshSignupFieldStatuses() {
 }
 
 void (async () => {
+  initSignupPreferredLanguageField();
   await initInviteFlow();
   refreshSignupSubmitButton();
   refreshSignupFieldStatuses();

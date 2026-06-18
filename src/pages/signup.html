@@ -1,30 +1,30 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>회원가입 - Landing Help AI</title>
+  <title data-i18n="auth.signup.page_title" data-i18n-default="Create account - Landing Help AI">Create account - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
 </head>
-<body>
+<body class="lhai-public-page" data-lhai-i18n-domains="common,auth">
   <main class="lhai-container">
     <section class="lhai-card lhai-card--center">
-      <header class="lhai-page-header"><div><h1 class="lhai-title">회원가입</h1><p class="lhai-subtitle">📝 아이디·이메일·전화번호·비밀번호를 입력해 계정을 만드세요.<br />🔎 아이디는 서버 중복 확인이 끝나야 가입할 수 있습니다.<br />📧 가입 후 이메일 인증을 완료하면 로그인할 수 있습니다.</p></div></header>
+      <header class="lhai-page-header"><div><h1 class="lhai-title" data-i18n="common.actions.create_account" data-i18n-default="Create account">Create account</h1><p class="lhai-subtitle" data-i18n="auth.signup.subtitle_line1" data-i18n-default="Enter your username, email, phone number, and password to create an account.">Enter your username, email, phone number, and password to create an account.</p><p class="lhai-subtitle" data-i18n="auth.signup.subtitle_line2" data-i18n-default="Your username must be confirmed as available on the server before you can sign up.">Your username must be confirmed as available on the server before you can sign up.</p><p class="lhai-subtitle" data-i18n="auth.signup.subtitle_line3" data-i18n-default="After signing up, verify your email to sign in.">After signing up, verify your email to sign in.</p></div></header>
       <section class="lhai-card u-mb-4" id="inviteBanner" hidden role="region" aria-labelledby="inviteBannerTitle">
-        <h2 class="lhai-card__title" id="inviteBannerTitle">초대로 가입</h2>
+        <h2 class="lhai-card__title" id="inviteBannerTitle" data-i18n="auth.signup.invite_banner.title" data-i18n-default="Sign up via invitation">Sign up via invitation</h2>
         <p class="lhai-help" id="inviteBannerBody"></p>
       </section>
       <form class="lhai-form" id="signupForm">
-        <label class="lhai-label" for="username">아이디</label>
+        <label class="lhai-label" for="username" data-i18n="auth.signup.username_label" data-i18n-default="Username">Username</label>
         <div class="lhai-input-status-wrap" id="usernameStatusWrap">
-          <input class="lhai-input" id="username" name="username" type="text" autocomplete="username" required minlength="2" maxlength="32" pattern="[a-zA-Z0-9_.-]+" title="영문, 숫자, . _ - 만 사용 (2~32자)" placeholder="예: myuser_id" aria-describedby="usernameFeedback" />
+          <input class="lhai-input" id="username" name="username" type="text" autocomplete="username" required minlength="2" maxlength="32" pattern="[a-zA-Z0-9_.-]+" data-i18n-title="auth.signup.username_title" data-i18n-default="Letters, numbers, . _ - only (2–32 characters)" title="Letters, numbers, . _ - only (2–32 characters)" data-i18n-placeholder="auth.signup.username_placeholder" placeholder="e.g. myuser_id" aria-describedby="usernameFeedback" />
           <span class="lhai-field-status-icon" aria-hidden="true">
             <svg class="lhai-field-status-svg lhai-field-status-svg--ok" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
             <svg class="lhai-field-status-svg lhai-field-status-svg--bad" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </span>
         </div>
         <p class="lhai-help" id="usernameFeedback" role="status" aria-live="polite"></p>
-        <label class="lhai-label" for="email">이메일</label>
+        <label class="lhai-label" for="email" data-i18n="common.labels.email" data-i18n-default="Email">Email</label>
         <div class="lhai-input-status-wrap" id="emailStatusWrap">
           <input class="lhai-input" id="email" name="email" type="email" autocomplete="email" required />
           <span class="lhai-field-status-icon" aria-hidden="true">
@@ -32,7 +32,7 @@
             <svg class="lhai-field-status-svg lhai-field-status-svg--bad" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </span>
         </div>
-        <label class="lhai-label" for="firstName">First name</label>
+        <label class="lhai-label" for="firstName" data-i18n="auth.signup.first_name_label" data-i18n-default="First name">First name</label>
         <div class="lhai-input-status-wrap" id="firstNameStatusWrap">
           <input class="lhai-input" id="firstName" name="firstName" type="text" autocomplete="given-name" required />
           <span class="lhai-field-status-icon" aria-hidden="true">
@@ -40,7 +40,7 @@
             <svg class="lhai-field-status-svg lhai-field-status-svg--bad" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </span>
         </div>
-        <label class="lhai-label" for="lastName">Last name</label>
+        <label class="lhai-label" for="lastName" data-i18n="auth.signup.last_name_label" data-i18n-default="Last name">Last name</label>
         <div class="lhai-input-status-wrap" id="lastNameStatusWrap">
           <input class="lhai-input" id="lastName" name="lastName" type="text" autocomplete="family-name" required />
           <span class="lhai-field-status-icon" aria-hidden="true">
@@ -48,7 +48,7 @@
             <svg class="lhai-field-status-svg lhai-field-status-svg--bad" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </span>
         </div>
-        <label class="lhai-label" for="phoneNumber">전화번호</label>
+        <label class="lhai-label" for="phoneNumber" data-i18n="common.labels.phone_number" data-i18n-default="Phone number">Phone number</label>
         <div class="lhai-input-status-wrap" id="phoneNumberStatusWrap">
           <input
             class="lhai-input"
@@ -60,7 +60,9 @@
             minlength="7"
             maxlength="64"
             inputmode="tel"
-            placeholder="예: 010-1234-5678"
+            data-i18n-placeholder="auth.signup.phone_placeholder"
+            data-i18n-default="e.g. 010-1234-5678"
+            placeholder="e.g. 010-1234-5678"
             aria-describedby="phoneNumberHint"
           />
           <span class="lhai-field-status-icon" aria-hidden="true">
@@ -68,8 +70,8 @@
             <svg class="lhai-field-status-svg lhai-field-status-svg--bad" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </span>
         </div>
-        <p class="lhai-help u-mt-2" id="phoneNumberHint">연락 가능한 번호를 입력해 주세요. (숫자 7자리 이상)</p>
-        <label class="lhai-label" for="birthDateText">생년월일</label>
+        <p class="lhai-help u-mt-2" id="phoneNumberHint" data-i18n="auth.signup.phone_hint" data-i18n-default="Enter a number we can reach you on (at least 7 digits).">Enter a number we can reach you on (at least 7 digits).</p>
+        <label class="lhai-label" for="birthDateText" data-i18n="auth.signup.birth_label" data-i18n-default="Date of birth">Date of birth</label>
         <div class="lhai-birth-date-row">
           <div class="lhai-input-status-wrap lhai-input-status-wrap--flex" id="birthDateStatusWrap">
           <input
@@ -79,7 +81,9 @@
             inputmode="numeric"
             autocomplete="bday"
             maxlength="10"
-            placeholder="1990-05-15 또는 19900515"
+            data-i18n-placeholder="auth.signup.birth_placeholder"
+            data-i18n-default="1990-05-15 or 19900515"
+            placeholder="1990-05-15 or 19900515"
             aria-describedby="birthDateHint"
           />
           <span class="lhai-field-status-icon" aria-hidden="true">
@@ -101,22 +105,25 @@
               id="birthDatePicker"
               class="lhai-birth-date-picker-overlay"
               min="1900-01-01"
-              aria-label="달력에서 생년월일 선택"
-              title="달력에서 선택"
+              data-i18n-aria-label="auth.signup.birth_picker_aria"
+              data-i18n-title="auth.signup.birth_picker_title"
+              data-i18n-default="Pick from calendar"
+              aria-label="Choose date of birth from calendar"
+              title="Pick from calendar"
             />
           </div>
         </div>
-        <p class="lhai-help u-mt-2" id="birthDateHint">
-          숫자로 연·월·일을 입력(8자리 또는 YYYY-MM-DD)하거나, 오른쪽 달력 아이콘을 눌러 선택하세요.
+        <p class="lhai-help u-mt-2" id="birthDateHint" data-i18n="auth.signup.birth_hint" data-i18n-default="Type year-month-day (8 digits or YYYY-MM-DD) or pick a date from the calendar.">
+          Type year-month-day (8 digits or YYYY-MM-DD) or pick a date from the calendar.
         </p>
-        <label class="lhai-label" for="gender">성별</label>
+        <label class="lhai-label" for="gender" data-i18n="auth.signup.gender_label" data-i18n-default="Gender">Gender</label>
         <div class="lhai-input-status-wrap" id="genderStatusWrap">
           <select class="lhai-select" id="gender" name="gender" required>
-            <option value="" disabled selected>선택</option>
-            <option value="male">남성</option>
-            <option value="female">여성</option>
-            <option value="other">기타</option>
-            <option value="unspecified">응답하지 않음</option>
+            <option value="" disabled selected data-i18n="auth.signup.gender_select" data-i18n-default="Select">Select</option>
+            <option value="male" data-i18n="auth.signup.gender_male" data-i18n-default="Male">Male</option>
+            <option value="female" data-i18n="auth.signup.gender_female" data-i18n-default="Female">Female</option>
+            <option value="other" data-i18n="auth.signup.gender_other" data-i18n-default="Other">Other</option>
+            <option value="unspecified" data-i18n="auth.signup.gender_unspecified" data-i18n-default="Prefer not to say">Prefer not to say</option>
           </select>
           <span class="lhai-field-status-icon" aria-hidden="true">
             <svg class="lhai-field-status-svg lhai-field-status-svg--ok" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
@@ -124,16 +131,27 @@
           </span>
         </div>
 
+        <label class="lhai-label" for="preferredLanguage" data-i18n="common.labels.preferred_language_ui" data-i18n-default="Preferred language (UI)">Preferred language (UI)</label>
+        <select
+          class="lhai-select"
+          id="preferredLanguage"
+          name="preferred_language_code"
+          required
+          aria-describedby="preferredLanguageHint"
+          data-lhai-signup-language-field
+        ></select>
+        <p class="lhai-help u-mt-2" id="preferredLanguageHint" data-i18n="auth.signup.language_hint" data-i18n-default="Choose the language used for app screens and messages.">Choose the language used for app screens and messages.</p>
+
         <section id="partnerProfileSection" class="lhai-card u-mt-3" style="display: none;" aria-labelledby="partnerProfileHeading" hidden>
-          <h2 class="lhai-card__title" id="partnerProfileHeading">파트너 정보</h2>
-          <p class="lhai-help u-mb-3" id="partnerProfileIntro">
-            📝 초대된 업무 유형에 맞게 파트너 프로필을 입력해 주세요.<br />✅ 이름 또는 회사명은 필수입니다.<br />ℹ️ 전화번호는 위 기본 정보에서 입력합니다. 지역·도시는 선택 입력입니다.
+          <h2 class="lhai-card__title" id="partnerProfileHeading" data-i18n="auth.signup.partner.section_title" data-i18n-default="Partner information">Partner information</h2>
+          <p class="lhai-help u-mb-3" id="partnerProfileIntro" data-i18n="auth.signup.partner.intro" data-i18n-default="Enter your partner profile for the invited work type. Name or company is required. Phone is entered above; state and city are optional.">
+            Enter your partner profile for the invited work type. Name or company is required. Phone is entered above; state and city are optional.
           </p>
-          <label class="lhai-label" for="partnerProfileName">파트너 이름 또는 회사명 <span class="lhai-field-error">*</span></label>
+          <label class="lhai-label" for="partnerProfileName" data-i18n="auth.signup.partner.name_label" data-i18n-default="Partner or company name">Partner or company name <span class="lhai-field-error">*</span></label>
           <input class="lhai-input" id="partnerProfileName" name="partnerProfileName" type="text" maxlength="255" autocomplete="organization" />
-          <label class="lhai-label u-mt-2" for="partnerProfileState">지역 (주/State)</label>
+          <label class="lhai-label u-mt-2" for="partnerProfileState" data-i18n="auth.signup.partner.state_label" data-i18n-default="State / region">State / region</label>
           <select class="lhai-select" id="partnerProfileState" name="partnerProfileState" autocomplete="address-level1">
-            <option value="">선택 (선택 입력)</option>
+            <option value="" data-i18n="auth.signup.partner.state_placeholder" data-i18n-default="Select (optional)">Select (optional)</option>
             <option value="AL">Alabama (AL)</option>
             <option value="AK">Alaska (AK)</option>
             <option value="AZ">Arizona (AZ)</option>
@@ -186,14 +204,14 @@
             <option value="WY">Wyoming (WY)</option>
             <option value="DC">District of Columbia (DC)</option>
           </select>
-          <p class="lhai-help u-mt-1">🗺️ 서비스 활동 지역의 주(State)를 목록에서 선택해 주세요. (선택)</p>
-          <label class="lhai-label u-mt-2" for="partnerProfileCity">도시</label>
+          <p class="lhai-help u-mt-1" data-i18n="auth.signup.partner.state_hint" data-i18n-default="Select the state where you operate. (optional)">Select the state where you operate. (optional)</p>
+          <label class="lhai-label u-mt-2" for="partnerProfileCity" data-i18n="auth.signup.partner.city_label" data-i18n-default="City">City</label>
           <input class="lhai-input" id="partnerProfileCity" name="partnerProfileCity" type="text" maxlength="128" autocomplete="address-level2" />
-          <p class="lhai-help u-mt-1">🏙️ 주요 활동 도시를 입력해 주세요. (선택)</p>
-          <p class="lhai-help u-mt-2">💾 입력한 정보는 가입 완료 후 파트너 프로필에 저장됩니다.<br />🎯 저장된 정보는 워크플로우 매칭에 사용됩니다.</p>
+          <p class="lhai-help u-mt-1" data-i18n="auth.signup.partner.city_hint" data-i18n-default="Enter your primary city. (optional)">Enter your primary city. (optional)</p>
+          <p class="lhai-help u-mt-2" data-i18n="auth.signup.partner.save_hint" data-i18n-default="Saved to your partner profile after signup and used for workflow matching.">Saved to your partner profile after signup and used for workflow matching.</p>
         </section>
 
-        <label class="lhai-label" for="password">비밀번호</label>
+        <label class="lhai-label" for="password" data-i18n="common.labels.password" data-i18n-default="Password">Password</label>
         <div class="lhai-input-status-wrap" id="passwordStatusWrap">
           <input class="lhai-input" id="password" name="password" type="password" autocomplete="new-password" required />
           <span class="lhai-field-status-icon" aria-hidden="true">
@@ -201,7 +219,7 @@
             <svg class="lhai-field-status-svg lhai-field-status-svg--bad" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </span>
         </div>
-        <label class="lhai-label" for="passwordConfirm">비밀번호 확인</label>
+        <label class="lhai-label" for="passwordConfirm" data-i18n="auth.signup.password_confirm_label" data-i18n-default="Confirm password">Confirm password</label>
         <div class="lhai-input-status-wrap" id="passwordConfirmStatusWrap">
         <input
           class="lhai-input"
@@ -219,12 +237,12 @@
         </div>
         <p class="lhai-help" id="passwordMatchFeedback" role="status" aria-live="polite"></p>
         <div id="roleFieldGroup" class="lhai-signup-role-group" hidden>
-          <label class="lhai-label" for="roleName">역할</label>
+          <label class="lhai-label" for="roleName" data-i18n="auth.signup.role.label" data-i18n-default="Role">Role</label>
           <select class="lhai-select" id="roleName" name="roleName">
-            <option value="customer" selected>customer (고객)</option>
+            <option value="customer" selected data-i18n="auth.signup.role.customer_option" data-i18n-default="customer">customer</option>
           </select>
-          <p class="lhai-help" id="roleNameHint">
-            역할은 초대에 따라 정해집니다. 초대로 가입해도 가입 완료 후 <strong>등록 이메일로 오는 인증 메일</strong>을 마쳐야 로그인할 수 있습니다. 일반 가입은 고객 계정이며, 다른 역할은 관리자 <strong>초대 링크</strong>가 필요합니다.
+          <p class="lhai-help" id="roleNameHint" data-i18n="auth.signup.role.hint" data-i18n-default="Role is set by your invitation. After signup you must verify your email before signing in. General signup creates a customer account; other roles require an admin invitation link.">
+            Role is set by your invitation. After signup you must verify your email before signing in. General signup creates a customer account; other roles require an admin invitation link.
           </p>
         </div>
         <button
@@ -233,27 +251,30 @@
           id="signupSubmitBtn"
           disabled
           aria-describedby="signupSubmitHint"
+          data-i18n="auth.signup.submit"
+          data-i18n-default="Sign up"
         >
-          가입하기
+          Sign up
         </button>
-        <p class="lhai-help u-mt-2" id="signupSubmitHint">서버에서 사용 가능한 아이디로 확인되면 가입하기가 활성화됩니다.</p>
+        <p class="lhai-help u-mt-2" id="signupSubmitHint" data-i18n="auth.signup.submit_hint" data-i18n-default="Sign up unlocks after the server confirms your username is available.">Sign up unlocks after the server confirms your username is available.</p>
       </form>
-      <p class="lhai-help" id="signupStatus">가입 정보를 입력한 뒤 제출하세요.</p>
-      <p class="u-mt-2"><a href="login.html">로그인으로 돌아가기</a></p>
+      <p class="lhai-help" id="signupStatus" data-i18n="auth.signup.status_default" data-i18n-default="Enter your details and submit.">Enter your details and submit.</p>
+      <p class="u-mt-2"><a href="login.html" data-i18n="auth.signup.back_to_login" data-i18n-default="Back to sign in">Back to sign in</a></p>
     </section>
     <dialog id="signupResultDialog" class="lhai-dialog" aria-labelledby="signupResultTitle">
       <div class="lhai-dialog__inner">
         <h2 class="lhai-dialog__title" id="signupResultTitle"></h2>
         <div class="lhai-dialog__body" id="signupResultBody"></div>
         <div class="lhai-dialog__actions">
-          <a class="lhai-button lhai-button--secondary" id="signupResultLoginLink" href="login.html" hidden>로그인 페이지로</a>
+          <a class="lhai-button lhai-button--secondary" id="signupResultLoginLink" href="login.html" hidden data-i18n="auth.signup.dialog_go_login" data-i18n-default="Go to sign in">Go to sign in</a>
           <form method="dialog">
-            <button type="submit" class="lhai-button lhai-button--primary" id="signupResultCloseBtn" value="close">확인</button>
+            <button type="submit" class="lhai-button lhai-button--primary" id="signupResultCloseBtn" value="close" data-i18n="auth.signup.dialog_close" data-i18n-default="OK">OK</button>
           </form>
         </div>
       </div>
     </dialog>
   </main>
+  <script type="module" src="../assets/js/core/public-page-language-boot.js" data-i18n-domains="common,auth"></script>
   <script type="module" src="../assets/js/pages/signup.js"></script>
 </body>
 </html>

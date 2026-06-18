@@ -25,7 +25,7 @@ function bidFixture(overrides = {}) {
     thread_id: "thread-1",
     service_request_id: "sr-1",
     status: "OPEN",
-    remaining_label: "2일 22시간",
+    remaining_label: "2 days 22 hours",
     offer_count: 1,
     partner_count: 1,
     selected_offer: null,
@@ -34,19 +34,25 @@ function bidFixture(overrides = {}) {
   };
 }
 
+test("localizeDashboardStatusText maps canonical API payment tokens", async () => {
+  const { localizeDashboardStatusText } = await importFresh(logicPath);
+  assert.equal(localizeDashboardStatusText("Payment due"), "Payment due");
+  assert.equal(localizeDashboardStatusText("Invoice draft"), "Invoice draft");
+});
+
 test("Scenario 1 — offers arrived hero, CTA, quote card, nav badge", async () => {
   const m = await importFresh(logicPath);
   const aggregate = { active_car_bid: bidFixture() };
   const hero = m.resolveDashboardActionHero(aggregate);
-  assert.equal(hero.title, "차량 견적이 도착하고 있어요");
-  assert.equal(hero.primary.label, "견적 비교하기");
+  assert.equal(hero.title, "Vehicle quotes are arriving");
+  assert.equal(hero.primary.label, "Compare quotes");
   assert.match(hero.primary.href, /customer-bid-results\.html/);
   assert.match(hero.primary.href, /service_request_id=sr-1/);
 
   const quote = m.resolveQuoteBidSummaryModel(aggregate.active_car_bid);
   assert.ok(quote);
-  assert.match(quote.title, /도착한 제안 1개/);
-  assert.equal(quote.cta.label, "견적 비교하기");
+  assert.match(quote.title, /1 proposals received/);
+  assert.equal(quote.cta.label, "Compare quotes");
 
   const badge = m.resolveCustomerQuoteNavBadge(aggregate.active_car_bid);
   assert.equal(badge.text, "1");
@@ -57,13 +63,13 @@ test("Scenario 2 — waiting for offers", async () => {
   const m = await importFresh(logicPath);
   const bid = bidFixture({ offer_count: 0, partner_count: 2 });
   const hero = m.resolveDashboardActionHero({ active_car_bid: bid });
-  assert.equal(hero.title, "견적을 기다리는 중입니다");
-  assert.equal(hero.primary.label, "견적 상태 보기");
+  assert.equal(hero.title, "Waiting for proposals");
+  assert.equal(hero.primary.label, "View quote status");
 
   const quote = m.resolveQuoteBidSummaryModel(bid);
   assert.equal(quote.title, m.DASHBOARD_EMPTY.quoteWaitingTitle);
-  assert.match(quote.text, /제출하면/);
-  assert.equal(quote.cta.label, "견적 상태 보기");
+  assert.match(quote.text, /submit proposals/i);
+  assert.equal(quote.cta.label, "View quote status");
 });
 
 test("Scenario 3 — partner selected takes priority over open offers", async () => {
@@ -75,12 +81,12 @@ test("Scenario 3 — partner selected takes priority over open offers", async ()
     selected_partner: { name: "Partner A" },
   });
   const hero = m.resolveDashboardActionHero({ active_car_bid: bid });
-  assert.equal(hero.title, "파트너 선택이 완료되었습니다");
-  assert.equal(hero.primary.label, "메시지함 열기");
+  assert.equal(hero.title, "Partner selection complete");
+  assert.equal(hero.primary.label, "Open messages");
   assert.equal(hero.primary.href, "messages.html");
 
   const badge = m.resolveCustomerQuoteNavBadge(bid);
-  assert.equal(badge.text, "선택됨");
+  assert.equal(badge.text, "Selected");
   assert.equal(badge.selected, true);
 });
 
@@ -88,6 +94,8 @@ test("Scenario 4 — in-progress service without car bid", async () => {
   const m = await importFresh(logicPath);
   const aggregate = {
     payment_status: "Paid",
+    current_service_status: "In progress",
+    status_cards: [{ key: "service", value: "In progress" }],
     next_action: "Review messages and schedule.",
     documents_summary: { approved_count: 2, needs_attention_count: 0, total_count: 2 },
     document_status: [],
@@ -95,8 +103,32 @@ test("Scenario 4 — in-progress service without car bid", async () => {
     recent_activity: [],
   };
   const hero = m.resolveDashboardActionHero(aggregate);
-  assert.equal(hero.title, "서비스가 진행 중입니다");
-  assert.equal(hero.primary.label, "메시지함 열기");
+  assert.equal(hero.variant, "active");
+  assert.equal(hero.title, "Your service is in progress");
+  assert.equal(hero.primary.label, "Open messages");
+  assert.match(hero.text, /messages and your schedule/i);
+});
+
+test("Scenario — idle dashboard after reset (pre-start, no workflow)", async () => {
+  const m = await importFresh(logicPath);
+  const aggregate = {
+    payment_status: "Not billed",
+    status_cards: [
+      { key: "service", value: "Getting started" },
+      { key: "payment", value: "Not billed yet" },
+    ],
+    next_action: "Submit a service inquiry or open messages to reach the team.",
+    documents_summary: { approved_count: 0, needs_attention_count: 0, total_count: 0 },
+    document_status: [],
+    recent_messages: [],
+    recent_updates: [],
+  };
+  assert.equal(m.isDashboardIdleState(aggregate, { cases: [] }), true);
+  const hero = m.resolveDashboardActionHero(aggregate, { cases: [] });
+  assert.equal(hero.variant, "idle");
+  assert.equal(hero.title, m.DASHBOARD_IDLE_HERO.title);
+  assert.equal(hero.primary.label, "Start a service inquiry");
+  assert.equal(hero.primary.href, "cases.html");
 });
 
 test("Scenario 5 — documents need attention via summary", async () => {
@@ -107,8 +139,8 @@ test("Scenario 5 — documents need attention via summary", async () => {
   };
   assert.equal(m.documentsNeedCustomerAttention(aggregate), true);
   const hero = m.resolveDashboardActionHero(aggregate);
-  assert.equal(hero.title, "문서 확인이 필요합니다");
-  assert.equal(hero.primary.label, "문서 보기");
+  assert.equal(hero.title, "Documents need your review");
+  assert.equal(hero.primary.label, "View documents");
 
   const counts = m.summarizeDocumentCounts(aggregate);
   assert.equal(counts.needsAttention, 2);
