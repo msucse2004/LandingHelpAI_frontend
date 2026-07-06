@@ -819,6 +819,38 @@
   color: var(--lhai-color-text);
 }
 
+.lhai-chat-bubble__report-translation {
+  display: inline-block;
+  margin-top: 0.35rem;
+  margin-left: 0.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lhai-color-text-muted);
+  font-size: var(--lhai-font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.lhai-chat-bubble__report-translation:hover:not(:disabled) {
+  color: var(--lhai-color-primary);
+}
+
+.lhai-chat-bubble__report-translation--done {
+  margin-top: 0.35rem;
+  margin-left: 0.75rem;
+  font-size: var(--lhai-font-size-xs);
+  color: var(--lhai-color-text-muted);
+}
+
+.lhai-chat-bubble__translation-unavailable {
+  margin: 0.35rem 0 0;
+  font-size: var(--lhai-font-size-xs);
+  line-height: 1.35;
+}
+
 .lhai-chat-bubble__body {
   margin: 0;
   font-size: 0.9375rem;

@@ -20,7 +20,10 @@ import {
  * - Quote: { id, serviceName, totalAmount, currency, status }
  * - Invoice: { id, quoteId, amountDue, currency, dueDate, status }
  * - MessageThreadSummary (GET /api/messages/threads): snake_case from API —
- *   thread_id, title, preview, message_type, unread, unread_count, last_message_at,
+ *   thread_id, title, preview, last_message_body, last_message_display_body,
+ *   last_message_source_locale, last_message_display_locale, last_message_translation_status,
+ *   last_message_translation_source, last_message_translation_provider, last_message_translation_cache_hit,
+ *   message_type, unread, unread_count, last_message_at,
  *   customer_profile_id, thread_role (ADMIN | SERVICE), handler_type (AI_AGENT | HUMAN_AGENT | SYSTEM),
  *   status, service_id, service_catalog_title
  * - DocumentItem: { id, name, category, uploadedAt, verificationStatus }
@@ -859,6 +862,17 @@ const messagesApi = {
     };
     return await tryBackendPost(`/api/messages/${encodeURIComponent(mid)}/ai-feedback`, body);
   },
+  async reportTranslation(messageId, { targetLocale = "", reason = "" } = {}) {
+    const mid = String(messageId || "").trim();
+    const locale = String(targetLocale || "").trim();
+    if (!mid) throw new Error("messageId required");
+    if (!locale) throw new Error("targetLocale required");
+    const body = {
+      target_locale: locale,
+      reason: String(reason || "").trim() || null,
+    };
+    return await tryBackendPost(`/api/messages/${encodeURIComponent(mid)}/report-translation`, body);
+  },
   async threadMessages(threadId, { customerProfileId = "profile::demo@customer.com" } = {}) {
     const params = new URLSearchParams({ customer_profile_id: customerProfileId });
     try {
@@ -1636,6 +1650,37 @@ const partnerEmailReviewAdminApi = {
   },
   async ignore(reviewId) {
     return await tryBackendPost(`/api/admin/partner-email-reviews/${encodeURIComponent(reviewId)}/ignore`, {});
+  },
+};
+
+/** Admin message body translation review (edit / approve / retry). */
+const adminMessageTranslationAdminApi = {
+  async getDetail(messageId) {
+    const id = String(messageId || "").trim();
+    if (!id) throw new Error("messageId required");
+    return await tryBackendGet(`/api/admin/translations/messages/${encodeURIComponent(id)}`);
+  },
+  async edit(messageId, payload) {
+    const id = String(messageId || "").trim();
+    if (!id) throw new Error("messageId required");
+    return await tryBackendPost(`/api/admin/translations/messages/${encodeURIComponent(id)}/edit`, payload);
+  },
+  async approve(messageId, payload) {
+    const id = String(messageId || "").trim();
+    if (!id) throw new Error("messageId required");
+    return await tryBackendPost(`/api/admin/translations/messages/${encodeURIComponent(id)}/approve`, payload);
+  },
+  async retry(messageId, payload) {
+    const id = String(messageId || "").trim();
+    if (!id) throw new Error("messageId required");
+    return await tryBackendPost(`/api/admin/translations/messages/${encodeURIComponent(id)}/retry`, payload);
+  },
+  async listReported({ limit = 50, offset = 0 } = {}) {
+    const params = new URLSearchParams({
+      limit: String(limit),
+      offset: String(offset),
+    });
+    return await tryBackendGet(`/api/admin/translations/messages/reported?${params.toString()}`);
   },
 };
 
@@ -4870,6 +4915,7 @@ export {
   APP_CONFIG,
   adminApi,
   adminI18nStringsApi,
+  adminMessageTranslationAdminApi,
   adminOperationsApi,
   partnerEmailReviewAdminApi,
   adminDevApi,

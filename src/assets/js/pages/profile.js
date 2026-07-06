@@ -4,7 +4,9 @@ import { mountPartnerShell } from "../layouts/partner-shell.js";
 
 import { mountCustomerInboxShell } from "../layouts/customer-inbox-shell.js";
 
-import { applyI18nToDom, applyLanguageChangeToPage } from "../core/i18n-dom.js";
+import { applyI18nToDom, applyLanguageChangeToPage, initPageI18nAndApplyDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
+import { appPageLanguageReady } from "../core/app-page-i18n-boot.js";
+import { localizedStatus } from "../core/i18n-dynamic.js";
 
 import { getSession, setSession, getCurrentRole } from "../core/auth.js";
 
@@ -177,7 +179,6 @@ async function mountProfilePageShell() {
   const isPartner = getCurrentRole() === ROLES.PARTNER;
 
   const contentHtml = renderPartnerProfileContentHtml({
-    pageTitle: isPartner ? "프로필" : "내 정보",
     partnerShell: isPartner,
   });
 
@@ -187,7 +188,7 @@ async function mountProfilePageShell() {
 
     await mountPartnerShell(app, {
       pageKey: "profile",
-      documentTitle: isPartner ? "프로필 - Landing Help AI" : "내 정보 - Landing Help AI",
+      documentTitle: "Profile - Landing Help AI",
       contentHtml,
       mainExtraClass: "lhai-partner-profile",
     });
@@ -202,9 +203,18 @@ async function mountProfilePageShell() {
 
 
 
+async function refreshProfilePageStaticI18n() {
+  const root = document.getElementById("app") || document;
+  applyI18nToDom(root);
+}
+
+wireDynamicPageI18nRefresh(refreshProfilePageStaticI18n);
+
 async function main() {
 
   if (!protectCurrentPage()) return;
+
+  await appPageLanguageReady;
 
   try {
 
@@ -216,7 +226,7 @@ async function main() {
 
   }
 
-  applyI18nToDom(document);
+  await initPageI18nAndApplyDom(["common", "nav", "auth"], document);
 
   const els = getProfileFormElements();
 
@@ -226,7 +236,7 @@ async function main() {
 
     els.profileEmpty?.removeAttribute("hidden");
 
-    setStatus(els, "로그인 세션을 찾지 못했습니다. 다시 로그인해 주세요.");
+    setStatus(els, localizedStatus("common.profile.no_session", "No login information. Please sign in again."));
 
     return;
 
@@ -272,7 +282,7 @@ async function main() {
 
     if (els.genderInput) els.genderInput.value = "";
 
-    setStatus(els, "프로필 API를 읽지 못해 세션 정보로 표시 중입니다.");
+    setStatus(els, localizedStatus("common.profile.load_fallback", "Could not load profile from the server. Showing session data."));
 
   }
 
@@ -306,9 +316,12 @@ async function main() {
 
         ok: false,
 
-        title: "입력 확인",
+        title: localizedStatus("common.profile.validation_title", "Check your input"),
 
-        message: "이름(First/Last)과 이메일을 모두 입력해 주세요.",
+        message: localizedStatus(
+          "common.profile.validation_name_email",
+          "Please enter first name, last name, and email."
+        ),
 
       });
 
@@ -324,9 +337,12 @@ async function main() {
 
         ok: false,
 
-        title: "입력 확인",
+        title: localizedStatus("common.profile.validation_title", "Check your input"),
 
-        message: "선호 언어(UI)를 선택해 주세요.",
+        message: localizedStatus(
+          "common.profile.validation_preferred_language",
+          "Please select a preferred UI language."
+        ),
 
       });
 
@@ -344,9 +360,12 @@ async function main() {
 
         ok: false,
 
-        title: "입력 확인",
+        title: localizedStatus("common.profile.validation_title", "Check your input"),
 
-        message: "전화번호를 올바르게 입력해 주세요. (숫자 7자리 이상)",
+        message: localizedStatus(
+          "common.profile.validation_phone",
+          "Please enter a valid phone number (at least 7 digits)."
+        ),
 
       });
 
@@ -364,9 +383,12 @@ async function main() {
 
         ok: false,
 
-        title: "입력 확인",
+        title: localizedStatus("common.profile.validation_title", "Check your input"),
 
-        message: "전화번호를 올바르게 입력해 주세요. (숫자 7자리 이상)",
+        message: localizedStatus(
+          "common.profile.validation_phone",
+          "Please enter a valid phone number (at least 7 digits)."
+        ),
 
       });
 
@@ -426,15 +448,19 @@ async function main() {
         /* PATCH response already applied */
       }
 
-      setStatus(els, "저장되었습니다.");
+      setStatus(els, localizedStatus("common.profile.saved_status", "Saved."));
 
       showProfileFeedback(els, {
 
         ok: true,
 
-        title: "저장 완료",
+        title: localizedStatus("common.profile.saved_title", "Saved"),
 
-        message: `회원 정보가 서버에 저장되었습니다. (권한 티어: ${getCurrentRoleTierLabelKo()})`,
+        message: localizedStatus(
+          "common.profile.saved_message",
+          "Your profile was saved. (Role tier: {tier})",
+          { tier: getCurrentRoleTierLabelKo() }
+        ),
 
       });
 
@@ -446,9 +472,14 @@ async function main() {
 
         ok: false,
 
-        title: "저장 실패",
+        title: localizedStatus("common.profile.save_failed_title", "Save failed"),
 
-        message: err?.message || "저장에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+        message:
+          err?.message ||
+          localizedStatus(
+            "common.profile.save_failed_message",
+            "Could not save your profile. Please try again shortly."
+          ),
 
       });
 
@@ -486,9 +517,12 @@ async function main() {
 
         ok: false,
 
-        title: "입력 확인",
+        title: localizedStatus("common.profile.validation_title", "Check your input"),
 
-        message: "비밀번호 항목을 모두 입력해 주세요.",
+        message: localizedStatus(
+          "common.profile.password_validation",
+          "Please fill in all password fields."
+        ),
 
       });
 
@@ -520,9 +554,12 @@ async function main() {
 
         ok: true,
 
-        title: "비밀번호 변경 완료",
+        title: localizedStatus("common.profile.password_changed_title", "Password updated"),
 
-        message: "새 비밀번호로 변경되었습니다.",
+        message: localizedStatus(
+          "common.profile.password_changed_message",
+          "Your password has been changed."
+        ),
 
       });
 
@@ -534,9 +571,14 @@ async function main() {
 
         ok: false,
 
-        title: "비밀번호 변경 실패",
+        title: localizedStatus("common.profile.password_failed_title", "Password change failed"),
 
-        message: err?.message || "비밀번호 변경에 실패했습니다. 현재 비밀번호를 확인해 주세요.",
+        message:
+          err?.message ||
+          localizedStatus(
+            "common.profile.password_failed_message",
+            "Could not change your password. Check your current password and try again."
+          ),
 
       });
 

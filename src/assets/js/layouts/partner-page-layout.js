@@ -17,10 +17,11 @@
 export function renderPartnerPageHeaderHtml(opts) {
   const titleId = opts.titleId ? ` id="${opts.titleId}"` : "";
   const titleI18n = opts.titleI18nKey ? ` data-i18n="${opts.titleI18nKey}"` : "";
+  const subtitleI18n = opts.subtitleI18nKey ? ` data-i18n="${opts.subtitleI18nKey}"` : "";
   const subtitleBlock = opts.subtitleId
-    ? `<p class="lhai-subtitle" id="${opts.subtitleId}">${opts.subtitle ?? ""}</p>`
+    ? `<p class="lhai-subtitle" id="${opts.subtitleId}"${subtitleI18n}>${opts.subtitle ?? ""}</p>`
     : opts.subtitle
-      ? `<p class="lhai-subtitle">${opts.subtitle}</p>`
+      ? `<p class="lhai-subtitle"${subtitleI18n}>${opts.subtitle}</p>`
       : "";
   const eyebrow = opts.eyebrowHtml
     ? `<div class="lhai-partner-page__eyebrow">${opts.eyebrowHtml}</div>`
@@ -56,6 +57,7 @@ export function renderPartnerPageContentHtml(opts) {
     titleId: opts.titleId,
     titleI18nKey: opts.titleI18nKey,
     subtitleId: opts.subtitleId,
+    subtitleI18nKey: opts.subtitleI18nKey,
     eyebrowHtml: opts.eyebrowHtml,
   });
   const body = opts.bodyHtml ?? "";

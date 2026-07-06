@@ -59,7 +59,22 @@ import {
 import { t } from "../core/i18n-client.js";
 import { formatLocalizedDataReadout, localizedEnumLabel, localizedStatus } from "../core/i18n-dynamic.js";
 import { applyI18nToDom, initPageI18nAndApplyDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
+import {
+  adminThreadDisplayTitle,
+  logMessageTranslationFailures,
+  messageShouldShowViewOriginalToggle,
+  messageTranslationNoticeKind,
+  messageTranslationPendingLabel,
+  messageTranslationUnavailableLabel,
+  messageViewOriginalToggleLabel,
+  messageViewerBody,
+  threadListPreviewBody,
+} from "./messages-display-logic.js";
 import { bindMessageAiFeedback, buildAiFeedbackHtml } from "./message-ai-feedback.js";
+import {
+  bindMessageTranslationReport,
+  buildMessageTranslationReportHtml,
+} from "./message-translation-report.js";
 import {
   buildCustomerBidResultsPageHref,
   formatCountdownToExpiry,
@@ -82,6 +97,7 @@ import { buildIntakeDispatchDiagnosticsHtml } from "./messages-intake-diagnostic
 /**
  * Step 9 — data vs UI labels:
  * - Message bodies/titles: prefer `display_body` / `display_title`; user/API text is never passed through `t()`.
+ * - Composer sends only user-typed text (`#messageChatInput`); never `display_body`.
  * - Enum/status chips: localize display via `localizedEnumLabel`; keep raw codes in data attributes / logic.
  */
 
@@ -123,6 +139,29 @@ function isLhaiDebugCustomerMessages() {
   } catch {
     return false;
   }
+}
+
+function isLhaiDebugMessageTranslation() {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return false;
+    return (
+      window.localStorage.getItem("LHAI_DEBUG_MESSAGE_TRANSLATION") === "1" ||
+      window.localStorage.getItem("LHAI_DEBUG_CUSTOMER_MESSAGES") === "1"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function logCustomerMessageTranslationFailures(messages, label) {
+  if (!isLhaiDebugMessageTranslation() || operatorInboxMode || partnerInboxMode) return;
+  logMessageTranslationFailures(messages, {
+    label,
+    logFn: (...args) => {
+      // eslint-disable-next-line no-console
+      console.info(...args);
+    },
+  });
 }
 
 function isMessagesDebugRealtime() {
@@ -185,6 +224,7 @@ function logCustomerMessagesDomAfterRender() {
     last_message_title_preview: last ? String(last.title || "").slice(0, 80) : "",
     last_message_body_preview: last ? String(last.body || "").slice(0, 80) : "",
   });
+  logCustomerMessageTranslationFailures(arr, "messages_page_after_render");
 }
 
 /** @type {Set<string>} 인테이크 폼 제출 중인 message id */
@@ -376,12 +416,12 @@ function renderQuoteProposedLinksHtml(message) {
   if (qid) {
     const href = `quote-detail.html?quote_id=${encodeURIComponent(qid)}`;
     parts.push(
-      `<a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${href}">${escapeHtml(t("messages.cta.view_quote", "View quote"))}</a>`
+      `<a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${href}">${escapeHtml(t("messages.actions.view_quote", "View quote"))}</a>`
     );
   }
   if (pdfUrl) {
     parts.push(
-      `<a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${pdfUrl}" target="_blank" rel="noopener">${escapeHtml(t("messages.cta.pdf_download", "Download/View PDF"))}</a>`
+      `<a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${pdfUrl}" target="_blank" rel="noopener">${escapeHtml(t("messages.actions.download_view_pdf", "Download/View PDF"))}</a>`
     );
   }
   if (!parts.length) return "";
@@ -401,12 +441,12 @@ function renderInvoiceSentLinksHtml(message) {
   if (invoiceId) {
     const href = `invoice-detail.html?invoice_id=${encodeURIComponent(invoiceId)}`;
     parts.push(
-      `<a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${href}">${escapeHtml(t("messages.cta.view_invoice", "View invoice"))}</a>`
+      `<a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${href}">${escapeHtml(t("messages.actions.view_invoice", "View invoice"))}</a>`
     );
   }
   if (pdfUrl) {
     parts.push(
-      `<a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${pdfUrl}" target="_blank" rel="noopener">${escapeHtml(t("messages.cta.pdf_download", "Download/View PDF"))}</a>`
+      `<a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${pdfUrl}" target="_blank" rel="noopener">${escapeHtml(t("messages.actions.download_view_pdf", "Download/View PDF"))}</a>`
     );
   }
   if (!parts.length) return "";
@@ -422,7 +462,7 @@ function renderPaymentCompletedLinksHtml(message) {
     String(message.linked_invoice_id || "").trim() || extractInvoiceIdFromText(message.body);
   if (!invoiceId) return "";
   const href = `invoice-detail.html?invoice_id=${encodeURIComponent(invoiceId)}`;
-  return `<div class="lhai-quote-proposed-links"><a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${href}">${escapeHtml(t("messages.cta.related_invoice", "Related invoice"))}</a></div>`;
+  return `<div class="lhai-quote-proposed-links"><a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${href}">${escapeHtml(t("messages.actions.related_invoice", "Related invoice"))}</a></div>`;
 }
 
 /** 정착 일정 고객 공개 알림 — 앱 내 `schedule.html` 버튼 (`linked_schedule_id` 또는 본문 URL) */
@@ -432,7 +472,7 @@ function renderScheduleReleasedLinksHtml(message) {
     String(message.linked_schedule_id || "").trim() || extractScheduleIdFromText(message.body);
   if (!sid) return "";
   const href = `schedule.html?schedule_id=${encodeURIComponent(sid)}`;
-  return `<div class="lhai-quote-proposed-links"><a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${href}">${escapeHtml(t("messages.cta.view_schedule", "View schedule"))}</a></div>`;
+  return `<div class="lhai-quote-proposed-links"><a class="lhai-button lhai-button--primary lhai-messages-cta-link" href="${href}">${escapeHtml(t("messages.actions.view_schedule", "View schedule"))}</a></div>`;
 }
 
 /** 본문 끝의 "일정 보기:\\nURL" 블록은 버튼과 중복되므로 표시용 본문에서 제거 */
@@ -582,20 +622,36 @@ function pickDefaultThreadId(threads) {
 /** @type {Set<string>} */
 const showOriginalMessageIds = new Set();
 
-function messageHasLocalizedDisplay(message) {
-  const display = String(message?.display_body ?? "").trim();
-  const original = String(message?.body ?? "").trim();
-  return Boolean(display && original && display !== original);
-}
-
 function messageViewerText(message) {
   const id = String(message?.id || "").trim();
   const original = scheduleReleasedMessageDisplayBody(message);
-  if (id && showOriginalMessageIds.has(id)) {
-    return original;
+  const showingOriginal = Boolean(id && showOriginalMessageIds.has(id));
+  return messageViewerBody(message, { showOriginal: showingOriginal, originalBody: original });
+}
+
+function messageTranslationNoticeHtml(message) {
+  const kind = messageTranslationNoticeKind(message);
+  if (kind === "unavailable") {
+    return `<p class="lhai-chat-bubble__translation-unavailable u-text-muted">${escapeHtml(
+      messageTranslationUnavailableLabel((key, fallback) => t(key, fallback))
+    )}</p>`;
   }
-  const display = String(message?.display_body ?? "").trim();
-  return display || original;
+  if (kind === "pending") {
+    return `<p class="lhai-chat-bubble__translation-unavailable u-text-muted">${escapeHtml(
+      messageTranslationPendingLabel((key, fallback) => t(key, fallback))
+    )}</p>`;
+  }
+  return "";
+}
+
+function messageViewOriginalToggleHtml(message) {
+  if (!messageShouldShowViewOriginalToggle(message)) {
+    return "";
+  }
+  const msgId = String(message?.id || "").trim();
+  const showingOriginal = Boolean(msgId && showOriginalMessageIds.has(msgId));
+  const label = messageViewOriginalToggleLabel(showingOriginal, (key, fallback) => t(key, fallback));
+  return `<button type="button" class="lhai-chat-bubble__view-original" data-message-id="${escapeHtml(msgId)}" aria-pressed="${showingOriginal ? "true" : "false"}">${escapeHtml(label)}</button>`;
 }
 
 function scheduleReleasedMessageDisplayBody(message) {
@@ -623,7 +679,7 @@ function renderThreadListRow(row) {
   ]
     .filter(Boolean)
     .join(" ");
-  const headline = isAdmin ? safeText(row.title) : safeText(serviceThreadListHeadline(row));
+  const headline = isAdmin ? safeText(adminThreadDisplayTitle(row, t)) : safeText(serviceThreadListHeadline(row));
   const lastType = String(row.message_type || "").trim();
   const customerIdBlock = operatorInboxMode
     ? `<div class="lhai-message-item__customer-id"><span class="lhai-message-item__customer-id-label">${escapeHtml(t("messages.thread.customer_label", "Customer"))}</span> ${safeText(threadCustomerDisplayLabel(String(row.customer_profile_id || "")))}</div>`
@@ -646,7 +702,7 @@ function renderThreadListRow(row) {
           <h3 class="lhai-message-item__title">${headline}</h3>
         </div>
         ${lastType ? `<div class="u-text-muted lhai-message-item__last-type">${escapeHtml(formatLocalizedDataReadout("messages.thread.recent_type", "Recent type: {value}", messageTypeDisplayLabel(lastType)))}</div>` : ""}
-        <p class="u-text-muted lhai-message-item__preview">${safeText(row.preview)}</p>
+        <p class="u-text-muted lhai-message-item__preview">${safeText(threadListPreviewBody(row))}</p>
       </article>
     `;
 }
@@ -2163,14 +2219,14 @@ function renderChatBubbles(options = {}) {
 
       const msgId = String(m.id || "").trim();
       const viewerBody = messageViewerText(m);
-      const viewOriginalToggle = messageHasLocalizedDisplay(m)
-        ? `<button type="button" class="lhai-chat-bubble__view-original" data-message-id="${escapeHtml(msgId)}" aria-pressed="${showOriginalMessageIds.has(msgId) ? "true" : "false"}">${showOriginalMessageIds.has(msgId) ? escapeHtml(t("messages.view_translation", "View translation")) : escapeHtml(t("messages.view_original", "View original"))}</button>`
-        : "";
+      const viewOriginalToggle = messageViewOriginalToggleHtml(m);
+      const reportTranslationAction = buildMessageTranslationReportHtml(m);
+      const translationUnavailable = messageTranslationNoticeHtml(m);
       const bodyBlock =
         (isForm || isIntakeContent || isWorkflowCard || isBidComparisonEntry) &&
         (up || isWorkflowCard || isBidComparisonEntry)
           ? formBlock
-          : `<p class="lhai-chat-bubble__body">${escapeHtml(String(viewerBody))}</p>${viewOriginalToggle}`;
+          : `<p class="lhai-chat-bubble__body">${escapeHtml(String(viewerBody))}</p>${translationUnavailable}${viewOriginalToggle}${reportTranslationAction}`;
       return `
       <div class="lhai-chat-row ${mine ? "lhai-chat-row--mine" : "lhai-chat-row--them"}"${msgId ? ` data-message-id="${escapeHtml(msgId)}"` : ""}>
         <div class="lhai-chat-bubble ${bubbleClass}">
@@ -2866,7 +2922,7 @@ function syncChatHeader(threadMeta) {
     eyebrow.textContent = role === "ADMIN" ? t("messages.header.operator.admin_eyebrow", "Customer center (operator view)") : t("messages.header.operator.service_eyebrow", "Service (operator view)");
     eyebrow.hidden = false;
     if (role === "ADMIN") {
-      titleEl.textContent = String(threadMeta.title || t("messages.thread.customer_center", "Customer center"));
+      titleEl.textContent = adminThreadDisplayTitle(threadMeta, t);
       applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, "");
     } else {
       titleEl.textContent = serviceThreadDisplayName(threadMeta);
@@ -2901,7 +2957,7 @@ function syncChatHeader(threadMeta) {
   if (role === "ADMIN") {
     eyebrow.textContent = t("messages.thread.customer_center", "Customer center");
     eyebrow.hidden = false;
-    titleEl.textContent = String(threadMeta.title || t("messages.thread.customer_center", "Customer center"));
+    titleEl.textContent = adminThreadDisplayTitle(threadMeta, t);
     applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, "");
     subtitle.textContent = t("messages.header.customer.admin_subtitle", "Channel for operations, quotes, billing, payments, and general inquiries.");
     return;
@@ -2954,8 +3010,8 @@ async function loadThreadMessages(options = {}) {
   if (traceMessageId) {
     markDetailFetchStarted(traceMessageId, { refreshSource: refreshSource || "sse" });
   }
-  let savedComposer = null;
-  if (realtime) {
+  let savedComposer = options.savedComposer;
+  if (savedComposer == null && realtime) {
     const ta = document.querySelector("#messageChatInput");
     if (ta instanceof HTMLTextAreaElement) {
       savedComposer = ta.value;
@@ -3025,6 +3081,7 @@ async function loadThreadMessages(options = {}) {
               message_ids: ids,
             });
           }
+          logCustomerMessageTranslationFailures(detail.messages, "messages_page_thread_detail");
         }
       } catch {
         detailOk = false;
@@ -3267,6 +3324,8 @@ let messagesRealtimeStatusBound = false;
 let messagesPageVisibilityBound = false;
 /** ``"run"`` | ``"stop"`` | ``"safety"`` — 디버그 로그 스팸 방지 */
 let messagesLastFallbackPollDesired = null;
+let messagesLanguageRefetchBound = false;
+let messagesLanguageRefetchInFlight = false;
 
 function ensureMessagesPageVisibilityBinding() {
   if (typeof document === "undefined" || messagesPageVisibilityBound) return;
@@ -3620,7 +3679,7 @@ async function handleMessagesRealtimeEvent(detail) {
       const eventKind = resolveBiddingEventKind(bidPayload);
       showBidUpdatedToast({
         title: t("messages.alert.quote_updated", "Quote updated."),
-        cta: t("messages.cta.view_quote", "View quote"),
+        cta: t("messages.actions.view_quote", "View quote"),
         href,
         threadId: evtThreadId,
         bidRequestId: bidPayload.bid_request_id,
@@ -3705,12 +3764,15 @@ function restoreMessagesDetailPreserveState(preserve) {
     workflow.hidden = preserve.workflowHidden;
   }
   const input = document.querySelector("#messageChatInput");
-  if (input instanceof HTMLTextAreaElement && preserve.inputValue) input.value = preserve.inputValue;
+  if (input instanceof HTMLTextAreaElement) {
+    input.value = preserve.inputValue;
+  }
   const scroll = document.querySelector("#messageChatScroll");
   if (scroll instanceof HTMLElement) scroll.scrollTop = preserve.scrollTop;
 }
 
-function refreshMessagesPageI18n() {
+function refreshMessagesPageStaticI18n() {
+  if (messagesLanguageRefetchInFlight) return;
   applyI18nToDom(document);
   updateMessagesPageSubtitle();
 
@@ -3718,15 +3780,12 @@ function refreshMessagesPageI18n() {
     renderThreadList(cachedThreadsForUi);
   }
 
-  const detail = document.querySelector("#messageDetailContainer");
-  const chatMode = detail?.classList.contains("lhai-message-detail--chat");
-  const preserve = chatMode ? readMessagesDetailPreserveState() : null;
-
   if (!selectedThreadId) {
     renderMessageDetailShell(null);
     return;
   }
 
+  const preserve = readMessagesDetailPreserveState();
   renderMessageDetailShell(currentThreadHeaderMeta);
   if (preserve) restoreMessagesDetailPreserveState(preserve);
   renderChatBubbles({ scrollIfNearBottom: false });
@@ -3734,7 +3793,74 @@ function refreshMessagesPageI18n() {
   syncCustomerComposerBidGate();
 }
 
-wireDynamicPageI18nRefresh(refreshMessagesPageI18n);
+async function refreshMessagesPageOnLanguageChanged() {
+  if (messagesLanguageRefetchInFlight) return;
+  messagesLanguageRefetchInFlight = true;
+  try {
+    applyI18nToDom(document);
+    updateMessagesPageSubtitle();
+
+    const preserve = readMessagesDetailPreserveState();
+
+    let threads = [];
+    try {
+      threads = await fetchThreadsListForMessagesPage();
+      const threadsForUi = operatorInboxMode ? threads : dedupeThreadsForMessagesList(threads, selectedThreadId);
+      cachedThreadsForUi = threadsForUi;
+      renderThreadList(threadsForUi);
+      if (selectedThreadId) {
+        const threadMeta = findThreadMetaInList(threads);
+        if (threadMeta && typeof threadMeta === "object") {
+          currentThreadHeaderMeta = /** @type {Record<string, unknown>} */ ({ ...threadMeta });
+          selectedThreadRole = normalizeThreadRole(threadMeta);
+        }
+      }
+    } catch (err) {
+      if (cachedThreadsForUi.length) {
+        renderThreadList(cachedThreadsForUi);
+      }
+      console.warn("[lhai][messages] thread list language refetch failed", err);
+    }
+
+    if (!selectedThreadId) {
+      renderMessageDetailShell(null);
+      return;
+    }
+
+    renderMessageDetailShell(currentThreadHeaderMeta);
+    syncChatHeader(currentThreadHeaderMeta);
+
+    try {
+      await loadThreadMessages({
+        reason: "language-changed",
+        skipInlineListBadgeSync: true,
+        savedComposer: preserve?.inputValue ?? "",
+      });
+    } catch (err) {
+      console.warn("[lhai][messages] thread messages language refetch failed", err);
+      renderChatBubbles({ scrollIfNearBottom: false });
+    }
+
+    if (preserve) {
+      restoreMessagesDetailPreserveState(preserve);
+    }
+    repaintCustomerBidPanelFromSnapshot();
+    syncCustomerComposerBidGate();
+  } finally {
+    messagesLanguageRefetchInFlight = false;
+  }
+}
+
+function bindMessagesLanguageRefetch() {
+  if (messagesLanguageRefetchBound) return;
+  messagesLanguageRefetchBound = true;
+  window.addEventListener("lhai:language-changed", () => {
+    void refreshMessagesPageOnLanguageChanged();
+  });
+}
+
+bindMessagesLanguageRefetch();
+wireDynamicPageI18nRefresh(refreshMessagesPageStaticI18n);
 
 async function refresh() {
   const threads = await fetchThreadsListForMessagesPage();
@@ -4036,6 +4162,10 @@ async function initMessagesPage() {
       operatorInboxMode,
       customerProfileId: operatorInboxMode ? threadOwnerProfileId : customerProfileId,
     }),
+  });
+
+  bindMessageTranslationReport({
+    getContext: () => ({ operatorInboxMode }),
   });
 }
 

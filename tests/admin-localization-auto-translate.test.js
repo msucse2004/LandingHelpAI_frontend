@@ -31,26 +31,27 @@ test("missing refresh button loads table only and does not auto-translate", () =
   assert.doesNotMatch(refreshHandler[0], /autoTranslateMissing/);
 });
 
-test("auto translate button requires a single target language before running", () => {
+test("auto translate button runs chained locales when All is selected", () => {
   assert.match(
     PAGE_JS,
-    /function onMissingAutoTranslateClick\(\) \{[\s\S]*?resolveAutoTranslateTargetLanguage\(\)[\s\S]*?if \(!target\.ok\) \{[\s\S]*?showAutoTranslateTargetLanguageError/
+    /function resolveAutoTranslateTargetLanguages\(\) \{[\s\S]*?if \(!selected\) \{[\s\S]*?languages: \[\.\.\.AUTO_TRANSLATE_TARGET_LANGUAGES\]/
   );
   assert.match(
     PAGE_JS,
-    /localization\.messages\.select_target_language_before_auto_translate/
+    /function onMissingAutoTranslateClick\(\) \{[\s\S]*?resolveAutoTranslateTargetLanguages\(\)[\s\S]*?if \(!targets\.ok\) \{[\s\S]*?showAutoTranslateTargetLanguageError/
   );
+  assert.doesNotMatch(PAGE_JS, /select_target_language_before_auto_translate/);
 });
 
-test("auto translate sends exactly one target language code", () => {
-  assert.match(PAGE_JS, /const targetLanguageCodes = \[target\.language\]/);
+test("auto translate sends one target language code per API batch", () => {
+  assert.match(PAGE_JS, /const targetLanguageCodes = \[language\]/);
   assert.match(
     PAGE_JS,
     /adminI18nStringsApi\.autoTranslateMissing\(\{[\s\S]*?targetLanguageCodes,/
   );
-  assert.doesNotMatch(
-    PAGE_JS.match(/async function runAutoTranslateMissingChained[\s\S]*?adminI18nStringsApi\.autoTranslateMissing/)?.[0] || "",
-    /AUTO_TRANSLATE_TARGET_LANGUAGES/
+  assert.match(
+    PAGE_JS,
+    /for \(let languageIndex = 0; languageIndex < languages\.length; languageIndex \+= 1\)/
   );
 });
 
@@ -71,8 +72,23 @@ test("missing translations html wires refresh and auto translate controls separa
 test("auto translate status messages use i18n keys", () => {
   assert.match(PAGE_JS, /localization\.messages\.auto_translate_started/);
   assert.match(PAGE_JS, /localization\.messages\.auto_translate_batch/);
+  assert.match(PAGE_JS, /localization\.messages\.auto_translate_all_languages_started/);
+  assert.match(PAGE_JS, /localization\.messages\.auto_translate_language_progress/);
+  assert.match(PAGE_JS, /localization\.messages\.auto_translate_language_batch/);
   assert.match(PAGE_JS, /localization\.messages\.auto_translate_finished/);
   assert.match(PAGE_JS, /localization\.messages\.auto_translate_failed_summary/);
+  assert.match(PAGE_JS, /localization\.messages\.auto_translate_save_failed_headline/);
+  assert.match(PAGE_JS, /localization\.messages\.auto_translate_save_failed_item/);
+});
+
+test("auto translate surfaces database save failures distinctly", () => {
+  assert.match(PAGE_JS, /function isSaveFailedRecord\(record\)/);
+  assert.match(PAGE_JS, /failure_kind/);
+  assert.match(PAGE_JS, /localization\.messages\.auto_translate_save_failed_headline/);
+  assert.match(
+    PAGE_JS,
+    /showAutoTranslateResult\(\{[\s\S]*?totalSaveFailed/
+  );
 });
 
 test("auto translate api errors do not surface raw stack traces to page alert", () => {

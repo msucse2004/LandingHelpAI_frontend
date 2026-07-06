@@ -69,13 +69,16 @@ test("resolveAccountPreferredLanguageCode defaults missing or invalid to en", ()
   assert.equal(mod.resolveAccountPreferredLanguageCode("fr"), "en");
 });
 
-test("applyLoginPreferredLanguage uses server response only", () => {
+test("applyLoginPreferredLanguage uses server response and syncs local storage", () => {
   resetStorage();
   window.localStorage.setItem(STORAGE_KEY, "ko");
   assert.equal(mod.applyLoginPreferredLanguage("en"), "en");
+  assert.equal(window.localStorage.getItem(STORAGE_KEY), "en");
   assert.equal(mod.applyLoginPreferredLanguage("ja"), "ja");
+  assert.equal(window.localStorage.getItem(STORAGE_KEY), "ja");
   assert.equal(mod.resolveLoginPreferredLanguageCode("ja"), "ja");
   assert.equal(mod.applyLoginPreferredLanguage(null), "en");
+  assert.equal(window.localStorage.getItem(STORAGE_KEY), "en");
 });
 
 test("setSavedLocalLanguage and setSessionLanguage persist validated codes", () => {
@@ -131,9 +134,29 @@ test("integration_04_login_en_overrides_guest_localStorage_ko", async () => {
   });
 
   assert.equal(mod.getEffectiveLanguage(), "en");
-  assert.equal(window.localStorage.getItem(STORAGE_KEY), "ko");
+  assert.equal(window.localStorage.getItem(STORAGE_KEY), "en");
   const session = JSON.parse(window.localStorage.getItem(SESSION_KEY));
   assert.equal(session.preferred_language_code, "en");
+});
+
+test("integration_04b_login_ko_syncs_guest_localStorage", async () => {
+  resetStorage();
+  window.localStorage.setItem(STORAGE_KEY, "en");
+  const auth = await import("../src/assets/js/core/auth.js");
+
+  auth.applyAuthLoginResult({
+    access_token: "test-token",
+    user_id: "user-ko",
+    role: "customer",
+    email: "ko@example.com",
+    username: "c1",
+    preferred_language_code: "ko",
+  });
+
+  assert.equal(mod.getEffectiveLanguage(), "ko");
+  assert.equal(window.localStorage.getItem(STORAGE_KEY), "ko");
+  const session = JSON.parse(window.localStorage.getItem(SESSION_KEY));
+  assert.equal(session.preferred_language_code, "ko");
 });
 
 test("integration_05_login_ja_stored_in_session", async () => {

@@ -254,7 +254,9 @@ export function savePreferredLanguage(code) {
  * @returns {string}
  */
 export function applyLoginPreferredLanguage(serverPreferredLanguageCode) {
-  return resolveAccountPreferredLanguageCode(serverPreferredLanguageCode);
+  const normalized = resolveAccountPreferredLanguageCode(serverPreferredLanguageCode);
+  setSavedLocalLanguage(normalized);
+  return normalized;
 }
 
 /**

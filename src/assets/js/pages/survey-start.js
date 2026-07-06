@@ -1049,9 +1049,9 @@ function validateCommonInfoIssues(info) {
   const minorStr = String(minorRaw ?? "").trim();
 
   if (adultStr !== "" && Number.isNaN(adults)) {
-    issues.push({ key: "adult_count", label: "만 18세 이상 인원(숫자)" });
+    issues.push({ key: "adult_count", label: "만 18세 이상인 인원(숫자)" });
   } else if (Number.isNaN(adults) || adults < 0) {
-    issues.push({ key: "adult_count", label: "만 18세 이상 인원(0 이상 숫자)" });
+    issues.push({ key: "adult_count", label: "만 18세 이상인 인원(0 이상 숫자)" });
   }
   if (minorStr !== "" && Number.isNaN(minors)) {
     issues.push({ key: "minor_count", label: "만 18세 이하 인원(숫자)" });
@@ -1359,7 +1359,7 @@ function normalizeReviewDetailLabel(rawLabel, fallbackIndex = 1) {
     entry_date: "입국(또는 시작) 예정일",
     household_count: "함께 이동하는 인원",
     who_is_moving: "함께 이동하는 구성",
-    adult_count: "만 18세 이상 인원",
+    adult_count: "만 18세 이상인 인원",
     minor_count: "만 18세 이하 인원",
     minor_ages: "만 18세 이하 나이",
     support_need_level: "희망 지원 강도",

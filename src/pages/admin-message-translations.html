@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title data-i18n="localization.message_review.document_title" data-i18n-default="Message translation review - Landing Help AI Admin">Message translation review - Landing Help AI Admin</title>
+  <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
+  <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
+  <link rel="stylesheet" href="../assets/css/pages/admin-message-translations.css" />
+</head>
+<body data-lhai-i18n-domains="common,nav,localization">
+  <div id="lhai-app-header-root"></div>
+  <div class="lhai-layout">
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" data-i18n-default="Admin menu" aria-label="Admin menu"></aside>
+    <main class="lhai-main lhai-main--message-translations" id="main">
+      <section class="lhai-page-header">
+        <div>
+          <h1 class="lhai-title" data-i18n="localization.message_review.page_title" data-i18n-default="Message translation review">Message translation review</h1>
+          <p class="lhai-subtitle" data-i18n="localization.message_review.page_subtitle" data-i18n-default="Inspect and manually correct in-app message translations. Search by message ID or thread.">
+            Inspect and manually correct in-app message translations. Search by message ID or thread.
+          </p>
+        </div>
+      </section>
+
+      <p class="lhai-help u-mb-3" id="lhaiMsgTransStatus" role="status" aria-live="polite"></p>
+
+      <section class="lhai-card admin-msg-trans__reported u-mb-3" id="lhaiMsgTransReportedPanel">
+        <div class="admin-msg-trans__reported-header">
+          <h2 class="lhai-card__title" data-i18n="localization.message_review.reported_queue_title" data-i18n-default="User-reported translations">User-reported translations</h2>
+          <button type="button" class="lhai-button lhai-button--secondary lhai-button--sm" id="lhaiMsgTransLoadReported" data-i18n="localization.message_review.reported_queue_load" data-i18n-default="Refresh reported queue">Refresh reported queue</button>
+        </div>
+        <div id="lhaiMsgTransReportedList" class="admin-msg-trans__reported-list"></div>
+      </section>
+
+      <div class="admin-msg-trans__search-grid">
+        <section class="lhai-card admin-msg-trans__search-card" aria-labelledby="lhaiMsgTransSearchMessageTitle">
+          <h2 class="lhai-card__title" id="lhaiMsgTransSearchMessageTitle" data-i18n="localization.message_review.search_message_title" data-i18n-default="Search by message ID">Search by message ID</h2>
+          <p class="lhai-help u-mb-2" data-i18n="localization.message_review.search_message_help" data-i18n-default="Load one message and edit translations per target locale.">Load one message and edit translations per target locale.</p>
+          <label class="lhai-label" for="lhaiMsgTransMessageId" data-i18n="localization.message_review.message_id_label" data-i18n-default="Message ID">Message ID</label>
+          <input class="lhai-input u-mb-2" id="lhaiMsgTransMessageId" type="text" autocomplete="off" data-i18n-placeholder="localization.message_review.message_id_placeholder" data-i18n-default="UUID" placeholder="UUID" />
+          <button type="button" class="lhai-button lhai-button--primary" id="lhaiMsgTransLoadMessage" data-i18n="localization.message_review.load_message" data-i18n-default="Load message">Load message</button>
+        </section>
+
+        <section class="lhai-card admin-msg-trans__search-card" aria-labelledby="lhaiMsgTransSearchThreadTitle">
+          <h2 class="lhai-card__title" id="lhaiMsgTransSearchThreadTitle" data-i18n="localization.message_review.search_thread_title" data-i18n-default="Search by thread">Search by thread</h2>
+          <p class="lhai-help u-mb-2" data-i18n="localization.message_review.search_thread_help" data-i18n-default="List messages in a thread, then pick one to review.">List messages in a thread, then pick one to review.</p>
+          <label class="lhai-label" for="lhaiMsgTransThreadId" data-i18n="localization.message_review.thread_id_label" data-i18n-default="Thread ID">Thread ID</label>
+          <input class="lhai-input u-mb-2" id="lhaiMsgTransThreadId" type="text" autocomplete="off" placeholder="UUID" />
+          <label class="lhai-label" for="lhaiMsgTransCustomerProfileId" data-i18n="localization.message_review.customer_profile_label" data-i18n-default="Customer profile ID">Customer profile ID</label>
+          <input class="lhai-input u-mb-2" id="lhaiMsgTransCustomerProfileId" type="text" autocomplete="off" placeholder="profile::…" />
+          <button type="button" class="lhai-button lhai-button--secondary" id="lhaiMsgTransLoadThread" data-i18n="localization.message_review.load_thread_messages" data-i18n-default="Load thread messages">Load thread messages</button>
+        </section>
+      </div>
+
+      <section class="lhai-card admin-msg-trans__thread-list u-mt-3" id="lhaiMsgTransThreadPanel" hidden>
+        <h2 class="lhai-card__title" data-i18n="localization.message_review.thread_messages_title" data-i18n-default="Messages in thread">Messages in thread</h2>
+        <div id="lhaiMsgTransThreadList" class="admin-msg-trans__thread-list-body"></div>
+      </section>
+
+      <section class="lhai-card admin-msg-trans__review u-mt-3" id="lhaiMsgTransReviewPanel" hidden>
+        <h2 class="lhai-card__title" data-i18n="localization.message_review.review_title" data-i18n-default="Translation review">Translation review</h2>
+        <p class="admin-msg-trans__meta u-mb-2" id="lhaiMsgTransReviewMeta"></p>
+
+        <div class="admin-msg-trans__field-row">
+          <label class="lhai-label" for="lhaiMsgTransTargetLocale" data-i18n="localization.message_review.target_locale_label" data-i18n-default="Target locale">Target locale</label>
+          <select class="lhai-select" id="lhaiMsgTransTargetLocale"></select>
+        </div>
+
+        <dl class="admin-msg-trans__meta-grid">
+          <div>
+            <dt data-i18n="localization.message_review.source_locale_label" data-i18n-default="Source locale">Source locale</dt>
+            <dd id="lhaiMsgTransSourceLocale">—</dd>
+          </div>
+          <div>
+            <dt data-i18n="localization.message_review.status_label" data-i18n-default="Status">Status</dt>
+            <dd id="lhaiMsgTransStatusValue">—</dd>
+          </div>
+          <div>
+            <dt data-i18n="localization.message_review.provider_label" data-i18n-default="Provider">Provider</dt>
+            <dd id="lhaiMsgTransProvider">—</dd>
+          </div>
+          <div>
+            <dt data-i18n="localization.message_review.translation_source_label" data-i18n-default="Translation source">Translation source</dt>
+            <dd id="lhaiMsgTransTranslationSource">—</dd>
+          </div>
+        </dl>
+
+        <details class="admin-msg-trans__debug" id="lhaiMsgTransDebugPanel" hidden>
+          <summary data-i18n="localization.message_review.debug_title" data-i18n-default="Translation debug">Translation debug</summary>
+          <dl class="admin-msg-trans__debug-grid" id="lhaiMsgTransDebugGrid"></dl>
+        </details>
+
+        <div class="admin-msg-trans__preview-block">
+          <div class="admin-msg-trans__preview-header">
+            <span class="admin-msg-trans__label" id="lhaiMsgTransPreviewLabel" data-i18n="localization.message_review.display_translation_label" data-i18n-default="Current display translation">Current display translation</span>
+            <button type="button" class="lhai-button lhai-button--ghost lhai-button--sm" id="lhaiMsgTransViewToggle" data-i18n="localization.message_review.view_original" data-i18n-default="View original">View original</button>
+          </div>
+          <pre class="admin-msg-trans__pre" id="lhaiMsgTransPreviewBody"></pre>
+        </div>
+
+        <label class="lhai-label" for="lhaiMsgTransEditValue" data-i18n="localization.message_review.edit_label" data-i18n-default="Edit translation">Edit translation</label>
+        <textarea class="lhai-input admin-msg-trans__edit" id="lhaiMsgTransEditValue" rows="6" data-i18n-placeholder="localization.message_review.edit_placeholder" data-i18n-default="Corrected translation for the target locale" placeholder="Corrected translation for the target locale"></textarea>
+
+        <label class="lhai-label" for="lhaiMsgTransReason" data-i18n="localization.message_review.reason_label" data-i18n-default="Reason (required for save)">Reason (required for save)</label>
+        <input class="lhai-input u-mb-2" id="lhaiMsgTransReason" type="text" data-i18n-placeholder="localization.message_review.reason_placeholder" data-i18n-default="Why this correction is needed" placeholder="Why this correction is needed" />
+
+        <p class="lhai-help u-mb-2" data-i18n="localization.message_review.scope_note" data-i18n-default="Default scope: message_only (this message only).">Default scope: message_only (this message only).</p>
+
+        <label class="admin-msg-trans__checkbox">
+          <input type="checkbox" id="lhaiMsgTransRetryForce" />
+          <span data-i18n="localization.message_review.retry_force_label" data-i18n-default="Force retry (overwrite admin edits)">Force retry (overwrite admin edits)</span>
+        </label>
+
+        <div class="admin-msg-trans__actions">
+          <button type="button" class="lhai-button lhai-button--primary" id="lhaiMsgTransSaveEdit" data-i18n="localization.message_review.save_edit" data-i18n-default="Save edit">Save edit</button>
+          <button type="button" class="lhai-button lhai-button--secondary" id="lhaiMsgTransApprove" data-i18n="localization.message_review.approve" data-i18n-default="Approve">Approve</button>
+          <button type="button" class="lhai-button lhai-button--secondary" id="lhaiMsgTransRetry" data-i18n="localization.message_review.retry" data-i18n-default="Retry translation">Retry translation</button>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="../assets/js/core/app-header.js"></script>
+  <script type="module" src="../assets/js/core/logout-button.js"></script>
+  <script type="module" src="../assets/js/core/admin-user-menu.js"></script>
+  <script type="module" src="../assets/js/pages/admin-message-translations.js"></script>
+</body>
+</html>

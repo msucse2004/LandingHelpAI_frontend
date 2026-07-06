@@ -187,8 +187,10 @@ export function resolveMessageCreatedToastCopy(ctx) {
   const kind = String(ctx.messageType ?? normalizeRealtimeMessageType(payload, data)).trim().toUpperCase();
   const href = buildMessagesThreadHref(ctx.threadId);
 
+  // Step 13: static title/subtitle via StringKey (t()); dynamic line from SSE preview (UGC).
+  // TODO(step-13+): prefer payload.display_preview when backend fans out per-recipient locale.
   const preview = safeToastPreviewLine(
-    payload.preview ?? data.preview ?? payload.title ?? "",
+    payload.display_preview ?? payload.preview ?? data.preview ?? data.display_preview ?? payload.title ?? "",
   );
 
   const eventOverrides = resolveRealtimeEventCodeToastOverrides(ctx.role);

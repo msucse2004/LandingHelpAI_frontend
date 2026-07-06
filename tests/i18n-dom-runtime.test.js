@@ -23,6 +23,7 @@ test("app and public page boots install runtime i18n DOM listener", () => {
   const appBoot = read("src/assets/js/core/app-page-i18n-boot.js");
   const publicBoot = read("src/assets/js/core/public-page-language-boot.js");
   assert.match(appBoot, /ensureRuntimeI18nDomListener\(\)/);
+  assert.match(appBoot, /hydrateAuthenticatedLanguagePreference/);
   assert.match(publicBoot, /ensureRuntimeI18nDomListener\(\)/);
 });
 

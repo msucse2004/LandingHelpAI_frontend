@@ -652,12 +652,65 @@ function collectFailedItemRecords(summary) {
         const key = String(item.key || item.id || "").trim();
         const language_code = String(item.language_code || item.lang || "").trim();
         const reason = String(item.reason || item.error || item.message || "").trim();
+        const failure_kind = String(item.failure_kind || "").trim() || inferAutoTranslateFailureKind(reason);
         if (!key || !language_code) return null;
-        return { key, language_code, reason };
+        return { key, language_code, reason, failure_kind };
       }
       return null;
     })
     .filter(Boolean);
+}
+
+function inferAutoTranslateFailureKind(reason) {
+  return String(reason || "").toLowerCase().startsWith("save failed") ? "save" : "translation";
+}
+
+function isSaveFailedRecord(record) {
+  return String(record?.failure_kind || "").trim() === "save";
+}
+
+function saveFailureDetail(record) {
+  return String(record?.reason || "")
+    .replace(/^save failed:\s*/i, "")
+    .trim();
+}
+
+/**
+ * @param {AutoTranslateFailedRecord[]} records
+ */
+function partitionFailedRecords(records) {
+  const saveFailed = [];
+  const translationFailed = [];
+  for (const record of records || []) {
+    if (isSaveFailedRecord(record)) {
+      saveFailed.push(record);
+    } else {
+      translationFailed.push(record);
+    }
+  }
+  return { saveFailed, translationFailed };
+}
+
+/**
+ * @param {AutoTranslateFailedRecord} record
+ * @returns {string}
+ */
+function formatSaveFailedSummary(record) {
+  const detail = saveFailureDetail(record);
+  return localizedStatus(
+    "localization.messages.auto_translate_save_failed_item",
+    "{key} [{language}]: Translation completed but database save failed ({detail}).",
+    {
+      key: record.key,
+      language: record.language_code,
+      detail:
+        detail ||
+        localizedStatus(
+          "localization.messages.auto_translate_save_failed_unknown",
+          "unknown error"
+        ),
+    }
+  );
 }
 
 /**
@@ -665,6 +718,9 @@ function collectFailedItemRecords(summary) {
  * @returns {string}
  */
 function formatAutoTranslateFailedSummary(record) {
+  if (isSaveFailedRecord(record)) {
+    return formatSaveFailedSummary(record);
+  }
   return localizedStatus(
     "localization.messages.auto_translate_failed_summary",
     "{key} [{language}]: {reason}",
@@ -689,15 +745,41 @@ function collectFailedItemsFromSummary(summary) {
 function showAutoTranslateResult({
   totalTranslated,
   totalFailed,
+  totalSaveFailed = 0,
   totalSkipped,
   failedItemRecords,
   silentIfEmpty,
 }) {
-  const samples = (failedItemRecords || [])
+  const { saveFailed, translationFailed } = partitionFailedRecords(failedItemRecords);
+  const saveFailureCount = Math.max(
+    Number(totalSaveFailed || 0),
+    saveFailed.length
+  );
+  const saveSamples = saveFailed
+    .slice(0, AUTO_TRANSLATE_MAX_FAILURE_SAMPLES)
+    .map(formatSaveFailedSummary)
+    .filter(Boolean);
+  const translationSamples = translationFailed
     .slice(0, AUTO_TRANSLATE_MAX_FAILURE_SAMPLES)
     .map(formatAutoTranslateFailedSummary)
     .filter(Boolean);
-  const sampleText = samples.length ? ` ${samples.join(" | ")}` : "";
+  const sampleParts = [];
+  if (saveFailureCount > 0) {
+    sampleParts.push(
+      localizedStatus(
+        "localization.messages.auto_translate_save_failed_headline",
+        "{count} translation(s) succeeded but could not be saved to the database.",
+        { count: saveFailureCount.toLocaleString() }
+      )
+    );
+    if (saveSamples.length) {
+      sampleParts.push(saveSamples.join(" | "));
+    }
+  }
+  if (translationSamples.length) {
+    sampleParts.push(translationSamples.join(" | "));
+  }
+  const sampleText = sampleParts.length ? ` ${sampleParts.join(" | ")}` : "";
 
   if (totalTranslated === 0 && totalFailed === 0 && totalSkipped === 0 && silentIfEmpty) {
     return;
@@ -712,7 +794,7 @@ function showAutoTranslateResult({
     }
   );
 
-  if (totalFailed > 0 || samples.length) {
+  if (totalFailed > 0 || saveFailureCount > 0 || sampleParts.length) {
     setPageAlert(`${summaryLine}${sampleText}`, { error: true });
   } else if (totalTranslated > 0) {
     setPageAlert(summaryLine, { error: false });
@@ -721,18 +803,22 @@ function showAutoTranslateResult({
   }
 }
 
-function resolveAutoTranslateTargetLanguage() {
+function resolveAutoTranslateTargetLanguages() {
   const selected = String(missingFilterLanguage?.value || "").trim();
-  if (!selected) {
-    return { ok: false, reason: "missing" };
-  }
   if (selected === "en") {
     return { ok: false, reason: "english_source" };
+  }
+  if (!selected) {
+    return {
+      ok: true,
+      languages: [...AUTO_TRANSLATE_TARGET_LANGUAGES],
+      allLanguages: true,
+    };
   }
   if (!AUTO_TRANSLATE_TARGET_LANGUAGES.includes(selected)) {
     return { ok: false, reason: "unsupported" };
   }
-  return { ok: true, language: selected };
+  return { ok: true, languages: [selected], allLanguages: false };
 }
 
 function showAutoTranslateTargetLanguageError(reason) {
@@ -747,8 +833,8 @@ function showAutoTranslateTargetLanguageError(reason) {
     return;
   }
   setLocalizedPageAlert(
-    "localization.messages.select_target_language_before_auto_translate",
-    "Please select one target language before auto-translating.",
+    "localization.messages.auto_translate_unsupported_target_language",
+    "Select All (any missing) or one of es, ko, zh-Hans, zh-Hant, or ja.",
     { error: true }
   );
 }
@@ -760,9 +846,9 @@ function setMissingAutoTranslateBtnDisabled(disabled) {
 }
 
 async function onMissingAutoTranslateClick() {
-  const target = resolveAutoTranslateTargetLanguage();
-  if (!target.ok) {
-    showAutoTranslateTargetLanguageError(target.reason);
+  const targets = resolveAutoTranslateTargetLanguages();
+  if (!targets.ok) {
+    showAutoTranslateTargetLanguageError(targets.reason);
     return;
   }
 
@@ -781,52 +867,55 @@ async function onMissingAutoTranslateClick() {
   }
 }
 
-async function runAutoTranslateMissingChained({
+/**
+ * Run batched auto-translate for one target locale.
+ * @returns {Promise<{ translated: number; failed: number; skipped: number; errors: string[]; failedItems: AutoTranslateFailedRecord[]; aborted: boolean }>}
+ */
+async function runAutoTranslateMissingForSingleLanguage({
   runId,
-  silentIfEmpty = false,
+  language,
+  domain,
   batchLimit = MISSING_AUTO_TRANSLATE_BATCH_LIMIT,
   maxBatches = MISSING_AUTO_TRANSLATE_MAX_BATCHES,
+  languageIndex = 1,
+  languageTotal = 1,
 } = {}) {
-  const activeRunId = runId ?? ++missingAutoTranslateRunId;
-  const domain = String(missingFilterDomain?.value || "").trim() || undefined;
-  const target = resolveAutoTranslateTargetLanguage();
-  if (!target.ok) {
-    showAutoTranslateTargetLanguageError(target.reason);
-    if (missingLoadStatus) missingLoadStatus.textContent = "";
-    return { translated: 0, failed: 0, skipped: 0, errors: [], failedItems: [] };
-  }
-  const targetLanguageCodes = [target.language];
-
+  const targetLanguageCodes = [language];
   let totalTranslated = 0;
   let totalFailed = 0;
+  let totalSaveFailed = 0;
   let remainingSkipped = 0;
   const errorMessages = [];
   const failedItemRecords = [];
   const failedItemIds = new Set();
 
-  setLocalizedText(
-    missingLoadStatus,
-    "localization.messages.auto_translate_started",
-    "Auto translation started..."
-  );
-  setPageAlert("");
-
   for (let batch = 0; batch < maxBatches; batch += 1) {
-    if (!isMissingAutoTranslateRunActive(activeRunId)) {
+    if (!isMissingAutoTranslateRunActive(runId)) {
       return {
         translated: totalTranslated,
         failed: totalFailed,
+        saveFailed: totalSaveFailed,
         skipped: remainingSkipped,
         errors: errorMessages,
         failedItems: failedItemRecords,
+        aborted: true,
       };
     }
 
     setLocalizedText(
       missingLoadStatus,
-      "localization.messages.auto_translate_batch",
-      "Auto translating batch {batch}...",
-      { batch: batch + 1 }
+      languageTotal > 1
+        ? "localization.messages.auto_translate_language_batch"
+        : "localization.messages.auto_translate_batch",
+      languageTotal > 1
+        ? "Translating {language} ({language_index}/{language_total}), batch {batch}..."
+        : "Auto translating batch {batch}...",
+      {
+        language,
+        language_index: languageIndex,
+        language_total: languageTotal,
+        batch: batch + 1,
+      }
     );
 
     let summary;
@@ -853,15 +942,18 @@ async function runAutoTranslateMissingChained({
       return {
         translated: totalTranslated,
         failed: totalFailed,
+        saveFailed: totalSaveFailed,
         skipped: remainingSkipped,
         errors: errorMessages,
         failedItems: failedItemRecords,
+        aborted: true,
       };
     }
 
     const requested = Number(summary?.requested ?? 0);
     const translated = Number(summary?.translated ?? 0);
     const failed = Number(summary?.failed ?? 0);
+    const saveFailed = Number(summary?.save_failed ?? 0);
     const skipped = Number(summary?.skipped ?? 0);
     const batchFailedRecords = collectFailedItemRecords(summary);
     const batchFailedItems = batchFailedRecords.map(formatAutoTranslateFailedSummary);
@@ -869,6 +961,7 @@ async function runAutoTranslateMissingChained({
 
     totalTranslated += translated;
     totalFailed += failed;
+    totalSaveFailed += saveFailed;
     remainingSkipped = skipped;
     errorMessages.push(...batchFailedItems);
     failedItemRecords.push(...batchFailedRecords);
@@ -882,7 +975,7 @@ async function runAutoTranslateMissingChained({
       failedItemIds.add(itemId);
     }
 
-    if (translated > 0 && isMissingAutoTranslateRunActive(activeRunId)) {
+    if (translated > 0 && isMissingAutoTranslateRunActive(runId)) {
       await loadMissingTable();
     }
 
@@ -903,10 +996,104 @@ async function runAutoTranslateMissingChained({
     }
   }
 
+  return {
+    translated: totalTranslated,
+    failed: totalFailed,
+    saveFailed: totalSaveFailed,
+    skipped: remainingSkipped,
+    errors: errorMessages,
+    failedItems: failedItemRecords,
+    aborted: false,
+  };
+}
+
+async function runAutoTranslateMissingChained({
+  runId,
+  silentIfEmpty = false,
+  batchLimit = MISSING_AUTO_TRANSLATE_BATCH_LIMIT,
+  maxBatches = MISSING_AUTO_TRANSLATE_MAX_BATCHES,
+} = {}) {
+  const activeRunId = runId ?? ++missingAutoTranslateRunId;
+  const domain = String(missingFilterDomain?.value || "").trim() || undefined;
+  const targets = resolveAutoTranslateTargetLanguages();
+  if (!targets.ok) {
+    showAutoTranslateTargetLanguageError(targets.reason);
+    if (missingLoadStatus) missingLoadStatus.textContent = "";
+    return { translated: 0, failed: 0, saveFailed: 0, skipped: 0, errors: [], failedItems: [] };
+  }
+
+  const languages = targets.languages;
+  let totalTranslated = 0;
+  let totalFailed = 0;
+  let totalSaveFailed = 0;
+  let remainingSkipped = 0;
+  const errorMessages = [];
+  const failedItemRecords = [];
+
+  setLocalizedText(
+    missingLoadStatus,
+    targets.allLanguages
+      ? "localization.messages.auto_translate_all_languages_started"
+      : "localization.messages.auto_translate_started",
+    targets.allLanguages
+      ? "Filling missing translations for es, ko, zh-Hans, zh-Hant, and ja..."
+      : "Auto translation started..."
+  );
+  setPageAlert("");
+
+  for (let languageIndex = 0; languageIndex < languages.length; languageIndex += 1) {
+    const language = languages[languageIndex];
+    if (!isMissingAutoTranslateRunActive(activeRunId)) {
+      break;
+    }
+
+    if (targets.allLanguages && languages.length > 1) {
+      setLocalizedText(
+        missingLoadStatus,
+        "localization.messages.auto_translate_language_progress",
+        "Translating {language} ({language_index}/{language_total})...",
+        {
+          language,
+          language_index: languageIndex + 1,
+          language_total: languages.length,
+        }
+      );
+    }
+
+    const langResult = await runAutoTranslateMissingForSingleLanguage({
+      runId: activeRunId,
+      language,
+      domain,
+      batchLimit,
+      maxBatches,
+      languageIndex: languageIndex + 1,
+      languageTotal: languages.length,
+    });
+
+    totalTranslated += langResult.translated;
+    totalFailed += langResult.failed;
+    totalSaveFailed += Number(langResult.saveFailed || 0);
+    remainingSkipped = langResult.skipped;
+    errorMessages.push(...langResult.errors);
+    failedItemRecords.push(...langResult.failedItems);
+
+    if (langResult.aborted) {
+      return {
+        translated: totalTranslated,
+        failed: totalFailed,
+        saveFailed: totalSaveFailed,
+        skipped: remainingSkipped,
+        errors: errorMessages,
+        failedItems: failedItemRecords,
+      };
+    }
+  }
+
   if (!isMissingAutoTranslateRunActive(activeRunId)) {
     return {
       translated: totalTranslated,
       failed: totalFailed,
+      saveFailed: totalSaveFailed,
       skipped: remainingSkipped,
       errors: errorMessages,
       failedItems: failedItemRecords,
@@ -916,6 +1103,7 @@ async function runAutoTranslateMissingChained({
   showAutoTranslateResult({
     totalTranslated,
     totalFailed,
+    totalSaveFailed,
     totalSkipped: remainingSkipped,
     failedItemRecords,
     silentIfEmpty,
@@ -931,6 +1119,7 @@ async function runAutoTranslateMissingChained({
   return {
     translated: totalTranslated,
     failed: totalFailed,
+    saveFailed: totalSaveFailed,
     skipped: remainingSkipped,
     errors: errorMessages,
     failedItems: failedItemRecords,
