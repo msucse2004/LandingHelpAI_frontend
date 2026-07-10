@@ -18,6 +18,7 @@ import {
   workflowTabActivated,
 } from "./admin-service-workflow-tab.js";
 import { t } from "../core/i18n-client.js";
+import { alertApiOrFallback, alertI18n, alertPlain, confirmI18n } from "../core/app-dialog.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
 import { qs, qsa, resolveBackendMediaUrl, safeText } from "../core/utils.js";
 
@@ -411,7 +412,7 @@ function msiEnsureBodyQuill() {
   host.hidden = false;
   msiBodyQuill = new Q(host, {
     theme: "snow",
-    placeholder: t("common.admin_services.intake.side_body_placeholder", "본문을 입력하세요…"),
+    placeholder: t("common.admin_services.intake.side_body_placeholder", "Enter body text…"),
     modules: {
       toolbar: [
         ["bold", "italic", "underline", "strike"],
@@ -443,7 +444,7 @@ async function msiQuillInsertImageFromUpload(quill) {
       if (!file) return;
       const statusEl = qs("#manageServiceIntakeStatus");
       try {
-        if (statusEl) statusEl.textContent = t("common.admin_services.intake.side_media_uploading", "업로드 중…");
+        if (statusEl) statusEl.textContent = t("common.admin_services.intake.side_media_uploading", "Uploading…");
         const res = await serviceIntakeAdminApi.uploadIntakeContentImage(file);
         const u = res && typeof res.media_url === "string" ? resolveBackendMediaUrl(res.media_url.trim()) : "";
         if (!u) throw new Error("Invalid upload response");
@@ -460,7 +461,7 @@ async function msiQuillInsertImageFromUpload(quill) {
       } catch (err) {
         const msg = err && typeof err.message === "string" ? err.message : String(err);
         if (statusEl) statusEl.textContent = msg;
-        window.alert(msg);
+        alertPlain(msg);
       }
     })();
   };
@@ -544,7 +545,7 @@ function msiQgChildHelpFieldHtml(helpText) {
               <p class="lhai-help u-mt-2">${esc(
                 t(
                   "common.admin_services.intake.qgroup_child_help_desc",
-                  "도움말 항목: 고객 화면에서 입력 칸 아래에 보이는 짧은 안내 문구입니다. 드롭다운 선택지는 Field type을 Select로 선택한 뒤 아래 Options에 한 줄에 하나씩 입력하세요."
+                  "Help text appears below the input on the customer screen. For dropdown choices, set Field type to Select, then enter one option per line under Options."
                 )
               )}</p>
               <textarea class="lhai-textarea msi-qg-child-help" rows="2" maxlength="2000">${esc(ht)}</textarea>`;
@@ -683,11 +684,9 @@ async function msiApplyPhoneStylePreset() {
   if (!serviceItemId) return;
   const existing = msiSortedBlocks();
   if (existing.length > 0) {
-    const ok = window.confirm(
-      t(
-        "common.admin_services.intake.preset_phone_confirm_append",
-        "Append the Phone-style starter blocks to the end of this list? Existing blocks stay in place."
-      )
+    const ok = confirmI18n(
+      "common.admin_services.intake.preset_phone_confirm_append",
+      "Append the Phone-style starter blocks to the end of this list? Existing blocks stay in place.",
     );
     if (!ok) return;
   }
@@ -861,7 +860,7 @@ async function msiApplyPhoneStylePreset() {
   } catch (err) {
     const msg = err && typeof err.message === "string" ? err.message : String(err);
     if (statusEl) statusEl.textContent = msg;
-    window.alert(msg || t("common.admin_services.intake.preset_error", "Could not add starter blocks."));
+    alertApiOrFallback(err, "common.admin_services.intake.preset_error", "Could not add starter blocks.");
   } finally {
     if (btn instanceof HTMLButtonElement) {
       btn.disabled = false;
@@ -1162,7 +1161,7 @@ function msiQgBiddingGroupSettingsHtml(payload) {
         <p class="lhai-help u-mt-1">${esc(
           t(
             "common.admin_services.intake.qgroup_vehicle_index_vp_help",
-            "Number of vehicle preference slots (1–9). The first question in each slot is labeled 첫번째 선호 차량, 두번째 선호차량, …"
+            "Number of vehicle preference slots (1–9). The first question in each slot is labeled first preferred vehicle, second preferred vehicle, and so on."
           )
         )}</p>
         <input class="lhai-input" id="msiQgVehicleIndex" type="number" min="1" max="9" step="1" value="${esc(String(vIdx))}" />
@@ -1806,7 +1805,7 @@ async function msiDuplicateContentBlock(blockId) {
   } catch (err) {
     const msg = err && typeof err.message === "string" ? err.message : String(err);
     if (statusEl) statusEl.textContent = msg;
-    window.alert(msg);
+    alertPlain(msg);
   }
 }
 
@@ -2485,7 +2484,7 @@ async function msiSaveSideEditor() {
   try {
     visibility_rule_json = msiSideResolveVisibilityForSave();
   } catch (e) {
-    window.alert(e && typeof e.message === "string" ? e.message : String(e));
+    alertPlain(e && typeof e.message === "string" ? e.message : String(e));
     return;
   }
   const bt = String(block.block_type);
@@ -2495,7 +2494,7 @@ async function msiSaveSideEditor() {
     try {
       pl = msiReadQuestionGroupPayloadFromSideDom();
     } catch (e) {
-      window.alert(e && typeof e.message === "string" ? e.message : String(e));
+      alertPlain(e && typeof e.message === "string" ? e.message : String(e));
       return;
     }
     if (msiQgIsBiddingGroup(pl)) {
@@ -2517,27 +2516,23 @@ async function msiSaveSideEditor() {
       if (saveSession !== msiSideEditorSession) return;
       const msg = err && typeof err.message === "string" ? err.message : String(err);
       if (statusEl) statusEl.textContent = msg;
-      window.alert(msg);
+      alertPlain(msg);
     }
     return;
   }
   const assetRaw = qs("#manageServiceIntakeSideAssetId")?.value?.trim() || "";
   if (assetRaw && !MSI_MEDIA_ASSET_ID_RE.test(assetRaw)) {
-    window.alert(
-      t(
-        "common.admin_services.intake.invalid_asset_id",
-        "Media asset ID may only use letters, numbers, and ._:@/- (max 128 characters)."
-      )
+    alertI18n(
+      "common.admin_services.intake.invalid_asset_id",
+      "Media asset ID may only use letters, numbers, and ._:@/- (max 128 characters).",
     );
     return;
   }
   const bodyStr = msiGetSideBodyEditorHtml();
   if (bodyStr.length > MSI_BODY_MAX_LEN) {
-    window.alert(
-      t(
-        "common.admin_services.intake.body_too_long",
-        "Body / message must be at most 8000 characters (including HTML)."
-      )
+    alertI18n(
+      "common.admin_services.intake.body_too_long",
+      "Body / message must be at most 8000 characters (including HTML).",
     );
     return;
   }
@@ -2574,7 +2569,7 @@ async function msiSaveSideEditor() {
     if (saveSession !== msiSideEditorSession) return;
     const msg = err && typeof err.message === "string" ? err.message : String(err);
     if (statusEl) statusEl.textContent = msg;
-    window.alert(msg);
+    alertPlain(msg);
   }
 }
 
@@ -2635,7 +2630,7 @@ async function msiAddContentBlock(blockType, options = {}) {
   } catch (err) {
     const msg = err && typeof err.message === "string" ? err.message : String(err);
     if (statusEl) statusEl.textContent = msg;
-    window.alert(msg);
+    alertPlain(msg);
   }
 }
 
@@ -3140,7 +3135,7 @@ async function msiSaveDialogField() {
     );
     const statusEl = qs("#manageServiceIntakeStatus");
     if (statusEl) statusEl.textContent = msg;
-    window.alert(msg);
+    alertPlain(msg);
     return;
   }
   const label = qs("#manageServiceIntakeFieldLabel")?.value?.trim() || "";
@@ -3148,7 +3143,7 @@ async function msiSaveDialogField() {
     const msg = t("common.admin_services.intake.need_label", "Label shown to customer is required.");
     const statusEl = qs("#manageServiceIntakeStatus");
     if (statusEl) statusEl.textContent = msg;
-    window.alert(msg);
+    alertPlain(msg);
     return;
   }
 
@@ -3157,7 +3152,7 @@ async function msiSaveDialogField() {
     visibility_rule_json = msiResolveVisibilityRuleForSave();
   } catch (e) {
     const msg = e && typeof e.message === "string" ? e.message : String(e);
-    window.alert(msg);
+    alertPlain(msg);
     return;
   }
   const maskUntilEl = qs("#manageServiceIntakeFieldMaskUntilAssigned");
@@ -3243,7 +3238,7 @@ async function msiSaveDialogField() {
   } catch (err) {
     const msg = err && typeof err.message === "string" ? err.message : String(err);
     if (statusEl) statusEl.textContent = msg;
-    window.alert(msg || t("common.admin_services.intake.save_error", "Could not save this field."));
+    alertApiOrFallback(err, "common.admin_services.intake.save_error", "Could not save this field.");
   } finally {
     if (saveBtn instanceof HTMLButtonElement) {
       saveBtn.disabled = false;
@@ -3354,7 +3349,7 @@ async function msiConvertLegacyQuestionToGroup(blockId) {
   } catch (err) {
     const msg = err && typeof err.message === "string" ? err.message : String(err);
     if (statusEl) statusEl.textContent = msg;
-    window.alert(msg);
+    alertPlain(msg);
   }
 }
 
@@ -3497,7 +3492,7 @@ export function initManageServiceIntakeTab() {
             "common.admin_services.intake.remove_use_archive",
             "This field cannot be removed while customer answers exist. Use Archive instead."
           );
-          window.alert(msg.toLowerCase().includes("answer") || msg.includes("답") ? hint : msg || hint);
+          alertPlain(msg.toLowerCase().includes("answer") || msg.includes("답") ? hint : msg || hint);
         }
       }
       return;
@@ -3531,7 +3526,7 @@ export function initManageServiceIntakeTab() {
         msiCloseSidePanel();
         await msiRefresh();
       } catch (err) {
-        window.alert(err?.message || "");
+        alertPlain(err?.message || "");
       }
     }
   });
@@ -3634,7 +3629,7 @@ export function initManageServiceIntakeTab() {
           statusEl.hidden = false;
           statusEl.textContent = t(
             "common.admin_services.intake.side_media_uploading",
-            "업로드 중…"
+            "Uploading…"
           );
         }
         const res = await serviceIntakeAdminApi.uploadIntakeContentImage(file);
@@ -3644,18 +3639,18 @@ export function initManageServiceIntakeTab() {
         if (statusEl) {
           statusEl.textContent = t(
             "common.admin_services.intake.side_media_upload_ok",
-            "업로드되었습니다. 아래 저장을 눌러 블록에 반영하세요."
+            "Uploaded. Click Save below to apply this URL to the block."
           );
         }
       } catch (err) {
         const msg = err && typeof err.message === "string" ? err.message : String(err);
-        const prefix = t("common.admin_services.intake.side_media_upload_err_prefix", "업로드 실패");
+        const prefix = t("common.admin_services.intake.side_media_upload_err_prefix", "Upload failed");
         const full = `${prefix}: ${msg}`;
         if (statusEl) {
           statusEl.hidden = false;
           statusEl.textContent = full;
         }
-        window.alert(full);
+        alertPlain(full);
       }
     })();
   });

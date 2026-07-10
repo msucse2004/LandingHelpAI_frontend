@@ -208,14 +208,16 @@ export function buildCustomerPreviewStateFromEditor(input) {
   const adminFee = resolveAdminFeeForEditor(input?.adminFee, unitPriceMap);
   const noteRaw = String(input?.customerNote || "").trim();
   const name = customerDisplayNameFromQuote(quote);
-  const subtitle = name ? `${name}님을 위한 Landing Help AI 견적서` : "고객님을 위한 Landing Help AI 견적서";
+  const subtitle = name
+    ? `${name} Landing Help AI quote`
+    : "Landing Help AI quote";
   const items = selectedServices
     .filter((s) => s && typeof s === "object")
     .map((s) => {
       const sid = String(s.id || "").trim();
       const amount = Number(unitPriceMap[sid] ?? 0);
       return {
-        title: String(s.title || s.id || "서비스").trim(),
+        title: String(s.title || s.id || "Service").trim(),
         priceText: formatMoney(Math.round(amount * 100) / 100, "USD"),
       };
     });

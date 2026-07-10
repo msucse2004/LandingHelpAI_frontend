@@ -1,5 +1,7 @@
 import { surveyCustomerApi } from "../core/api.js";
 import { t } from "../core/i18n-client.js";
+import { catalogDisplayText } from "./catalog-display-logic.js";
+import { getEffectiveLanguage } from "../core/preferred-language.js";
 import { qs, safeText } from "../core/utils.js";
 import { isCatalogRecServiceItemUuidString } from "../lib/catalog-rec-service-item-id.js";
 
@@ -13,6 +15,17 @@ function setStatus(message) {
   if (el) el.textContent = message || "";
 }
 
+function catalogItemName(it) {
+  const name = catalogDisplayText(it, "name", t, { kind: "title" });
+  return name || "-";
+}
+
+function catalogItemNameOrCode(it) {
+  const name = catalogDisplayText(it, "name", t, { kind: "title" });
+  if (name) return name;
+  return String(it?.code || "-");
+}
+
 function renderItems(list) {
   if (!list || !list.length) {
     return `<div class="lhai-help">${safeText(t("common.survey_recommendations.empty_extra_items", "No extra items for your answers."))}</div>`;
@@ -22,7 +35,7 @@ function renderItems(list) {
       const exp = it.explanation ? `<div class="lhai-help">${safeText(it.explanation)}</div>` : "";
       return `
         <div class="survey-recommendations__item">
-          <div class="survey-recommendations__item-name">${safeText(it.name || "-")}</div>
+          <div class="survey-recommendations__item-name">${safeText(catalogItemName(it))}</div>
           ${exp}
         </div>
       `;
@@ -122,7 +135,7 @@ function renderPackages(rec) {
         : `<p class="lhai-help" role="alert">${safeText(
             t(
               "common.survey_recommendations.mapping_repair_package",
-              "이 패키지는 카탈로그 UUID로 연결되지 않아 견적 요청에 포함할 수 없습니다. 관리자에게 서비스 매핑 복구를 요청하세요."
+              "This package is not linked to a catalog UUID and cannot be included in a quote request. Ask an admin to repair the service mapping."
             )
           )}</p>`;
 
@@ -135,7 +148,7 @@ function renderPackages(rec) {
             : `<p class="lhai-help u-mt-1" role="alert">${safeText(
                 t(
                   "common.survey_recommendations.mapping_repair_addon",
-                  "이 추가 항목은 카탈로그 UUID가 아니어서 선택·전송되지 않습니다."
+                  "This add-on is not a catalog UUID and cannot be selected or sent."
                 )
               )}</p>`;
           return `
@@ -146,7 +159,7 @@ function renderPackages(rec) {
                     addonOk ? "checked" : ""
                   } ${addonOk ? "" : "disabled"} />
                   <div>
-                    <div class="survey-recommendations__item-name" style="font-weight:900; margin-bottom:2px;">${safeText(a.name || "-")}</div>
+                    <div class="survey-recommendations__item-name" style="font-weight:900; margin-bottom:2px;">${safeText(catalogItemName(a))}</div>
                     ${exp}
                     ${addonWarn}
                   </div>
@@ -163,7 +176,7 @@ function renderPackages(rec) {
             <input type="checkbox" class="survey-recommendations__package-checkbox survey-recommendations__select-checkbox" data-package-id="${safeText(p.id)}" ${
               pkgOk ? "checked" : ""
             } ${pkgOk ? "" : "disabled"} />
-            <div class="survey-recommendations__package-title">${safeText(p.name || p.code || "-")}</div>
+            <div class="survey-recommendations__package-title">${safeText(catalogItemNameOrCode(p))}</div>
           </div>
           ${pkgMappingWarn}
           ${pkgExp}
@@ -263,7 +276,7 @@ async function init() {
       setStatus(
         t(
           "common.survey_recommendations.pick_valid_catalog_uuid",
-          "카탈로그 UUID가 있는 패키지를 하나 이상 선택하세요. 연결이 안 된 항목은 관리자에게 서비스 매핑 복구를 요청하세요."
+          "Select at least one package with a catalog UUID. Ask an admin to repair mappings for unlinked items."
         )
       );
       return;
@@ -277,10 +290,10 @@ async function init() {
     const target_end_date = qs("#quoteScheduleEnd")?.value || "";
     const entry_date = qs("#quoteScheduleEntryDate")?.value || "";
     const country = qs("#quoteCountry")?.value?.trim() || "";
-    const preferred_language = qs("#quotePreferredLanguage")?.value || "ko";
+    const preferred_language = getEffectiveLanguage() || "en";
     const customer_notes = qs("#quoteCustomerNotes")?.value?.trim() || "";
 
-    if (!full_name || !email || !target_start_date || !country || !preferred_language) {
+    if (!full_name || !email || !target_start_date || !country) {
       if (statusEl) statusEl.textContent = t("common.survey_recommendations.form_required", "Please fill all required fields.");
       return;
     }

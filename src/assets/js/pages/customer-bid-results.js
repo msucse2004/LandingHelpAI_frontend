@@ -2,9 +2,13 @@
  * 고객 견적 제안 비교 — PRODUCT_OFFER 카드 리스트.
  */
 import { customerBidsApi } from "../core/api.js";
+import { alertI18n, alertPlain } from "../core/app-dialog.js";
+import { t } from "../core/i18n-client.js";
 import { resolveBackendMediaUrl } from "../core/utils.js";
 import { ensureCustomerAccess } from "../core/guards.js";
 import { loadSidebar } from "../components/sidebar.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
+import { applyI18nToDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
 import { subscribeRealtimeEvents } from "../core/realtime-client.js";
 import {
   bidUpdatedMatchesScope,
@@ -751,9 +755,16 @@ async function confirmNewRound() {
     lastCardsRenderKey = null;
     await reloadList({ silent: true });
     window.dispatchEvent(new CustomEvent("lhai:customer-bid-updated"));
-    window.alert("새 비딩 라운드가 시작되었습니다. 파트너의 새 제안을 기다려 주세요.");
+    alertI18n(
+      "common.dialog.bid.new_round_started",
+      "A new bidding round has started. Please wait for new partner proposals.",
+    );
   } catch (e) {
-    window.alert(e && typeof e.message === "string" ? e.message : "새 라운드 요청에 실패했습니다.");
+    alertPlain(
+      e && typeof e.message === "string"
+        ? e.message
+        : t("common.dialog.bid.new_round_failed", "Could not start a new bidding round."),
+    );
   } finally {
     newRoundInFlight = false;
     if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = false;
@@ -788,7 +799,9 @@ async function confirmSelection() {
       );
     }
   } catch (e) {
-    window.alert(e && typeof e.message === "string" ? e.message : "선택에 실패했습니다.");
+    alertPlain(
+      e && typeof e.message === "string" ? e.message : t("common.dialog.bid.select_failed", "Selection failed."),
+    );
   } finally {
     if (btn instanceof HTMLButtonElement) btn.disabled = false;
     pendingSelect = null;
@@ -985,8 +998,24 @@ function wireUi() {
   }
 }
 
+function refreshCustomerBidResultsPageI18nFromCache() {
+  applyI18nToDom(document);
+  if (!listSnapshot) return;
+  renderAll();
+}
+
+wireDynamicPageI18nRefresh(() => {
+  void reloadList({ silent: true });
+}, { keyPrefixes: ["customer.bid.", "cbr.", "common."] });
+
+wireDynamicPageI18nRefresh(refreshCustomerBidResultsPageI18nFromCache, {
+  runtimeResolvedOnly: true,
+  keyPrefixes: ["customer.bid.", "cbr.", "common."],
+});
+
 async function initCustomerBidResultsPage() {
   if (!ensureCustomerAccess()) return;
+  await bootAppPageContent(["common", "nav"], async () => {
   await loadSidebar("#sidebar", "customer");
   if (!serviceRequestId && !threadId) {
     const err = document.querySelector("#cbrError");
@@ -1000,6 +1029,7 @@ async function initCustomerBidResultsPage() {
   wireRealtime();
   startCountdownTicker();
   await reloadList();
+  });
 }
 
 if (document.readyState === "loading") {

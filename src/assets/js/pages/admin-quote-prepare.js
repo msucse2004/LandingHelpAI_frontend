@@ -2,6 +2,7 @@ import { loadSidebar } from "../components/sidebar.js";
 import { quoteApi, serviceCatalogAdminApi } from "../core/api.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 import { formatSurveyAnswerForDisplay } from "../core/survey-answer-display.js";
 import { formatDate, formatMoney, safeText } from "../core/utils.js";
 import {
@@ -635,8 +636,8 @@ function fillEditor(quote) {
 async function main() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   await loadSidebar("#sidebar", "admin");
-  applyI18nToDom(document);
 
   const params = new URLSearchParams(window.location.search);
   const qid = (params.get("id") || params.get("quote_id") || "").trim();
@@ -853,6 +854,7 @@ async function main() {
     } finally {
       if (saveBtn instanceof HTMLButtonElement) saveBtn.disabled = !isQuoteDraft(quote);
     }
+  });
   });
 }
 

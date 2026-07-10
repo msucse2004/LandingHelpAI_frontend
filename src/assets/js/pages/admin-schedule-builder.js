@@ -1,6 +1,9 @@
 import { scheduleApi, quoteApi } from "../core/api.js";
 import { loadSidebar } from "../components/sidebar.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
+import { alertI18n, alertPlain, confirmI18n } from "../core/app-dialog.js";
+import { localizedStatus } from "../core/i18n-dynamic.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { formatDate, safeText } from "../core/utils.js";
 
@@ -266,10 +269,16 @@ let weekStart = new Date();
 /** @type {"daily"|"weekly"|"monthly"} */
 let calendarView = "monthly";
 
-const MSG_UNSAVED_LEAVE_LIST =
-  "저장하지 않은 변경 사항(일정 위치·노트 등)이 있습니다. 일정 관리 화면으로 나가면 이 수정 내용은 모두 사라집니다. 나갈까요?";
-const MSG_UNSAVED_RESET =
-  "저장하지 않은 로컬 변경(일정 위치·노트 등)이 있습니다. 리셋하면 서버에 저장된 일정으로 덮어쓰여 이 변경은 사라집니다. 계속할까요?";
+const MSG_UNSAVED_LEAVE_LIST = {
+  key: "common.admin.schedule_builder.unsaved_leave_list",
+  fallback:
+    "You have unsaved changes (schedule positions, notes, etc.). Leaving will discard them. Leave anyway?",
+};
+const MSG_UNSAVED_RESET = {
+  key: "common.admin.schedule_builder.unsaved_reset",
+  fallback:
+    "You have unsaved local changes (schedule positions, notes, etc.). Reset will overwrite them with the server copy. Continue?",
+};
 
 function hasUnsavedBuilderChanges() {
   return dirtyIds.size > 0;
@@ -1094,7 +1103,11 @@ function renderRight() {
       const r = await flushBuilderDraftToServer();
       if (!r.ok) {
         setStatus(`메모 저장 실패: ${r.message || ""}`);
-        window.alert(`메모를 저장하지 못했습니다.\n${r.message || ""}`);
+        alertI18n(
+          "common.admin.schedule_builder.note_save_failed",
+          "Could not save notes.\n{message}",
+          { message: r.message || "" },
+        );
         return;
       }
       setStatus("메모를 서버에 저장했습니다. 다시 열어도 그대로 표시됩니다.");
@@ -1185,8 +1198,8 @@ async function flushBuilderDraftToServer() {
 async function init() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   await loadSidebar("#sidebar", "admin");
-  applyI18nToDom(document);
 
   const scheduleId = getQueryScheduleId();
   if (!scheduleId) {
@@ -1213,7 +1226,7 @@ async function init() {
     if (!(a instanceof HTMLAnchorElement)) return;
     if (!hasUnsavedBuilderChanges()) return;
     ev.preventDefault();
-    if (!window.confirm(MSG_UNSAVED_LEAVE_LIST)) return;
+    if (!confirmI18n(MSG_UNSAVED_LEAVE_LIST.key, MSG_UNSAVED_LEAVE_LIST.fallback)) return;
     window.location.assign(a.href);
   });
 
@@ -1230,7 +1243,11 @@ async function init() {
         const flushed = await flushBuilderDraftToServer();
         if (!flushed.ok) {
           setStatus(`저장 실패: ${flushed.message || ""}`);
-          window.alert(`변경 사항을 서버에 저장하지 못했습니다. 고객 공개를 중단합니다.\n${flushed.message || ""}`);
+          alertI18n(
+            "common.admin.schedule_builder.flush_before_release_failed",
+            "Could not save changes to the server. Customer release was cancelled.\n{message}",
+            { message: flushed.message || "" },
+          );
           return;
         }
       }
@@ -1241,15 +1258,25 @@ async function init() {
           ? `admin-schedules.html?customer_profile_id=${encodeURIComponent(String(cp).trim())}`
           : "admin-schedules.html";
       const doneMsg = hadLocalChanges
-        ? "변경 사항을 서버에 저장한 뒤 고객에게 일정을 공개했습니다. 일정 관리 화면으로 이동합니다."
-        : "저장할 로컬 변경은 없었습니다. 고객에게 일정을 공개했습니다. 일정 관리 화면으로 이동합니다.";
+        ? localizedStatus(
+            "common.admin.schedule_builder.release_done_saved",
+            "Changes were saved and the schedule was released to the customer. Opening schedule management.",
+          )
+        : localizedStatus(
+            "common.admin.schedule_builder.release_done_no_local",
+            "No local changes to save. The schedule was released to the customer. Opening schedule management.",
+          );
       setStatus(doneMsg);
-      window.alert(doneMsg);
+      alertPlain(doneMsg);
       window.location.assign(listUrl);
     } catch (e) {
       const msg = e && typeof e.message === "string" ? e.message : String(e);
       setStatus(`고객 공개 실패: ${msg}`);
-      window.alert(`고객 공개에 실패했습니다.\n${msg}`);
+      alertI18n(
+        "common.admin.schedule_builder.release_failed",
+        "Could not release the schedule to the customer.\n{message}",
+        { message: msg },
+      );
     } finally {
       updateWorkflowControls();
     }
@@ -1283,24 +1310,34 @@ async function init() {
 
   document.querySelector("#builderResetBtn")?.addEventListener("click", async () => {
     if (!getQueryScheduleId()) return;
-    if (hasUnsavedBuilderChanges() && !window.confirm(MSG_UNSAVED_RESET)) {
+    if (hasUnsavedBuilderChanges() && !confirmI18n(MSG_UNSAVED_RESET.key, MSG_UNSAVED_RESET.fallback)) {
       return;
     }
     try {
       await loadAll(getQueryScheduleId());
       setStatus("서버에 저장된 일정으로 되돌렸습니다. 로컬에서 수정한 내용은 적용되지 않습니다.");
-      window.alert("서버에 저장된 일정으로 화면을 맞췄습니다.");
+      alertI18n(
+        "common.admin.schedule_builder.reset_done",
+        "The view was reset to the server-saved schedule.",
+      );
     } catch (e) {
       const msg = e && typeof e.message === "string" ? e.message : String(e);
       setStatus(`되돌리기 실패: ${msg}`);
-      window.alert(`서버 저장본을 불러오지 못했습니다.\n${msg}`);
+      alertI18n(
+        "common.admin.schedule_builder.reset_load_failed",
+        "Could not load the server-saved schedule.\n{message}",
+        { message: msg },
+      );
     }
   });
 
   document.querySelector("#builderSaveBtn")?.addEventListener("click", async () => {
     if (!schedule || !dirtyIds.size) {
       setStatus("저장할 로컬 변경이 없습니다.");
-      window.alert("저장할 로컬 변경이 없습니다. 일정을 옮기거나 노트를 수정한 뒤 다시 시도해 주세요.");
+      alertI18n(
+        "common.admin.schedule_builder.nothing_to_save",
+        "There are no local changes to save. Move schedule items or edit notes, then try again.",
+      );
       return;
     }
     const saveBtn = document.querySelector("#builderSaveBtn");
@@ -1310,15 +1347,23 @@ async function init() {
       const r = await flushBuilderDraftToServer();
       if (!r.ok) {
         setStatus(`저장 실패: ${r.message || ""}`);
-        window.alert(`저장에 실패했습니다.\n${r.message || ""}`);
+        alertI18n(
+          "common.admin.schedule_builder.save_failed",
+          "Save failed.\n{message}",
+          { message: r.message || "" },
+        );
         return;
       }
       setStatus("변경 사항을 서버에 저장했습니다.");
-      window.alert("변경 사항을 서버에 저장했습니다.");
+      alertI18n(
+        "common.admin.schedule_builder.save_done",
+        "Changes were saved to the server.",
+      );
     } finally {
       if (saveBtn instanceof HTMLButtonElement) saveBtn.disabled = false;
       updateWorkflowControls();
     }
+  });
   });
 }
 

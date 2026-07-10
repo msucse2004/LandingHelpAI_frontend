@@ -4,8 +4,8 @@ import { mountPartnerShell } from "../layouts/partner-shell.js";
 
 import { mountCustomerInboxShell } from "../layouts/customer-inbox-shell.js";
 
-import { applyI18nToDom, applyLanguageChangeToPage, initPageI18nAndApplyDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
-import { appPageLanguageReady } from "../core/app-page-i18n-boot.js";
+import { applyI18nToDom, applyLanguageChangeToPage, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 import { localizedStatus } from "../core/i18n-dynamic.js";
 
 import { getSession, setSession, getCurrentRole } from "../core/auth.js";
@@ -214,7 +214,7 @@ async function main() {
 
   if (!protectCurrentPage()) return;
 
-  await appPageLanguageReady;
+  await bootAppPageContent(["common", "nav", "auth"], async () => {
 
   try {
 
@@ -225,8 +225,6 @@ async function main() {
     /* keep page usable even if shell fails */
 
   }
-
-  await initPageI18nAndApplyDom(["common", "nav", "auth"], document);
 
   const els = getProfileFormElements();
 
@@ -583,6 +581,8 @@ async function main() {
       });
 
     }
+
+  });
 
   });
 

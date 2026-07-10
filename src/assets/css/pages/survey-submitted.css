@@ -44,20 +44,6 @@
   line-height: 1.55;
 }
 
-.lhai-survey-done__ref {
-  margin: 0 0 var(--lhai-space-4);
-  padding: var(--lhai-space-3) var(--lhai-space-4);
-  border-radius: var(--lhai-radius-sm);
-  border: 1px solid var(--lhai-color-border);
-  background: var(--lhai-panel-12);
-  font-size: var(--lhai-font-size-sm);
-  color: var(--lhai-color-text-muted);
-}
-
-.lhai-survey-done__ref[hidden] {
-  display: none !important;
-}
-
 .lhai-survey-done__section-title {
   margin: 0 0 var(--lhai-space-3);
   font-size: var(--lhai-font-size-md);

@@ -15,6 +15,10 @@ import {
 import { partnerThreadsApi } from "../core/api.js";
 import { persistPartnerModeFromDashboard } from "../core/partner-mode-session.js";
 import { ROLES } from "../core/config.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
+import { alertPlain } from "../core/app-dialog.js";
+import { t } from "../core/i18n-client.js";
+import { applyI18nToDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { buildMessagesThreadUrl, initRouter } from "../core/router.js";
 import { syncHeaderRoleBadge } from "../core/role-header-badge.js";
@@ -529,7 +533,9 @@ function wirePartnerCompleteDialogOnce() {
         }
       } catch (e) {
         const msg = e && typeof e.message === "string" ? e.message : String(e);
-        window.alert(msg || "완료 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+        alertPlain(
+          msg || t("common.dialog.partner.complete_failed", "Could not mark this as complete. Please try again shortly."),
+        );
       } finally {
         ok.disabled = false;
       }
@@ -577,8 +583,23 @@ async function refreshPartnerDashboardInPlace() {
   return true;
 }
 
+/** @type {Record<string, unknown> | null} */
+let partnerDashboardPayloadCache = null;
+
+function refreshPartnerDashboardPageI18n() {
+  applyI18nToDom(document.querySelector("#partnerDashboardMain") || document);
+  if (partnerDashboardPayloadCache) {
+    renderPartnerDashboardFromPayload(partnerDashboardPayloadCache);
+  }
+}
+
+wireDynamicPageI18nRefresh(refreshPartnerDashboardPageI18n, {
+  keyPrefixes: ["partner.", "common."],
+});
+
 /** @param {Record<string, unknown>} data */
 function renderPartnerDashboardFromPayload(data) {
+  partnerDashboardPayloadCache = data;
   const branch = resolvePartnerDashboardBranch(data);
   debugDashboard("render-start", { branch, partner_mode: data.partner_mode, dashboard_type: data.dashboard_type });
   if (branch === "assigned") {
@@ -793,6 +814,7 @@ async function initPartnerDashboard() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
 
+  await bootAppPageContent(["common", "nav", "partner"], async () => {
   const pageKey = resolvePartnerPageKey(window.location.pathname, window.location.hash);
   await mountPartnerShell("#app", {
     pageKey,
@@ -841,6 +863,7 @@ async function initPartnerDashboard() {
   persistPartnerModeFromDashboard(data);
 
   renderPartnerDashboardFromPayload(data);
+  });
 }
 
 // 브라우저 콘솔: window.__lhaiDiagnoseTopLayer("manual-check") | window.__lhaiPartnerDashboardDebug.enable()

@@ -1,6 +1,7 @@
 import { scheduleApi, schedulingAdminApi } from "../core/api.js";
 import { loadSidebar } from "../components/sidebar.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { formatDate, safeText } from "../core/utils.js";
 
@@ -126,8 +127,8 @@ async function loadSchedulesForCustomer() {
 async function initAdminSchedulesPage() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   await loadSidebar("#sidebar", "admin");
-  applyI18nToDom(document);
 
   const urlCp = new URLSearchParams(window.location.search).get("customer_profile_id");
   if (urlCp && String(urlCp).trim()) {
@@ -160,6 +161,7 @@ async function initAdminSchedulesPage() {
     if (!row) return;
     selectedScheduleId = row.getAttribute("data-schedule-id") || "";
     loadSchedulesForCustomer();
+  });
   });
 }
 

@@ -19,20 +19,22 @@ export const BID_OFFER_PHOTO_ACCEPT_TYPES = Object.freeze([
   "image/webp",
 ]);
 
-/** @param {File | null | undefined} file */
+/** @typedef {'empty'|'bad_type'|'too_large'} BidOfferPhotoFileError */
+
+/** @param {File | null | undefined} file @returns {BidOfferPhotoFileError | null} */
 export function validateBidOfferPhotoFile(file) {
   if (!(file instanceof File) || !file.size) {
-    return "빈 파일입니다.";
+    return "empty";
   }
   const type = String(file.type || "")
     .split(";")[0]
     .trim()
     .toLowerCase();
   if (!BID_OFFER_PHOTO_ACCEPT_TYPES.includes(type)) {
-    return "JPEG, PNG, WebP 형식만 업로드할 수 있습니다.";
+    return "bad_type";
   }
   if (file.size > MAX_BID_OFFER_PHOTO_BYTES) {
-    return "파일당 최대 8MB까지 업로드할 수 있습니다.";
+    return "too_large";
   }
   return null;
 }
@@ -486,53 +488,54 @@ export function assignOfferIds(offers) {
 /**
  * @param {Record<string, unknown>[]} offers
  * @param {{ allowAlternatives: boolean, requiresOfferPhotos?: boolean, maxPhotosPerOffer?: number, uploadsInProgress?: boolean }} cfg
+ * @returns {{ code: string, params?: Record<string, number> } | null}
  */
 export function validateCarOffersForSubmit(offers, cfg) {
   const maxPhotos = Math.max(1, Number(cfg.maxPhotosPerOffer) || DEFAULT_MAX_OFFER_PHOTOS);
   const requirePhotos = cfg.requiresOfferPhotos === true;
   if (cfg.uploadsInProgress === true) {
-    return "사진 업로드가 끝날 때까지 기다려 주세요.";
+    return { code: "upload_in_progress" };
   }
-  if (!offers.length) return "최소 1개의 차량 제안을 추가해 주세요.";
+  if (!offers.length) return { code: "min_offers" };
   if (!cfg.allowAlternatives && offers.some((o) => o.is_alternative)) {
-    return "이 요청에서는 대안 차량 제안이 허용되지 않습니다.";
+    return { code: "alternatives_not_allowed" };
   }
   for (let i = 0; i < offers.length; i += 1) {
     const o = offers[i];
-    const label = `제안 ${i + 1}`;
+    const offer = i + 1;
     const year = numOrNull(o.year);
     if (year == null || year < 1980) {
-      return `${label}: 연식(year)을 입력해 주세요.`;
+      return { code: "year_required", params: { offer } };
     }
     if (!String(o.make || "").trim() || !String(o.model || "").trim()) {
-      return `${label}: 제조사와 모델을 입력해 주세요.`;
+      return { code: "make_model_required", params: { offer } };
     }
     const mileage = numOrNull(o.mileage);
     if (mileage == null || mileage < 0) {
-      return `${label}: 주행거리(mileage)를 입력해 주세요.`;
+      return { code: "mileage_required", params: { offer } };
     }
     const est = Number(o.estimated_total);
     if (!Number.isFinite(est) || est <= 0) {
-      return `${label}: 예상 총액을 입력하거나 가격 항목을 채워 주세요.`;
+      return { code: "estimated_total_required", params: { offer } };
     }
     if (!String(o.available_timeline || "").trim()) {
-      return `${label}: 진행 가능 시점을 입력해 주세요.`;
+      return { code: "timeline_required", params: { offer } };
     }
     if (o.is_alternative && !String(o.alternative_reason || "").trim()) {
-      return `${label}: 대안 차량 제안 사유를 입력해 주세요.`;
+      return { code: "alternative_reason_required", params: { offer } };
     }
     const photos = Array.isArray(o.photos) ? o.photos : [];
     const photoCount = photos.filter(
       (p) => p && typeof p === "object" && String(/** @type {Record<string, unknown>} */ (p).url || "").trim(),
     ).length;
     if (photoCount > maxPhotos) {
-      return `${label}: 사진은 최대 ${maxPhotos}장까지 등록할 수 있습니다.`;
+      return { code: "photos_max", params: { offer, max: maxPhotos } };
     }
     if (requirePhotos && photoCount < 1) {
-      return `${label}: 최소 1장의 차량 사진이 필요합니다.`;
+      return { code: "photos_min", params: { offer } };
     }
   }
-  return "";
+  return null;
 }
 
 /** @param {Record<string, unknown>} offer */

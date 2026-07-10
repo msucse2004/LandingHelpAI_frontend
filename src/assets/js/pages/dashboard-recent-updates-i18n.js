@@ -5,12 +5,7 @@
  * - Card chrome ("Recent updates", "Open messages"): static `t()` keys in dashboard.js.
  * - Known system events (`event_code` / `timeline_kind`): static `dashboard.timeline.*` / `dashboard.activity.*` via `t()` (StringTranslation catalog).
  * - API `display_title` / `display_description`: viewer-locale dynamic text from backend (TranslationPipeline + LocalizedContent) — preferred when present; never passed through `t()`.
- *
- * NEXT STEP (backend — not implemented yet):
- * - `DashboardService.get_aggregate()` should accept viewer locale and resolve each recent-update row through TranslationPipeline
- *   (`entity_type` e.g. `dashboard_recent_update` or `message`, `field_key` title/body).
- * - Populate `display_*` on `DashboardRecentUpdateItem`; do not use StringKey for user/API message bodies.
- * - On language change, refetch dashboard aggregate (or a slim recent-updates endpoint) when `display_*` is authoritative.
+ * - Backend populates `display_*` on `DashboardRecentUpdateItem` when aggregate is loaded with viewer locale.
  */
 import { t } from "../core/i18n-client.js";
 import { getEffectiveLanguage } from "../core/preferred-language.js";

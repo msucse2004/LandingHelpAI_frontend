@@ -60,7 +60,7 @@ export function buildInvoiceAmountSummaryDisplay(invoice, quote, billingSummary)
   }
 
   if (!bodyRows.length) {
-    const pkg = String(invoice?.service_name || "").trim();
+    const pkg = String(invoice?.display_service_name || invoice?.service_name || "").trim();
     const svcAmt = roundMoney2((sum.base_service_amount || 0) + (sum.add_ons_amount || 0));
     if (pkg) {
       const negative = svcAmt < -AMOUNT_SUMMARY_TOLERANCE;
@@ -161,7 +161,7 @@ export function buildInvoiceAmountSummaryDisplay(invoice, quote, billingSummary)
     bodyRows,
     footRows,
     samePayableAsTotal,
-    footnote: String(sum.reconciliation_note || "").trim() || null,
+    footnote: String(sum.display_reconciliation_note || sum.reconciliation_note || "").trim() || null,
     showSurchargeHint: surcharge > AMOUNT_SUMMARY_TOLERANCE,
   };
 }

@@ -1,6 +1,7 @@
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { loadSidebar } from "../components/sidebar.js";
 import { resolveAppHeaderShell, refreshHeaderMailUnreadBadge } from "../core/app-header.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 import { getMockCaseById, mockCasesDelay } from "../core/mock-cases.js";
 
 function qs(selector) {
@@ -236,6 +237,7 @@ function bindComposer() {
 async function initCaseDetailPage() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
+  await bootAppPageContent(["common", "nav"], async () => {
 
   const params = new URLSearchParams(window.location.search);
   const caseId = (params.get("case_id") || "").trim();
@@ -277,6 +279,7 @@ async function initCaseDetailPage() {
     err.hidden = false;
     err.textContent = e && typeof e.message === "string" ? e.message : "불러오지 못했습니다.";
   }
+  });
 }
 
 void initCaseDetailPage();

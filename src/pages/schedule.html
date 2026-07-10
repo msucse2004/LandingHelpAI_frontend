@@ -1,46 +1,54 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>일정 - Landing Help AI</title>
+  <title data-i18n="customer.schedule.page_title" data-i18n-default="Schedule - Landing Help AI">Schedule - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/schedule.css" />
 </head>
-<body>
+<body data-lhai-i18n-domains="common,nav,schedule">
     <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.customer.aria_label" data-i18n-default="Customer menu" aria-label="Customer menu"><!-- TODO: load partial customer-sidebar.html --></aside>
     <main class="lhai-main">
-      <section class="lhai-page-header"><div><h1 class="lhai-title">내 일정표</h1><p class="lhai-subtitle">날짜별로 정리된 서비스 일정과 안내를 확인하세요. 변경이 필요하면 아래에서 조정을 요청할 수 있습니다.</p></div></section>
+      <section class="lhai-page-header">
+        <div>
+          <h1 class="lhai-title" data-i18n="customer.schedule.title" data-i18n-default="My schedule">My schedule</h1>
+          <p class="lhai-subtitle" data-i18n="customer.schedule.subtitle" data-i18n-default="Review your service schedule by date. If you need a change, you can request an adjustment below.">Review your service schedule by date. If you need a change, you can request an adjustment below.</p>
+        </div>
+      </section>
       <section class="lhai-card">
-        <h2 class="lhai-card__title">요약</h2>
+        <h2 class="lhai-card__title" data-i18n="customer.schedule.summary.title" data-i18n-default="Summary">Summary</h2>
         <div id="customerScheduleSummary"></div>
       </section>
       <section class="lhai-card">
-        <h2 class="lhai-card__title">일정 달력 (읽기 전용)</h2>
-        <div class="lhai-cs-view-switch" role="tablist" aria-label="Calendar view switch">
-          <button type="button" class="lhai-cs-view-btn" data-view="daily">Daily</button>
-          <button type="button" class="lhai-cs-view-btn" data-view="weekly">Weekly</button>
-          <button type="button" class="lhai-cs-view-btn is-active" data-view="monthly">Monthly</button>
+        <h2 class="lhai-card__title" data-i18n="customer.schedule.calendar.title" data-i18n-default="Schedule calendar (read-only)">Schedule calendar (read-only)</h2>
+        <div class="lhai-cs-view-switch" role="tablist" data-i18n-aria-label="customer.schedule.calendar.view_switch_aria" data-i18n-default="Calendar view switch" aria-label="Calendar view switch">
+          <button type="button" class="lhai-cs-view-btn" data-view="daily" data-i18n="customer.schedule.calendar.view.daily" data-i18n-default="Daily">Daily</button>
+          <button type="button" class="lhai-cs-view-btn" data-view="weekly" data-i18n="customer.schedule.calendar.view.weekly" data-i18n-default="Weekly">Weekly</button>
+          <button type="button" class="lhai-cs-view-btn is-active" data-view="monthly" data-i18n="customer.schedule.calendar.view.monthly" data-i18n-default="Monthly">Monthly</button>
         </div>
         <div class="lhai-cs-week-toolbar">
-          <button type="button" class="lhai-button lhai-button--secondary lhai-cs-week-nav" id="customerCalPrev" aria-label="Previous week">←</button>
+          <button type="button" class="lhai-button lhai-button--secondary lhai-cs-week-nav" id="customerCalPrev" data-i18n-aria-label="customer.schedule.calendar.prev_aria" data-i18n-default="Previous week" aria-label="Previous week">←</button>
           <span class="lhai-cs-week-label" id="customerCalWeekLabel"></span>
-          <button type="button" class="lhai-button lhai-button--secondary lhai-cs-week-nav" id="customerCalNext" aria-label="Next week">→</button>
+          <button type="button" class="lhai-button lhai-button--secondary lhai-cs-week-nav" id="customerCalNext" data-i18n-aria-label="customer.schedule.calendar.next_aria" data-i18n-default="Next week" aria-label="Next week">→</button>
         </div>
         <div class="lhai-cs-week-grid" id="customerScheduleCalendar"></div>
       </section>
       <section class="lhai-card">
-        <h2 class="lhai-card__title">일정 타임라인</h2>
+        <h2 class="lhai-card__title" data-i18n="customer.schedule.timeline.title" data-i18n-default="Schedule timeline">Schedule timeline</h2>
         <div id="customerScheduleTimeline"></div>
       </section>
       <section class="lhai-card">
-        <h2 class="lhai-card__title">일정 조정·도움 요청</h2>
-        <p class="u-text-muted u-mb-2">시간대 변경이나 단계 설명이 필요하면 내용을 남겨 주세요. 담당자가 메시지 또는 일정 수정으로 안내합니다.</p>
+        <h2 class="lhai-card__title" data-i18n="customer.schedule.feedback.title" data-i18n-default="Request changes or help">Request changes or help</h2>
+        <p class="u-text-muted u-mb-2" data-i18n="customer.schedule.feedback.lead" data-i18n-default="If you need a different time or an explanation of a step, leave a note below. Your coordinator will reply via messages or update the schedule.">If you need a different time or an explanation of a step, leave a note below. Your coordinator will reply via messages or update the schedule.</p>
         <form id="customerScheduleFeedbackForm">
-          <label class="lhai-field"><span class="lhai-label">요청 내용</span><textarea id="customerScheduleFeedbackInput" rows="3" placeholder="예: 다음 주 화요일 오후로 옮겨 주세요. 서류 제출 일정과 맞추고 싶어요."></textarea></label>
-          <button class="lhai-button lhai-button--secondary" type="submit">조정·도움 요청 보내기</button>
+          <label class="lhai-field">
+            <span class="lhai-label" data-i18n="customer.schedule.feedback.field_label" data-i18n-default="Your request">Your request</span>
+            <textarea id="customerScheduleFeedbackInput" rows="3" data-i18n-placeholder="customer.schedule.feedback.placeholder" data-i18n-default="e.g. Please move to Tuesday afternoon next week. I want to align with my document submission." placeholder="e.g. Please move to Tuesday afternoon next week. I want to align with my document submission."></textarea>
+          </label>
+          <button class="lhai-button lhai-button--secondary" type="submit" data-i18n="customer.schedule.feedback.submit" data-i18n-default="Send change request">Send change request</button>
         </form>
         <p id="customerScheduleFeedbackStatus" class="u-text-muted u-mt-2"></p>
       </section>

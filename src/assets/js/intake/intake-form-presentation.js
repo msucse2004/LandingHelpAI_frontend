@@ -2,6 +2,9 @@
  * Shared rules for customer intake form rendering (messages thread + admin preview).
  */
 
+import { t } from "../core/i18n-client.js";
+import { localizedStatus } from "../core/i18n-dynamic.js";
+
 export const INTAKE_INPUT_TYPE_CURRENCY_USD = "currency_usd";
 
 const INTAKE_BLOCK_TITLE_PLACEHOLDERS = new Set([
@@ -276,6 +279,45 @@ export function intakeFieldDisplayLabel(raw) {
     .trim();
 }
 
+/**
+ * Viewer-facing intake field label from a payload row (display clone preferred).
+ * @param {unknown} row
+ */
+export function intakeViewerFieldLabel(row) {
+  if (row && typeof row === "object") {
+    const rec = /** @type {Record<string, unknown>} */ (row);
+    const display = String(rec.display_label ?? "").trim();
+    if (display) return intakeFieldDisplayLabel(display);
+    return intakeFieldDisplayLabel(rec.label);
+  }
+  return intakeFieldDisplayLabel(row);
+}
+
+/**
+ * Prefer the rendered DOM label so validation copy matches what the customer sees.
+ * @param {Element | null | undefined} fieldEl
+ * @param {unknown} rowOrLabel
+ */
+export function intakeLabelFromFieldElement(fieldEl, rowOrLabel) {
+  if (fieldEl instanceof HTMLElement) {
+    const root =
+      fieldEl.closest(".lhai-chat-form-prompt__group-child") ||
+      fieldEl.closest(".lhai-chat-form-prompt__intake-step") ||
+      fieldEl.closest("[data-lhai-intake-form]");
+    if (root instanceof HTMLElement) {
+      const labelEl =
+        root.querySelector(".lhai-chat-form-prompt__child-label") ||
+        root.querySelector(".lhai-chat-form-prompt__intake-step-title") ||
+        root.querySelector(".lhai-chat-form-prompt__label");
+      const dom = intakeFieldDisplayLabel(labelEl?.textContent);
+      if (dom) return dom;
+    }
+  }
+  return intakeViewerFieldLabel(
+    rowOrLabel && typeof rowOrLabel === "object" ? rowOrLabel : { label: rowOrLabel },
+  );
+}
+
 /** @param {string} cit normalized intake input type */
 export function intakeRequiredErrorKindForInputType(cit) {
   const t = String(cit || "text").trim().toLowerCase();
@@ -287,21 +329,31 @@ export function intakeRequiredErrorKindForInputType(cit) {
 
 /**
  * Required-field validation copy with the field label when available.
- * @param {unknown} label
+ * @param {unknown} labelOrRow label string or intake field row (uses display_label when present)
  * @param {"select"|"input"|"date"|"multi"} [kind]
  */
-export function intakeRequiredFieldError(label, kind = "input") {
-  const lab = intakeFieldDisplayLabel(label);
+export function intakeRequiredFieldError(labelOrRow, kind = "input") {
+  const lab = intakeViewerFieldLabel(labelOrRow);
   if (!lab) {
-    if (kind === "select") return "선택해 주세요.";
-    if (kind === "date") return "날짜를 선택해 주세요.";
-    if (kind === "multi") return "하나 이상 선택해 주세요.";
-    return "필수 항목입니다.";
+    if (kind === "select") return t("common.dialog.intake.select_required", "Please make a selection.");
+    if (kind === "date") return t("common.dialog.intake.date_required", "Please choose a date.");
+    if (kind === "multi") return t("common.dialog.intake.multi_required", "Select at least one option.");
+    return t("common.dialog.intake.required_field", "This field is required.");
   }
-  if (kind === "select") return `「${lab}」을(를) 선택해 주세요.`;
-  if (kind === "date") return `「${lab}」 날짜를 선택해 주세요.`;
-  if (kind === "multi") return `「${lab}」에서 하나 이상 선택해 주세요.`;
-  return `「${lab}」을(를) 입력해 주세요.`;
+  if (kind === "select") {
+    return localizedStatus("common.dialog.intake.select_field", "Please select 「{label}」.", { label: lab });
+  }
+  if (kind === "date") {
+    return localizedStatus("common.dialog.intake.date_field", "Please choose a date for 「{label}」.", { label: lab });
+  }
+  if (kind === "multi") {
+    return localizedStatus(
+      "common.dialog.intake.multi_field",
+      "Select at least one option for 「{label}」.",
+      { label: lab },
+    );
+  }
+  return localizedStatus("common.dialog.intake.input_field", "Please enter 「{label}」.", { label: lab });
 }
 
 /** @param {unknown} label @param {string} cit normalized input type */

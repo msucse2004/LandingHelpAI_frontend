@@ -20,6 +20,9 @@ import {
   resolvePartnerIntakeAnswerRows,
 } from "./partner-bid-request-intake-display.js";
 import { setInnerHtmlIfChanged, setTextIfChanged } from "../core/page-refresh.js";
+import { t } from "../core/i18n-client.js";
+import { catalogDisplayText } from "./catalog-display-logic.js";
+import { localizeProductOfferValidationError } from "./partner-bid-offer-validation-i18n.js";
 
 function escHtml(s) {
   return String(s ?? "")
@@ -266,7 +269,9 @@ export function mountProductOfferBidUi(root, ctx) {
   if (!offers.length) offers = [createEmptyProductOffer()];
   let activeIndex = 0;
 
-  const svcName = String(svc.name || "Bid request");
+  const svcName =
+    catalogDisplayText(svc, "name", t, { kind: "title" }) ||
+    t("partner.bid.request_title", "Bid request");
   const bidStatusLine =
     bidStatus === "SUBMITTED" ? "Submitted" : bidStatus === "DRAFT" ? "Draft" : bidStatus || "—";
   const submitLabel = bidStatus === "SUBMITTED" ? "Update offer" : "Submit offer";
@@ -485,7 +490,7 @@ export function mountProductOfferBidUi(root, ctx) {
     if (verr) {
       if (formErr instanceof HTMLElement) {
         formErr.hidden = false;
-        formErr.textContent = verr;
+        formErr.textContent = localizeProductOfferValidationError(verr);
       }
       return;
     }
@@ -498,7 +503,10 @@ export function mountProductOfferBidUi(root, ctx) {
       const next = await ctx.submitFn(payload);
       ctx.onDetailUpdate(next);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Submit failed. Please try again.";
+      const msg =
+        e instanceof Error && e.message
+          ? e.message
+          : t("common.dialog.partner.submit_failed", "Submit failed. Please try again.");
       if (formErr instanceof HTMLElement) {
         formErr.hidden = false;
         formErr.textContent = msg;

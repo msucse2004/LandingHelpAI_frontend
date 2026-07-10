@@ -3,6 +3,8 @@ import { APP_CONFIG } from "../core/config.js";
 import { getCurrentRole, getCurrentUserId } from "../core/auth.js";
 import { protectCurrentPage } from "../core/guards.js";
 import { mayShowAccountDeleteButton } from "../core/role-tiers.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
+import { applyI18nToDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
 
 const tbody = document.getElementById("accountsTableBody");
 const loadStatus = document.getElementById("accountsLoadStatus");
@@ -239,6 +241,20 @@ tbody?.addEventListener("click", (ev) => {
   void deleteRecord(tr, btn);
 });
 
-if (protectCurrentPage()) {
-  void loadTable();
+function refreshAdminUsersTableI18n() {
+  applyI18nToDom(document.querySelector("main") || document);
+  renderFilteredRows();
 }
+
+wireDynamicPageI18nRefresh(refreshAdminUsersTableI18n, {
+  keyPrefixes: ["admin.", "common."],
+});
+
+async function initAdminUsersPage() {
+  if (!protectCurrentPage()) return;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
+    await loadTable();
+  });
+}
+
+void initAdminUsersPage();

@@ -9,6 +9,7 @@ import { partnerNavHref } from "../config/partner-nav-config.js";
 import { mountPartnerShell } from "../layouts/partner-shell.js";
 import { renderPartnerBidRequestContentHtml } from "./partner-bid-request-content.js";
 import { partnerThreadsApi } from "../core/api.js";
+import { alertI18n } from "../core/app-dialog.js";
 import { subscribeRealtimeEvents } from "../core/realtime-client.js";
 import {
   bidUpdatedMatchesScope,
@@ -26,6 +27,10 @@ import { refreshPartnerModeSession } from "../core/partner-mode-session.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { syncHeaderRoleBadge } from "../core/role-header-badge.js";
 import { clearShellTopLayerBlockers } from "../core/ui-blockers.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
+import { catalogDisplayText } from "./catalog-display-logic.js";
+import { t } from "../core/i18n-client.js";
+import { wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
 import {
   createBidCountdownTicker,
   formatPartnerCountdownBanner,
@@ -44,6 +49,13 @@ import { offersFromIncludedItems as carOffersFromIncludedItems } from "./partner
 
 /** Cache-bust query for partner bid detail modules (must match partner-bid-request.html script src). */
 const PARTNER_BID_DETAIL_ASSET_VERSION = "20260519-flicker-refresh-1";
+
+/** @type {((showToast?: boolean, toastEventKind?: string) => Promise<void>) | null} */
+let partnerBidDetailLanguageRefresh = null;
+
+wireDynamicPageI18nRefresh(() => {
+  void partnerBidDetailLanguageRefresh?.(false);
+}, { keyPrefixes: ["partner.", "common."] });
 
 /** @param {string} moduleFile e.g. partner-bid-request-car-ui.js */
 function partnerBidDetailModuleUrl(moduleFile) {
@@ -274,7 +286,9 @@ function applyPageHeader(data) {
     data.bid && typeof data.bid === "object" ? /** @type {Record<string, unknown>} */ (data.bid) : {};
   const bidStatus = String(bid.status ?? "").trim().toUpperCase();
   const reqStatus = String(data.bid_request_status ?? "OPEN").trim().toUpperCase();
-  const svcName = String(svc.name || "견적 요청");
+  const svcName =
+    catalogDisplayText(svc, "name", t, { kind: "title" }) ||
+    t("partner.bid.request_title", "Bid request");
   setText("#partnerBidPageTitle", svcName);
   setText("#partnerBidPageSubtitle", `${partnerBidStatusLabel(bidStatus, reqStatus)} · ${String(data.bid_request_id || "").trim() || "—"}`);
 }
@@ -599,7 +613,10 @@ async function runPartnerBidRequestPage() {
               phase: "re_render",
             });
           });
-        window.alert("제안이 저장되었습니다.");
+        alertI18n(
+          "common.dialog.partner.proposal_saved",
+          "Your proposal was saved.",
+        );
       },
       submitFn: (payload) => partnerThreadsApi.submitBidRequest(bidRequestId, payload),
       uploadOfferPhotoFn: (file, opts) =>
@@ -607,7 +624,10 @@ async function runPartnerBidRequestPage() {
       openMessagesFn: () => {
         const tid = String(latestDetail.thread_id || "").trim();
         if (!tid) {
-          window.alert("연결된 고객 대화방을 찾을 수 없습니다.");
+          alertI18n(
+            "common.dialog.partner.thread_not_found",
+            "Could not find the linked customer conversation.",
+          );
           return;
         }
         window.location.href = `partner-assigned-request.html?thread_id=${encodeURIComponent(tid)}`;
@@ -715,6 +735,8 @@ async function runPartnerBidRequestPage() {
     }
   }
 
+  partnerBidDetailLanguageRefresh = refreshPartnerBidDetail;
+
   function partnerRequestStatusFromDetail(data) {
     const brBlock =
       data?.bid_request && typeof data.bid_request === "object"
@@ -808,6 +830,7 @@ async function bootstrapPartnerBidRequestPage() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
 
+  await bootAppPageContent(["common", "nav", "partner"], async () => {
   await mountPartnerShell("#app", {
     pageKey: "bid_requests",
     documentTitle: "견적 요청 — Landing Help AI",
@@ -815,6 +838,7 @@ async function bootstrapPartnerBidRequestPage() {
   });
 
   await runPartnerBidRequestPage();
+  });
 }
 
 void bootstrapPartnerBidRequestPage().catch((err) => {

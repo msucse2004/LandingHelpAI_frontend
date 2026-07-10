@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  intakeUiPayloadNeedsTranslationPlaceholder,
+  intakeUiPayloadSameLocale,
   isSystemTemplateMessage,
   logMessageTranslationFailures,
   messageHasLocalizedDisplay,
@@ -16,8 +18,11 @@ import {
   messageTranslationUnavailableLabel,
   messageViewOriginalToggleLabel,
   messageViewerBody,
+  messageViewerTitle,
   threadListPreviewBody,
   threadListPreviewIsSystemTemplate,
+  workflowCardViewerBody,
+  workflowCardViewerTitle,
 } from "../src/assets/js/pages/messages-display-logic.js";
 
 test("messageViewerBody prefers display_body over body", () => {
@@ -25,17 +30,89 @@ test("messageViewerBody prefers display_body over body", () => {
   assert.equal(text, "안녕");
 });
 
-test("messageViewerBody falls back to body when display_body missing", () => {
-  const text = messageViewerBody({ body: "Hello", display_body: "" });
+test("messageViewerBody falls back to body when same-locale and display_body missing", () => {
+  const text = messageViewerBody({
+    body: "Hello",
+    display_body: "",
+    source_locale: "en",
+    display_locale: "en",
+    translation_status: "not_required",
+  });
   assert.equal(text, "Hello");
+});
+
+test("messageViewerBody uses preparing_message when translation unavailable", () => {
+  const t = (key, fallback) => `${key}:${fallback}`;
+  const text = messageViewerBody(
+    {
+      body: "자동차 조사/구입",
+      display_body: null,
+      translation_status: "translation_required_failed",
+      source_locale: "ko",
+      display_locale: "en",
+    },
+    { translate: t }
+  );
+  assert.match(text, /messages\.translation\.preparing_message/);
+  assert.doesNotMatch(text, /자동차/);
+});
+
+test("Step 10: messageViewerBody does not use not_required to show cross-locale source", () => {
+  const t = (key, fallback) => `${key}:${fallback}`;
+  const text = messageViewerBody(
+    {
+      body: "한국어 사용자 메시지",
+      display_body: null,
+      translation_status: "not_required",
+      source_locale: "ko",
+      display_locale: "en",
+    },
+    { translate: t }
+  );
+  assert.match(text, /messages\.translation\.preparing_message/);
+  assert.doesNotMatch(text, /한국어/);
+});
+
+test("messageViewerBody uses preparing_message placeholder when translation pending", () => {
+  const t = (key, fallback) => `${key}:${fallback}`;
+  const text = messageViewerBody(
+    {
+      body: "자동차 조사/구입",
+      display_body: "",
+      translation_status: "translation_pending",
+      source_locale: "ko",
+      display_locale: "en",
+    },
+    { translate: t }
+  );
+  assert.match(text, /messages\.translation\.preparing_message/);
 });
 
 test("messageViewerBody showOriginal returns body not display", () => {
   const text = messageViewerBody(
-    { body: "Hello", display_body: "안녕" },
+    {
+      body: "Hello",
+      display_body: null,
+      translation_status: "translation_required_failed",
+      source_locale: "en",
+      display_locale: "ko",
+    },
     { showOriginal: true }
   );
   assert.equal(text, "Hello");
+});
+
+test("messageShouldShowViewOriginalToggle when cross-locale translation failed", () => {
+  assert.equal(
+    messageShouldShowViewOriginalToggle({
+      body: "한국어",
+      display_body: null,
+      source_locale: "ko",
+      display_locale: "en",
+      translation_status: "translation_required_failed",
+    }),
+    true
+  );
 });
 
 test("messageHasLocalizedDisplay when display differs", () => {
@@ -146,7 +223,7 @@ test("messageShouldShowViewOriginalToggle requires differing non-empty bodies", 
 
 test("messageTranslationPendingLabel uses i18n key", () => {
   const t = (key, fallback) => `${key}:${fallback}`;
-  assert.match(messageTranslationPendingLabel(t), /messages\.translation\.pending/);
+  assert.match(messageTranslationPendingLabel(t), /messages\.translation\.preparing_message/);
 });
 
 test("threadListPreviewBody uses display for system_template source", () => {
@@ -184,30 +261,191 @@ test("messageViewOriginalToggleLabel switches copy", () => {
   assert.match(messageViewOriginalToggleLabel(true, t), /hide_original/);
 });
 
+test("workflowCardViewerTitle prefers display_title", () => {
+  const title = workflowCardViewerTitle({
+    display_title: "Starting your service",
+    title: "서비스를 시작합니다",
+    source_locale: "ko",
+    display_locale: "en",
+  });
+  assert.equal(title, "Starting your service");
+});
+
+test("workflowCardViewerTitle uses placeholder for cross-locale missing display", () => {
+  const tr = (key, fb) => (key === "messages.translation.preparing_title" ? "Preparing title…" : fb);
+  const title = workflowCardViewerTitle(
+    {
+      title: "서비스를 시작합니다",
+      source_locale: "ko",
+      display_locale: "en",
+      translation_status: "translation_required_failed",
+    },
+    tr
+  );
+  assert.equal(title, "Preparing title…");
+  assert.ok(!title.includes("서비스"));
+});
+
+test("workflowCardViewerBody never falls back to stored body cross-locale", () => {
+  const tr = (key, fb) =>
+    key === "messages.translation.preparing_message" ? "Preparing message…" : fb;
+  const body = workflowCardViewerBody(
+    {
+      body: "한국어 본문",
+      card_json: { title: "카드 제목", body: "카드 본문" },
+      source_locale: "ko",
+      display_locale: "en",
+      translation_status: "translation_required_failed",
+    },
+    tr
+  );
+  assert.equal(body, "Preparing message…");
+  assert.ok(!body.includes("한국어"));
+  assert.ok(!body.includes("카드"));
+});
+
+test("messageViewerTitle prefers display_title over title", () => {
+  const title = messageViewerTitle({
+    title: "한국어 제목",
+    display_title: "English title",
+    source_locale: "ko",
+    display_locale: "en",
+  });
+  assert.equal(title, "English title");
+});
+
+test("messageViewerTitle uses preparing_title when translation failed cross-locale", () => {
+  const tr = (key, fb) => (key === "messages.translation.preparing_title" ? "Preparing title…" : fb);
+  const title = messageViewerTitle(
+    {
+      title: "한국어 제목",
+      display_title: null,
+      source_locale: "ko",
+      display_locale: "en",
+      translation_status: "translation_required_failed",
+    },
+    { translate: tr }
+  );
+  assert.equal(title, "Preparing title…");
+  assert.ok(!title.includes("한국어"));
+});
+
+test("messageViewerTitle allows same-locale stored title when not_required", () => {
+  const title = messageViewerTitle({
+    title: "Same locale title",
+    display_title: "",
+    source_locale: "ko",
+    display_locale: "ko",
+    translation_status: "not_required",
+  });
+  assert.equal(title, "Same locale title");
+});
+
+test("workflowCardViewerBody allows stored body for same-locale viewer", () => {
+  const body = workflowCardViewerBody({
+    body: "한국어 본문",
+    source_locale: "ko",
+    display_locale: "ko",
+    translation_status: "translation_required_failed",
+  });
+  assert.equal(body, "한국어 본문");
+});
+
+test("intakeUiPayloadNeedsTranslationPlaceholder when display_ui_payload failed", () => {
+  assert.equal(
+    intakeUiPayloadNeedsTranslationPlaceholder({
+      ui_payload: { widget_type: "form_prompt", label: "예산", source_locale: "ko" },
+      display_ui_payload: null,
+      display_ui_payload_status: "translation_required_failed",
+      source_locale: "ko",
+      display_ui_payload_locale: "en",
+    }),
+    true
+  );
+});
+
+test("intakeUiPayloadSameLocale allows original for ko viewer", () => {
+  assert.equal(
+    intakeUiPayloadSameLocale({
+      source_locale: "ko",
+      display_ui_payload_locale: "ko",
+    }),
+    true
+  );
+});
+
 test("threadListPreviewBody prefers last_message_display_body", () => {
   assert.equal(
     threadListPreviewBody({
       preview: "Hello",
       last_message_body: "Hello world",
       last_message_display_body: "안녕하세요",
+      last_message_source_locale: "en",
+      last_message_display_locale: "ko",
     }),
     "안녕하세요"
   );
-  assert.equal(
-    threadListPreviewBody({ last_message_body: "Hello world", preview: "Hello" }),
-    "Hello world"
-  );
-  assert.equal(threadListPreviewBody({ preview: "Hello" }), "Hello");
 });
 
-test("threadListPreviewBody uses original when translation unavailable", () => {
+test("threadListPreviewBody allows same-locale source preview", () => {
   assert.equal(
     threadListPreviewBody({
-      last_message_body: "Hello world",
-      last_message_display_body: "Hello world",
-      last_message_translation_status: "provider_failed",
+      last_message_body: "Same locale body",
+      last_message_display_body: "Same locale body",
+      last_message_source_locale: "ko",
+      last_message_display_locale: "ko",
+      last_message_translation_status: "not_required",
     }),
-    "Hello world"
+    "Same locale body"
+  );
+});
+
+test("threadListPreviewBody does not show Korean preview when translation fails", () => {
+  const tr = (key, fb) => fb;
+  const text = threadListPreviewBody(
+    {
+      last_message_body: "한국어 미리보기",
+      last_message_display_body: null,
+      last_message_source_locale: "ko",
+      last_message_display_locale: "en",
+      last_message_translation_status: "translation_required_failed",
+    },
+    tr
+  );
+  assert.equal(text, "Preparing preview translation...");
+  assert.doesNotMatch(text, /한국어/);
+});
+
+test("Step 9: threadListPreviewBody does not use not_required to show cross-locale source", () => {
+  const tr = (key, fb) => fb;
+  const text = threadListPreviewBody(
+    {
+      last_message_body: "한국어 미리보기",
+      last_message_display_body: null,
+      last_message_source_locale: "ko",
+      last_message_display_locale: "en",
+      last_message_translation_status: "not_required",
+    },
+    tr
+  );
+  assert.equal(text, "Preparing preview translation...");
+  assert.doesNotMatch(text, /한국어/);
+});
+
+test("threadListPreviewBody uses preparing_preview when translation unavailable", () => {
+  const t = (key, fallback) => `${key}:${fallback}`;
+  assert.match(
+    threadListPreviewBody(
+      {
+        last_message_body: "Hello world",
+        last_message_display_body: null,
+        last_message_source_locale: "en",
+        last_message_display_locale: "ko",
+        last_message_translation_status: "provider_failed",
+      },
+      t
+    ),
+    /messages\.translation\.preparing_preview/
   );
 });
 

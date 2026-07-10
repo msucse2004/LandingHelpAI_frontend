@@ -3,6 +3,8 @@
  */
 
 import { resolveBackendMediaUrl } from "../core/utils.js";
+import { alertI18n, alertPlain } from "../core/app-dialog.js";
+import { t } from "../core/i18n-client.js";
 import {
   buildCarSubmitPayload,
   buildAutoOfferTitle,
@@ -43,6 +45,20 @@ import {
   partnerMyBidSubmissionLabel,
 } from "./partner-bid-request-product-logic.js";
 import { setTextIfChanged } from "../core/page-refresh.js";
+import { localizeCarOfferValidationError } from "./partner-bid-offer-validation-i18n.js";
+
+/** @type {Record<string, [string, string]>} */
+const PHOTO_FILE_ERROR_I18N = {
+  empty: ["common.dialog.partner.photo_file_empty", "Empty file."],
+  bad_type: ["common.dialog.partner.photo_file_type", "Only JPEG, PNG, and WebP uploads are allowed."],
+  too_large: ["common.dialog.partner.photo_file_size", "Each file can be up to 8 MB."],
+};
+
+/** @param {string | null | undefined} code */
+function localizeBidOfferPhotoFileError(code) {
+  const spec = PHOTO_FILE_ERROR_I18N[String(code || "")];
+  return spec ? t(spec[0], spec[1]) : String(code || "");
+}
 
 function escHtml(s) {
   return String(s ?? "")
@@ -833,7 +849,7 @@ export function mountCarPurchaseBidUi(root, ctx) {
   /** @param {File[]} files */
   async function uploadPhotoFiles(files) {
     if (typeof uploadOfferPhotoFn !== "function") {
-      window.alert("사진 업로드 API를 사용할 수 없습니다.");
+      alertI18n("common.dialog.partner.photo_upload_unavailable", "Photo upload is not available.");
       return;
     }
     syncOfferFromForm();
@@ -847,20 +863,27 @@ export function mountCarPurchaseBidUi(root, ctx) {
     try {
       for (const file of batch) {
         if (list.length >= maxPhotosPerOffer) {
-          window.alert(`사진은 제안당 최대 ${maxPhotosPerOffer}장까지입니다.`);
+          alertI18n(
+            "common.dialog.partner.photo_max_per_offer",
+            "You can add up to {max} photos per proposal.",
+            { max: maxPhotosPerOffer },
+          );
           break;
         }
         const prepErr = validateBidOfferPhotoFile(file);
         if (prepErr) {
-          window.alert(prepErr);
+          alertPlain(localizeBidOfferPhotoFileError(prepErr));
           continue;
         }
         let uploadFile = file;
         try {
           uploadFile = await prepareBidOfferPhotoFileForUpload(file);
         } catch (compressErr) {
-          window.alert(
-            compressErr instanceof Error ? compressErr.message : "사진을 처리하지 못했습니다.",
+          const raw = compressErr instanceof Error ? compressErr.message : "";
+          alertPlain(
+            PHOTO_FILE_ERROR_I18N[raw]
+              ? localizeBidOfferPhotoFileError(raw)
+              : t("common.dialog.partner.photo_process_failed", "Could not process the photo."),
           );
           continue;
         }
@@ -879,7 +902,11 @@ export function mountCarPurchaseBidUi(root, ctx) {
       }
       offers[activeIdx].photos = list;
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : "사진 업로드에 실패했습니다.");
+      alertPlain(
+        err instanceof Error && err.message
+          ? err.message
+          : t("common.dialog.partner.photo_upload_failed", "Photo upload failed."),
+      );
     } finally {
       photoUploadsInFlight = Math.max(0, photoUploadsInFlight - 1);
       persistCarOfferDraft();
@@ -956,12 +983,19 @@ export function mountCarPurchaseBidUi(root, ctx) {
         const raw = urlEl instanceof HTMLInputElement ? urlEl.value.trim() : "";
         if (!raw) return;
         if (!/^https?:\/\//i.test(raw)) {
-          window.alert("URL은 http:// 또는 https://로 시작해야 합니다.");
+          alertI18n(
+            "common.dialog.partner.photo_url_scheme",
+            "URLs must start with http:// or https://",
+          );
           return;
         }
         const list = Array.isArray(offers[activeIdx].photos) ? [...offers[activeIdx].photos] : [];
         if (list.length >= maxPhotosPerOffer) {
-          window.alert(`사진은 제안당 최대 ${maxPhotosPerOffer}장까지입니다.`);
+          alertI18n(
+            "common.dialog.partner.photo_max_per_offer",
+            "You can add up to {max} photos per proposal.",
+            { max: maxPhotosPerOffer },
+          );
           return;
         }
         const isFirst = list.length === 0;
@@ -1089,7 +1123,7 @@ export function mountCarPurchaseBidUi(root, ctx) {
 
   root.querySelector("#partnerCarRemoveOfferBtn")?.addEventListener("click", () => {
     if (offers.length <= 1) {
-      window.alert("최소 1개의 제안이 필요합니다.");
+      alertI18n("common.dialog.partner.min_offers_required", "At least one proposal is required.");
       return;
     }
     offers.splice(activeIdx, 1);
@@ -1120,7 +1154,7 @@ export function mountCarPurchaseBidUi(root, ctx) {
       if (photoUploadsInFlight > 0) {
         if (formErr instanceof HTMLElement) {
           formErr.hidden = false;
-          formErr.textContent = "사진 업로드가 끝날 때까지 기다려 주세요.";
+          formErr.textContent = localizeCarOfferValidationError({ code: "upload_in_progress" });
         }
         return;
       }
@@ -1133,7 +1167,7 @@ export function mountCarPurchaseBidUi(root, ctx) {
       if (verr) {
         if (formErr instanceof HTMLElement) {
           formErr.hidden = false;
-          formErr.textContent = verr;
+          formErr.textContent = localizeCarOfferValidationError(verr);
         }
         return;
       }
@@ -1145,7 +1179,10 @@ export function mountCarPurchaseBidUi(root, ctx) {
         if (bidRequestId) clearPartnerCarOfferDraft(bidRequestId);
         onDetailUpdate(next);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "제출에 실패했습니다.";
+        const msg =
+          err instanceof Error && err.message
+            ? err.message
+            : t("common.dialog.partner.submit_failed", "Submit failed. Please try again.");
         if (formErr instanceof HTMLElement) {
           formErr.hidden = false;
           formErr.textContent = msg;

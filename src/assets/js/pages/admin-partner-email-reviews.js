@@ -2,6 +2,8 @@ import { partnerEmailReviewAdminApi } from "../core/api.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { loadSidebar } from "../components/sidebar.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
+import { confirmI18n } from "../core/app-dialog.js";
 
 function qs(selector) {
   return document.querySelector(selector);
@@ -80,7 +82,14 @@ function renderList(items) {
           await partnerEmailReviewAdminApi.approve(id);
           setStatus("공개되었습니다.");
         } else if (action === "ignore") {
-          if (!window.confirm("이 회신을 무시할까요? 고객에게 견적이 표시되지 않습니다.")) return;
+          if (
+            !confirmI18n(
+              "common.admin.partner_email.ignore_reply_confirm",
+              "Ignore this reply? The quote will not be shown to the customer.",
+            )
+          ) {
+            return;
+          }
           setStatus("처리 중…");
           await partnerEmailReviewAdminApi.ignore(id);
           setStatus("무시 처리되었습니다.");
@@ -136,12 +145,13 @@ async function refresh() {
 async function init() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   await loadSidebar("#sidebar", "admin");
-  applyI18nToDom(document);
   qs("#lhaiPartnerEmailReviewsRefresh")?.addEventListener("click", () => {
     void refresh();
   });
   await refresh();
+  });
 }
 
 void init();

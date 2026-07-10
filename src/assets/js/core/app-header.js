@@ -67,7 +67,7 @@ export function resolveAppHeaderShell() {
 
   return {
     brand: adminShell
-      ? t("common.header.brand.admin", "Landing Help AI 관리")
+      ? t("common.header.brand.admin", "Landing Help AI Admin")
       : t("common.header.brand.customer", "Landing Help AI"),
     profileHref: adminShell
       ? "admin-profile.html"
@@ -354,7 +354,7 @@ function applyHeaderMailUnreadBadge(count) {
   const link = document.querySelector("#lhai-header-messages-link");
   if (!badge || !link) return;
   const n = Math.max(0, Number(count) || 0);
-  const baseLabel = t("common.header.messages", "메시지함");
+  const baseLabel = t("common.header.messages", "Messages");
   if (n <= 0) {
     badge.hidden = true;
     badge.textContent = "";
@@ -366,8 +366,11 @@ function applyHeaderMailUnreadBadge(count) {
   const shown = n > 99 ? "99+" : String(n);
   badge.hidden = false;
   badge.textContent = shown;
-  const unreadHint = t("common.header.messages_unread_suffix", "읽지 않음");
-  badge.setAttribute("aria-label", t("common.header.messages_unread_badge", `새 메시지 ${n}건`));
+  const unreadHint = t("common.header.messages_unread_suffix", "Unread");
+  badge.setAttribute(
+    "aria-label",
+    t("common.header.messages_unread_badge", "{count} new messages").replace("{count}", shown)
+  );
   link.setAttribute("aria-label", `${baseLabel} · ${unreadHint} ${shown}`);
   link.setAttribute("title", `${baseLabel} · ${unreadHint} ${shown}`);
 }
@@ -397,13 +400,13 @@ function showNewMessageArrivalToast(count) {
     document.body.appendChild(root);
   }
   const shown = count > 99 ? "99+" : String(Math.max(1, count));
-  const title = escapeHtmlForToast(t("common.header.message_toast_title", "새 메시지가 도착했습니다"));
+  const title = escapeHtmlForToast(t("common.header.message_toast_title", "New message received"));
   const body = escapeHtmlForToast(
-    t("common.header.message_toast_body", "읽지 않은 메시지 {count}건이 있습니다.").replace(/\{count\}/g, shown)
+    t("common.header.message_toast_body", "You have {count} unread message(s).").replace(/\{count\}/g, shown)
   );
-  const cta = escapeHtmlForToast(t("common.header.message_toast_cta", "메시지함으로 이동"));
-  const closeLabel = escapeHtmlForToast(t("common.header.message_toast_close", "닫기"));
-  const closeAria = escapeHtmlForToast(t("common.header.message_toast_close_aria", "알림 닫기"));
+  const cta = escapeHtmlForToast(t("common.header.message_toast_cta", "Go to Messages"));
+  const closeLabel = escapeHtmlForToast(t("common.header.message_toast_close", "Close"));
+  const closeAria = escapeHtmlForToast(t("common.header.message_toast_close_aria", "Close notification"));
   root.innerHTML = `
     <div class="lhai-message-toast" role="status" aria-live="polite">
       <div class="lhai-message-toast__title">${title}</div>

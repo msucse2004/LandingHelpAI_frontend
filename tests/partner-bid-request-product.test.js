@@ -18,7 +18,7 @@ test("validateProductOffersForSubmit requires title and total", async () => {
     [{ offer_id: "offer_1", title: "", estimated_total: "" }],
     {},
   );
-  assert.match(err, /상품명/);
+  assert.equal(err?.code, "title_required");
 });
 
 test("buildProductSubmitPayload shapes PRODUCT_OFFER included_items", async () => {

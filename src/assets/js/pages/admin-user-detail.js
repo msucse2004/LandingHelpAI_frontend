@@ -7,6 +7,7 @@ import {
   getSupportedLanguageDisplayLabel,
 } from "../core/preferred-language.js";
 import { formatDate, formatMoney } from "../core/utils.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 
 const detailAlert = document.getElementById("detailAlert");
 const detailCard = document.getElementById("detailCard");
@@ -546,6 +547,7 @@ function setupDeleteZone(accountId, d) {
 
 async function main() {
   if (!protectCurrentPage()) return;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   bindProfileCardActionsOnce();
   const id = new URLSearchParams(window.location.search).get("id");
   if (!id || !id.trim()) {
@@ -575,6 +577,7 @@ async function main() {
   } catch (e) {
     setAlert(`불러오지 못했습니다. ${e.message || e}`, { error: true });
   }
+  });
 }
 
 void main();

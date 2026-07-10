@@ -4,6 +4,8 @@
  */
 import { messagesApi } from "../core/api.js";
 import { getAccessToken } from "../core/auth.js";
+import { alertI18n, alertPlain } from "../core/app-dialog.js";
+import { t } from "../core/i18n-client.js";
 import { safeText } from "../core/utils.js";
 
 const REASONS = [
@@ -118,7 +120,7 @@ export function bindMessageAiFeedback(opts) {
  */
 async function submitFeedback(wrap, p) {
   if (!getAccessToken()) {
-    window.alert("로그인 후 피드백을 보낼 수 있습니다.");
+    alertI18n("common.dialog.feedback.login_required", "Sign in to send feedback.");
     return;
   }
   wrap.querySelectorAll("button").forEach((b) => {
@@ -142,8 +144,11 @@ async function submitFeedback(wrap, p) {
         : ""
     }`;
   } catch (err) {
-    const msg = err && typeof err.message === "string" ? err.message : "피드백을 보내지 못했습니다.";
-    window.alert(msg);
+    const msg =
+      err && typeof err.message === "string"
+        ? err.message
+        : t("common.dialog.feedback.send_failed", "Could not send feedback.");
+    alertPlain(msg);
     wrap.querySelectorAll("button").forEach((b) => b.removeAttribute("disabled"));
   }
 }

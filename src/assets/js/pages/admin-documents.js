@@ -2,6 +2,7 @@ import { documentsApi } from "../core/api.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { loadSidebar } from "../components/sidebar.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 
 const customerProfileId = "profile::demo@customer.com";
 let selectedDocumentId = "";
@@ -49,8 +50,8 @@ async function refresh() {
 async function initAdminDocumentsPage() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   await loadSidebar("#sidebar", "admin");
-  applyI18nToDom(document);
   await refresh();
 
   qs("#adminDocumentReviewForm")?.addEventListener("submit", async (event) => {
@@ -82,6 +83,7 @@ async function initAdminDocumentsPage() {
     setStatus("Document request creation stub applied.");
     qs("#adminDocumentRequestForm")?.reset();
     await refresh();
+  });
   });
 }
 

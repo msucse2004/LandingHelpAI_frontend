@@ -1,7 +1,8 @@
 import { invoiceApi } from "../core/api.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { loadSidebar } from "../components/sidebar.js";
-import { applyI18nToDom } from "../core/i18n-dom.js";
+import { applyI18nToDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 import { formatDate, formatMoney, safeText } from "../core/utils.js";
 
 /**
@@ -94,11 +95,26 @@ async function loadInvoicesForAdmin(statusFilter) {
   return rows;
 }
 
+function refreshAdminInvoicesListI18n() {
+  applyI18nToDom(document);
+  const statusSelect = qs("#adminInvoiceStatusFilter");
+  const st =
+    statusSelect instanceof HTMLSelectElement ? normalizeStatusFilterParam(statusSelect.value) : "";
+  const emptyMsg = st
+    ? `상태가 «${st}»인 청구서가 없습니다. 필터를 바꿔 보세요.`
+    : "표시할 청구서가 없습니다.";
+  renderInvoiceList(invoicesCache, emptyMsg);
+}
+
+wireDynamicPageI18nRefresh(refreshAdminInvoicesListI18n, {
+  keyPrefixes: ["admin.", "common."],
+});
+
 async function initAdminInvoicesPage() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   await loadSidebar("#sidebar", "admin");
-  applyI18nToDom(document);
 
   const params = new URLSearchParams(window.location.search);
   const initialStatus = normalizeStatusFilterParam(params.get("status"));
@@ -126,6 +142,7 @@ async function initAdminInvoicesPage() {
 
   let rows = await loadInvoicesForAdmin(initialStatus);
   renderInvoiceList(rows, emptyMsg);
+  });
 }
 
 initAdminInvoicesPage();

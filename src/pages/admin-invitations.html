@@ -1,49 +1,49 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>회원 초대 메일 - Landing Help AI Admin</title>
+  <title data-i18n="admin.invitations.page_title" data-i18n-default="Member invitation email - Landing Help AI Admin">Member invitation email - Landing Help AI Admin</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
 </head>
-<body>
+<body data-lhai-i18n-domains="common,nav,admin">
     <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" aria-label="Admin navigation"></aside>
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" data-i18n-default="Admin menu" aria-label="Admin menu"></aside>
     <main class="lhai-main" id="main">
       <section class="lhai-page-header">
         <div>
-          <h1 class="lhai-title">회원 초대 메일</h1>
-          <p class="lhai-subtitle">
-            받는 사람에게 <strong>가입 링크</strong>가 담긴 메일을 보냅니다. 상대는 링크에서 회원가입을 마친 뒤
-            <strong>이메일 인증</strong>을 완료해야 정상적으로 로그인할 수 있습니다. 역할(권한)은 여기서 선택한 값으로 고정됩니다.
+          <h1 class="lhai-title" data-i18n="admin.invitations.title" data-i18n-default="Member invitation email">Member invitation email</h1>
+          <p class="lhai-subtitle" data-i18n="admin.invitations.subtitle" data-i18n-default="Sends an email containing a signup link. The recipient must complete email verification after registering before they can log in normally. The role (permissions) is fixed to the value selected here.">
+            Sends an email containing a <strong>signup link</strong>. The recipient must complete
+            <strong>email verification</strong> after registering before they can log in normally. The role (permissions) is fixed to the value selected here.
           </p>
         </div>
       </section>
 
       <section class="lhai-card u-mb-4" aria-labelledby="ucd-flow">
-        <h2 class="lhai-card__title" id="ucd-flow">이용 흐름 (받는 사람 관점)</h2>
+        <h2 class="lhai-card__title" id="ucd-flow" data-i18n="admin.invitations.flow.title" data-i18n-default="Recipient flow">Recipient flow</h2>
         <ol style="list-style: decimal; padding-left: 1.25rem; margin: 0; display: grid; gap: var(--lhai-space-2);">
-          <li>메일함에서 초대 메일을 연다. <strong>스팸·프로모션함</strong>도 함께 확인하도록 안내하세요.</li>
-          <li>메일 속 «가입하기» 링크를 눌러 회원가입 페이지로 이동한다.</li>
-          <li>이메일과 역할은 초대와 맞춰져 있으므로, 아이디·이름·비밀번호 등만 입력한다.</li>
-          <li>가입 후 도착하는 <strong>인증 메일</strong>의 링크로 이메일을 확인한다.</li>
+          <li data-i18n="admin.invitations.flow.step1" data-i18n-default="Open the invitation email. Remind them to check spam and promotions folders too.">Open the invitation email. Remind them to check <strong>spam and promotions</strong> folders too.</li>
+          <li data-i18n="admin.invitations.flow.step2" data-i18n-default="Click the Sign up link in the email to go to the registration page.">Click the «Sign up» link in the email to go to the registration page.</li>
+          <li data-i18n="admin.invitations.flow.step3" data-i18n-default="Email and role are pre-filled from the invitation; they only enter username, name, password, etc.">Email and role are pre-filled from the invitation; they only enter username, name, password, etc.</li>
+          <li data-i18n="admin.invitations.flow.step4" data-i18n-default="After signup, verify email using the link in the verification email.">After signup, verify email using the link in the <strong>verification email</strong>.</li>
         </ol>
-        <p class="lhai-help u-mt-2">이미 같은 이메일로 가입된 사람에게는 초대를 보낼 수 없습니다. 그 경우 기존 계정으로 로그인·비밀번호 찾기를 안내하세요.</p>
-        <p class="lhai-help u-mt-2">보안: 현재 관리 API는 데모용으로 보호되지 않습니다. 실서비스에서는 관리자 인증·감사 로그를 붙이세요.</p>
+        <p class="lhai-help u-mt-2" data-i18n="admin.invitations.flow.existing_account_help" data-i18n-default="You cannot invite someone who already registered with the same email. In that case, direct them to log in or use password recovery.">You cannot invite someone who already registered with the same email. In that case, direct them to log in or use password recovery.</p>
+        <p class="lhai-help u-mt-2" data-i18n="admin.invitations.flow.security_help" data-i18n-default="Security: the current admin API is unprotected for demo use. In production, add admin authentication and audit logging.">Security: the current admin API is unprotected for demo use. In production, add admin authentication and audit logging.</p>
       </section>
 
       <section class="lhai-card u-mb-4" aria-labelledby="operator-steps">
-        <h2 class="lhai-card__title" id="operator-steps">운영자 체크리스트</h2>
+        <h2 class="lhai-card__title" id="operator-steps" data-i18n="admin.invitations.checklist.title" data-i18n-default="Operator checklist">Operator checklist</h2>
         <ul style="list-style: disc; padding-left: 1.25rem; margin: 0; display: grid; gap: var(--lhai-space-2);">
-          <li>받는 사람 이메일 주소를 다시 한 번 확인합니다 (오타 시 다른 사람에게 권한이 갈 수 있습니다).</li>
-          <li>역할은 실제 업무에 맞는 <strong>최소 권한</strong>부터 선택합니다.</li>
-          <li>선택 메시지에는 회사명·담당자·다음 할 일 등 짧게 적으면 수신자가 맥락을 이해하기 쉽습니다.</li>
-          <li>
-            외부 사람에게 보낼 때는 전송 결과의 가입 링크가 <strong>https://…</strong> 인지 확인합니다.
-            계속 <code>127.0.0.1</code>이면 관리자 로그인 상태에서 API
-            <code>GET /api/admin/runtime/public-app-base</code> 로 어떤 후보가 선택됐는지 확인하고,
-            <code>LandingHelpAI_backend/.env</code> 의 예전 localhost 줄을 지우거나 Docker Compose <code>environment</code>로 공개 URL을 넣은 뒤 백엔드를 재시작하세요.
+          <li data-i18n="admin.invitations.checklist.email" data-i18n-default="Double-check the recipient email address (a typo may grant access to the wrong person).">Double-check the recipient email address (a typo may grant access to the wrong person).</li>
+          <li data-i18n="admin.invitations.checklist.role" data-i18n-default="Choose the minimum role that matches their actual duties.">Choose the <strong>minimum role</strong> that matches their actual duties.</li>
+          <li data-i18n="admin.invitations.checklist.message" data-i18n-default="In the optional message, briefly note company name, contact person, and next steps so the recipient understands context.">In the optional message, briefly note company name, contact person, and next steps so the recipient understands context.</li>
+          <li data-i18n="admin.invitations.checklist.public_url" data-i18n-default="When sending externally, confirm the signup link in the send result starts with https://…. If it still shows 127.0.0.1, while logged in as admin call GET /api/admin/runtime/public-app-base to see which candidate was chosen, then remove stale localhost lines from LandingHelpAI_backend/.env or set the public URL via Docker Compose environment and restart the backend.">
+            When sending externally, confirm the signup link in the send result starts with <strong>https://…</strong>.
+            If it still shows <code>127.0.0.1</code>, while logged in as admin call API
+            <code>GET /api/admin/runtime/public-app-base</code> to see which candidate was chosen, then
+            remove stale localhost lines from <code>LandingHelpAI_backend/.env</code> or set the public URL via Docker Compose <code>environment</code> and restart the backend.
           </li>
         </ul>
       </section>
@@ -52,62 +52,62 @@
       <p class="lhai-help u-mb-2" id="rolesLoadStatus" aria-live="polite"></p>
 
       <section class="lhai-card u-mb-4">
-        <h2 class="lhai-card__title">초대 보내기</h2>
+        <h2 class="lhai-card__title" data-i18n="admin.invitations.form.title" data-i18n-default="Send invitation">Send invitation</h2>
         <form class="lhai-form" id="inviteForm" aria-describedby="rolesLoadStatus">
-          <label class="lhai-label" for="inviteRole">부여할 역할</label>
+          <label class="lhai-label" for="inviteRole" data-i18n="admin.invitations.form.role_label" data-i18n-default="Role to assign">Role to assign</label>
           <select class="lhai-select" id="inviteRole" name="inviteRole" required aria-busy="true" disabled>
-            <option value="">역할 목록을 불러오는 중…</option>
+            <option value="" data-i18n="admin.invitations.form.role_loading" data-i18n-default="Loading roles…">Loading roles…</option>
           </select>
-          <p class="lhai-help" id="inviteRoleHelp">
-            역할 코드 옆 한글 이름을 참고해 선택하세요. <strong>파트너</strong>는 로그인 권한(RBAC)이며, 아래 «파트너 역할/유형»은 업무 매칭용 카탈로그 값입니다.
+          <p class="lhai-help" id="inviteRoleHelp" data-i18n="admin.invitations.form.role_help" data-i18n-default="Use the display name next to each role code. Partner is a login permission (RBAC); Partner role/type below is a catalog value for workflow matching.">
+            Use the display name next to each role code. <strong>Partner</strong> is a login permission (RBAC); «Partner role/type» below is a catalog value for workflow matching.
           </p>
 
           <div id="invitePartnerFields" class="u-mt-2" style="display: none;">
-            <label class="lhai-label" for="invitePartnerType">파트너 역할/유형 <span class="lhai-field-error">*</span></label>
+            <label class="lhai-label" for="invitePartnerType" data-i18n="admin.invitations.form.partner_type_label" data-i18n-default="Partner role/type">Partner role/type <span class="lhai-field-error">*</span></label>
             <select class="lhai-select" id="invitePartnerType" name="invitePartnerType" aria-describedby="invitePartnerTypeHelp">
-              <option value="">유형을 선택하세요</option>
+              <option value="" data-i18n="admin.invitations.form.partner_type_placeholder" data-i18n-default="Select a type">Select a type</option>
             </select>
-            <p class="lhai-help" id="invitePartnerTypeHelp">
-              파트너 역할/유형은 초대에만 저장되며, 가입 완료 후 파트너 프로필에 반영되어 워크플로우 매칭에 사용됩니다. 이름·전화·지역은 초대받은 분이 회원가입 화면에서 입력합니다.
+            <p class="lhai-help" id="invitePartnerTypeHelp" data-i18n="admin.invitations.form.partner_type_help" data-i18n-default="Partner role/type is stored on the invitation only and applied to the partner profile after signup for workflow matching. Name, phone, and region are entered by the invitee on the registration screen.">
+              Partner role/type is stored on the invitation only and applied to the partner profile after signup for workflow matching. Name, phone, and region are entered by the invitee on the registration screen.
             </p>
 
-            <label class="lhai-label u-mt-2" for="invitePartnerMode">파트너 모드 <span class="lhai-field-error">*</span></label>
+            <label class="lhai-label u-mt-2" for="invitePartnerMode" data-i18n="admin.invitations.form.partner_mode_label" data-i18n-default="Partner mode">Partner mode <span class="lhai-field-error">*</span></label>
             <select class="lhai-select" id="invitePartnerMode" name="invitePartnerMode" aria-describedby="invitePartnerModeHelp">
-              <option value="">선택…</option>
-              <option value="ASSIGNED_ONLY">ASSIGNED_ONLY (고정 배정)</option>
-              <option value="BIDDING_ONLY">BIDDING_ONLY (입찰·선택)</option>
+              <option value="" data-i18n="admin.invitations.form.select_placeholder" data-i18n-default="Select…">Select…</option>
+              <option value="ASSIGNED_ONLY" data-i18n="admin.invitations.form.mode_assigned_only" data-i18n-default="ASSIGNED_ONLY (fixed assignment)">ASSIGNED_ONLY (fixed assignment)</option>
+              <option value="BIDDING_ONLY" data-i18n="admin.invitations.form.mode_bidding_only" data-i18n-default="BIDDING_ONLY (bidding/selection)">BIDDING_ONLY (bidding/selection)</option>
             </select>
-            <p class="lhai-help" id="invitePartnerModeHelp">워크플로 단계와 별개로, 파트너 계정의 동작 모드를 구분합니다.</p>
+            <p class="lhai-help" id="invitePartnerModeHelp" data-i18n="admin.invitations.form.partner_mode_help" data-i18n-default="Separate from workflow steps; distinguishes how the partner account behaves.">Separate from workflow steps; distinguishes how the partner account behaves.</p>
 
-            <label class="lhai-label u-mt-2" for="invitePreferredChannel">선호 연락 채널</label>
+            <label class="lhai-label u-mt-2" for="invitePreferredChannel" data-i18n="admin.invitations.form.preferred_channel_label" data-i18n-default="Preferred contact channel">Preferred contact channel</label>
             <select class="lhai-select" id="invitePreferredChannel" name="invitePreferredChannel" aria-describedby="invitePreferredChannelHelp">
-              <option value="BOTH" selected>이메일 + 인앱 (BOTH)</option>
-              <option value="EMAIL">이메일 (EMAIL)</option>
-              <option value="IN_APP">인앱 (IN_APP)</option>
+              <option value="BOTH" selected data-i18n="admin.invitations.form.channel_both" data-i18n-default="Email + in-app (BOTH)">Email + in-app (BOTH)</option>
+              <option value="EMAIL" data-i18n="admin.invitations.form.channel_email" data-i18n-default="Email (EMAIL)">Email (EMAIL)</option>
+              <option value="IN_APP" data-i18n="admin.invitations.form.channel_in_app" data-i18n-default="In-app (IN_APP)">In-app (IN_APP)</option>
             </select>
-            <p class="lhai-help" id="invitePreferredChannelHelp">기본값은 BOTH입니다.</p>
+            <p class="lhai-help" id="invitePreferredChannelHelp" data-i18n="admin.invitations.form.preferred_channel_help" data-i18n-default="Default is BOTH.">Default is BOTH.</p>
           </div>
 
-          <label class="lhai-label u-mt-2" for="inviteEmail">받는 사람 이메일</label>
-          <input class="lhai-input" id="inviteEmail" name="inviteEmail" type="email" autocomplete="email" required placeholder="name@company.com" />
+          <label class="lhai-label u-mt-2" for="inviteEmail" data-i18n="admin.invitations.form.email_label" data-i18n-default="Recipient email">Recipient email</label>
+          <input class="lhai-input" id="inviteEmail" name="inviteEmail" type="email" autocomplete="email" required data-i18n-placeholder="admin.invitations.form.email_placeholder" data-i18n-default="name@company.com" placeholder="name@company.com" />
 
-          <label class="lhai-label" for="personalMessage">메일에 덧붙일 메시지 (선택, 최대 약 2000자)</label>
-          <textarea class="lhai-textarea" id="personalMessage" name="personalMessage" rows="4" maxlength="2000" placeholder="예: 안녕하세요, OO팀입니다. 아래 링크로 가입 후 인증 메일을 완료해 주세요."></textarea>
-          <button type="submit" class="lhai-button lhai-button--primary" id="inviteSubmitBtn">초대 메일 보내기</button>
+          <label class="lhai-label" for="personalMessage" data-i18n="admin.invitations.form.message_label" data-i18n-default="Optional message appended to email (max ~2000 characters)">Optional message appended to email (max ~2000 characters)</label>
+          <textarea class="lhai-textarea" id="personalMessage" name="personalMessage" rows="4" maxlength="2000" data-i18n-placeholder="admin.invitations.form.message_placeholder" data-i18n-default="e.g. Hello, this is the OO team. Please sign up via the link below and complete the verification email." placeholder="e.g. Hello, this is the OO team. Please sign up via the link below and complete the verification email."></textarea>
+          <button type="submit" class="lhai-button lhai-button--primary" id="inviteSubmitBtn" data-i18n="admin.invitations.form.submit" data-i18n-default="Send invitation email">Send invitation email</button>
         </form>
       </section>
 
       <section class="lhai-card" id="inviteResultSection" hidden aria-live="polite">
-        <h2 class="lhai-card__title">전송 결과</h2>
+        <h2 class="lhai-card__title" data-i18n="admin.invitations.result.title" data-i18n-default="Send result">Send result</h2>
         <p class="lhai-help" id="inviteResultBody"></p>
         <p class="lhai-help u-mt-2" id="inviteResultMeta"></p>
         <p class="lhai-help u-mt-2" id="inviteSignupUrlWrap" hidden>
-          <strong>가입 링크 (메일 본문과 동일 · 확인용)</strong><br />
+          <strong data-i18n="admin.invitations.result.signup_link_label" data-i18n-default="Signup link (same as email body · for verification)">Signup link (same as email body · for verification)</strong><br />
           <a id="inviteSignupUrlLink" class="lhai-messages-cta-link" href="#" target="_blank" rel="noopener noreferrer"></a>
         </p>
-        <p class="lhai-help u-mt-2 lhai-field-error" id="inviteSignupUrlWarnLoopback" hidden>
-          이 링크가 localhost / 127.0.0.1 이면 외부 수신자는 열 수 없습니다.
-          서버 환경 변수 <code>PUBLIC_APP_BASE_URL</code>을 실제 웹 주소(https://…)로 설정하고 백엔드를 재시작한 뒤 초대를 다시 보내세요.
+        <p class="lhai-help u-mt-2 lhai-field-error" id="inviteSignupUrlWarnLoopback" hidden data-i18n="admin.invitations.result.loopback_warn" data-i18n-default="If this link is localhost / 127.0.0.1, external recipients cannot open it. Set server env PUBLIC_APP_BASE_URL to your real web address (https://…) and restart the backend, then resend the invitation.">
+          If this link is localhost / 127.0.0.1, external recipients cannot open it.
+          Set server env <code>PUBLIC_APP_BASE_URL</code> to your real web address (https://…) and restart the backend, then resend the invitation.
         </p>
       </section>
     </main>
@@ -118,7 +118,7 @@
       <div class="lhai-dialog__body" id="inviteErrorBody"></div>
       <div class="lhai-dialog__actions">
         <form method="dialog">
-          <button type="submit" class="lhai-button lhai-button--primary" id="inviteErrorCloseBtn">확인</button>
+          <button type="submit" class="lhai-button lhai-button--primary" id="inviteErrorCloseBtn" data-i18n="admin.invitations.error.close" data-i18n-default="OK">OK</button>
         </form>
       </div>
     </div>

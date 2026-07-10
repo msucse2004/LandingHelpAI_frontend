@@ -1,3 +1,4 @@
+import { getEffectiveLanguage } from "../core/preferred-language.js";
 import { getSelectedServicesFromQuote, normalizeDeliveryModeKey } from "./quote-detail-pricing-logic.js";
 
 const UUID_RE =
@@ -36,7 +37,7 @@ export function formatCustomerFacingDate(raw) {
   try {
     const d = new Date(iso);
     if (!Number.isNaN(d.getTime()) && /^\d{4}-\d{2}-\d{2}$/.test(iso)) {
-      return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(d);
+      return new Intl.DateTimeFormat(getEffectiveLanguage(), { dateStyle: "medium" }).format(d);
     }
   } catch {
     /* keep raw */
@@ -86,14 +87,11 @@ export function buildRequestSummaryRows(quote) {
 
   const cats = Array.isArray(survey.selected_categories) ? survey.selected_categories : [];
   let helpAreas = cats
-    .map((c) => {
-      if (!c || typeof c !== "object") return "";
-      return String(c.title || "").trim();
-    })
+    .map((c) => String(c.display_title || c.title || "").trim())
     .filter(isCustomerVisibleText);
 
   if (!helpAreas.length) {
-    const sn = String(quote?.service_name || "").trim();
+    const sn = String(quote?.display_service_name || quote?.service_name || "").trim();
     if (/^survey request:\s*/i.test(sn)) {
       const rest = sn.replace(/^survey request:\s*/i, "").trim();
       if (isCustomerVisibleText(rest)) helpAreas = [rest];
@@ -102,7 +100,7 @@ export function buildRequestSummaryRows(quote) {
 
   const selectedServices = getSelectedServicesFromQuote(quote);
   const services = selectedServices
-    .map((s) => String(s.title || "").trim())
+    .map((s) => String(s.display_title || s.title || "").trim())
     .filter(isCustomerVisibleText);
 
   const deliverySeen = new Set();

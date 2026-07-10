@@ -1,31 +1,31 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>내 문의 - Landing Help AI</title>
+  <title>My requests - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/cases.css" />
 </head>
-<body>
+<body data-i18n-domains="common,nav,dashboard">
   <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar" aria-label="고객 메뉴"></aside>
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.customer.aria_label" data-i18n-default="Customer menu" aria-label="Customer menu"></aside>
     <main class="lhai-main">
       <section class="lhai-page-header">
         <div>
-          <h1 class="lhai-title">내 문의</h1>
-          <p class="lhai-subtitle">서비스별로 나뉜 문의입니다. 각 카드를 눌러 대화를 이어가세요.</p>
+          <h1 class="lhai-title" data-i18n="common.sidebar.customer.cases" data-i18n-default="My requests">My requests</h1>
+          <p class="lhai-subtitle" data-i18n="customer.cases.page_subtitle" data-i18n-default="Each card is a separate service request. Open one to continue the conversation.">Each card is a separate service request. Open one to continue the conversation.</p>
         </div>
-        <a class="lhai-button lhai-button--secondary" href="messages.html">기존 메시지함</a>
+        <a class="lhai-button lhai-button--secondary" href="messages.html" data-i18n="customer.cases.link_messages" data-i18n-default="Messages">Messages</a>
       </section>
 
-      <div id="casesLoadingState" class="lhai-card lhai-state lhai-state--loading" hidden>문의 목록을 불러오는 중…</div>
+      <div id="casesLoadingState" class="lhai-card lhai-state lhai-state--loading" hidden data-i18n="customer.cases.loading" data-i18n-default="Loading your requests…">Loading your requests…</div>
       <div id="casesErrorState" class="lhai-card lhai-state lhai-state--error" hidden role="alert"></div>
       <div id="casesEmptyState" class="lhai-card lhai-state lhai-state--empty" hidden>
-        <p class="lhai-title" style="font-size:1rem;">아직 등록된 문의가 없습니다.</p>
-        <p class="lhai-help u-mt-2">견적 신청이나 고객센터를 통해 문의를 시작하면 여기에 표시됩니다.</p>
-        <a class="lhai-button lhai-button--primary u-mt-3" href="survey-start.html">견적·서비스 신청</a>
+        <p class="lhai-title" style="font-size:1rem;" data-i18n="customer.cases.empty_title" data-i18n-default="No requests yet">No requests yet</p>
+        <p class="lhai-help u-mt-2" data-i18n="customer.cases.empty_body" data-i18n-default="When you start a service inquiry or quote request, it will appear here.">When you start a service inquiry or quote request, it will appear here.</p>
+        <a class="lhai-button lhai-button--primary u-mt-3" href="survey-start.html" data-i18n="customer.cases.empty_cta" data-i18n-default="Start a service request">Start a service request</a>
       </div>
       <div id="casesListHost" class="lhai-cases__list" hidden></div>
     </main>

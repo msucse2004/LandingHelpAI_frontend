@@ -175,7 +175,7 @@ test("validateCarOffersForSubmit requires alternative_reason", async () => {
     ],
     { allowAlternatives: true }
   );
-  assert.match(err, /대안/);
+  assert.equal(err?.code, "alternative_reason_required");
 });
 
 test("buildCarSubmitPayload uses lowest estimated_total", async () => {
@@ -244,7 +244,7 @@ test("validateCarOffersForSubmit blocks uploads in progress", async () => {
     ],
     { allowAlternatives: true, uploadsInProgress: true },
   );
-  assert.match(err, /업로드/);
+  assert.equal(err?.code, "upload_in_progress");
 });
 
 test("buildAutoOfferTitle joins year make model trim", async () => {

@@ -3,11 +3,13 @@ import { mountPartnerShell } from "../layouts/partner-shell.js";
 import { getCurrentRole } from "../core/auth.js";
 import { ROLES } from "../core/config.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 import { protectCurrentPage } from "../core/guards.js";
 import { renderPartnerPageContentHtml } from "../layouts/partner-page-layout.js";
 
 async function main() {
   if (!protectCurrentPage()) return;
+  await bootAppPageContent(["common", "nav", "auth"], async () => {
   const app = document.getElementById("app");
   const contentHtml = renderPartnerPageContentHtml({
     title: "비밀번호 변경",
@@ -28,7 +30,7 @@ async function main() {
   } catch {
     /* ignore */
   }
-  applyI18nToDom(document);
+  });
 }
 
 main();

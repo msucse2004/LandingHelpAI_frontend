@@ -97,7 +97,7 @@ export function buildQuotePricingBreakdown(quote) {
 
   const serviceLines = selectedServices.map((service) => {
     const id = String(service.id || "").trim();
-    const title = String(service.title || service.id || "Service").trim() || "Service";
+    const title = String(service.display_title || service.title || service.id || "Service").trim() || "Service";
     const deliveryModeKey = normalizeDeliveryModeKey(service.delivery_mode);
     return {
       type: "service",

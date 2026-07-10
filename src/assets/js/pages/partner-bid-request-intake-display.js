@@ -427,7 +427,13 @@ export function renderFullIntakeAnswersDisclosure(rows, opts = {}) {
       : `<div class="${listClass}" role="list">${list
           .map((row) => {
             const r = row && typeof row === "object" ? row : {};
-            const label = escHtml(String(r.label || "—"));
+            const label = escHtml(
+              String(
+                r.display_label != null && String(r.display_label).trim()
+                  ? r.display_label
+                  : r.label || "—",
+              ),
+            );
             if (String(r.kind || "answer").trim().toLowerCase() === "section") {
               return `<div class="lhai-par-bid__intake-section ${itemClass}" role="listitem">
                 <p class="lhai-par-bid__intake-section-title">${label}</p>

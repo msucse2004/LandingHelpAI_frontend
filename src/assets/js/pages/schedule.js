@@ -1,40 +1,137 @@
 import { customerScheduleApi, scheduleApi } from "../core/api.js";
 import { getCustomerMessagingProfileId } from "../core/auth.js";
 import { loadSidebar } from "../components/sidebar.js";
-import { applyI18nToDom } from "../core/i18n-dom.js";
+import {
+  applyDocumentLanguageAttributes,
+  applyI18nToDom,
+  wireDynamicPageI18nRefresh,
+} from "../core/i18n-dom.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
+import { mergeFallbackStrings, reloadI18nForLanguage, t, flushRuntimeMissingKeysAfterPageApply } from "../core/i18n-client.js";
+import { getEffectiveLanguage } from "../core/preferred-language.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { formatDate, safeText } from "../core/utils.js";
+import { getSchedulePageLocaleBundle } from "./schedule-page-locale.js";
 
 const urlParams = new URLSearchParams(window.location.search);
 const scheduleIdFromUrl = String(urlParams.get("schedule_id") || urlParams.get("id") || "").trim();
 const CAL_HOUR_START = 6;
 const CAL_HOUR_END = 20;
+const SCHEDULE_I18N_DOMAINS = ["common", "nav", "schedule"];
+
 /** @type {Date} */
 let customerCalWeekStart = new Date();
 let customerCalendarView = "monthly";
+/** @type {Record<string, unknown> | null} */
+let schedulePageSelected = null;
+
+function applySchedulePageLocaleBundle() {
+  const lang = getEffectiveLanguage();
+  applyDocumentLanguageAttributes(lang);
+  mergeFallbackStrings(getSchedulePageLocaleBundle(lang));
+}
+
+function readScheduleFeedbackPreserve() {
+  const input = document.querySelector("#customerScheduleFeedbackInput");
+  if (!(input instanceof HTMLTextAreaElement)) return null;
+  return {
+    value: input.value,
+    selectionStart: input.selectionStart,
+    selectionEnd: input.selectionEnd,
+  };
+}
+
+function restoreScheduleFeedbackPreserve(preserve) {
+  if (!preserve) return;
+  const input = document.querySelector("#customerScheduleFeedbackInput");
+  if (!(input instanceof HTMLTextAreaElement)) return;
+  input.value = preserve.value;
+  try {
+    input.setSelectionRange(preserve.selectionStart, preserve.selectionEnd);
+  } catch {
+    /* ignore */
+  }
+}
+
+function rerenderSchedulePageFromCache() {
+  const preserve = readScheduleFeedbackPreserve();
+  renderSummary(schedulePageSelected);
+  renderReadOnlyCalendar(schedulePageSelected);
+  renderTimeline(schedulePageSelected);
+  restoreScheduleFeedbackPreserve(preserve);
+}
+
+async function refreshSchedulePageForViewerLanguage() {
+  applySchedulePageLocaleBundle();
+  try {
+    await reloadI18nForLanguage(getEffectiveLanguage(), SCHEDULE_I18N_DOMAINS);
+  } catch {
+    /* keep merged locale bundle fallbacks */
+  }
+  applyI18nToDom(document);
+  rerenderSchedulePageFromCache();
+  await flushRuntimeMissingKeysAfterPageApply();
+}
+
+wireDynamicPageI18nRefresh(() => {
+  void refreshSchedulePageForViewerLanguage();
+}, { keyPrefixes: ["schedule.", "common.", "customer.schedule."] });
 
 function setFeedbackStatus(message) {
   const target = document.querySelector("#customerScheduleFeedbackStatus");
   if (target) target.textContent = message;
 }
 
-function statusLabelKo(status) {
-  const s = String(status || "").toUpperCase();
-  if (s === "DRAFT") return "준비 중(초안)";
-  if (s === "PROPOSED") return "검토·안내 중";
-  if (s === "CONFIRMED") return "확정";
-  if (s === "REVISED") return "조정 반영 중";
-  return safeText(status, "알 수 없음");
+function statusLabel(status, displayFromApi) {
+  const fromApi = String(displayFromApi || "").trim();
+  if (fromApi) return fromApi;
+
+  const s = String(status || "").trim().toUpperCase();
+  const keyByStatus = {
+    DRAFT: "customer.schedule.status.draft",
+    PROPOSED: "customer.schedule.status.proposed",
+    CONFIRMED: "customer.schedule.status.confirmed",
+    REVISED: "customer.schedule.status.revised",
+  };
+  const fallbackByStatus = {
+    DRAFT: "Draft",
+    PROPOSED: "Under review",
+    CONFIRMED: "Confirmed",
+    REVISED: "Revised",
+  };
+  const key = keyByStatus[s] || "customer.schedule.status.unknown";
+  const fallback = fallbackByStatus[s] || safeText(status, "Unknown") || "Unknown";
+  return t(key, fallback);
 }
 
 function deliveryLabel(deliveryType) {
   const d = String(deliveryType || "").toLowerCase().replace(/-/g, "_");
-  if (d === "in_person" || d === "inperson") return "방문 지원";
-  if (d === "ai_guide" || d === "ai" || d === "guide") return "Landing Help AI Agent";
-  if (d === "hybrid" || d === "optional_human" || d === "ai_plus_human")
-    return "Landing Help AI Agent + 선택적 인력 지원";
+  if (d === "in_person" || d === "inperson") {
+    return t("customer.schedule.delivery.in_person", "In-person support");
+  }
+  if (d === "ai_guide" || d === "ai" || d === "guide") {
+    return t("customer.schedule.delivery.ai_guide", "Landing Help AI Agent");
+  }
+  if (d === "hybrid" || d === "optional_human" || d === "ai_plus_human") {
+    return t("customer.schedule.delivery.hybrid", "Landing Help AI Agent + optional human help");
+  }
   if (!d) return "";
   return safeText(deliveryType);
+}
+
+function formatScheduleDate(dateLike) {
+  if (!dateLike) return "";
+  const date = new Date(dateLike);
+  if (Number.isNaN(date.getTime())) return String(dateLike);
+  try {
+    return new Intl.DateTimeFormat(getEffectiveLanguage(), {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(date);
+  } catch {
+    return formatDate(dateLike);
+  }
 }
 
 function formatTimeLocal(iso) {
@@ -42,7 +139,7 @@ function formatTimeLocal(iso) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
   try {
-    return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
+    return new Intl.DateTimeFormat(getEffectiveLanguage(), { hour: "numeric", minute: "2-digit" }).format(date);
   } catch {
     return "";
   }
@@ -59,16 +156,25 @@ function localDateKey(iso) {
 
 function formatDayHeading(iso) {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "일정";
+  if (Number.isNaN(d.getTime())) return t("customer.schedule.timeline.day_fallback", "Schedule");
   try {
-    return new Intl.DateTimeFormat("ko-KR", {
+    return new Intl.DateTimeFormat(getEffectiveLanguage(), {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
     }).format(d);
   } catch {
-    return formatDate(iso);
+    return formatScheduleDate(iso);
+  }
+}
+
+function weekdayShortLabel(referenceMonday, offset) {
+  const d = addDays(referenceMonday, offset);
+  try {
+    return new Intl.DateTimeFormat(getEffectiveLanguage(), { weekday: "short" }).format(d);
+  } catch {
+    return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][offset] || "";
   }
 }
 
@@ -97,29 +203,39 @@ function renderSummary(view) {
   const target = document.querySelector("#customerScheduleSummary");
   if (!target) return;
   if (!view) {
-    target.innerHTML = `<div class="lhai-state lhai-state--empty">표시할 일정이 없습니다. 링크가 올바른지 확인하거나 고객센터로 문의해 주세요.</div>`;
+    target.innerHTML = `<div class="lhai-state lhai-state--empty">${safeText(
+      t("customer.schedule.summary.empty", "No schedule to display. Check the link or contact support if you need help."),
+    )}</div>`;
     return;
   }
   const lr = view.last_release;
   const releasedLine = lr
-    ? `<p class="lhai-schedule-meta"><strong>안내 버전</strong> v${safeText(lr.version_number)} · <strong>공개·갱신</strong> ${formatDate(lr.released_at)} ${formatTimeLocal(lr.released_at)}</p>${
+    ? `<p class="lhai-schedule-meta"><strong>${safeText(t("customer.schedule.summary.version_label", "Version"))}</strong> v${safeText(lr.version_number)} · <strong>${safeText(t("customer.schedule.summary.released_label", "Released"))}</strong> ${formatScheduleDate(lr.released_at)} ${formatTimeLocal(lr.released_at)}</p>${
         lr.release_note
           ? `<p class="lhai-schedule-release-note">${safeText(lr.release_note)}</p>`
           : ""
       }`
-    : `<p class="lhai-schedule-meta u-text-muted">아직 고객에게 공개된 일정 버전이 없습니다. 아래는 최신 초안 기준 안내일 수 있어요.</p>`;
+    : `<p class="lhai-schedule-meta u-text-muted">${safeText(
+        t(
+          "customer.schedule.summary.no_release",
+          "No schedule version has been released to you yet. The information below may reflect the latest draft.",
+        ),
+      )}</p>`;
   const prevFeedback =
     view.customer_feedback && String(view.customer_feedback).trim()
-      ? `<p class="lhai-schedule-meta"><strong>이전 조정 요청 요약</strong> ${safeText(view.customer_feedback)}</p>`
+      ? `<p class="lhai-schedule-meta"><strong>${safeText(t("customer.schedule.summary.prev_feedback_label", "Previous change request"))}</strong> ${safeText(view.customer_feedback)}</p>`
       : "";
+  const badgeLabel = statusLabel(view.status, view.display_status_label);
   target.innerHTML = `
     <div class="lhai-schedule-hero">
-      <span class="lhai-schedule-status-badge" data-status="${escapeAttr(view.status)}">${statusLabelKo(view.status)}</span>
-      <p class="lhai-schedule-meta"><strong>최종 수정</strong> ${formatDate(view.updated_at)} ${formatTimeLocal(view.updated_at)}</p>
+      <span class="lhai-schedule-status-badge" data-status="${escapeAttr(view.status)}">${safeText(badgeLabel)}</span>
+      <p class="lhai-schedule-meta"><strong>${safeText(t("customer.schedule.summary.last_updated_label", "Last updated"))}</strong> ${formatScheduleDate(view.updated_at)} ${formatTimeLocal(view.updated_at)}</p>
       ${releasedLine}
       ${prevFeedback}
     </div>
-    <p class="lhai-schedule-hint u-text-muted">가격·내부 검토 정보는 이 화면에 표시되지 않습니다.</p>
+    <p class="lhai-schedule-hint u-text-muted">${safeText(
+      t("customer.schedule.summary.privacy_hint", "Pricing and internal review details are not shown on this page."),
+    )}</p>
   `;
 }
 
@@ -132,19 +248,31 @@ function renderTimeline(view) {
   }
   const groups = groupItemsByDate(view.items || []);
   if (!groups.length || (groups.length === 1 && groups[0].key === "_invalid" && !(groups[0].items || []).length)) {
-    target.innerHTML = `<div class="lhai-state lhai-state--empty">등록된 서비스 일정이 아직 없습니다. 운영팀이 구성 중이면 잠시 후 다시 확인해 주세요.</div>`;
+    target.innerHTML = `<div class="lhai-state lhai-state--empty">${safeText(
+      t(
+        "customer.schedule.timeline.empty",
+        "No service appointments are listed yet. If operations is still building your schedule, check back shortly.",
+      ),
+    )}</div>`;
     return;
   }
-  const docLink = `<a class="lhai-button lhai-button--ghost lhai-schedule-doc-link" href="documents.html">문서 센터에서 서류 확인</a>`;
+  const docLink = `<a class="lhai-button lhai-button--ghost lhai-schedule-doc-link" href="documents.html">${safeText(
+    t("customer.schedule.timeline.doc_link", "View documents"),
+  )}</a>`;
   const blocks = groups
     .map(({ key, items, anchorIso }) => {
-      const title = key === "_invalid" ? "일정(시간 미확인)" : formatDayHeading(anchorIso || items[0]?.scheduled_start);
+      const title =
+        key === "_invalid"
+          ? t("customer.schedule.timeline.day_unknown", "Schedule (time pending)")
+          : formatDayHeading(anchorIso || items[0]?.scheduled_start);
       const cards = (items || [])
         .map((it) => {
           const t0 = formatTimeLocal(it.scheduled_start);
           const t1 = formatTimeLocal(it.scheduled_end);
-          const range = t0 && t1 ? `${t0} – ${t1}` : t0 || "시간 협의";
+          const range = t0 && t1 ? `${t0} – ${t1}` : t0 || t("customer.schedule.timeline.time_tbd", "Time TBD");
           const del = deliveryLabel(it.delivery_type);
+          const serviceName = String(it.display_service_name || it.service_name_snapshot || "").trim()
+            || t("customer.schedule.timeline.service_fallback", "Service");
           const doc = it.document_hint ? `<p class="lhai-schedule-card__doc">${safeText(it.document_hint)}</p>` : "";
           const note = it.customer_note ? `<p class="lhai-schedule-card__note">${safeText(it.customer_note)}</p>` : "";
           const dur = it.duration_label ? `<span class="lhai-schedule-card__dur">${safeText(it.duration_label)}</span>` : "";
@@ -152,8 +280,8 @@ function renderTimeline(view) {
             <li class="lhai-schedule-card">
               <div class="lhai-schedule-card__time">${safeText(range)} ${dur}</div>
               <div class="lhai-schedule-card__body">
-                <h3 class="lhai-schedule-card__title">${safeText(it.service_name_snapshot || "서비스")}</h3>
-                ${del ? `<p class="lhai-schedule-card__delivery">${del}</p>` : ""}
+                <h3 class="lhai-schedule-card__title">${safeText(serviceName)}</h3>
+                ${del ? `<p class="lhai-schedule-card__delivery">${safeText(del)}</p>` : ""}
                 ${note}
                 ${doc}
               </div>
@@ -227,7 +355,6 @@ function usFederalHolidayNameLocal(d) {
   if (m === 9 && day === nthWeekdayOfMonth(y, 8, 1, 1)) return "Labor Day";
   if (m === 10 && day === nthWeekdayOfMonth(y, 9, 1, 2)) return "Columbus Day";
   if (m === 11 && day === nthWeekdayOfMonth(y, 10, 4, 4)) return "Thanksgiving";
-  // Observed rules for fixed-date holidays
   if (dow === 5) {
     const next = new Date(y, m - 1, day + 1);
     const nfixed = `${next.getMonth() + 1}-${next.getDate()}`;
@@ -280,13 +407,12 @@ function blockLayoutLocal(item) {
 }
 
 function weeklyHeader(mon, dayCount) {
-  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   let head = `<div class="lhai-cs-week-head__corner"></div>`;
   for (let i = 0; i < dayCount; i += 1) {
     const d = addDays(mon, i);
     const tone = calendarToneClassLocal(d);
     const holiday = usFederalHolidayNameLocal(d);
-    head += `<div class="lhai-cs-week-head__day ${tone}"><strong>${dayNames[i]}</strong> ${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}${holiday ? ` <span class="lhai-cs-holiday-name">${safeText(holiday)}</span>` : ""}</div>`;
+    head += `<div class="lhai-cs-week-head__day ${tone}"><strong>${safeText(weekdayShortLabel(mon, i))}</strong> ${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}${holiday ? ` <span class="lhai-cs-holiday-name">${safeText(holiday)}</span>` : ""}</div>`;
   }
   return head;
 }
@@ -304,6 +430,7 @@ function renderWeekLikeGrid(view, mon, dayCount) {
   if (!grid) return;
   const head = weeklyHeader(mon, dayCount);
   const rail = renderTimeRail();
+  const serviceFallback = t("customer.schedule.timeline.service_fallback", "Service");
   let daysHtml = "";
   for (let i = 0; i < dayCount; i += 1) {
     const day = addDays(mon, i);
@@ -315,8 +442,9 @@ function renderWeekLikeGrid(view, mon, dayCount) {
       .map((it) => {
         const layout = blockLayoutLocal(it);
         if (!layout) return "";
+        const label = String(it.display_service_name || it.service_name_snapshot || "").trim() || serviceFallback;
         return `<div class="lhai-cs-block" style="top:${layout.topPct.toFixed(2)}%;height:${layout.hPct.toFixed(2)}%;">
-          <span class="lhai-cs-block__title">${safeText(it.service_name_snapshot || "서비스")}</span>
+          <span class="lhai-cs-block__title">${safeText(label)}</span>
         </div>`;
       })
       .join("");
@@ -337,9 +465,16 @@ function renderMonthlyGrid(view, anchorDate) {
   if (!labelEl || !grid) return;
   const monthStart = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
   const monthEnd = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0);
-  labelEl.textContent = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`;
+  try {
+    labelEl.textContent = new Intl.DateTimeFormat(getEffectiveLanguage(), { year: "numeric", month: "short" }).format(
+      monthStart,
+    );
+  } catch {
+    labelEl.textContent = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`;
+  }
 
   const first = getStartOfWeekMonday(monthStart);
+  const serviceFallback = t("customer.schedule.timeline.service_fallback", "Service");
   let cells = "";
   for (let i = 0; i < 42; i += 1) {
     const d = addDays(first, i);
@@ -352,7 +487,10 @@ function renderMonthlyGrid(view, anchorDate) {
     });
     const blocks = dayItems
       .slice(0, 3)
-      .map((it) => `<span class="lhai-cs-month-item">${safeText(it.service_name_snapshot || "서비스")}</span>`)
+      .map((it) => {
+        const label = String(it.display_service_name || it.service_name_snapshot || "").trim() || serviceFallback;
+        return `<span class="lhai-cs-month-item">${safeText(label)}</span>`;
+      })
       .join("");
     const more = dayItems.length > 3 ? `<span class="lhai-cs-month-more">+${dayItems.length - 3}</span>` : "";
     cells += `<div class="lhai-cs-month-cell ${inMonth ? "" : "is-muted"}">
@@ -360,10 +498,12 @@ function renderMonthlyGrid(view, anchorDate) {
       <div class="lhai-cs-month-items">${blocks}${more}</div>
     </div>`;
   }
+  const monRef = getStartOfWeekMonday(monthStart);
+  const weekdayHead = Array.from({ length: 7 }, (_, i) => `<span>${safeText(weekdayShortLabel(monRef, i))}</span>`).join(
+    "",
+  );
   grid.innerHTML = `
-    <div class="lhai-cs-month-head">
-      <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
-    </div>
+    <div class="lhai-cs-month-head">${weekdayHead}</div>
     <div class="lhai-cs-month-grid">${cells}</div>
   `;
 }
@@ -376,19 +516,38 @@ function syncCalendarViewButtons() {
   });
 }
 
+function formatCalendarRangeLabel(start, end) {
+  try {
+    const fmt = new Intl.DateTimeFormat(getEffectiveLanguage(), { year: "numeric", month: "short", day: "numeric" });
+    return `${fmt.format(start)} → ${fmt.format(end)}`;
+  } catch {
+    return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")} → ${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+  }
+}
+
 function renderReadOnlyCalendar(view) {
   const labelEl = document.querySelector("#customerCalWeekLabel");
   const grid = document.querySelector("#customerScheduleCalendar");
   if (!labelEl || !grid) return;
   if (!view || !Array.isArray(view.items)) {
     labelEl.textContent = "";
-    grid.innerHTML = `<div class="lhai-state lhai-state--empty">표시할 일정이 없습니다.</div>`;
+    grid.innerHTML = `<div class="lhai-state lhai-state--empty">${safeText(
+      t("customer.schedule.calendar.empty", "No schedule to display."),
+    )}</div>`;
     return;
   }
 
   const mon = new Date(customerCalWeekStart);
   if (customerCalendarView === "daily") {
-    labelEl.textContent = `${mon.getFullYear()}-${String(mon.getMonth() + 1).padStart(2, "0")}-${String(mon.getDate()).padStart(2, "0")}`;
+    try {
+      labelEl.textContent = new Intl.DateTimeFormat(getEffectiveLanguage(), {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }).format(mon);
+    } catch {
+      labelEl.textContent = `${mon.getFullYear()}-${String(mon.getMonth() + 1).padStart(2, "0")}-${String(mon.getDate()).padStart(2, "0")}`;
+    }
     renderWeekLikeGrid(view, mon, 1);
     return;
   }
@@ -397,84 +556,106 @@ function renderReadOnlyCalendar(view) {
     return;
   }
   const sun = addDays(mon, 6);
-  labelEl.textContent = `${mon.getFullYear()}-${String(mon.getMonth() + 1).padStart(2, "0")}-${String(mon.getDate()).padStart(2, "0")} → ${sun.getFullYear()}-${String(sun.getMonth() + 1).padStart(2, "0")}-${String(sun.getDate()).padStart(2, "0")}`;
+  labelEl.textContent = formatCalendarRangeLabel(mon, sun);
   renderWeekLikeGrid(view, mon, 7);
 }
 
 async function initSchedulePage() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
-  await loadSidebar("#sidebar", "customer");
-  applyI18nToDom(document);
+  await bootAppPageContent(SCHEDULE_I18N_DOMAINS, async () => {
+    applySchedulePageLocaleBundle();
+    await loadSidebar("#sidebar", "customer");
 
-  let selected = null;
-  const refresh = async () => {
-    const cp = getCustomerMessagingProfileId();
-    setFeedbackStatus("");
-    try {
-      if (scheduleIdFromUrl) {
-        selected = await customerScheduleApi.get(scheduleIdFromUrl, cp);
-      } else {
-        const schedules = await customerScheduleApi.list(cp);
-        selected = schedules[0] || null;
+    const refresh = async () => {
+      const cp = getCustomerMessagingProfileId();
+      setFeedbackStatus("");
+      let selected = null;
+      try {
+        if (scheduleIdFromUrl) {
+          selected = await customerScheduleApi.get(scheduleIdFromUrl, cp);
+        } else {
+          const schedules = await customerScheduleApi.list(cp);
+          selected = schedules[0] || null;
+        }
+      } catch {
+        selected = null;
+        if (scheduleIdFromUrl) {
+          setFeedbackStatus(
+            t(
+              "customer.schedule.feedback.load_error",
+              "Could not load your schedule. Check sign-in and permissions, or contact support.",
+            ),
+          );
+        }
       }
-    } catch {
-      selected = null;
-      if (scheduleIdFromUrl) {
-        setFeedbackStatus("일정을 불러오지 못했습니다. 로그인·권한을 확인하거나 고객센터로 문의해 주세요.");
+      schedulePageSelected = selected;
+      if (selected?.items?.length) {
+        const first = selected.items
+          .map((it) => new Date(it.scheduled_start || ""))
+          .find((d) => !Number.isNaN(d.getTime()));
+        if (first) customerCalWeekStart = getStartOfWeekMonday(first);
       }
-    }
-    if (selected?.items?.length) {
-      const first = selected.items
-        .map((it) => new Date(it.scheduled_start || ""))
-        .find((d) => !Number.isNaN(d.getTime()));
-      if (first) customerCalWeekStart = getStartOfWeekMonday(first);
-    }
-    renderSummary(selected);
-    renderReadOnlyCalendar(selected);
-    renderTimeline(selected);
-  };
+      renderSummary(schedulePageSelected);
+      renderReadOnlyCalendar(schedulePageSelected);
+      renderTimeline(schedulePageSelected);
+    };
 
-  document.querySelector("#customerScheduleFeedbackForm")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!selected?.id) return setFeedbackStatus("업데이트할 일정이 없습니다.");
-    const input = document.querySelector("#customerScheduleFeedbackInput");
-    const feedback = input instanceof HTMLTextAreaElement ? input.value.trim() : "";
-    if (!feedback) return setFeedbackStatus("조정 요청 내용을 입력해 주세요.");
-    try {
-      await scheduleApi.requestAdjustment(selected.id, feedback);
-      setFeedbackStatus("조정 요청이 전달되었습니다. 담당자 확인 후 연락드릴 수 있어요.");
-    } catch {
-      setFeedbackStatus("조정 요청 전송에 실패했습니다. 잠시 후 다시 시도하거나 메시지로 문의해 주세요.");
-    }
-    if (input instanceof HTMLTextAreaElement) input.value = "";
+    document.querySelector("#customerScheduleFeedbackForm")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!schedulePageSelected?.id) {
+        return setFeedbackStatus(t("customer.schedule.feedback.no_schedule", "No schedule is available to update."));
+      }
+      const input = document.querySelector("#customerScheduleFeedbackInput");
+      const feedback = input instanceof HTMLTextAreaElement ? input.value.trim() : "";
+      if (!feedback) {
+        return setFeedbackStatus(t("customer.schedule.feedback.empty_input", "Enter your change request before sending."));
+      }
+      try {
+        await scheduleApi.requestAdjustment(schedulePageSelected.id, feedback);
+        setFeedbackStatus(
+          t(
+            "customer.schedule.feedback.success",
+            "Your change request was sent. A coordinator may reply via messages or update the schedule.",
+          ),
+        );
+      } catch {
+        setFeedbackStatus(
+          t(
+            "customer.schedule.feedback.error",
+            "Could not send your request. Try again shortly or contact us via Messages.",
+          ),
+        );
+      }
+      if (input instanceof HTMLTextAreaElement) input.value = "";
+      await refresh();
+    });
+
+    document.querySelector("#customerCalPrev")?.addEventListener("click", () => {
+      if (customerCalendarView === "daily") customerCalWeekStart = addDays(customerCalWeekStart, -1);
+      else if (customerCalendarView === "monthly") customerCalWeekStart = addMonths(customerCalWeekStart, -1);
+      else customerCalWeekStart = addDays(customerCalWeekStart, -7);
+      renderReadOnlyCalendar(schedulePageSelected);
+    });
+    document.querySelector("#customerCalNext")?.addEventListener("click", () => {
+      if (customerCalendarView === "daily") customerCalWeekStart = addDays(customerCalWeekStart, 1);
+      else if (customerCalendarView === "monthly") customerCalWeekStart = addMonths(customerCalWeekStart, 1);
+      else customerCalWeekStart = addDays(customerCalWeekStart, 7);
+      renderReadOnlyCalendar(schedulePageSelected);
+    });
+    document.querySelectorAll(".lhai-cs-view-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const view = btn.getAttribute("data-view");
+        if (!view || view === customerCalendarView) return;
+        customerCalendarView = view;
+        syncCalendarViewButtons();
+        renderReadOnlyCalendar(schedulePageSelected);
+      });
+    });
+    syncCalendarViewButtons();
+
     await refresh();
   });
-
-  document.querySelector("#customerCalPrev")?.addEventListener("click", () => {
-    if (customerCalendarView === "daily") customerCalWeekStart = addDays(customerCalWeekStart, -1);
-    else if (customerCalendarView === "monthly") customerCalWeekStart = addMonths(customerCalWeekStart, -1);
-    else customerCalWeekStart = addDays(customerCalWeekStart, -7);
-    renderReadOnlyCalendar(selected);
-  });
-  document.querySelector("#customerCalNext")?.addEventListener("click", () => {
-    if (customerCalendarView === "daily") customerCalWeekStart = addDays(customerCalWeekStart, 1);
-    else if (customerCalendarView === "monthly") customerCalWeekStart = addMonths(customerCalWeekStart, 1);
-    else customerCalWeekStart = addDays(customerCalWeekStart, 7);
-    renderReadOnlyCalendar(selected);
-  });
-  document.querySelectorAll(".lhai-cs-view-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const view = btn.getAttribute("data-view");
-      if (!view || view === customerCalendarView) return;
-      customerCalendarView = view;
-      syncCalendarViewButtons();
-      renderReadOnlyCalendar(selected);
-    });
-  });
-  syncCalendarViewButtons();
-
-  await refresh();
 }
 
 export { initSchedulePage };

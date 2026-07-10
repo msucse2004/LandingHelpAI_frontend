@@ -2,7 +2,9 @@ import { loadSidebar } from "../components/sidebar.js";
 import { adminOperationsApi } from "../core/api.js";
 import { getAccessToken, getSession } from "../core/auth.js";
 import { protectCurrentPage } from "../core/guards.js";
-import { appPageLanguageReady } from "../core/app-page-i18n-boot.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
+import { confirmI18n } from "../core/app-dialog.js";
+import { applyI18nToDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
 import {
   OPS_QUEUE_TABS,
   filterQueueItemsByTab,
@@ -661,7 +663,11 @@ function bindEvents() {
         await attempt(false);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "인수 실패";
-        const tryForce = window.confirm(`${msg}\n\n다른 관리자가 인수 중일 수 있습니다. 강제 인수할까요?`);
+        const tryForce = confirmI18n(
+          "common.admin.operations.force_takeover_confirm",
+          "{message}\n\nAnother admin may already be working on this case. Force takeover?",
+          { message: msg },
+        );
         if (!tryForce) {
           showToast(msg);
           return;
@@ -736,13 +742,30 @@ function bindEvents() {
   });
 }
 
+function refreshAdminOperationsPageI18n() {
+  applyI18nToDom(document);
+  renderQueueTabs();
+  const items = cachedQueueItems.length ? cachedQueueItems : filterQueueItemsByTab(activeTab);
+  renderQueueList(items);
+  renderTimelineFilters();
+  if (selectedCaseId) {
+    renderCaseWorkspace();
+    renderTimeline();
+  }
+}
+
+wireDynamicPageI18nRefresh(refreshAdminOperationsPageI18n, {
+  keyPrefixes: ["admin.", "common."],
+});
+
 async function init() {
   if (!protectCurrentPage()) return;
-  await appPageLanguageReady;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   await loadSidebar("#sidebar", "admin");
   renderQueueTabs();
   bindEvents();
   await refreshQueue();
+  });
 }
 
 void init();

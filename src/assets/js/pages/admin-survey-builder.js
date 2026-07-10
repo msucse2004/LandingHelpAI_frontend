@@ -3,6 +3,7 @@ import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { loadSidebar } from "../components/sidebar.js";
 import { t } from "../core/i18n-client.js";
 import { initCommonI18nAndApplyDom, applyI18nToDom } from "../core/i18n-dom.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 import { mountTabs } from "../components/admin/tabs.js";
 import { formatDate, qs, safeText } from "../core/utils.js";
 
@@ -1210,8 +1211,8 @@ async function initAdminSurveyBuilderPage() {
     window.location.replace("admin-services.html");
     return;
   }
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   await loadSidebar("#sidebar", "admin");
-  await initCommonI18nAndApplyDom(document);
   populateNeedCategorySelects();
 
   const tabsRoot = qs("#surveyBuilderTabs");
@@ -1833,6 +1834,7 @@ async function initAdminSurveyBuilderPage() {
 
   setStatus("#ruleActionStatus", "");
   qs("#newRuleBtn").disabled = true;
+  });
 }
 
 initAdminSurveyBuilderPage();

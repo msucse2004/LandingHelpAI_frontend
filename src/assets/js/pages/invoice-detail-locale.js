@@ -1,16 +1,12 @@
 /**
- * 청구서(고객) 페이지: 견적 선호 언어 기준 UI 및 API 번역 공백 시 폴백.
+ * Invoice detail page — English/Korean fallback strings when runtime StringKey catalog is incomplete.
+ * Viewer UI language comes from ``getEffectiveLanguage()``; not survey intake preferred_language.
+ *
+ * Step 6 migration: keys seeded in ``app/seeds/page_locale_bundles_seed.py``.
+ * Status: ``scripts/page-locale-migration-status.json`` (KO local bundle temporary until runtime verified).
  */
 
-/** @param {unknown} quote */
-export function resolveInvoiceUiLang(quote) {
-  const rd = quote?.request_details && typeof quote.request_details === "object" ? quote.request_details : {};
-  const survey = rd.survey_submission && typeof rd.survey_submission === "object" ? rd.survey_submission : {};
-  const common = survey.common_info && typeof survey.common_info === "object" ? survey.common_info : {};
-  const pref = (common.preferred_language || "").toString().trim().toLowerCase();
-  if (pref === "en" || pref === "english") return "en";
-  return "ko";
-}
+import { DEFAULT_LANGUAGE_CODE, normalizeSupportedLanguageCode } from "../core/preferred-language.js";
 
 const KO = {
   "common.header.brand.customer": "Landing Help AI",
@@ -236,6 +232,8 @@ const KO = {
   "customer.invoice.missing_id_body":
     "메시지함 또는 이메일에 안내된 청구서 링크(청구서 ID 포함)로 다시 접속해 주세요.",
   "customer.invoice.load_error": "청구서를 불러오지 못했습니다. 연결을 확인한 뒤 다시 시도해 주세요.",
+  "customer.invoice.locale_refresh_failed":
+    "새 언어로 청구서 내용을 다시 불러오지 못했습니다. 이전 내용을 표시합니다.",
 };
 
 const EN = {
@@ -360,7 +358,7 @@ const EN = {
   "customer.invoice.amount.col_amount": "Amount",
   "customer.invoice.amount.row.base": "Base service / package",
   "customer.invoice.amount.row.addons": "Add-ons / options",
-  "customer.invoice.amount.row.admin_fee": "Custom support fee",
+  "customer.invoice.amount.row.admin_fee": "Custom coordination support fee",
   "customer.invoice.amount.row.subtotal_pre_tax": "Subtotal (before tax & fees)",
   "customer.invoice.amount.row.discount": "Discounts / adjustments",
   "customer.invoice.amount.row.surcharge": "Additional amount (vs. quote subtotal + tax)",
@@ -466,11 +464,18 @@ const EN = {
   "customer.invoice.missing_id_body":
     "Please use the invoice link from your messages or email (it includes your invoice ID).",
   "customer.invoice.load_error": "Could not load the invoice. Check your connection and try again.",
+  "customer.invoice.locale_refresh_failed":
+    "Could not refresh invoice details for the new language. Showing the previous version.",
 };
 
-/** @param {string} lang */
+/** English sources for ``t(key, fallback)`` while StringKey catalog catches up. */
+export function invoicePageEnglishFallback(key) {
+  return EN[key] ?? "";
+}
+
+/** @param {string | null | undefined} lang */
 export function getInvoiceLocaleBundle(lang) {
-  const l = (lang || "ko").toString().trim().toLowerCase();
-  if (l === "en") return EN;
-  return KO;
+  const code = normalizeSupportedLanguageCode(lang) || DEFAULT_LANGUAGE_CODE;
+  if (code === "ko") return { ...KO };
+  return { ...EN };
 }

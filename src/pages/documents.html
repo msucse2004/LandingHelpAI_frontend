@@ -1,67 +1,67 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>문서 - Landing Help AI</title>
+  <title data-i18n="customer.documents.page_title" data-i18n-default="Documents - Landing Help AI">Documents - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/documents.css" />
 </head>
-<body>
+<body data-lhai-i18n-domains="common,nav,documents">
     <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.customer.aria_label" data-i18n-default="Customer menu" aria-label="Customer menu"><!-- TODO: load partial customer-sidebar.html --></aside>
     <main class="lhai-main">
       <section class="lhai-page-header">
         <div>
-          <h1 class="lhai-title" id="documentsPageTitle" data-i18n="customer.documents.page_title">문서 센터</h1>
-          <p class="lhai-subtitle" id="documentsPageSubtitle" data-i18n="customer.documents.page_subtitle">
-            파일을 올리고 검토 상태를 확인하며 발급 문서에 접근합니다.
+          <h1 class="lhai-title" id="documentsPageTitle" data-i18n="customer.documents.page_title" data-i18n-default="Documents">Documents</h1>
+          <p class="lhai-subtitle" id="documentsPageSubtitle" data-i18n="customer.documents.page_subtitle" data-i18n-default="Upload files, track review status, and access issued documents.">
+            Upload files, track review status, and access issued documents.
           </p>
         </div>
       </section>
 
       <section class="lhai-card" id="documentsPrePaymentGate" hidden>
-        <h2 class="lhai-card__title" id="documentsGateTitle" data-i18n="customer.documents.gate.title">결제 완료 후 이용 가능</h2>
-        <p class="lhai-help u-mt-2" id="documentsGateBody" data-i18n="customer.documents.gate.body"></p>
+        <h2 class="lhai-card__title" id="documentsGateTitle" data-i18n="customer.documents.gate.title" data-i18n-default="Available after payment">Available after payment</h2>
+        <p class="lhai-help u-mt-2" id="documentsGateBody" data-i18n="customer.documents.gate.body" data-i18n-default="Required document requests from your service package appear here only after your invoice is paid. Complete payment first. For questions, use Messages."></p>
       </section>
 
       <div id="documentsGatedContent" hidden>
       <section class="lhai-card lhai-required-docs-section" id="customerRequiredDocsSection" hidden>
-        <h2 class="lhai-card__title" data-i18n="customer.documents.required.section_title">필수 서류 (서비스 준비)</h2>
-        <p class="lhai-help u-mt-1" data-i18n="customer.documents.required.section_lead"></p>
+        <h2 class="lhai-card__title" data-i18n="customer.documents.required.section_title" data-i18n-default="Required documents (service preparation)">Required documents (service preparation)</h2>
+        <p class="lhai-help u-mt-1" data-i18n="customer.documents.required.section_lead" data-i18n-default="These items are created after you pay. They reflect your paid services and the destination U.S. state you provided in the survey where applicable. Messages and your registered email are the primary channels for guidance; use this page anytime to review what is needed."></p>
         <p class="lhai-help u-mt-2" id="customerRequiredDocsStatus" aria-live="polite"></p>
         <div class="lhai-required-docs-list u-mt-2" id="customerRequiredDocsList"></div>
         <p class="lhai-help u-mt-3">
-          <a class="lhai-required-docs-msglink" href="../pages/messages.html" data-i18n="customer.documents.required.link_messages"
-            >메시지함에서 안내 확인</a>
+          <a class="lhai-required-docs-msglink" href="../pages/messages.html" data-i18n="customer.documents.required.link_messages" data-i18n-default="Open Messages for guidance →"
+            >Open Messages for guidance →</a>
         </p>
       </section>
 
       <section class="lhai-card lhai-doc-center">
-        <h2 class="lhai-card__title">문서 업로드</h2>
+        <h2 class="lhai-card__title" data-i18n="customer.documents.upload.section_title" data-i18n-default="Upload documents">Upload documents</h2>
         <form class="lhai-form" id="documentUploadForm">
-          <label class="lhai-label" for="uploadName">파일 이름</label>
-          <input class="lhai-input" id="uploadName" name="uploadName" type="text" placeholder="예: example.pdf" required />
-          <label class="lhai-label" for="uploadType">구분</label>
+          <label class="lhai-label" for="uploadName" data-i18n="customer.documents.upload.file_name_label" data-i18n-default="File name">File name</label>
+          <input class="lhai-input" id="uploadName" name="uploadName" type="text" data-i18n-placeholder="customer.documents.upload.file_name_placeholder" data-i18n-default="e.g. example.pdf" placeholder="e.g. example.pdf" required />
+          <label class="lhai-label" for="uploadType" data-i18n="customer.documents.upload.type_label" data-i18n-default="Category">Category</label>
           <select class="lhai-select" id="uploadType" name="uploadType">
-            <option value="documents_submitted">제출 문서</option>
-            <option value="consent_documents">동의서</option>
-            <option value="power_of_attorney">위임장</option>
-            <option value="completion_documents">완료 관련 문서</option>
+            <option value="documents_submitted" data-i18n="customer.documents.upload.type.documents_submitted" data-i18n-default="Submitted documents">Submitted documents</option>
+            <option value="consent_documents" data-i18n="customer.documents.upload.type.consent_documents" data-i18n-default="Consent forms">Consent forms</option>
+            <option value="power_of_attorney" data-i18n="customer.documents.upload.type.power_of_attorney" data-i18n-default="Power of attorney">Power of attorney</option>
+            <option value="completion_documents" data-i18n="customer.documents.upload.type.completion_documents" data-i18n-default="Completion documents">Completion documents</option>
           </select>
-          <button class="lhai-button lhai-button--primary" type="submit">업로드 (스텁)</button>
+          <button class="lhai-button lhai-button--primary" type="submit" data-i18n="customer.documents.upload.submit" data-i18n-default="Upload (stub)">Upload (stub)</button>
         </form>
-        <p class="lhai-help" id="documentUploadStatus">아직 업로드한 파일이 없습니다.</p>
+        <p class="lhai-help" id="documentUploadStatus" data-i18n="customer.documents.upload.empty_status" data-i18n-default="No files uploaded yet.">No files uploaded yet.</p>
       </section>
 
       <section class="lhai-doc-grid" id="documentSections">
-        <article class="lhai-card"><h2 class="lhai-card__title">수신 문서</h2><div id="sectionDocumentsReceived"></div></article>
-        <article class="lhai-card"><h2 class="lhai-card__title">제출 문서</h2><div id="sectionDocumentsSubmitted"></div></article>
-        <article class="lhai-card"><h2 class="lhai-card__title">생성·발급 문서</h2><div id="sectionGeneratedDocuments"></div></article>
-        <article class="lhai-card"><h2 class="lhai-card__title">동의서</h2><div id="sectionConsentDocuments"></div></article>
-        <article class="lhai-card"><h2 class="lhai-card__title">위임장</h2><div id="sectionPowerOfAttorney"></div></article>
-        <article class="lhai-card"><h2 class="lhai-card__title">완료 관련 문서</h2><div id="sectionCompletionDocuments"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title" data-i18n="customer.documents.section.received" data-i18n-default="Documents received">Documents received</h2><div id="sectionDocumentsReceived"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title" data-i18n="customer.documents.section.submitted" data-i18n-default="Submitted documents">Submitted documents</h2><div id="sectionDocumentsSubmitted"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title" data-i18n="customer.documents.section.generated" data-i18n-default="Generated &amp; issued documents">Generated &amp; issued documents</h2><div id="sectionGeneratedDocuments"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title" data-i18n="customer.documents.section.consent" data-i18n-default="Consent forms">Consent forms</h2><div id="sectionConsentDocuments"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title" data-i18n="customer.documents.section.power_of_attorney" data-i18n-default="Power of attorney">Power of attorney</h2><div id="sectionPowerOfAttorney"></div></article>
+        <article class="lhai-card"><h2 class="lhai-card__title" data-i18n="customer.documents.section.completion" data-i18n-default="Completion documents">Completion documents</h2><div id="sectionCompletionDocuments"></div></article>
       </section>
       </div>
     </main>

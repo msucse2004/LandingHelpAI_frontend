@@ -138,6 +138,19 @@ export function customerCaseStatusLabel(item) {
 }
 
 /** @param {Record<string, unknown>} item */
+export function customerCaseStatusBadgeClass(item) {
+  const kind = String(item?.case_kind || "");
+  if (kind === "messaging") {
+    return item.unread ? "lhai-case-badge--pending_customer" : "lhai-case-badge--open";
+  }
+  const tab = String(item?.queue_tab || "").toLowerCase();
+  if (tab === "resolved") return "lhai-case-badge--resolved";
+  if (tab === "waiting_customer") return "lhai-case-badge--pending_customer";
+  if (tab === "action_required") return "lhai-case-badge--pending_ops";
+  return "lhai-case-badge--open";
+}
+
+/** @param {Record<string, unknown>} item */
 export function customerCaseDisplayTitle(item) {
   const display = String(item?.display_title ?? "").trim();
   if (display) return display;

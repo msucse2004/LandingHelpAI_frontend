@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>견적 초안 준비 - Landing Help AI</title>
+  <title data-i18n="admin.quote_prepare.page_title" data-i18n-default="Prepare quote draft - Landing Help AI">Prepare quote draft - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" />
   <link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" />
@@ -12,72 +12,72 @@
   <link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/admin-quote-prepare.css" />
 </head>
-<body>
+<body data-lhai-i18n-domains="common,nav,admin">
   <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar" aria-label="관리자 메뉴"></aside>
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" data-i18n-default="Admin menu" aria-label="Admin menu"></aside>
     <main class="lhai-main lhai-quote-prep">
       <div class="lhai-quote-prep__toolbar">
         <div>
-          <h1 class="lhai-title">견적 초안 준비</h1>
-          <p class="lhai-subtitle">고객 요청(설문)을 확인하고 오른쪽에서 Draft 견적을 작성합니다.</p>
+          <h1 class="lhai-title" data-i18n="admin.quote_prepare.title" data-i18n-default="Prepare quote draft">Prepare quote draft</h1>
+          <p class="lhai-subtitle" data-i18n="admin.quote_prepare.subtitle" data-i18n-default="Review the customer request (survey) and compose a draft quote on the right.">Review the customer request (survey) and compose a draft quote on the right.</p>
         </div>
         <div class="u-flex u-gap-2" style="flex-wrap: wrap;">
-          <a class="lhai-button lhai-button--secondary" href="admin-quotes.html">견적 목록</a>
-          <a class="lhai-button lhai-button--secondary" href="admin-dashboard.html">대시보드</a>
+          <a class="lhai-button lhai-button--secondary" href="admin-quotes.html" data-i18n="admin.quote_prepare.link_quotes" data-i18n-default="Quote list">Quote list</a>
+          <a class="lhai-button lhai-button--secondary" href="admin-dashboard.html" data-i18n="admin.quote_prepare.link_dashboard" data-i18n-default="Dashboard">Dashboard</a>
         </div>
       </div>
 
       <p class="lhai-help" id="qpLoadError" hidden></p>
       <div id="qpRoot" class="lhai-quote-prep__layout" hidden>
         <aside class="lhai-quote-prep__panel lhai-quote-prep__panel--request" aria-labelledby="qpRequestHeading">
-          <h2 class="lhai-quote-prep__panel-title" id="qpRequestHeading">고객 요청 요약</h2>
-          <p class="lhai-quote-prep__panel-kicker">설문 제출 시점의 정보입니다. 견적 금액이나 최종 범위는 오른쪽 초안에서 정합니다.</p>
+          <h2 class="lhai-quote-prep__panel-title" id="qpRequestHeading" data-i18n="admin.quote_prepare.request.title" data-i18n-default="Customer request summary">Customer request summary</h2>
+          <p class="lhai-quote-prep__panel-kicker" data-i18n="admin.quote_prepare.request.kicker" data-i18n-default="Information at survey submission time. Quote amount and final scope are set in the draft on the right.">Information at survey submission time. Quote amount and final scope are set in the draft on the right.</p>
           <div id="qpRequestBody"></div>
         </aside>
 
         <section class="lhai-quote-prep__panel lhai-quote-prep__panel--editor" aria-labelledby="qpEditorHeading">
           <h2 class="lhai-quote-prep__panel-title" id="qpEditorHeading">
-            <span id="qpEditorHeadingLabel">견적 초안</span>
+            <span id="qpEditorHeadingLabel" data-i18n="admin.quote_prepare.editor.title" data-i18n-default="Quote draft">Quote draft</span>
             <span id="qpStatusBadge" class="lhai-quote-prep__badge lhai-quote-prep__badge--draft"></span>
           </h2>
-          <p class="lhai-quote-prep__panel-kicker" id="qpEditorKicker">
-            저장하면 초안만 갱신됩니다. 내용을 확인한 뒤 <strong>고객에게 견적 보내기</strong>로 검토용 견적을 전달하세요.
+          <p class="lhai-quote-prep__panel-kicker" id="qpEditorKicker" data-i18n="admin.quote_prepare.editor.kicker" data-i18n-default="Saving updates the draft only. After reviewing, use Send quote to customer to deliver the review quote.">
+            Saving updates the draft only. After reviewing, use <strong>Send quote to customer</strong> to deliver the review quote.
           </p>
           <div id="qpEditorWarn" class="lhai-quote-prep__warn" hidden></div>
           <form class="lhai-form lhai-quote-editor" id="qpForm" novalidate>
-            <p class="lhai-help">견적 제목은 자동으로 <strong>고객 이름 + Landing Help AI 견적서</strong> 형식으로 생성됩니다.</p>
+            <p class="lhai-help" data-i18n="admin.quote_prepare.editor.title_auto_help" data-i18n-default="The quote title is auto-generated as customer name + Landing Help AI quote.">The quote title is auto-generated as <strong>customer name + Landing Help AI quote</strong>.</p>
             <div class="lhai-quote-editor__section">
-              <label class="lhai-label" for="qpServiceName">서비스/패키지 표시명</label>
+              <label class="lhai-label" for="qpServiceName" data-i18n="admin.quote_prepare.editor.service_name_label" data-i18n-default="Service/package display name">Service/package display name</label>
               <input class="lhai-input" id="qpServiceName" type="text" required />
             </div>
             <div class="lhai-quote-editor__section">
-              <label class="lhai-label">견적 항목</label>
-              <p class="lhai-help u-mb-2">서비스별 단가를 조정하면 아래 <strong>고객에게 제안할 총액</strong>에 바로 반영됩니다.</p>
+              <label class="lhai-label" data-i18n="admin.quote_prepare.editor.line_items_label" data-i18n-default="Quote line items">Quote line items</label>
+              <p class="lhai-help u-mb-2" data-i18n="admin.quote_prepare.editor.line_items_help" data-i18n-default="Adjusting per-service unit prices updates the total proposed to the customer below.">Adjusting per-service unit prices updates the <strong>total proposed to the customer</strong> below.</p>
               <div id="qpSelectedServicePriceEditor"></div>
-              <p class="lhai-help" id="qpSelectedServicePriceEmpty" hidden>선택 서비스 정보가 없습니다.</p>
+              <p class="lhai-help" id="qpSelectedServicePriceEmpty" hidden data-i18n="admin.quote_prepare.editor.no_service_info" data-i18n-default="No selected service information.">No selected service information.</p>
               <div class="lhai-quote-prep__total-card" id="qpCustomerTotalHero" hidden>
-                <p class="lhai-quote-prep__total-label">고객에게 제안할 총액</p>
+                <p class="lhai-quote-prep__total-label" data-i18n="admin.quote_prepare.editor.total_label" data-i18n-default="Total proposed to customer">Total proposed to customer</p>
                 <p class="lhai-quote-prep__total-amount" id="qpSelectedServiceTotal" aria-live="polite">—</p>
-                <p class="lhai-help lhai-quote-prep__total-note">고객 견적서·청구서에 표시되는 금액과 동일합니다.</p>
+                <p class="lhai-help lhai-quote-prep__total-note" data-i18n="admin.quote_prepare.editor.total_note" data-i18n-default="Same amount shown on the customer quote and invoice.">Same amount shown on the customer quote and invoice.</p>
               </div>
             </div>
             <div class="lhai-quote-editor__section">
-              <label class="lhai-label" for="qpCustomerNote">고객에게 보여줄 메모 (선택)</label>
-              <p class="lhai-help">고객에게 보낼 검토용 견적 화면에 표시될 짧은 안내입니다.</p>
+              <label class="lhai-label" for="qpCustomerNote" data-i18n="admin.quote_prepare.editor.customer_note_label" data-i18n-default="Note shown to customer (optional)">Note shown to customer (optional)</label>
+              <p class="lhai-help" data-i18n="admin.quote_prepare.editor.customer_note_help" data-i18n-default="Short guidance shown on the review quote screen sent to the customer.">Short guidance shown on the review quote screen sent to the customer.</p>
               <textarea class="lhai-textarea" id="qpCustomerNote" rows="2"></textarea>
             </div>
             <div class="lhai-quote-editor__section">
-              <div id="qpCustomerPreview" class="lhai-quote-prep__preview" aria-live="polite" aria-label="고객 견적 미리보기"></div>
+              <div id="qpCustomerPreview" class="lhai-quote-prep__preview" aria-live="polite" data-i18n-aria-label="admin.quote_prepare.editor.preview_aria_label" data-i18n-default="Customer quote preview" aria-label="Customer quote preview"></div>
             </div>
             <div class="lhai-quote-editor__section">
-              <label class="lhai-label" for="qpInternalNotes">내부 메모 (고객 비노출)</label>
+              <label class="lhai-label" for="qpInternalNotes" data-i18n="admin.quote_prepare.editor.internal_notes_label" data-i18n-default="Internal notes (not shown to customer)">Internal notes (not shown to customer)</label>
               <textarea class="lhai-textarea" id="qpInternalNotes" rows="3"></textarea>
             </div>
             <div class="lhai-quote-prep__editor-actions">
-              <button type="submit" class="lhai-button lhai-button--primary" id="qpSaveBtn">초안 저장</button>
-              <button type="button" class="lhai-button lhai-button--secondary" id="qpProposeBtn">고객에게 견적 보내기</button>
-              <a class="lhai-button lhai-button--secondary" id="qpProposeLink" href="admin-quotes.html">견적 목록으로 이동</a>
+              <button type="submit" class="lhai-button lhai-button--primary" id="qpSaveBtn" data-i18n="admin.quote_prepare.editor.save_draft" data-i18n-default="Save draft">Save draft</button>
+              <button type="button" class="lhai-button lhai-button--secondary" id="qpProposeBtn" data-i18n="admin.quote_prepare.editor.send_to_customer" data-i18n-default="Send quote to customer">Send quote to customer</button>
+              <a class="lhai-button lhai-button--secondary" id="qpProposeLink" href="admin-quotes.html" data-i18n="admin.quote_prepare.editor.back_to_quotes" data-i18n-default="Back to quote list">Back to quote list</a>
             </div>
           </form>
           <p class="lhai-help u-mt-2" id="qpSaveStatus" role="status"></p>
@@ -94,16 +94,16 @@
     aria-labelledby="qpProposeConfirmTitle"
   >
     <div class="lhai-quote-prep__modal-header">
-      <h3 class="lhai-quote-prep__modal-title" id="qpProposeConfirmTitle">이 견적을 고객에게 보낼까요?</h3>
-      <p class="lhai-help">고객에게 검토용 견적을 보냅니다. 확인 후 알림이 발송될 수 있습니다.</p>
+      <h3 class="lhai-quote-prep__modal-title" id="qpProposeConfirmTitle" data-i18n="admin.quote_prepare.confirm.title" data-i18n-default="Send this quote to the customer?">Send this quote to the customer?</h3>
+      <p class="lhai-help" data-i18n="admin.quote_prepare.confirm.help" data-i18n-default="Sends a review quote to the customer. A notification may be sent after confirmation.">Sends a review quote to the customer. A notification may be sent after confirmation.</p>
     </div>
     <div class="lhai-quote-prep__modal-body">
       <div class="lhai-quote-prep__modal-summary" id="qpProposeConfirmSummary"></div>
-      <p class="lhai-quote-prep__danger-note">보낸 후에는 이 화면에서 수정할 수 없습니다.</p>
+      <p class="lhai-quote-prep__danger-note" data-i18n="admin.quote_prepare.confirm.immutable_note" data-i18n-default="After sending, you cannot edit from this screen.">After sending, you cannot edit from this screen.</p>
     </div>
     <div class="lhai-quote-prep__modal-actions">
-      <button type="button" class="lhai-button lhai-button--secondary" id="qpProposeConfirmCancel">취소</button>
-      <button type="button" class="lhai-button lhai-button--primary" id="qpProposeConfirmSubmit">고객에게 보내기</button>
+      <button type="button" class="lhai-button lhai-button--secondary" id="qpProposeConfirmCancel" data-i18n="admin.quote_prepare.confirm.cancel" data-i18n-default="Cancel">Cancel</button>
+      <button type="button" class="lhai-button lhai-button--primary" id="qpProposeConfirmSubmit" data-i18n="admin.quote_prepare.confirm.submit" data-i18n-default="Send to customer">Send to customer</button>
     </div>
   </dialog>
 

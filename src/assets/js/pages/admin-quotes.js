@@ -1,7 +1,8 @@
 import { adminApi, quoteApi } from "../core/api.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { loadSidebar } from "../components/sidebar.js";
-import { applyI18nToDom } from "../core/i18n-dom.js";
+import { applyI18nToDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 import { formatDate, safeText } from "../core/utils.js";
 
 /**
@@ -50,6 +51,23 @@ function renderPrepBanner(rows) {
 
 const QUOTE_STATUS_FILTER_VALUES = new Set(["", "DRAFT", "PROPOSED", "APPROVED", "REJECTED", "EXPIRED"]);
 
+/** @type {Array<Record<string, unknown>>} */
+let adminQuotesPrepBannerCache = [];
+
+/** @type {{ quotes: Array<Record<string, unknown>>, pendingIds: Set<string>, emptyMessage: string }} */
+let adminQuotesListCache = { quotes: [], pendingIds: new Set(), emptyMessage: "" };
+
+function refreshAdminQuotesPageI18n() {
+  applyI18nToDom(document);
+  renderPrepBanner(adminQuotesPrepBannerCache);
+  const { quotes, pendingIds, emptyMessage } = adminQuotesListCache;
+  renderQuoteList(quotes, pendingIds, emptyMessage);
+}
+
+wireDynamicPageI18nRefresh(refreshAdminQuotesPageI18n, {
+  keyPrefixes: ["admin.", "common."],
+});
+
 function normalizeStatusFilterParam(raw) {
   const s = String(raw || "").trim().toUpperCase();
   if (!s) return "";
@@ -57,6 +75,11 @@ function normalizeStatusFilterParam(raw) {
 }
 
 function renderQuoteList(quotes, pendingIds, emptyMessage) {
+  adminQuotesListCache = {
+    quotes: Array.isArray(quotes) ? quotes : [],
+    pendingIds: pendingIds instanceof Set ? pendingIds : new Set(),
+    emptyMessage: emptyMessage || "",
+  };
   const target = qs("#adminQuoteList");
   if (!target) return;
   if (!quotes.length) {
@@ -115,12 +138,13 @@ async function loadQuotesForAdmin(statusFilter, pendingIds) {
 async function initAdminQuotesPage() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   await loadSidebar("#sidebar", "admin");
-  applyI18nToDom(document);
 
   const pendingQueue = await quoteApi.listSurveyReviewPending();
   const pendingRows = Array.isArray(pendingQueue) ? pendingQueue : [];
   const pendingIds = new Set(pendingRows.map((r) => r.quote_id).filter(Boolean));
+  adminQuotesPrepBannerCache = pendingRows;
   renderPrepBanner(pendingRows);
 
   const params = new URLSearchParams(window.location.search);
@@ -154,6 +178,7 @@ async function initAdminQuotesPage() {
   if (prepareId && quotes.some((q) => q.id === prepareId)) {
     window.location.href = `admin-quote-prepare.html?id=${encodeURIComponent(prepareId)}`;
   }
+  });
 }
 
 initAdminQuotesPage();

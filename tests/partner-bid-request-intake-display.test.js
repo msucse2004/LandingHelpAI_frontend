@@ -100,6 +100,16 @@ test("intake display exports briefing and disclosure renderers", async () => {
   ]);
   assert.match(disclosure, /전체 인테이크 답변 보기/);
   assert.match(disclosure, /lhai-par-bid__intake-q/);
+  const localized = mod.renderFullIntakeAnswersDisclosure([
+    {
+      label: "예산",
+      display_label: "Budget",
+      value: "25000",
+      display_value: "$25,000",
+    },
+  ]);
+  assert.match(localized, /Budget/);
+  assert.doesNotMatch(localized, />예산</);
   const section = mod.renderFullIntakeAnswersDisclosure([
     { label: "Vehicle preferences", kind: "section", value: "", display_value: "" },
     { label: "Brand", value: "BMW", display_value: "BMW" },

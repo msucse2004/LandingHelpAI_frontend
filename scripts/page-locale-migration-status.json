@@ -1,0 +1,90 @@
+{
+  "generatedAt": "2026-07-06T19:17:02Z",
+  "policy": {
+    "tFallbackLanguage": "en",
+    "koBelongsIn": "StringTranslation.ko only (not local KO bundle long-term)",
+    "localKoBundle": "temporary until status is ready_to_drop_ko and runtime verified",
+    "localEnBundle": "emergency fallback until StringKey catalog has full coverage"
+  },
+  "pages": [
+    {
+      "id": "quote-detail",
+      "page": "quote-detail.html",
+      "localeFile": "src/assets/js/pages/quote-detail-locale.js",
+      "domains": [
+        "common",
+        "nav",
+        "quote"
+      ],
+      "totalKeys": 187,
+      "seededKeys": 187,
+      "pendingSeedKeys": 0,
+      "exportedThisRun": 176,
+      "koLocalObjectPresent": true,
+      "koLocalKeyCount": 187,
+      "enEmergencyFallbackKept": true,
+      "status": "ready_to_drop_ko"
+    },
+    {
+      "id": "invoice-detail",
+      "page": "invoice-detail.html",
+      "localeFile": "src/assets/js/pages/invoice-detail-locale.js",
+      "domains": [
+        "common",
+        "nav",
+        "invoice"
+      ],
+      "totalKeys": 184,
+      "seededKeys": 184,
+      "pendingSeedKeys": 0,
+      "exportedThisRun": 173,
+      "koLocalObjectPresent": true,
+      "koLocalKeyCount": 184,
+      "enEmergencyFallbackKept": true,
+      "status": "ready_to_drop_ko"
+    },
+    {
+      "id": "schedule",
+      "page": "schedule.html",
+      "localeFile": "src/assets/js/pages/schedule-page-locale.js",
+      "domains": [
+        "common",
+        "nav",
+        "schedule"
+      ],
+      "totalKeys": 27,
+      "seededKeys": 27,
+      "pendingSeedKeys": 0,
+      "exportedThisRun": 27,
+      "koLocalObjectPresent": true,
+      "koLocalKeyCount": 27,
+      "enEmergencyFallbackKept": true,
+      "status": "ready_to_drop_ko"
+    },
+    {
+      "id": "documents",
+      "page": "documents.html",
+      "localeFile": "src/assets/js/pages/documents-page-locale.js",
+      "domains": [
+        "common",
+        "nav",
+        "documents"
+      ],
+      "totalKeys": 37,
+      "seededKeys": 37,
+      "pendingSeedKeys": 0,
+      "exportedThisRun": 37,
+      "koLocalObjectPresent": true,
+      "koLocalKeyCount": 37,
+      "enEmergencyFallbackKept": true,
+      "status": "ready_to_drop_ko"
+    }
+  ],
+  "summary": {
+    "pageCount": 4,
+    "readyToDropKo": 4,
+    "partial": 0,
+    "pending": 0,
+    "totalExportRows": 402
+  }
+}

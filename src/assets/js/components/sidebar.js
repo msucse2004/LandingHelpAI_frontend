@@ -6,6 +6,8 @@ import {
 } from "../config/partner-nav-config.js";
 import { loadPartnerSidebar } from "../layouts/partner-shell.js";
 import { adminDevApi } from "../core/api.js";
+import { alertI18n, confirmI18n } from "../core/app-dialog.js";
+import { localizedStatus } from "../core/i18n-dynamic.js";
 import { canAccessAdminShell } from "../core/role-tiers.js";
 import { registerI18nDomains, t } from "../core/i18n-client.js";
 import { getEffectiveLanguage } from "../core/preferred-language.js";
@@ -105,8 +107,9 @@ function bindAdminDevResetQuotesInvoices(sidebarRoot) {
   const btn = sidebarRoot.querySelector("#lhaiDevResetQuotesInvoices");
   if (!btn) return;
   btn.addEventListener("click", async () => {
-    const ok = window.confirm(
-      "개발용: 저장소(DB 또는 메모리)의 모든 견적·청구서·일정(스케줄 초안·카드·릴리스 기록)·문서, 각 계정 메시지함의 인앱 메시지(및 DB 사용 시 메시지 스레드), 운영 큐(운영 케이스·내부 메모·라우팅/배정·케이스 요약·메시징 파이프라인 잡 큐)를 삭제합니다. 복구할 수 없습니다. 진행할까요?"
+    const ok = confirmI18n(
+      "common.admin.dev_reset.confirm",
+      "Development only: delete all quotes, invoices, schedules, documents, in-app messages, and operational queue data from storage. This cannot be undone. Continue?",
     );
     if (!ok) return;
     btn.disabled = true;
@@ -117,25 +120,41 @@ function bindAdminDevResetQuotesInvoices(sidebarRoot) {
       const msg = result.messages_deleted != null ? result.messages_deleted : "—";
       const thr = result.message_threads_deleted != null ? result.message_threads_deleted : "—";
       const thrPart =
-        thr !== "—" && Number(thr) > 0 ? `, 메시지 스레드 ${thr}건` : "";
+        thr !== "—" && Number(thr) > 0
+          ? localizedStatus("common.admin.dev_reset.threads_part", ", {count} message threads", { count: thr })
+          : "";
       const opCases = result.operational_cases_deleted != null ? result.operational_cases_deleted : 0;
       const opPipe = result.operational_pipeline_rows_deleted != null ? result.operational_pipeline_rows_deleted : 0;
       const opJobs = result.messaging_jobs_cleared != null ? result.messaging_jobs_cleared : 0;
       const opPart =
         Number(opCases) + Number(opPipe) + Number(opJobs) > 0
-          ? `, 운영케이스 ${opCases}건·파이프라인 보조행 ${opPipe}건·메시징잡 ${opJobs}건`
+          ? localizedStatus(
+              "common.admin.dev_reset.ops_part",
+              ", {cases} ops cases, {pipe} pipeline rows, {jobs} messaging jobs",
+              { cases: opCases, pipe: opPipe, jobs: opJobs },
+            )
           : "";
       try {
         window.localStorage.setItem("lhai_dev_data_reset_at", String(Date.now()));
       } catch {
         /* ignore */
       }
-      window.alert(
-        `삭제 완료: 견적 ${result.quotes_deleted}건, 청구서 ${result.invoices_deleted}건, 일정 ${sch}건, 문서 ${docs}건, 메시지 ${msg}건${thrPart}${opPart}. 고객 대시보드 등 열린 탭은 자동으로 새로고침됩니다. 그렇지 않으면 수동으로 새로고침하세요.`
+      alertI18n(
+        "common.admin.dev_reset.done",
+        "Deleted: {quotes} quotes, {invoices} invoices, {schedules} schedules, {documents} documents, {messages} messages{threadsPart}{opsPart}. Open customer tabs should refresh automatically; otherwise reload manually.",
+        {
+          quotes: result.quotes_deleted,
+          invoices: result.invoices_deleted,
+          schedules: sch,
+          documents: docs,
+          messages: msg,
+          threadsPart: thrPart,
+          opsPart: opPart,
+        },
       );
     } catch (err) {
       const msg = err && typeof err.message === "string" ? err.message : String(err);
-      window.alert(`실패: ${msg}`);
+      alertI18n("common.dialog.failed_with_message", "Failed: {message}", { message: msg });
     } finally {
       btn.disabled = false;
     }
@@ -212,7 +231,7 @@ async function loadSidebar(targetSelector = "#sidebar", variant = "customer") {
       void refreshCustomerQuoteNavBadge(target);
     }
   } catch (e) {
-    target.innerHTML = `<div class='lhai-placeholder'>${t("common.sidebar.placeholder.todo", "사이드바를 불러오는 중입니다…")}</div>`;
+    target.innerHTML = `<div class='lhai-placeholder'>${t("common.sidebar.placeholder.todo", "Loading sidebar…")}</div>`;
   }
 }
 

@@ -1,6 +1,6 @@
 import { loadSidebar } from "../components/sidebar.js";
 import { quoteApi } from "../core/api.js";
-import { appPageLanguageReady } from "../core/app-page-i18n-boot.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 import { protectCurrentPage } from "../core/guards.js";
 import { applyI18nToDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
 import { t } from "../core/i18n-client.js";
@@ -84,15 +84,16 @@ wireDynamicPageI18nRefresh(() => {
   const main = qs("main.lhai-main");
   if (main) applyI18nToDom(main);
   renderSurveyReviewQueue(lastSurveyReviewRows);
-});
+}, { keyPrefixes: ["admin.", "common."] });
 
 async function initAdminDashboard() {
   if (!protectCurrentPage()) return;
-  await appPageLanguageReady;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   await loadSidebar("#sidebar", "admin");
 
   const pending = await quoteApi.listSurveyReviewPending();
   renderSurveyReviewQueue(Array.isArray(pending) ? pending : []);
+  });
 }
 
 void initAdminDashboard();

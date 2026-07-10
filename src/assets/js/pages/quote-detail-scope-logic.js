@@ -8,7 +8,7 @@ const PHONE_KEYWORD_RE =
 /** @param {Array<Record<string, unknown>>} services */
 export function collectServiceTitleText(services) {
   return services
-    .map((s) => String(s?.title || s?.id || "").trim())
+    .map((s) => String(s?.display_title || s?.title || s?.id || "").trim())
     .filter(Boolean)
     .join(" ");
 }

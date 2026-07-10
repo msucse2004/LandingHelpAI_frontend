@@ -5,6 +5,8 @@
 import { serviceCatalogBrowseApi, serviceIntakeCustomerApi, surveyCustomerApi, userCustomerApi } from "../core/api.js";
 import { getSession, getAccessToken, getCustomerMessagingProfileId } from "../core/auth.js";
 import { t } from "../core/i18n-client.js";
+import { alertI18n } from "../core/app-dialog.js";
+import { getEffectiveLanguage } from "../core/preferred-language.js";
 import { localizedStatus } from "../core/i18n-dynamic.js";
 import {
   augmentedPreviewFields,
@@ -15,6 +17,15 @@ import {
   previewFieldFromGroupChild,
 } from "../intake/intake-preview-branching.js";
 import { isCatalogRecServiceItemUuidString, isLegacyServiceId } from "../lib/catalog-rec-service-item-id.js";
+import {
+  catalogCardLongDescription,
+  catalogCardShortDescription,
+  catalogCardTitle,
+  catalogCategoryTitle,
+  catalogDisplayText,
+  catalogFieldNeedsTranslationPlaceholder,
+  catalogFieldSameLocale,
+} from "./catalog-display-logic.js";
 import { qs, safeText, scrollPageToTop } from "../core/utils.js";
 
 const esc = safeText;
@@ -23,27 +34,21 @@ const esc = safeText;
 const DELIVERY_FALLBACK = {
   ai_guide: {
     badge: "Landing Help AI Agent",
-    explain: "이 서비스는 Landing Help AI Agent, 체크리스트, 디지털 도움으로 진행됩니다.",
+    explain: "This service is delivered through AI guidance, checklists, and digital assistance.",
   },
   in_person: {
-    badge: "대면 지원",
-    explain: "이 서비스는 담당자 또는 현장 지원이 필요합니다.",
+    badge: "In-person support",
+    explain: "This service requires human or on-site support.",
   },
   ai_plus_human: {
-    badge: "Landing Help AI Agent + 선택 대면",
-    explain: "Landing Help AI Agent로 시작하며, 필요 시 선택적으로 대면 지원을 받을 수 있습니다.",
+    badge: "Landing Help AI Agent + optional human help",
+    explain: "Starts with AI guidance; optional in-person support is available when needed.",
   },
   general: {
-    badge: "안내형 서비스",
-    explain: "다음 단계를 명확하고 단순하게 안내해 드립니다.",
+    badge: "Guided service",
+    explain: "We guide you through the next steps in a clear, practical flow.",
   },
 };
-
-function htmlLangStartsWithKo() {
-  if (typeof document === "undefined") return true;
-  const lang = String(document.documentElement.getAttribute("lang") || "ko").toLowerCase();
-  return lang.startsWith("ko");
-}
 
 /**
  * @param {string} mode backend UI bucket: ai_guide | in_person | ai_plus_human | general
@@ -52,10 +57,6 @@ function htmlLangStartsWithKo() {
 function deliveryMeta(mode) {
   const m = mode && DELIVERY_FALLBACK[mode] ? mode : "general";
   const fb = DELIVERY_FALLBACK[m];
-  // 기본 ko: i18n 번들에 영어 값이 있어도 카드/검토 배지는 한글 기준 문구 유지
-  if (htmlLangStartsWithKo()) {
-    return { mode: m, badge: fb.badge, explain: fb.explain };
-  }
   return {
     mode: m,
     badge: t(`common.service_flow.delivery.${m}.badge`, fb.badge),
@@ -63,12 +64,18 @@ function deliveryMeta(mode) {
   };
 }
 
-/** 관리자 저장 시 쓰이던 영어 자동 문구 — DB에 남아 있으면 i18n/한글 기본으로 대체 */
+/** 관리자 저장 시 쓰이던 자동 문구 — DB에 남아 있으면 현재 UI 언어 i18n 기본으로 대체 */
 const LEGACY_DELIVERY_LABELS_EN = new Set([
   "In-person Support",
   "AI Guide",
   "AI + Optional Human Help",
   "Guided Service",
+]);
+const LEGACY_DELIVERY_LABELS_KO = new Set([
+  "Landing Help AI Agent",
+  "대면 지원",
+  "Landing Help AI Agent + 선택 대면",
+  "안내형 서비스",
 ]);
 const LEGACY_DELIVERY_HELPS_EN = new Set([
   "This service requires human or on-site support.",
@@ -76,37 +83,77 @@ const LEGACY_DELIVERY_HELPS_EN = new Set([
   "This service starts with AI guidance and can include optional human support when needed.",
   "We will guide you through the next steps in a clear, practical flow.",
 ]);
+const LEGACY_DELIVERY_HELPS_KO = new Set([
+  "이 서비스는 Landing Help AI Agent, 체크리스트, 디지털 도움으로 진행됩니다.",
+  "이 서비스는 담당자 또는 현장 지원이 필요합니다.",
+  "Landing Help AI Agent로 시작하며, 필요 시 선택적으로 대면 지원을 받을 수 있습니다.",
+  "다음 단계를 명확하고 단순하게 안내해 드립니다.",
+]);
 
 function isLegacyEnglishInPersonLabel(raw) {
   const x = String(raw || "").trim().toLowerCase();
   return x === "in-person support" || x === "in-person" || x === "in person support";
 }
 
-function isLegacyEnglishDeliveryHelp(raw) {
+function isLegacyDeliveryHelp(raw) {
   const x = String(raw || "").trim();
-  if (LEGACY_DELIVERY_HELPS_EN.has(x)) return true;
+  if (LEGACY_DELIVERY_HELPS_EN.has(x) || LEGACY_DELIVERY_HELPS_KO.has(x)) return true;
   const lower = x.toLowerCase();
   return lower === "this service requires human or on-site support.";
 }
 
-/**
- * @param {{ delivery_type_label?: string }} svc
- * @param {{ badge: string, explain: string }} d
- */
-function effectiveDeliveryBadge(svc, d) {
-  const raw = (svc?.delivery_type_label || "").trim();
-  if (!raw || LEGACY_DELIVERY_LABELS_EN.has(raw) || isLegacyEnglishInPersonLabel(raw)) return d.badge;
-  return raw;
+function isLegacyDeliveryLabel(raw) {
+  const x = String(raw || "").trim();
+  return (
+    !x ||
+    LEGACY_DELIVERY_LABELS_EN.has(x) ||
+    LEGACY_DELIVERY_LABELS_KO.has(x) ||
+    isLegacyEnglishInPersonLabel(x)
+  );
 }
 
 /**
- * @param {{ delivery_type_help_text?: string }} svc
+ * Prefer viewer-locale ``display_*`` from browse API; fall back to stored fields / i18n.
+ * @param {{ delivery_type_label?: string, display_delivery_type_label?: string }} svc
+ * @param {{ badge: string, explain: string }} d
+ */
+function effectiveDeliveryBadge(svc, d) {
+  if (catalogFieldNeedsTranslationPlaceholder(svc, "delivery_type_label")) {
+    return catalogDisplayText(svc, "delivery_type_label", t, { kind: "title" }) || d.badge;
+  }
+  const resolved = catalogDisplayText(svc, "delivery_type_label", t, { kind: "title" });
+  if (resolved && !isLegacyDeliveryLabel(resolved)) return resolved;
+  if (catalogFieldSameLocale(svc, "delivery_type_label")) {
+    const raw = String(svc?.delivery_type_label || "").trim();
+    if (raw && !isLegacyDeliveryLabel(raw)) return raw;
+  }
+  return d.badge;
+}
+
+/**
+ * @param {{ delivery_type_help_text?: string, display_delivery_type_help_text?: string }} svc
  * @param {{ badge: string, explain: string }} d
  */
 function effectiveDeliveryHelp(svc, d) {
-  const raw = (svc?.delivery_type_help_text || "").trim();
-  if (!raw || isLegacyEnglishDeliveryHelp(raw)) return d.explain;
+  if (catalogFieldNeedsTranslationPlaceholder(svc, "delivery_type_help_text")) {
+    const pending = catalogDisplayText(svc, "delivery_type_help_text", t, { kind: "body" });
+    return pending || d.explain;
+  }
+  const display = catalogDisplayText(svc, "delivery_type_help_text", t, { kind: "body" });
+  if (display && !isLegacyDeliveryHelp(display)) return display;
+  const raw = String(svc?.delivery_type_help_text || "").trim();
+  if (!raw || isLegacyDeliveryHelp(raw)) return d.explain;
   return raw;
+}
+
+/** @param {Record<string, unknown>} svc */
+function serviceShortDescription(svc) {
+  return catalogCardShortDescription(svc, t);
+}
+
+/** @param {Record<string, unknown>} svc */
+function serviceLongDescription(svc) {
+  return catalogCardLongDescription(svc, t);
 }
 
 /** @param {{ delivery_capability?: string, delivery_mode?: string }} svc */
@@ -238,7 +285,6 @@ let commonInfo = {
   minor_ages: [],
   target_state: "",
   target_city: "",
-  preferred_language: "",
 };
 
 /** phase: 'category' | 'common_info' | 'services' | 'review' */
@@ -301,25 +347,25 @@ function setStatus(msg) {
 }
 
 function categoryTitle(category) {
-  const title = (category?.customer_title || "").trim();
-  if (title) return title;
-  const fallback = (category?.name || "").trim();
-  if (!fallback) return t("common.service_flow.unknown_category", "Selected area");
-  if (/^[a-z0-9_-]+$/i.test(fallback) || fallback.includes("pkg-") || fallback.includes("cat-")) {
-    return t("common.service_flow.unknown_category", "Selected area");
+  const title = catalogCategoryTitle(category, t);
+  if (title) {
+    if (/^[a-z0-9_-]+$/i.test(title) || title.includes("pkg-") || title.includes("cat-")) {
+      return t("common.service_flow.unknown_category", "Selected area");
+    }
+    return title;
   }
-  return fallback;
+  return t("common.service_flow.unknown_category", "Selected area");
 }
 
 function serviceTitle(serviceItem) {
-  const title = (serviceItem?.customer_title || "").trim();
-  if (title) return title;
-  const fallback = (serviceItem?.name || "").trim();
-  if (!fallback) return t("common.service_flow.unknown_service", "Selected service");
-  if (/^[a-z0-9_-]+$/i.test(fallback) || fallback.includes("addon-") || fallback.includes("module-")) {
-    return t("common.service_flow.unknown_service", "Selected service");
+  const title = catalogCardTitle(serviceItem, t);
+  if (title) {
+    if (/^[a-z0-9_-]+$/i.test(title) || title.includes("addon-") || title.includes("module-")) {
+      return t("common.service_flow.unknown_service", "Selected service");
+    }
+    return title;
   }
-  return fallback;
+  return t("common.service_flow.unknown_service", "Selected service");
 }
 
 function resolveProblemGroup(category) {
@@ -344,7 +390,7 @@ function summarizeDeliveryModes(modeSet) {
   if (hasAi && hasInPerson) {
     return t(
       "common.service_flow.category_mixed_delivery_short",
-      "Landing Help AI Agent형과 대면 지원형이 함께 있습니다."
+      "This category includes both AI Guide and in-person support services."
     );
   }
   if (hasAiOnly && !hasInPersonOnly && !hasHybrid && !hasGeneral) {
@@ -369,7 +415,7 @@ function categoryDeliveryMeta(modeSet) {
       badge: t("common.service_flow.category_mixed_badge", "AI + optional in-person"),
       explain: t(
         "common.service_flow.category_mixed_explain",
-        "이 영역에는 여러 진행 방식이 섞여 있을 수 있습니다. 선택 전 각 서비스 카드를 확인해 주세요."
+        "This area may mix different delivery modes. Review each service card before selecting."
       ),
     };
   }
@@ -554,7 +600,7 @@ async function prefillProfileBasicInfo() {
       "title",
       t(
         "common.service_flow.email_locked_hint",
-        "회원 등록 이메일입니다. 제출·관리자 화면에는 이 주소가 사용됩니다."
+        "This is your account email. Submissions and admin views use this address."
       )
     );
   }
@@ -571,13 +617,18 @@ function renderCategories() {
     .map(
       (c) => `
     <button type="button" class="service-flow__category-card ${selectedCategoryIds.includes(c.id) ? "is-selected" : ""}" data-category-id="${esc(c.id)}" role="listitem" aria-pressed="${selectedCategoryIds.includes(c.id) ? "true" : "false"}">
-      ${selectedCategoryIds.includes(c.id) ? `<span class="service-flow__category-selected-pill">✓ 선택됨</span>` : ""}
+      ${selectedCategoryIds.includes(c.id) ? `<span class="service-flow__category-selected-pill">✓ ${esc(t("common.service_flow.category_selected_pill", "Selected"))}</span>` : ""}
       <span class="service-flow__category-card-title">${esc(categoryTitle(c))}</span>
       <span class="service-flow__badge service-flow__badge--${esc(categoryDeliveryMetaById.get(c.id)?.mode || "general")}">${esc(
         categoryDeliveryMetaById.get(c.id)?.badge || deliveryMeta("general").badge
       )}</span>
-      ${c.customer_subtitle ? `<span class="lhai-help service-flow__category-card-desc">${esc(c.customer_subtitle)}</span>` : ""}
-      ${c.customer_help_text ? `<span class="lhai-help service-flow__category-card-desc">${esc(c.customer_help_text)}</span>` : ""}
+      ${(() => {
+        const subtitle = catalogDisplayText(c, "customer_subtitle", t, { kind: "body" });
+        const help = catalogDisplayText(c, "customer_help_text", t, { kind: "body" });
+        return `${subtitle ? `<span class="lhai-help service-flow__category-card-desc">${esc(subtitle)}</span>` : ""}${
+          help ? `<span class="lhai-help service-flow__category-card-desc">${esc(help)}</span>` : ""
+        }`;
+      })()}
       ${categoryModeSummaryById.get(c.id) ? `<span class="service-flow__category-card-note">${esc(categoryModeSummaryById.get(c.id))}</span>` : ""}
     </button>`
     )
@@ -706,7 +757,8 @@ async function loadConditionalQuestions(serviceIds = []) {
               })
               .filter((o) => String(o.value || "").trim());
             const labelBase = String(mergedChild.label || "").trim();
-            const label = gTitle ? `${gTitle} — ${labelBase || "질문"}` : labelBase || "질문";
+            const questionFallback = t("common.service_flow.question_label_fallback", "Question");
+            const label = gTitle ? `${gTitle} — ${labelBase || questionFallback}` : labelBase || questionFallback;
             conditionalQuestions.push({
               id: qid,
               service_id: svc.id,
@@ -962,14 +1014,24 @@ function renderMinorAgeInputs() {
   list.innerHTML = Array.from({ length: n })
     .map((_, i) => {
       const v = prev[i] ?? "";
+      const ageLabel = localizedStatus(
+        "common.service_flow.minor_age_label",
+        "Age for minor {index}",
+        { index: i + 1 },
+      );
+      const agePlaceholder = t("common.service_flow.minor_age_placeholder", "e.g. 7");
       return `
         <div class="service-flow__field">
-          <label class="lhai-label" for="sfCommonMinorAge_${i}">만 18세 이하 ${i + 1}번째 나이</label>
-          <input class="lhai-input" id="sfCommonMinorAge_${i}" type="number" min="0" max="17" step="1" value="${esc(v)}" placeholder="예: 7" />
+          <label class="lhai-label" for="sfCommonMinorAge_${i}">${esc(ageLabel)}</label>
+          <input class="lhai-input" id="sfCommonMinorAge_${i}" type="number" min="0" max="17" step="1" value="${esc(v)}" placeholder="${esc(agePlaceholder)}" />
         </div>
       `;
     })
     .join("");
+}
+
+function resolveSurveyPreferredLanguageFromAccount() {
+  return getEffectiveLanguage() || "en";
 }
 
 function readCommonInfoFromForm() {
@@ -987,7 +1049,6 @@ function readCommonInfoFromForm() {
     .map((x) => String(x || "").trim());
   const targetState = (qs("#sfCommonTargetState")?.value || "").trim();
   const targetCity = (qs("#sfCommonTargetCity")?.value || "").trim();
-  const preferredLanguage = qs("#sfCommonPreferredLanguage")?.value || "";
   return {
     profile_first_name: profileFirstName,
     profile_last_name: profileLastName,
@@ -999,11 +1060,11 @@ function readCommonInfoFromForm() {
     minor_ages: minorAges,
     target_state: targetState,
     target_city: targetCity,
-    preferred_language: preferredLanguage,
+    preferred_language: resolveSurveyPreferredLanguageFromAccount(),
   };
 }
 
-/** @typedef {{ key: string, label: string }} CommonInfoIssue */
+/** @typedef {{ key: string, labelKey: string, params?: Record<string, unknown> }} CommonInfoIssue */
 
 /** @type {Record<string, string>} */
 const COMMON_INFO_FOCUS_BY_KEY = {
@@ -1017,8 +1078,37 @@ const COMMON_INFO_FOCUS_BY_KEY = {
   minor_ages: "#sfCommonMinorAgesList",
   target_state: "#sfCommonTargetState",
   target_city: "#sfCommonTargetCity",
-  preferred_language: "#sfCommonPreferredLanguage",
 };
+
+/** @type {Record<string, [string, string]>} */
+const COMMON_INFO_VALIDATION_I18N = {
+  profile_first: ["common.service_flow.validation.profile_first", "First name"],
+  profile_last: ["common.service_flow.validation.profile_last", "Last name"],
+  profile_birth: ["common.service_flow.validation.profile_birth", "Date of birth"],
+  profile_email: ["common.service_flow.validation.profile_email", "Email"],
+  profile_email_format: ["common.service_flow.validation.profile_email_format", "Email (check the format)"],
+  adult_count_number: ["common.service_flow.validation.adult_count_number", "People aged 18 and over (enter a number)"],
+  adult_count_min: ["common.service_flow.validation.adult_count_min", "People aged 18 and over (0 or greater)"],
+  minor_count_number: ["common.service_flow.validation.minor_count_number", "People under 18 (enter a number)"],
+  minor_count_min: ["common.service_flow.validation.minor_count_min", "People under 18 (0 or greater)"],
+  household_total: ["common.service_flow.validation.household_total", "Travel party (at least 1 person total)"],
+  minor_ages_all: ["common.service_flow.validation.minor_ages_all", "Age for each person under 18 (all required)"],
+  minor_age_invalid: ["common.service_flow.validation.minor_age_invalid", "Age for minor {index} (0–17)"],
+  entry_date: ["common.service_flow.validation.entry_date", "Planned entry (or start) date"],
+  target_state: ["common.service_flow.validation.target_state", "Preferred state"],
+  target_city: ["common.service_flow.validation.target_city", "Preferred city"],
+};
+
+/** @param {CommonInfoIssue} issue */
+function commonInfoIssueLabel(issue) {
+  const spec = COMMON_INFO_VALIDATION_I18N[issue.labelKey];
+  if (!spec) return issue.labelKey;
+  const [key, fallback] = spec;
+  if (issue.params && Object.keys(issue.params).length) {
+    return localizedStatus(key, fallback, issue.params);
+  }
+  return t(key, fallback);
+}
 
 /**
  * @param {Record<string, unknown>} info from readCommonInfoFromForm
@@ -1030,15 +1120,15 @@ function validateCommonInfoIssues(info) {
 
   const fn = String(info.profile_first_name || "").trim();
   const ln = String(info.profile_last_name || "").trim();
-  if (!fn) issues.push({ key: "profile_first", label: "First name(이름)" });
-  if (!ln) issues.push({ key: "profile_last", label: "Last name(성)" });
+  if (!fn) issues.push({ key: "profile_first", labelKey: "profile_first" });
+  if (!ln) issues.push({ key: "profile_last", labelKey: "profile_last" });
   if (!String(info.profile_birth_date || "").trim()) {
-    issues.push({ key: "profile_birth", label: "생년월일" });
+    issues.push({ key: "profile_birth", labelKey: "profile_birth" });
   }
   const em = String(info.profile_email || "").trim();
-  if (!em) issues.push({ key: "profile_email", label: "이메일" });
+  if (!em) issues.push({ key: "profile_email", labelKey: "profile_email" });
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
-    issues.push({ key: "profile_email", label: "이메일(형식이 올바른지 확인)" });
+    issues.push({ key: "profile_email", labelKey: "profile_email_format" });
   }
 
   const adultRaw = info.adult_count;
@@ -1049,28 +1139,28 @@ function validateCommonInfoIssues(info) {
   const minorStr = String(minorRaw ?? "").trim();
 
   if (adultStr !== "" && Number.isNaN(adults)) {
-    issues.push({ key: "adult_count", label: "만 18세 이상인 인원(숫자)" });
+    issues.push({ key: "adult_count", labelKey: "adult_count_number" });
   } else if (Number.isNaN(adults) || adults < 0) {
-    issues.push({ key: "adult_count", label: "만 18세 이상인 인원(0 이상 숫자)" });
+    issues.push({ key: "adult_count", labelKey: "adult_count_min" });
   }
   if (minorStr !== "" && Number.isNaN(minors)) {
-    issues.push({ key: "minor_count", label: "만 18세 이하 인원(숫자)" });
+    issues.push({ key: "minor_count", labelKey: "minor_count_number" });
   } else if (Number.isNaN(minors) || minors < 0) {
-    issues.push({ key: "minor_count", label: "만 18세 이하 인원(0 이상 숫자)" });
+    issues.push({ key: "minor_count", labelKey: "minor_count_min" });
   }
   if (!Number.isNaN(adults) && !Number.isNaN(minors) && adults + minors <= 0) {
-    issues.push({ key: "adult_count", label: "함께 이동 인원(성인·미성년 합 1명 이상)" });
+    issues.push({ key: "adult_count", labelKey: "household_total" });
   }
 
   if (!Number.isNaN(minors) && minors > 0) {
     const ages = Array.isArray(info.minor_ages) ? info.minor_ages : [];
     if (ages.length !== minors) {
-      issues.push({ key: "minor_ages", label: "만 18세 이하 각 인원의 나이(전부 입력)" });
+      issues.push({ key: "minor_ages", labelKey: "minor_ages_all" });
     } else {
       for (let i = 0; i < ages.length; i++) {
         const n = Number.parseInt(String(ages[i] || ""), 10);
         if (Number.isNaN(n) || n < 0 || n >= 18) {
-          issues.push({ key: "minor_ages", label: `만 18세 이하 ${i + 1}번째 나이(0~17)` });
+          issues.push({ key: "minor_ages", labelKey: "minor_age_invalid", params: { index: i + 1 } });
           break;
         }
       }
@@ -1078,16 +1168,13 @@ function validateCommonInfoIssues(info) {
   }
 
   if (!String(info.entry_date || "").trim()) {
-    issues.push({ key: "entry_date", label: "입국(또는 시작) 예정일" });
+    issues.push({ key: "entry_date", labelKey: "entry_date" });
   }
   if (!String(info.target_state || "").trim()) {
-    issues.push({ key: "target_state", label: "정착 희망 주(State)" });
+    issues.push({ key: "target_state", labelKey: "target_state" });
   }
   if (!String(info.target_city || "").trim()) {
-    issues.push({ key: "target_city", label: "정착 희망 도시명" });
-  }
-  if (!String(info.preferred_language || "").trim()) {
-    issues.push({ key: "preferred_language", label: "선호 언어" });
+    issues.push({ key: "target_city", labelKey: "target_city" });
   }
 
   return issues;
@@ -1116,14 +1203,6 @@ function focusFirstCommonInfoIssue(issues) {
       return;
     }
   }
-}
-
-/** @param {CommonInfoIssue[]} issues */
-function formatCommonInfoValidationAlert(issues) {
-  if (!issues.length) return "";
-  if (issues.length === 1) return `필수 항목을 완료해 주세요.\n\n• ${issues[0].label}`;
-  const lines = issues.map((x) => `• ${x.label}`);
-  return `다음 필수 항목을 입력·선택해 주세요.\n\n${lines.join("\n")}`;
 }
 
 async function loadServicesForSelectedCategory() {
@@ -1202,18 +1281,25 @@ function renderServicesSubstepHeader() {
 
   const total = servicesCategoryOrder.length;
   const n = total ? servicesCategoryIndex + 1 : 0;
-  if (idxEl) idxEl.textContent = total ? `영역 ${n} / ${total}` : "영역 0 / 0";
+  if (idxEl) {
+    idxEl.textContent = total
+      ? localizedStatus("common.service_flow.services_area_index", "Area {current} / {total}", {
+          current: n,
+          total,
+        })
+      : t("common.service_flow.services_area_index_empty", "Area 0 / 0");
+  }
 
   const category = currentServicesCategory();
   if (titleEl) titleEl.textContent = category ? categoryTitle(category) : t("common.service_flow.unknown_category", "Selected area");
 
   if (descEl) {
-    const subtitle = (category?.customer_subtitle || "").trim();
+    const subtitle = catalogDisplayText(category, "customer_subtitle", t, { kind: "body" });
     descEl.hidden = !subtitle;
     descEl.textContent = subtitle;
   }
   if (helpEl) {
-    const help = (category?.customer_help_text || "").trim();
+    const help = catalogDisplayText(category, "customer_help_text", t, { kind: "body" });
     helpEl.hidden = !help;
     helpEl.textContent = help;
   }
@@ -1276,9 +1362,17 @@ function renderServiceCards() {
           <span class="service-flow__service-name">${esc(serviceTitle(s) || s.name || "")}</span>
           <span class="service-flow__badge service-flow__badge--${esc(d.mode)}">${esc(effectiveDeliveryBadge(s, d))}</span>
           <span class="lhai-help service-flow__badge-explainer">${esc(effectiveDeliveryHelp(s, d))}</span>
-          ${s.customer_short_description ? `<span class="lhai-help service-flow__service-desc">${esc(s.customer_short_description)}</span>` : ""}
-          ${s.customer_long_description ? `<span class="lhai-help service-flow__service-desc">${esc(s.customer_long_description)}</span>` : ""}
-          ${!s.customer_short_description && s.description ? `<span class="lhai-help service-flow__service-desc">${esc(s.description)}</span>` : ""}
+          ${(() => {
+            const shortDesc = serviceShortDescription(s);
+            const longDesc = serviceLongDescription(s);
+            const shortHtml = shortDesc
+              ? `<span class="lhai-help service-flow__service-desc">${esc(shortDesc)}</span>`
+              : "";
+            const longHtml = longDesc
+              ? `<span class="lhai-help service-flow__service-desc">${esc(longDesc)}</span>`
+              : "";
+            return `${shortHtml}${longHtml}`;
+          })()}
           ${renderDeliveryModePick(s, isChecked)}
           ${renderInlineConditionalQuestions(s.id)}
         </span>
@@ -1349,25 +1443,34 @@ function isTechnicalLikeLabel(text) {
   return false;
 }
 
+/** @type {Record<string, [string, string]>} */
+const REVIEW_DETAIL_LABEL_I18N = {
+  first_name: ["common.service_flow.review.field.name", "Name"],
+  last_name: ["common.service_flow.review.field.name", "Name"],
+  full_name: ["common.service_flow.review.field.name", "Name"],
+  birth_date: ["common.service_flow.profile_birth_date_label", "Date of birth"],
+  entry_date: ["common.service_flow.entry_date_label", "Planned entry (or start) date"],
+  household_count: ["common.service_flow.review.field.household", "People moving together"],
+  who_is_moving: ["common.service_flow.review.field.household_composition", "Who is moving"],
+  adult_count: ["common.service_flow.adult_count_label", "People aged 18 and over"],
+  minor_count: ["common.service_flow.minor_count_label", "People under 18"],
+  minor_ages: ["common.service_flow.minor_ages_label", "Ages of people under 18"],
+  support_need_level: ["common.service_flow.review.field.support_need", "Preferred support level"],
+  budget_range: ["common.service_flow.review.field.budget", "Budget priority"],
+};
+
 function normalizeReviewDetailLabel(rawLabel, fallbackIndex = 1) {
   const label = String(rawLabel || "").trim();
-  const normalizedMap = {
-    first_name: "이름",
-    last_name: "이름",
-    full_name: "이름",
-    birth_date: "생년월일",
-    entry_date: "입국(또는 시작) 예정일",
-    household_count: "함께 이동하는 인원",
-    who_is_moving: "함께 이동하는 구성",
-    adult_count: "만 18세 이상인 인원",
-    minor_count: "만 18세 이하 인원",
-    minor_ages: "만 18세 이하 나이",
-    support_need_level: "희망 지원 강도",
-    budget_range: "예산 우선순위",
-  };
   const keyLike = label.toLowerCase().replace(/\s+/g, "_");
-  if (normalizedMap[keyLike]) return normalizedMap[keyLike];
-  if (isTechnicalLikeLabel(label)) return `추가 요청 정보 ${fallbackIndex}`;
+  const spec = REVIEW_DETAIL_LABEL_I18N[keyLike];
+  if (spec) return t(spec[0], spec[1]);
+  if (isTechnicalLikeLabel(label)) {
+    return localizedStatus(
+      "common.service_flow.review.extra_field_fallback",
+      "Additional details {index}",
+      { index: fallbackIndex },
+    );
+  }
   return label;
 }
 
@@ -1391,7 +1494,11 @@ function normalizeReviewDetailValue(answerJson, question = null) {
       .filter(Boolean);
     return vals.length ? vals.join(", ") : "—";
   }
-  if (typeof aj.value === "boolean") return aj.value ? "예" : "아니요";
+  if (typeof aj.value === "boolean") {
+    return aj.value
+      ? t("common.service_flow.review.boolean_yes", "Yes")
+      : t("common.service_flow.review.boolean_no", "No");
+  }
   const raw = aj.value == null ? "" : String(aj.value).trim();
   const v = question && raw ? optionLabelForQuestion(question, raw) : raw;
   return v || "—";
@@ -1427,7 +1534,7 @@ function validateSelectedServiceIdsForSubmit() {
     if (!tId || isLegacyServiceId(tId) || !isCatalogRecServiceItemUuidString(tId)) {
       return t(
         "common.service_flow.invalid_service_item_id",
-        "서비스 식별자가 올바르지 않습니다. 카테고리를 다시 선택한 뒤 서비스를 고르세요."
+        "The service identifier is invalid. Reselect the category, then choose a service."
       );
     }
   }
@@ -1483,7 +1590,10 @@ function buildServiceFlowSubmitPayload() {
     customer_profile_id: getCustomerMessagingProfileId(),
     selected_categories: selectedCategoryRows,
     selected_services: selectedServiceRows,
-    common_info: commonInfo,
+    common_info: {
+      ...commonInfo,
+      preferred_language: resolveSurveyPreferredLanguageFromAccount(),
+    },
     detailed_answers: detailedAnswers,
     intake_submission_ids: [],
   };
@@ -1499,39 +1609,50 @@ function renderReview() {
   const deliveryModes = new Set(selectedServices.map((s) => deliveryUiModeFromCapability(s)));
   const deliverySummary = summarizeDeliveryModes(deliveryModes) || t(
     "common.service_flow.review_delivery_summary_default",
-    "선택한 서비스별로 전달 방식(AI/대면/혼합)이 다를 수 있어요."
+    "Delivery mode (AI, in-person, or mixed) may differ per selected service."
   );
 
-  const prefLangMap = {
-    ko: "한국어",
-    en: "영어",
-    mix: "한국어 + 영어",
-    other: "기타",
-  };
   const togetherMoving = (() => {
     const adults = Number.parseInt(commonInfo.adult_count || "0", 10) || 0;
     const minors = Number.parseInt(commonInfo.minor_count || "0", 10) || 0;
     const total = adults + minors;
     const minorAges = Array.isArray(commonInfo.minor_ages) ? commonInfo.minor_ages.filter(Boolean) : [];
     if (total <= 0) return "—";
-    const base = `총 ${total}명 (성인 ${adults}명, 미성년 ${minors}명)`;
+    const base = localizedStatus(
+      "common.service_flow.review.household_summary",
+      "Total {total} (adults {adults}, minors {minors})",
+      { total, adults, minors },
+    );
     if (!minorAges.length) return base;
-    return `${base} · 미성년 나이: ${minorAges.join(", ")}`;
+    return localizedStatus(
+      "common.service_flow.review.household_with_ages",
+      "{base} · Minor ages: {ages}",
+      { base, ages: minorAges.join(", ") },
+    );
   })();
 
   const nextStepHints = [
     t(
       "common.service_flow.review_next_hint_submit_click",
-      "「제출하기」를 누르면 고객님의 요청이 먼저 안전하게 접수됩니다."
+      "When you click Submit, your request is received securely first.",
     ),
-    "접수된 정보는 운영팀(담당자)이 확인하고, 필요한 내용을 검토합니다.",
-    "검토가 완료되면 상황에 맞는 견적서를 준비해 이메일과 메시지함으로 보내드립니다.",
+    t(
+      "common.service_flow.review_next_hint_ops_review",
+      "Our team reviews your submission and checks the details.",
+    ),
+    t(
+      "common.service_flow.review_next_hint_quote_sent",
+      "When review is complete, we prepare a quote and send it to your email and inbox.",
+    ),
   ];
   if (deliveryModes.has("in_person")) {
     nextStepHints.splice(
       1,
       0,
-      "대면 지원이 포함된 항목은 지역/일정 가능 여부를 확인한 뒤 안내해 드립니다."
+      t(
+        "common.service_flow.review_next_hint_in_person",
+        "For in-person services, we confirm location and schedule availability before follow-up.",
+      ),
     );
   }
 
@@ -1539,14 +1660,17 @@ function renderReview() {
   parts.push(`<div class="service-flow__review-layout">`);
   parts.push(
     `<div class="service-flow__review-block service-flow__review-panel service-flow__review-panel--intro"><h3 class="service-flow__review-h">${esc(
-      t("common.service_flow.review_understood_title", "제출 전 요청 내용을 확인해 주세요")
+      t("common.service_flow.review_understood_title", "Review your request before submitting")
     )}</h3><p class="lhai-help">${esc(
       t(
         "common.service_flow.review_understood_lead",
-        "제출 전에 한 번에 확인하실 수 있도록 고객님 답변을 깔끔하게 정리했습니다."
+        "We organized your answers so you can review everything in one place before submitting."
       )
     )}</p><p class="lhai-help">${esc(
-      "내용이 맞으면 아래에서 요청을 제출해 주세요. 수정이 필요하면 돌아가서 바로 고칠 수 있습니다."
+      t(
+        "common.service_flow.review_confirm_submit",
+        "If everything looks correct, submit your request below. You can go back to edit anything.",
+      )
     )}</p></div>`
   );
 
@@ -1556,31 +1680,34 @@ function renderReview() {
     .filter(Boolean);
   parts.push(
     `<div class="service-flow__review-block service-flow__review-panel"><h3 class="service-flow__review-h">${esc(
-      "도움이 필요한 영역"
+      t("common.service_flow.review.section.help_areas", "Areas where you need help")
     )}</h3><p>${esc(selectedCategoryNames.join(", ") || "—")}</p></div>`
   );
   parts.push(
     `<div class="service-flow__review-block service-flow__review-panel"><h3 class="service-flow__review-h">${esc(
-      "요청 서비스"
+      t("common.service_flow.review.section.services", "Requested services")
     )}</h3><p>${esc(selectedServiceNames.join(", ") || "—")}</p><p class="lhai-help">${esc(deliverySummary)}</p></div>`
   );
   const reviewCustomerId = (commonInfo.customer_username || getSession()?.username || "").trim() || "—";
   parts.push(
-    `<div class="service-flow__review-block service-flow__review-panel"><h3 class="service-flow__review-h">기본 정보</h3><dl class="service-flow__review-dl">
-      <dt>${esc(t("common.service_flow.review_customer_id", "아이디"))}</dt><dd>${esc(reviewCustomerId)}</dd>
-      <dt>이름</dt><dd>${esc(`${commonInfo.profile_first_name || ""} ${commonInfo.profile_last_name || ""}`.trim() || "—")}</dd>
-      <dt>생년월일</dt><dd>${esc(commonInfo.profile_birth_date || "—")}</dd>
-      <dt>이메일</dt><dd>${esc(commonInfo.profile_email || "—")}</dd>
-      <dt>입국(또는 시작) 예정일</dt><dd>${esc(commonInfo.entry_date || "—")}</dd>
-      <dt>함께 이동하는 인원</dt><dd>${esc(togetherMoving)}</dd>
-      <dt>정착 희망 지역(주)</dt><dd>${esc(commonInfo.target_state || "—")}</dd>
-      <dt>정착 희망 도시명</dt><dd>${esc(commonInfo.target_city || "—")}</dd>
-      <dt>선호 언어</dt><dd>${esc(prefLangMap[commonInfo.preferred_language] || commonInfo.preferred_language || "—")}</dd>
+    `<div class="service-flow__review-block service-flow__review-panel"><h3 class="service-flow__review-h">${esc(
+      t("common.service_flow.review.section.basic_info", "Basic information")
+    )}</h3><dl class="service-flow__review-dl">
+      <dt>${esc(t("common.service_flow.review_customer_id", "Username"))}</dt><dd>${esc(reviewCustomerId)}</dd>
+      <dt>${esc(t("common.service_flow.review.field.name", "Name"))}</dt><dd>${esc(`${commonInfo.profile_first_name || ""} ${commonInfo.profile_last_name || ""}`.trim() || "—")}</dd>
+      <dt>${esc(t("common.service_flow.profile_birth_date_label", "Date of birth"))}</dt><dd>${esc(commonInfo.profile_birth_date || "—")}</dd>
+      <dt>${esc(t("common.service_flow.profile_email_label", "Email"))}</dt><dd>${esc(commonInfo.profile_email || "—")}</dd>
+      <dt>${esc(t("common.service_flow.entry_date_label", "Planned entry (or start) date"))}</dt><dd>${esc(commonInfo.entry_date || "—")}</dd>
+      <dt>${esc(t("common.service_flow.review.field.household", "People moving together"))}</dt><dd>${esc(togetherMoving)}</dd>
+      <dt>${esc(t("common.service_flow.target_state_label", "Preferred state"))}</dt><dd>${esc(commonInfo.target_state || "—")}</dd>
+      <dt>${esc(t("common.service_flow.target_city_label", "Preferred city"))}</dt><dd>${esc(commonInfo.target_city || "—")}</dd>
     </dl></div>`
   );
   if (conditionalQuestions.length) {
     const byId = new Map(conditionalQuestions.map((q) => [q.id, q]));
-    parts.push(`<div class="service-flow__review-block service-flow__review-panel"><h3 class="service-flow__review-h">추가 세부 정보</h3><dl class="service-flow__review-dl">`);
+    parts.push(`<div class="service-flow__review-block service-flow__review-panel"><h3 class="service-flow__review-h">${esc(
+      t("common.service_flow.review.section.extra_details", "Additional details")
+    )}</h3><dl class="service-flow__review-dl">`);
     let detailIdx = 1;
     Object.entries(conditionalAnswersByItemId).forEach(([id, aj]) => {
       const q = byId.get(id);
@@ -1592,8 +1719,15 @@ function renderReview() {
     parts.push(`</dl></div>`);
   }
 
-  parts.push(`<div class="service-flow__review-block service-flow__review-panel"><h3 class="service-flow__review-h">${esc("서비스 전달 방식 안내")}</h3>
-    <p class="lhai-help service-flow__review-section-lead">${esc("각 서비스가 어떤 방식으로 진행되는지 간단히 정리했습니다.")}</p>
+  parts.push(`<div class="service-flow__review-block service-flow__review-panel"><h3 class="service-flow__review-h">${esc(
+    t("common.service_flow.review.section.delivery", "How each service will be delivered")
+  )}</h3>
+    <p class="lhai-help service-flow__review-section-lead">${esc(
+      t(
+        "common.service_flow.review.section.delivery_lead",
+        "A short summary of how each selected service will be delivered.",
+      )
+    )}</p>
     <ul class="service-flow__review-list">`);
   for (const sid of selectedServiceIds) {
     const svc = serviceItems.find((x) => x.id === sid);
@@ -1627,9 +1761,12 @@ function renderReview() {
 
   parts.push(
     `<div class="service-flow__review-block service-flow__review-panel service-flow__review-panel--next"><h3 class="service-flow__review-h">${esc(
-      t("common.service_flow.review_next_steps_title", "다음 단계 안내")
+      t("common.service_flow.review_next_steps_title", "What happens next")
     )}</h3><p class="lhai-help service-flow__review-section-lead">${esc(
-      "제출 후 진행 흐름을 간단히 안내드릴게요."
+      t(
+        "common.service_flow.review_next_steps_lead",
+        "Here is what happens after you submit.",
+      )
     )}</p><ul class="service-flow__review-list">` +
       nextStepHints.map((line) => `<li class="lhai-help">${esc(line)}</li>`).join("") +
       `</ul></div>`
@@ -1646,10 +1783,22 @@ async function goNext() {
     const info = readCommonInfoFromForm();
     const issues = validateCommonInfoIssues(info);
     if (issues.length) {
-      const alertText = formatCommonInfoValidationAlert(issues);
-      const statusLine = issues.map((x) => x.label).join(" · ");
+      const bullets = issues.map((issue) => `• ${commonInfoIssueLabel(issue)}`).join("\n");
+      const statusLine = issues.map((x) => commonInfoIssueLabel(x)).join(" · ");
       setStatus(statusLine);
-      window.alert(alertText);
+      if (issues.length === 1) {
+        alertI18n(
+          "common.dialog.validation_required_one",
+          "Please complete the required field:\n\n{bullets}",
+          { bullets },
+        );
+      } else {
+        alertI18n(
+          "common.dialog.validation_required_many",
+          "Please complete the required fields:\n\n{bullets}",
+          { bullets },
+        );
+      }
       focusFirstCommonInfoIssue(issues);
       return;
     }
@@ -1663,7 +1812,12 @@ async function goNext() {
 
   if (phase === "category") {
     if (!selectedCategoryIds.length) {
-      setStatus("해당되는 항목을 모두 선택해 주세요. 여러 개를 선택할 수 있습니다.");
+      setStatus(
+        t(
+          "common.service_flow.pick_category",
+          "Select at least one area that applies. You may select more than one.",
+        ),
+      );
       return;
     }
     const loaded = await loadServicesForSelectedCategory();
@@ -1686,7 +1840,7 @@ async function goNext() {
       return;
     }
     if (!selectedServiceIds.length) {
-      setStatus(t("common.service_flow.pick_service", "서비스를 하나 이상 선택해 주세요."));
+      setStatus(t("common.service_flow.pick_service", "Select at least one service."));
       return;
     }
     readDeliveryModeRadiosFromDom();
@@ -1697,7 +1851,7 @@ async function goNext() {
     }
     const missingConditional = validateInlineConditionalRequired();
     if (missingConditional) {
-      setStatus(t("common.service_flow.required_missing", "다음 항목을 완료해 주세요: {field}").replace("{field}", missingConditional));
+      setStatus(t("common.service_flow.required_missing", "Complete the following: {field}").replace("{field}", missingConditional));
       return;
     }
     await loadConditionalQuestions(selectedServiceIds);
@@ -1713,7 +1867,7 @@ async function goNext() {
     if (submittingReview) return;
     submittingReview = true;
     updateChrome();
-    setStatus("설문을 접수하는 중입니다...");
+    setStatus(t("common.service_flow.status_submitting", "Submitting your request…"));
     try {
       await mergeRegisteredIdentityFromMeIntoCommonInfo(commonInfo);
       const idErr = validateSelectedServiceIdsForSubmit();
@@ -1724,16 +1878,24 @@ async function goNext() {
         return;
       }
       const payload = buildServiceFlowSubmitPayload();
-      const result = await surveyCustomerApi.submitServiceFlow(payload);
-      const quoteId = result?.quote?.quote_id || "";
+      await surveyCustomerApi.submitServiceFlow(payload);
       setStatus(
-        "설문이 접수되었습니다. 운영팀이 검토한 뒤 안내드립니다. 메시지함과 등록 이메일에서 접수 확인 알림을 확인해 주세요."
+        t(
+          "common.service_flow.submit_success",
+          "Your request was received. Our team will review it and follow up. Check your inbox and registered email for confirmation.",
+        ),
       );
-      const query = quoteId ? `?pending_quote_id=${encodeURIComponent(quoteId)}` : "";
-      window.location.href = `survey-submitted.html${query}`;
+      const lang = encodeURIComponent(getEffectiveLanguage());
+      window.location.href = `survey-submitted.html?lang=${lang}`;
     } catch (e) {
       const msg = e && typeof e.message === "string" ? e.message : String(e);
-      setStatus(`접수에 실패했습니다. 잠시 후 다시 시도해 주세요. (${msg})`);
+      setStatus(
+        localizedStatus(
+          "common.service_flow.submit_failed",
+          "Could not submit your request. Please try again shortly. ({message})",
+          { message: msg },
+        ),
+      );
       submittingReview = false;
       updateChrome();
     }
@@ -1807,6 +1969,46 @@ async function init() {
   await prefillProfileBasicInfo();
   showOnlyStep("common_info");
   updateProgress();
+
+  document.addEventListener("lhai:language-changed", () => {
+    void (async () => {
+      updateProgress();
+      updateChrome();
+      updateCategorySelectedCount();
+      try {
+        // Re-fetch browse catalog so display_* fields match the new viewer locale.
+        if (phase === "category" || phase === "services" || phase === "review") {
+          const cats = await serviceCatalogBrowseApi.listCategories();
+          categories = Array.isArray(cats) ? cats : [];
+        }
+        if ((phase === "services" || phase === "review") && selectedCategoryIds.length) {
+          const keepSelected = selectedServiceIds.slice();
+          selectedServiceIds = keepSelected;
+          await loadServicesForSelectedCategory();
+          // Restore selection after reload (loadServices clears per-category maps carefully).
+          for (const [cid, rows] of serviceItemsByCategoryId.entries()) {
+            const valid = new Set((rows || []).map((x) => x.id).filter(Boolean));
+            selectedServiceIdsByCategoryId.set(
+              cid,
+              keepSelected.filter((id) => valid.has(id))
+            );
+          }
+          rebuildSelectedServiceIds();
+        }
+        if (phase === "category") {
+          await preloadCategoryDeliverySummary();
+          renderCategories();
+        } else if (phase === "services") renderServiceCards();
+        else if (phase === "review") renderReview();
+        else if (phase === "common_info") renderMinorAgeInputs();
+      } catch {
+        if (phase === "category") renderCategories();
+        else if (phase === "services") renderServiceCards();
+        else if (phase === "review") renderReview();
+        else if (phase === "common_info") renderMinorAgeInputs();
+      }
+    })();
+  });
 }
 
 void init();

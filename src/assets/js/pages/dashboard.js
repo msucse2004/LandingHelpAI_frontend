@@ -12,6 +12,7 @@ import {
   customerCaseDisplayTitle,
   customerCaseDisplaySubtitle,
   customerCaseDisplayStatusLabel,
+  customerCaseStatusBadgeClass,
   customerCaseStatusLabel,
   normalizeChecklistSummary,
   normalizeTimelineStepStatus,
@@ -29,7 +30,7 @@ import { loadSidebar } from "../components/sidebar.js";
 import { applyCustomerQuoteNavFromAggregate } from "../components/customer-quote-nav.js";
 import { t, flushRuntimeMissingKeysAfterPageApply } from "../core/i18n-client.js";
 import { localizedStatus } from "../core/i18n-dynamic.js";
-import { appPageLanguageReady } from "../core/app-page-i18n-boot.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 import { wireDynamicPageI18nRefresh, applyI18nToDom } from "../core/i18n-dom.js";
 import { getEffectiveLanguage } from "../core/preferred-language.js";
 
@@ -55,18 +56,6 @@ function cardHead(title, href, linkLabel) {
       ? `<a class="lhai-dashboard-card__link" href="${escHtml(href)}">${escHtml(linkLabel)}</a>`
       : "";
   return `<div class="lhai-dashboard-card__head"><h2 class="lhai-card__title">${escHtml(title)}</h2>${link}</div>`;
-}
-
-function customerCaseStatusBadgeClass(item) {
-  const kind = String(item?.case_kind || "");
-  if (kind === "messaging") {
-    return item.unread ? "lhai-case-badge--pending_customer" : "lhai-case-badge--open";
-  }
-  const tab = String(item?.queue_tab || "").toLowerCase();
-  if (tab === "resolved") return "lhai-case-badge--resolved";
-  if (tab === "waiting_customer") return "lhai-case-badge--pending_customer";
-  if (tab === "action_required") return "lhai-case-badge--pending_ops";
-  return "lhai-case-badge--open";
 }
 
 /** @param {ReturnType<typeof resolveDashboardActionHero>} hero */
@@ -566,7 +555,6 @@ let dashboardViewCache = null;
 /** @type {string | null} */
 let dashboardCasesViewerLocale = null;
 let dashboardLanguageCaseRefetchPending = false;
-let dashboardLanguageCaseRefetchBound = false;
 
 function setDashboardViewCache(aggregate, sections = {}) {
   dashboardViewCache = {
@@ -619,14 +607,6 @@ async function handleDashboardLanguageChanged() {
   refreshDashboardStaticPageI18n();
 }
 
-function bindDashboardLanguageCaseRefetch() {
-  if (dashboardLanguageCaseRefetchBound) return;
-  dashboardLanguageCaseRefetchBound = true;
-  window.addEventListener("lhai:language-changed", () => {
-    void handleDashboardLanguageChanged();
-  });
-}
-
 function refreshDashboardPageI18n() {
   refreshDashboardStaticPageI18n();
 }
@@ -635,9 +615,12 @@ function scheduleDashboardRuntimeI18nFlush() {
   void flushRuntimeMissingKeysAfterPageApply();
 }
 
-bindDashboardLanguageCaseRefetch();
+wireDynamicPageI18nRefresh(() => {
+  void handleDashboardLanguageChanged();
+});
 
 wireDynamicPageI18nRefresh(refreshDashboardStaticPageI18n, {
+  runtimeResolvedOnly: true,
   shouldRefresh: (detail) => dashboardRuntimeResolveTouches(detail?.keys),
 });
 
@@ -672,7 +655,7 @@ async function initDashboardPage() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
   bindDashboardCrossTabRefreshAfterDevReset();
-  await appPageLanguageReady;
+  await bootAppPageContent(["common", "nav", "dashboard"], async () => {
   await loadSidebar("#sidebar", "customer");
 
   const customerProfileId = getCustomerMessagingProfileId();
@@ -696,7 +679,6 @@ async function initDashboardPage() {
     setDashboardViewCache({}, { timelineItems: [], checklist: {}, caseItems: [] });
     renderDashboardError();
     refreshDashboardPageI18n();
-    scheduleDashboardRuntimeI18nFlush();
     return;
   }
 
@@ -723,11 +705,11 @@ async function initDashboardPage() {
     caseItems,
   });
   refreshDashboardPageI18n();
-  scheduleDashboardRuntimeI18nFlush();
 
   bindDashboardBidUpdateListener(customerProfileId, async () => ({
     cases: await customerCasesApi.list(),
   }));
+  });
 }
 
 initDashboardPage();
@@ -761,6 +743,7 @@ export {
   customerCaseDisplayTitle,
   customerCaseDisplaySubtitle,
   customerCaseDisplayStatusLabel,
+  customerCaseStatusBadgeClass,
   customerCaseStatusLabel,
   DASHBOARD_EMPTY,
 };

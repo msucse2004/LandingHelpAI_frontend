@@ -1,75 +1,77 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>회원 가입·인증 상태 - Landing Help AI Admin</title>
+  <title data-i18n="admin.users.page_title" data-i18n-default="Member sign-up and verification - Landing Help AI Admin">Member sign-up and verification - Landing Help AI Admin</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
 </head>
-<body>
+<body data-lhai-i18n-domains="common,nav,admin">
     <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" aria-label="Admin navigation"></aside>
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" data-i18n-default="Admin menu" aria-label="Admin menu"></aside>
     <main class="lhai-main" id="main">
       <section class="lhai-page-header u-flex-between u-gap-4">
         <div>
-          <h1 class="lhai-title">회원 가입·인증 상태</h1>
-          <p class="lhai-subtitle">
-            가입된 계정과 초대 발송 내역을 함께 확인할 수 있습니다.
-            회원 상세는 동일·상위 등급도 열람할 수 있으나, 가입·인증 수정과 계정 삭제는 본인·동일·상위를 제외한 하위 티어만 가능합니다.
-            초대 삭제도 같은 티어 규칙이 적용됩니다.
+          <h1 class="lhai-title" data-i18n="admin.users.title" data-i18n-default="Member sign-up and verification">Member sign-up and verification</h1>
+          <p class="lhai-subtitle" data-i18n="admin.users.subtitle" data-i18n-default="View registered accounts and invitation send history together. Member detail is readable for same- or higher-tier accounts, but sign-up/verification edits and account deletion apply only to lower tiers (excluding self, same, and higher). The same tier rules apply to invitation deletion.">
+            View registered accounts and invitation send history together.
+            Member detail is readable for same- or higher-tier accounts, but sign-up/verification edits and account deletion apply only to lower tiers (excluding self, same, and higher).
+            The same tier rules apply to invitation deletion.
           </p>
         </div>
-        <button type="button" class="lhai-button lhai-button--secondary" id="accountsRefreshBtn">목록 새로고침</button>
+        <button type="button" class="lhai-button lhai-button--secondary" id="accountsRefreshBtn" data-i18n="admin.users.refresh" data-i18n-default="Refresh list">Refresh list</button>
       </section>
 
       <p class="lhai-help" id="pageAlert" role="status" aria-live="polite"></p>
       <p class="lhai-help u-mb-2" id="accountsLoadStatus" aria-live="polite"></p>
 
       <section class="lhai-card u-mb-3" aria-labelledby="accountFiltersTitle">
-        <h2 class="lhai-card__title" id="accountFiltersTitle">검색 필터</h2>
+        <h2 class="lhai-card__title" id="accountFiltersTitle" data-i18n="admin.users.filters.title" data-i18n-default="Search filters">Search filters</h2>
         <div class="u-flex u-gap-3 u-flex-wrap" style="align-items: end;">
           <div>
-            <label class="lhai-label" for="filterRecordType">구분</label>
+            <label class="lhai-label" for="filterRecordType" data-i18n="admin.users.filters.record_type_label" data-i18n-default="Type">Type</label>
             <select class="lhai-select" id="filterRecordType" name="filterRecordType">
-              <option value="">전체</option>
-              <option value="account">회원</option>
-              <option value="invitation">초대</option>
+              <option value="" data-i18n="admin.users.filters.all" data-i18n-default="All">All</option>
+              <option value="account" data-i18n="admin.users.filters.type_account" data-i18n-default="Member">Member</option>
+              <option value="invitation" data-i18n="admin.users.filters.type_invitation" data-i18n-default="Invitation">Invitation</option>
             </select>
           </div>
           <div>
-            <label class="lhai-label" for="filterRole">역할</label>
+            <label class="lhai-label" for="filterRole" data-i18n="admin.users.filters.role_label" data-i18n-default="Role">Role</label>
             <select class="lhai-select" id="filterRole" name="filterRole">
-              <option value="">전체</option>
+              <option value="" data-i18n="admin.users.filters.all" data-i18n-default="All">All</option>
             </select>
           </div>
           <div>
-            <label class="lhai-label" for="filterEmailKeyword">이메일 검색</label>
+            <label class="lhai-label" for="filterEmailKeyword" data-i18n="admin.users.filters.email_label" data-i18n-default="Email search">Email search</label>
             <input
               class="lhai-input"
               id="filterEmailKeyword"
               name="filterEmailKeyword"
               type="text"
-              placeholder="예: gmail.com 또는 user@"
+              data-i18n-placeholder="admin.users.filters.email_placeholder"
+              data-i18n-default="e.g. gmail.com or user@"
+              placeholder="e.g. gmail.com or user@"
               autocomplete="off"
             />
           </div>
-          <button type="button" class="lhai-button lhai-button--secondary" id="filterResetBtn">필터 초기화</button>
+          <button type="button" class="lhai-button lhai-button--secondary" id="filterResetBtn" data-i18n="admin.users.filters.reset" data-i18n-default="Reset filters">Reset filters</button>
         </div>
       </section>
 
       <section class="lhai-card">
         <div class="lhai-table-wrap" style="overflow-x: auto;">
-          <table class="lhai-table" aria-label="회원 계정 목록">
+          <table class="lhai-table" data-i18n-aria-label="admin.users.table.aria_label" data-i18n-default="Member account list" aria-label="Member account list">
             <thead>
               <tr>
-                <th scope="col">구분</th>
-                <th scope="col">아이디</th>
-                <th scope="col">이름</th>
-                <th scope="col">이메일</th>
-                <th scope="col">역할</th>
-                <th scope="col">Sub 역할</th>
-                <th scope="col">작업</th>
+                <th scope="col" data-i18n="admin.users.table.col_type" data-i18n-default="Type">Type</th>
+                <th scope="col" data-i18n="admin.users.table.col_username" data-i18n-default="Username">Username</th>
+                <th scope="col" data-i18n="admin.users.table.col_name" data-i18n-default="Name">Name</th>
+                <th scope="col" data-i18n="admin.users.table.col_email" data-i18n-default="Email">Email</th>
+                <th scope="col" data-i18n="admin.users.table.col_role" data-i18n-default="Role">Role</th>
+                <th scope="col" data-i18n="admin.users.table.col_sub_role" data-i18n-default="Sub role">Sub role</th>
+                <th scope="col" data-i18n="admin.users.table.col_actions" data-i18n-default="Actions">Actions</th>
               </tr>
             </thead>
             <tbody id="accountsTableBody"></tbody>

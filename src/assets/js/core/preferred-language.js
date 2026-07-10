@@ -248,6 +248,47 @@ export function savePreferredLanguage(code) {
   return setSavedLocalLanguage(code);
 }
 
+const URL_LANG_QUERY_KEYS = ["lang", "locale"];
+
+/**
+ * Read a supported UI language code from ``?lang=`` or ``?locale=`` query params.
+ * @param {string | URLSearchParams} [search]
+ * @returns {string | null}
+ */
+export function readUiLanguageFromUrlQuery(search) {
+  let params;
+  if (search instanceof URLSearchParams) {
+    params = search;
+  } else if (typeof search === "string") {
+    params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+  } else if (typeof window !== "undefined") {
+    params = new URLSearchParams(window.location.search);
+  } else {
+    return null;
+  }
+  for (const key of URL_LANG_QUERY_KEYS) {
+    const normalized = normalizeLanguageCode(params.get(key));
+    if (normalized) return normalized;
+  }
+  return null;
+}
+
+/**
+ * Apply ``?lang=`` / ``?locale=`` from the current URL before page i18n boot (email deep links).
+ * @param {string | URLSearchParams} [search]
+ * @returns {string | null} applied code, if any
+ */
+export function applyUiLanguageFromUrlQuery(search) {
+  const code = readUiLanguageFromUrlQuery(search);
+  if (!code) return null;
+  setSavedLocalLanguage(code);
+  setSessionLanguage(code);
+  return code;
+}
+
+/** Back-compat alias for email deep-link / older page bundles. */
+export const applyLanguageFromUrlQuery = applyUiLanguageFromUrlQuery;
+
 /**
  * Active UI language after login — server account code only (guest localStorage ignored).
  * @param {string | null | undefined} serverPreferredLanguageCode

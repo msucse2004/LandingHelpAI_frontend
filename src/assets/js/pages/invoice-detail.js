@@ -3,11 +3,13 @@ import { getCustomerMessagingProfileId } from "../core/auth.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { patchState } from "../core/state.js";
 import { loadSidebar } from "../components/sidebar.js";
-import { applyI18nToDom } from "../core/i18n-dom.js";
-import { initI18nDomains, mergeFallbackStrings, t } from "../core/i18n-client.js";
+import { applyI18nToDom, applyDocumentLanguageAttributes, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
+import { mergeFallbackStrings, reloadI18nForLanguage, t, flushRuntimeMissingKeysAfterPageApply } from "../core/i18n-client.js";
+import { getEffectiveLanguage, normalizeSupportedLanguageCode, applyUiLanguageFromUrlQuery } from "../core/preferred-language.js";
 import { formatMoney } from "../core/utils.js";
 import { resolveAppHeaderShell, refreshHeaderMailUnreadBadge } from "../core/app-header.js";
-import { getInvoiceLocaleBundle, resolveInvoiceUiLang } from "./invoice-detail-locale.js";
+import { getInvoiceLocaleBundle, invoicePageEnglishFallback } from "./invoice-detail-locale.js";
 import { buildInvoiceServiceRows } from "./invoice-detail-services-logic.js";
 import { buildInvoiceAmountSummaryDisplay } from "./invoice-detail-amount-summary-logic.js";
 import { buildInvoicePrepayScopeContent } from "./invoice-detail-prepay-scope-logic.js";
@@ -37,8 +39,61 @@ let lastPaymentSuccessApiResult = null;
 
 /** `renderInvoice` 직후 결제 handler가 참조하는 청구서 */
 let activeInvoiceRef = null;
+/** @type {Record<string, unknown> | null} */
+let activeInvoiceQuoteRef = null;
+let invoiceViewerLocaleRefetchInFlight = false;
+
+const INVOICE_I18N_DOMAINS = ["common", "nav", "invoice"];
+
+/** @param {string} key */
+function ti(key) {
+  return t(key, invoicePageEnglishFallback(key));
+}
+
+/** @param {unknown} invoice */
+function invoiceDisplayServiceName(invoice) {
+  return String(invoice?.display_service_name || invoice?.service_name || "").trim();
+}
+
+/** @param {unknown} invoice */
+function invoiceDisplayDraftNotes(invoice) {
+  return String(invoice?.display_draft_notes || invoice?.draft_notes || "").trim();
+}
+
+function applyInvoicePageLocaleBundle() {
+  const lang = getEffectiveLanguage();
+  applyDocumentLanguageAttributes(lang);
+  mergeFallbackStrings(getInvoiceLocaleBundle(lang));
+}
 
 let invoicePaymentInFlight = false;
+
+function readInvoicePagePreserve() {
+  const statusEl = qs("#invoiceStatusMessage");
+  return {
+    scrollY: window.scrollY || 0,
+    statusMessage: invoicePaymentInFlight && statusEl ? String(statusEl.textContent || "") : "",
+  };
+}
+
+function restoreInvoicePagePreserve(preserve) {
+  if (!preserve) return;
+  try {
+    window.scrollTo(0, preserve.scrollY);
+  } catch {
+    /* non-browser */
+  }
+  if (invoicePaymentInFlight) {
+    setMessage(preserve.statusMessage || ti("customer.invoice.pay_processing"));
+    setInvoicePayButtonsBusy(true);
+  }
+}
+
+function rerenderInvoicePageFromCache() {
+  if (!activeInvoiceRef) return;
+  renderInvoice(activeInvoiceRef, activeInvoiceQuoteRef);
+  syncInvoicePayButtonsVisibility(activeInvoiceRef);
+}
 
 const INVOICE_PAY_BTN_SELECTORS = ["#payNowBtn", "#invoiceHeroPayBtn"];
 
@@ -63,7 +118,7 @@ function statusClass(status) {
 function statusLabel(status) {
   const st = normalizeInvoiceStatus(status);
   const key = customerInvoiceStatusLabelKey(st);
-  const tr = t(key, "");
+  const tr = ti(key);
   if (tr && tr !== key) return tr;
   return st || "—";
 }
@@ -113,14 +168,20 @@ function heroStatusBadgeClass(st) {
 }
 
 /** @param {unknown} quote */
-function customerFacingQuoteTitle(quote) {
+function quoteDisplayTitle(quote) {
   if (!quote || typeof quote !== "object") return "";
-  const raw = String(quote.title || "").trim();
+  return String(quote.display_title || quote.title || "").trim();
+}
+
+/** @param {unknown} quote */
+function customerFacingQuoteTitle(quote) {
+  const raw = quoteDisplayTitle(quote);
   if (!raw) return "";
-  const suffix = " Landing Help AI 견적서";
-  if (raw.endsWith(suffix)) {
-    const base = raw.slice(0, -suffix.length).trim();
-    return base || raw;
+  for (const suffix of [" Landing Help AI 견적서", " Landing Help AI quote"]) {
+    if (raw.endsWith(suffix)) {
+      const base = raw.slice(0, -suffix.length).trim();
+      return base || raw;
+    }
   }
   return raw;
 }
@@ -158,7 +219,7 @@ function heroRequestSummaryText(quote, invoice) {
     const tpl = t("customer.invoice.hero.request_prefix", "Survey request: %s");
     return tpl.includes("%s") ? tpl.replace("%s", title) : `${tpl} ${title}`;
   }
-  const pkg = String(invoice.service_name || "").trim();
+  const pkg = invoiceDisplayServiceName(invoice);
   if (pkg) {
     const tpl = t("customer.invoice.hero.request_prefix", "Survey request: %s");
     return tpl.includes("%s") ? tpl.replace("%s", pkg) : `${tpl} ${pkg}`;
@@ -173,7 +234,7 @@ function heroRequestSummaryText(quote, invoice) {
 function heroBilledServicesText(quote, invoice) {
   const titles = billedServiceTitlesFromQuote(quote);
   if (titles.length) return titles.join(", ");
-  const pkg = String(invoice.service_name || "").trim();
+  const pkg = invoiceDisplayServiceName(invoice);
   return pkg || "—";
 }
 
@@ -235,7 +296,7 @@ async function runInvoiceWebPayment(invoice) {
   if (!invoice?.id || invoicePaymentInFlight || !invoiceStatusAllowsPayment(invoice)) return;
   invoicePaymentInFlight = true;
   setInvoicePayButtonsBusy(true);
-  setMessage(t("customer.invoice.pay_processing", ""));
+  setMessage(ti("customer.invoice.pay_processing"));
   try {
     const start = await paymentApi.startWebPayment({
       invoice_id: invoice.id,
@@ -249,9 +310,9 @@ async function runInvoiceWebPayment(invoice) {
       return;
     }
     await handlePaymentSuccess(start.payment_id, String(invoice.id));
-    setMessage(t("customer.invoice.pay_success", ""));
+    setMessage(ti("customer.invoice.pay_success"));
   } catch {
-    setMessage(t("customer.invoice.pay_error", ""));
+    setMessage(ti("customer.invoice.pay_error"));
   } finally {
     invoicePaymentInFlight = false;
     if (activeInvoiceRef) {
@@ -272,14 +333,21 @@ function parseIsoOrDateOnlyToLocalDate(value) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+function intlLocaleForUiLanguage(lang) {
+  const code = normalizeSupportedLanguageCode(lang) || getEffectiveLanguage();
+  if (code === "ko") return "ko-KR";
+  if (code === "en") return "en-US";
+  return code;
+}
+
 /**
  * @param {unknown} value
- * @param {string} lang
+ * @param {string} [lang]
  */
 function formatInvoiceCalendarDate(value, lang) {
   const d = parseIsoOrDateOnlyToLocalDate(value);
   if (!d) return "";
-  const loc = lang === "en" ? "en-US" : "ko-KR";
+  const loc = intlLocaleForUiLanguage(lang ?? getEffectiveLanguage());
   return new Intl.DateTimeFormat(loc, { dateStyle: "long" }).format(d);
 }
 
@@ -369,49 +437,49 @@ function renderInvoiceMeta(invoice, quote) {
   const dl = qs("#invoiceMetaDl");
   if (!dl) return;
 
-  const lang = resolveInvoiceUiLang(quote);
+  const lang = getEffectiveLanguage();
   dl.innerHTML = "";
 
   const issueFmt = formatInvoiceCalendarDate(invoice.created_at, lang);
-  appendInvoiceMetaPlainRow(dl, t("customer.invoice.meta.issue_date", ""), issueFmt || "—");
+  appendInvoiceMetaPlainRow(dl, ti("customer.invoice.meta.issue_date"), issueFmt || "—");
 
   const dueDisplay = buildInvoiceDueDateDisplay(
     invoice.due_date,
     (raw) => formatInvoiceCalendarDate(raw, lang),
-    () => t("customer.invoice.meta.due_not_set", ""),
+    () => ti("customer.invoice.meta.due_not_set"),
   );
-  appendInvoiceMetaPlainRow(dl, t("customer.invoice.meta.due_date", ""), dueDisplay.text, {
+  appendInvoiceMetaPlainRow(dl, ti("customer.invoice.meta.due_date"), dueDisplay.text, {
     muted: dueDisplay.muted,
   });
 
   const invNum = String(invoice.invoice_number || invoice.id || "").trim();
-  appendInvoiceMetaMonoRow(dl, t("customer.invoice.meta.invoice_number", ""), invNum);
+  appendInvoiceMetaMonoRow(dl, ti("customer.invoice.meta.invoice_number"), invNum);
   const qref = String(invoice.quote_id || "").trim();
   if (qref) {
-    appendInvoiceMetaQuoteRefRow(dl, t("customer.invoice.meta.quote_reference", ""), qref);
+    appendInvoiceMetaQuoteRefRow(dl, ti("customer.invoice.meta.quote_reference"), qref);
   }
-  appendInvoiceMetaStatusRow(dl, t("customer.invoice.meta.payment_status", ""), invoice);
+  appendInvoiceMetaStatusRow(dl, ti("customer.invoice.meta.payment_status"), invoice);
   const cur = String(invoice.currency || "USD").trim().toUpperCase() || "USD";
-  appendInvoiceMetaMonoRow(dl, t("customer.invoice.meta.currency", ""), cur);
+  appendInvoiceMetaMonoRow(dl, ti("customer.invoice.meta.currency"), cur);
 }
 
 /** @param {ReturnType<typeof getInvoiceActionState>} action */
 function heroTitleForAction(action) {
-  if (action.isPaid) return t("customer.invoice.hero.title_paid", "");
+  if (action.isPaid) return ti("customer.invoice.hero.title_paid");
   if (action.isUnpayable || action.isUnknown) {
-    return t("customer.invoice.hero.title_unpayable", "");
+    return ti("customer.invoice.hero.title_unpayable");
   }
-  if (action.status === "FAILED") return t("customer.invoice.hero.title_failed", "");
-  return t("customer.invoice.hero.title_payment_needed", "");
+  if (action.status === "FAILED") return ti("customer.invoice.hero.title_failed");
+  return ti("customer.invoice.hero.title_payment_needed");
 }
 
 /** @param {string} st */
 function heroSubtitleForStatus(st) {
   const u = String(st || "").toUpperCase();
-  if (u === "PAID") return t("customer.invoice.hero.subtitle_paid", "");
-  if (u === "CANCELED") return t("customer.invoice.hero.subtitle_canceled", "");
-  if (u === "FAILED") return t("customer.invoice.hero.subtitle_failed", "");
-  return t("customer.invoice.hero.subtitle_default", "");
+  if (u === "PAID") return ti("customer.invoice.hero.subtitle_paid");
+  if (u === "CANCELED") return ti("customer.invoice.hero.subtitle_canceled");
+  if (u === "FAILED") return ti("customer.invoice.hero.subtitle_failed");
+  return ti("customer.invoice.hero.subtitle_default");
 }
 
 /**
@@ -419,12 +487,12 @@ function heroSubtitleForStatus(st) {
  */
 function invoiceServiceSupportLabel(row) {
   if (row.type === "admin_fee") {
-    return t("customer.invoice.services.admin_fee_support", "");
+    return ti("customer.invoice.services.admin_fee_support");
   }
   const key = `customer.invoice.services.support.${row.deliveryModeKey || "general"}`;
-  const tr = t(key, "");
+  const tr = ti(key);
   if (tr && tr !== key) return tr;
-  return t("customer.invoice.services.support.general", "");
+  return ti("customer.invoice.services.support.general");
 }
 
 /**
@@ -432,9 +500,9 @@ function invoiceServiceSupportLabel(row) {
  */
 function invoiceServiceHintLabel(hintKey) {
   const key = `customer.invoice.services.hint.${hintKey || "default"}`;
-  const tr = t(key, "");
+  const tr = ti(key);
   if (tr && tr !== key) return tr;
-  return t("customer.invoice.services.hint.default", "");
+  return ti("customer.invoice.services.hint.default");
 }
 
 /**
@@ -491,14 +559,14 @@ function appendInvoiceServiceRowCard(container, row, currency) {
 function shortServiceDescriptionFromQuote(quote, packageName) {
   if (!quote || typeof quote !== "object") return "";
   const pkgNorm = String(packageName || "").trim().toLowerCase();
-  const title = String(quote.title || "").trim();
+  const title = quoteDisplayTitle(quote);
   if (title && title.toLowerCase() !== pkgNorm) return title;
 
   const items = Array.isArray(quote.items) ? quote.items : [];
   const parts = [];
   for (const it of items) {
     if (!it || typeof it !== "object") continue;
-    const d = String(it.description || "").trim();
+    const d = String(it.display_description || it.description || "").trim();
     if (d && !parts.includes(d)) {
       parts.push(d);
       if (parts.length >= 4) break;
@@ -523,10 +591,13 @@ function renderInvoiceScopeSection(invoice, quote) {
   if (!section || !rowsEl) return;
 
   section.hidden = false;
-  const pkg = String(invoice.service_name || "").trim();
+  const pkg = invoiceDisplayServiceName(invoice);
 
   let shortDesc = shortServiceDescriptionFromQuote(quote, pkg);
-  const facing = quote && typeof quote === "object" ? String(quote.customer_facing_note || "").trim() : "";
+  const facing =
+    quote && typeof quote === "object"
+      ? String(quote.display_customer_facing_note || quote.customer_facing_note || "").trim()
+      : "";
   if (facing && shortDesc && facing === shortDesc) {
     shortDesc = "";
   }
@@ -553,7 +624,7 @@ function renderInvoiceScopeSection(invoice, quote) {
     rowsEl.hidden = true;
     if (emptyEl) {
       emptyEl.hidden = false;
-      emptyEl.textContent = t("customer.invoice.scope.empty", "");
+      emptyEl.textContent = ti("customer.invoice.scope.empty");
     }
   } else {
     rowsEl.hidden = false;
@@ -571,7 +642,7 @@ function renderInvoiceScopeSection(invoice, quote) {
     const invQ = String(invoice.quote_id || "").trim();
     if (qid && invQ && qid === invQ) {
       quoteNoteEl.hidden = false;
-      quoteNoteEl.textContent = t("customer.invoice.scope.quote_note", "").replace(/%s/g, qid);
+      quoteNoteEl.textContent = ti("customer.invoice.scope.quote_note").replace(/%s/g, qid);
     } else {
       quoteNoteEl.hidden = true;
       quoteNoteEl.textContent = "";
@@ -676,7 +747,7 @@ function normalizeBillingSummaryFromApi(raw, invoice) {
     invoice_total: roundMoney2(raw.invoice_total),
     amount_already_paid: roundMoney2(raw.amount_already_paid),
     current_payable_amount: roundMoney2(raw.current_payable_amount),
-    reconciliation_note: String(raw.reconciliation_note || "").trim(),
+    reconciliation_note: String(raw.display_reconciliation_note || raw.reconciliation_note || "").trim(),
   };
 }
 
@@ -748,7 +819,7 @@ function amountSummaryLabelForKey(labelKey) {
     balance_remaining: "customer.invoice.amount.row.balance_remaining",
   };
   const i18nKey = map[labelKey] || labelKey;
-  return t(i18nKey, "");
+  return ti(i18nKey);
 }
 
 /**
@@ -769,7 +840,7 @@ function formatAmountSummaryMoney(currency, amount, negative = false) {
  */
 function prepayScopeItemLabel(kind, itemId) {
   const key = `customer.invoice.prepay_scope.${kind}.${itemId}`;
-  const tr = t(key, "");
+  const tr = ti(key);
   return tr && tr !== key ? tr : itemId;
 }
 
@@ -826,13 +897,13 @@ function renderInvoicePrepayScopeSection(invoice, quote) {
     const { hasCar, hasPhone } = content.context;
     if (hasCar && hasPhone) {
       contextNote.hidden = false;
-      contextNote.textContent = t("customer.invoice.prepay_scope.context_note_both", "");
+      contextNote.textContent = ti("customer.invoice.prepay_scope.context_note_both");
     } else if (hasPhone) {
       contextNote.hidden = false;
-      contextNote.textContent = t("customer.invoice.prepay_scope.context_note_phone", "");
+      contextNote.textContent = ti("customer.invoice.prepay_scope.context_note_phone");
     } else if (hasCar) {
       contextNote.hidden = false;
-      contextNote.textContent = t("customer.invoice.prepay_scope.context_note_car", "");
+      contextNote.textContent = ti("customer.invoice.prepay_scope.context_note_car");
     } else {
       contextNote.hidden = true;
       contextNote.textContent = "";
@@ -861,7 +932,7 @@ function renderInvoiceAmountSummary(invoice, quote) {
   for (const row of display.bodyRows) {
     const label =
       row.label === "__admin_fee__"
-        ? t("customer.invoice.amount.row.admin_fee", "맞춤 진행 지원비")
+        ? t("customer.invoice.amount.row.admin_fee", "Custom coordination support fee")
         : row.label;
     appendAmountSummaryRow(
       tbody,
@@ -886,7 +957,7 @@ function renderInvoiceAmountSummary(invoice, quote) {
       fnEl.textContent = display.footnote;
     } else if (display.showSurchargeHint) {
       fnEl.hidden = false;
-      fnEl.textContent = t("customer.invoice.amount.surcharge_hint", "");
+      fnEl.textContent = ti("customer.invoice.amount.surcharge_hint");
     } else {
       fnEl.hidden = true;
       fnEl.textContent = "";
@@ -922,7 +993,7 @@ function syncPostPaymentContinuationPanel(invoice) {
   const hint = qs("#invoicePostPayDocCountHint");
   if (hint) {
     if (count !== null && count > 0) {
-      const tpl = t("customer.invoice.postpay.docs_count", "");
+      const tpl = ti("customer.invoice.postpay.docs_count");
       hint.hidden = false;
       hint.textContent = tpl.includes("{n}") ? tpl.split("{n}").join(String(count)) : `${tpl} (${count})`;
     } else {
@@ -950,14 +1021,14 @@ function renderAfterPaymentList(invoice) {
   }
   if (intro) {
     intro.textContent = paid
-      ? t("customer.invoice.next_steps.intro_paid", "")
+      ? ti("customer.invoice.next_steps.intro_paid")
       : t("customer.invoice.next_steps.intro", "After payment, Landing Help AI Agent guidance begins.");
   }
   if (ol) {
     ol.innerHTML = "";
     for (let i = 1; i <= 4; i += 1) {
       const li = document.createElement("li");
-      li.textContent = t(`customer.invoice.next_steps.step.${i}`, "");
+      li.textContent = ti(`customer.invoice.next_steps.step.${i}`);
       ol.appendChild(li);
     }
   }
@@ -1097,23 +1168,23 @@ function renderInvoiceParties(invoice, quote) {
 
   const from = normalizeBillingFrom(invoice);
   let fromRows = 0;
-  fromRows += appendInvoicePartyRow(fromDl, t("customer.invoice.parties.from.legal_name", ""), from.legal_name) ? 1 : 0;
-  fromRows += appendInvoicePartyRow(fromDl, t("customer.invoice.parties.from.address", ""), from.registered_address)
+  fromRows += appendInvoicePartyRow(fromDl, ti("customer.invoice.parties.from.legal_name"), from.legal_name) ? 1 : 0;
+  fromRows += appendInvoicePartyRow(fromDl, ti("customer.invoice.parties.from.address"), from.registered_address)
     ? 1
     : 0;
-  fromRows += appendInvoicePartyRow(fromDl, t("customer.invoice.parties.from.email", ""), from.email) ? 1 : 0;
-  fromRows += appendInvoicePartyRow(fromDl, t("customer.invoice.parties.from.phone", ""), from.phone) ? 1 : 0;
-  fromRows += appendInvoicePartyRow(fromDl, t("customer.invoice.parties.from.tax_id", ""), from.tax_id) ? 1 : 0;
+  fromRows += appendInvoicePartyRow(fromDl, ti("customer.invoice.parties.from.email"), from.email) ? 1 : 0;
+  fromRows += appendInvoicePartyRow(fromDl, ti("customer.invoice.parties.from.phone"), from.phone) ? 1 : 0;
+  fromRows += appendInvoicePartyRow(fromDl, ti("customer.invoice.parties.from.tax_id"), from.tax_id) ? 1 : 0;
   if (fromRows === 0 && fromEmpty) fromEmpty.hidden = false;
 
   const to = effectiveBillingTo(invoice, quote);
   let toRows = 0;
-  appendInvoicePartyCustomerEmailRow(toDl, t("customer.invoice.parties.to.email", ""), to.email);
+  appendInvoicePartyCustomerEmailRow(toDl, ti("customer.invoice.parties.to.email"), to.email);
   toRows += 1;
-  toRows += appendInvoicePartyRow(toDl, t("customer.invoice.parties.to.full_name", ""), to.full_name) ? 1 : 0;
-  toRows += appendInvoicePartyRow(toDl, t("customer.invoice.parties.to.company", ""), to.company_name) ? 1 : 0;
-  toRows += appendInvoicePartyRow(toDl, t("customer.invoice.parties.to.phone", ""), to.phone) ? 1 : 0;
-  toRows += appendInvoicePartyRow(toDl, t("customer.invoice.parties.to.address", ""), to.address) ? 1 : 0;
+  toRows += appendInvoicePartyRow(toDl, ti("customer.invoice.parties.to.full_name"), to.full_name) ? 1 : 0;
+  toRows += appendInvoicePartyRow(toDl, ti("customer.invoice.parties.to.company"), to.company_name) ? 1 : 0;
+  toRows += appendInvoicePartyRow(toDl, ti("customer.invoice.parties.to.phone"), to.phone) ? 1 : 0;
+  toRows += appendInvoicePartyRow(toDl, ti("customer.invoice.parties.to.address"), to.address) ? 1 : 0;
   if (toRows === 0 && toEmpty) toEmpty.hidden = false;
 }
 
@@ -1172,7 +1243,7 @@ function renderInvoiceHero(invoice, quote, summary) {
       action.isPendingPayment && action.status !== "FAILED";
     if (showReassurance) {
       reassurance.hidden = false;
-      reassurance.textContent = t("customer.invoice.hero.reassurance", "");
+      reassurance.textContent = ti("customer.invoice.hero.reassurance");
     } else {
       reassurance.hidden = true;
       reassurance.textContent = "";
@@ -1187,15 +1258,15 @@ function renderInvoiceHero(invoice, quote, summary) {
     if (action.isPaid) {
       statusMsg.hidden = false;
       statusMsg.classList.add("lhai-quote-hero__status-message--paid");
-      statusMsg.textContent = t("customer.invoice.hero.status_paid", "");
+      statusMsg.textContent = ti("customer.invoice.hero.status_paid");
     } else if (action.isUnpayable) {
       statusMsg.hidden = false;
       statusMsg.classList.add("lhai-quote-hero__status-message--rejected");
-      statusMsg.textContent = t("customer.invoice.hero.status_unpayable", "");
+      statusMsg.textContent = ti("customer.invoice.hero.status_unpayable");
     } else if (action.isUnknown) {
       statusMsg.hidden = false;
       statusMsg.classList.add("lhai-quote-hero__status-message--rejected");
-      statusMsg.textContent = t("customer.invoice.hero.status_unknown", "");
+      statusMsg.textContent = ti("customer.invoice.hero.status_unknown");
     } else {
       statusMsg.hidden = true;
       statusMsg.textContent = "";
@@ -1214,29 +1285,29 @@ function renderInvoiceHero(invoice, quote, summary) {
   }
 
   if (heroWeb) {
-    heroWeb.textContent = t("customer.invoice.hero.web_only", "");
+    heroWeb.textContent = ti("customer.invoice.hero.web_only");
     heroWeb.hidden = !action.showPay;
   }
   if (amtLabel) {
     if (action.isPaid) {
-      amtLabel.textContent = t("customer.invoice.hero.amount_label_paid", "");
+      amtLabel.textContent = ti("customer.invoice.hero.amount_label_paid");
     } else if (action.isUnpayable && st === "CANCELED") {
-      amtLabel.textContent = t("customer.invoice.hero.amount_label_canceled", "");
+      amtLabel.textContent = ti("customer.invoice.hero.amount_label_canceled");
     } else if (action.isUnpayable || action.isUnknown) {
-      amtLabel.textContent = t("customer.invoice.hero.amount_label_canceled", "");
+      amtLabel.textContent = ti("customer.invoice.hero.amount_label_canceled");
     } else {
-      amtLabel.textContent = t("customer.invoice.hero.amount_label", "");
+      amtLabel.textContent = ti("customer.invoice.hero.amount_label");
     }
   }
   if (amtEyebrow) {
     if (action.isPaid) {
-      amtEyebrow.textContent = t("customer.invoice.hero.amount_eyebrow_paid", "");
+      amtEyebrow.textContent = ti("customer.invoice.hero.amount_eyebrow_paid");
     } else if (action.isUnpayable && st === "CANCELED") {
-      amtEyebrow.textContent = t("customer.invoice.hero.amount_eyebrow_canceled", "");
+      amtEyebrow.textContent = ti("customer.invoice.hero.amount_eyebrow_canceled");
     } else if (action.isUnpayable || action.isUnknown) {
-      amtEyebrow.textContent = t("customer.invoice.hero.amount_eyebrow_canceled", "");
+      amtEyebrow.textContent = ti("customer.invoice.hero.amount_eyebrow_canceled");
     } else {
-      amtEyebrow.textContent = t("customer.invoice.hero.amount_eyebrow", "");
+      amtEyebrow.textContent = ti("customer.invoice.hero.amount_eyebrow");
     }
   }
   if (costCard) {
@@ -1253,6 +1324,7 @@ function renderInvoiceHero(invoice, quote, summary) {
  */
 function renderInvoice(invoice, quote = null) {
   activeInvoiceRef = invoice;
+  activeInvoiceQuoteRef = quote;
   const st = String(invoice.status || "").toUpperCase();
   const summary = getInvoiceBillingSummary(invoice, quote);
 
@@ -1296,7 +1368,7 @@ function renderInvoice(invoice, quote = null) {
   }
 
   try {
-    document.title = `${heroTitleForAction(getInvoiceActionState(invoice))} · ${t("customer.invoice.page_title", "청구서")} - Landing Help AI`;
+    document.title = `${heroTitleForAction(getInvoiceActionState(invoice))} · ${t("customer.invoice.page_title", "Invoice")} - Landing Help AI`;
   } catch {
     /* non-browser */
   }
@@ -1325,12 +1397,15 @@ async function resolveInvoiceForDisplay(invoiceId) {
       quote = null;
     }
   }
-  if (invoice && invoice.quote_id && invoice.mocked && quote && Number.isFinite(Number(q.estimated_cost))) {
+  if (invoice && invoice.quote_id && invoice.mocked && quote && Number.isFinite(Number(quote.estimated_cost))) {
     invoice = {
       ...invoice,
-      amount_due: Number(q.estimated_cost),
-      service_name: q.service_name || invoice.service_name,
-      currency: q.currency || invoice.currency,
+      amount_due: Number(quote.estimated_cost),
+      service_name:
+        quote.display_service_name || quote.service_name || invoice.display_service_name || invoice.service_name,
+      display_service_name:
+        quote.display_service_name || invoice.display_service_name || quote.service_name || invoice.service_name,
+      currency: quote.currency || invoice.currency,
     };
   }
   return { invoice, quote };
@@ -1368,11 +1443,11 @@ function renderPaymentResult(result, success) {
   const detail = qs("#paymentResultDetail");
   if (!section || !message) return;
   section.style.display = "block";
-  message.textContent = result.message || (success ? t("customer.invoice.pay_success", "") : "");
+  message.textContent = result.message || (success ? ti("customer.invoice.pay_success") : "");
   if (detail) {
     if (success) {
       detail.hidden = false;
-      detail.textContent = t("customer.invoice.result_success_detail", "");
+      detail.textContent = ti("customer.invoice.result_success_detail");
     } else {
       detail.hidden = true;
       detail.textContent = "";
@@ -1409,7 +1484,7 @@ async function maybeCompletePaymentFromReturnUrl(invoiceId) {
       /* non-browser */
     }
   } catch {
-    setMessage(t("customer.invoice.pay_error", ""));
+    setMessage(ti("customer.invoice.pay_error"));
   }
 }
 
@@ -1448,10 +1523,85 @@ async function handlePaymentSuccess(paymentId, invoiceId) {
   }
 }
 
+async function bootstrapInvoicePageShellI18n() {
+  applyInvoicePageLocaleBundle();
+  applyI18nToDom(document);
+  await flushRuntimeMissingKeysAfterPageApply();
+}
+
+async function refetchInvoiceDetailForViewerLocale() {
+  const invoiceId = String(activeInvoiceRef?.id || "").trim();
+  if (!invoiceId) return true;
+  const previousInvoice = activeInvoiceRef;
+  const previousQuote = activeInvoiceQuoteRef;
+  try {
+    const resolved = await resolveInvoiceForDisplay(invoiceId);
+    activeInvoiceRef = resolved.invoice;
+    activeInvoiceQuoteRef = resolved.quote;
+    patchState({ invoice: resolved.invoice });
+    return true;
+  } catch {
+    activeInvoiceRef = previousInvoice;
+    activeInvoiceQuoteRef = previousQuote;
+    if (previousInvoice) patchState({ invoice: previousInvoice });
+    return false;
+  }
+}
+
+/** Runtime i18n keys resolved: rerender cached invoice from local bundle only (no API). */
+function refreshInvoicePageStaticFromCache() {
+  if (invoiceViewerLocaleRefetchInFlight || !activeInvoiceRef) return;
+  applyInvoicePageLocaleBundle();
+  const preserve = readInvoicePagePreserve();
+  renderInvoice(activeInvoiceRef, activeInvoiceQuoteRef);
+  syncInvoicePayButtonsVisibility(activeInvoiceRef);
+  applyI18nToDom(document);
+  restoreInvoicePagePreserve(preserve);
+  void flushRuntimeMissingKeysAfterPageApply();
+}
+
+async function refreshInvoicePageForViewerLanguage() {
+  if (invoiceViewerLocaleRefetchInFlight) return;
+  invoiceViewerLocaleRefetchInFlight = true;
+  try {
+    const preserve = readInvoicePagePreserve();
+    applyInvoicePageLocaleBundle();
+    try {
+      await reloadI18nForLanguage(getEffectiveLanguage(), INVOICE_I18N_DOMAINS);
+    } catch {
+      /* keep merged locale bundle fallbacks */
+    }
+    let refetchOk = true;
+    if (activeInvoiceRef?.id) {
+      refetchOk = await refetchInvoiceDetailForViewerLocale();
+    }
+    applyI18nToDom(document);
+    rerenderInvoicePageFromCache();
+    restoreInvoicePagePreserve(preserve);
+    if (!refetchOk && activeInvoiceRef && !invoicePaymentInFlight) {
+      setMessage(ti("customer.invoice.locale_refresh_failed"));
+    }
+    await flushRuntimeMissingKeysAfterPageApply();
+  } finally {
+    invoiceViewerLocaleRefetchInFlight = false;
+  }
+}
+
+wireDynamicPageI18nRefresh(() => {
+  void refreshInvoicePageForViewerLanguage();
+}, { languageChangeOnly: true });
+
+wireDynamicPageI18nRefresh(refreshInvoicePageStaticFromCache, {
+  runtimeResolvedOnly: true,
+  keyPrefixes: ["customer.invoice.", "invoice.", "common."],
+});
+
 async function initInvoiceDetailPage() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
+  applyUiLanguageFromUrlQuery();
 
+  await bootAppPageContent(INVOICE_I18N_DOMAINS, async () => {
   const params = new URLSearchParams(window.location.search);
   const invoiceIdFromUrl = (
     params.get("invoice_id") ||
@@ -1491,14 +1641,7 @@ async function initInvoiceDetailPage() {
   }
 
   if (!resolved?.invoice?.id) {
-    mergeFallbackStrings(getInvoiceLocaleBundle("ko"));
-    try {
-      await initI18nDomains(["common", "quote"], "ko");
-    } catch {
-      /* API 번역 없으면 폴백만 사용 */
-    }
-    mergeFallbackStrings(getInvoiceLocaleBundle("ko"));
-    applyI18nToDom(document);
+    await bootstrapInvoicePageShellI18n();
     if (missing) missing.hidden = false;
     if (main) main.hidden = true;
     await resolveAppHeaderShell({ variant: "customer" });
@@ -1526,15 +1669,7 @@ async function initInvoiceDetailPage() {
   }
   window.localStorage.setItem("lhai_latest_invoice_id", String(invoice.id));
 
-  const lang = resolveInvoiceUiLang(quote);
-  mergeFallbackStrings(getInvoiceLocaleBundle(lang));
-  try {
-    await initI18nDomains(["common", "quote"], lang);
-  } catch {
-    /* ignore */
-  }
-  mergeFallbackStrings(getInvoiceLocaleBundle(lang));
-  applyI18nToDom(document);
+  await bootstrapInvoicePageShellI18n();
 
   patchState({ invoice });
   renderInvoice(invoice, quote);
@@ -1552,6 +1687,7 @@ async function initInvoiceDetailPage() {
     btn.dataset.invoicePayBound = "1";
     btn.addEventListener("click", onPayClick);
   }
+  });
 }
 
 initInvoiceDetailPage();

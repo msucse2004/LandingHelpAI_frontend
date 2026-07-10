@@ -2,6 +2,13 @@ import { serviceCatalogBrowseApi } from "../core/api.js";
 import { t } from "../core/i18n-client.js";
 import { safeText } from "../core/utils.js";
 import { isCatalogRecServiceItemUuidString } from "../lib/catalog-rec-service-item-id.js";
+import {
+  catalogCardLongDescription,
+  catalogCardShortDescription,
+  catalogCardTitle,
+  catalogCategoryTitle,
+  catalogDisplayText,
+} from "./catalog-display-logic.js";
 
 const categoryFilterEl = document.getElementById("categoryFilter");
 const serviceListEl = document.getElementById("serviceList");
@@ -24,9 +31,11 @@ function publicCardToServiceRow(card, categoryId) {
   return {
     id,
     category_id: categoryId,
-    name: String(card.customer_title || card.name || "-").trim(),
-    summary: String(card.customer_short_description || card.description || "").trim(),
-    help_description: String(card.customer_long_description || card.delivery_type_help_text || "").trim(),
+    name: catalogCardTitle(card, t) || "-",
+    summary: catalogCardShortDescription(card, t),
+    help_description:
+      catalogCardLongDescription(card, t) ||
+      catalogDisplayText(card, "delivery_type_help_text", t, { kind: "body" }),
     ai_supported: aiSupported,
     in_person_only: inPersonOnly,
   };
@@ -41,7 +50,9 @@ function badgeForService(service, categoryName) {
 
 function renderServices(services, categories) {
   if (!serviceListEl) return;
-  const categoryNameById = Object.fromEntries(categories.map((category) => [category.id, category.name]));
+  const categoryNameById = Object.fromEntries(
+    categories.map((category) => [category.id, catalogCategoryTitle(category, t)])
+  );
 
   if (!services.length) {
     serviceListEl.innerHTML = `<div class='lhai-state lhai-state--empty'>${t("common.services.empty.by_category", "No services available in this category.")}</div>`;
@@ -58,7 +69,7 @@ function renderServices(services, categories) {
         : `<p class="lhai-help u-mb-0" role="alert">${safeText(
             t(
               "common.services.mapping_repair_needed",
-              "이 서비스는 카탈로그 UUID로 아직 연결되지 않았습니다. 관리자에게 서비스 매핑 복구를 요청한 뒤 다시 시도해 주세요."
+              "This service is not linked to a catalog UUID yet. Ask an admin to repair the service mapping, then try again."
             )
           )}${sid ? ` <span class="u-text-muted">(${safeText(sid)})</span>` : ""}</p>`;
       return `
@@ -80,7 +91,10 @@ function renderCategoryFilter(categories) {
   if (!categoryFilterEl) return;
   categoryFilterEl.innerHTML = [
     `<option value="">${t("common.filters.all_categories", "All categories")}</option>`,
-    ...categories.map((category) => `<option value="${category.id}">${category.name}</option>`),
+    ...categories.map((category) => {
+      const label = catalogCategoryTitle(category, t);
+      return `<option value="${category.id}">${label}</option>`;
+    }),
   ].join("");
 }
 

@@ -5,9 +5,12 @@
 
 import { ensureRuntimeI18nDomListener, initPageI18nAndApplyDom } from "./i18n-dom.js";
 import { initLanguageSwitcher } from "./language-switcher.js";
+import { installAppDialogI18n } from "./app-dialog.js";
 import { cachePublicPageI18nDomains, getPublicPageI18nDomains } from "./public-page-i18n-config.js";
+import { applyUiLanguageFromUrlQuery } from "./preferred-language.js";
 
 ensureRuntimeI18nDomListener();
+installAppDialogI18n();
 
 export {
   cachePublicPageI18nDomains,
@@ -21,6 +24,7 @@ cachePublicPageI18nDomains(domains);
 
 export const publicPageLanguageReady = (async () => {
   try {
+    applyUiLanguageFromUrlQuery();
     await initPageI18nAndApplyDom(domains, document);
   } catch (err) {
     console.warn("[lhai] public-page-language-boot: i18n init failed", err);

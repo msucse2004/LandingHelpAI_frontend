@@ -3,6 +3,8 @@ import { adminApi } from "../core/api.js";
 import { protectCurrentPage } from "../core/guards.js";
 import { t } from "../core/i18n-client.js";
 import { normalizePartnerTypesFromApi, partnerTypeOptionDisplayText } from "./admin-partner-type-options.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
+import { applyI18nToDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
 
 const form = document.getElementById("inviteForm");
 const roleSelect = document.getElementById("inviteRole");
@@ -94,7 +96,7 @@ function isPartnerRoleSelected() {
 
 function fillPartnerTypeSelect(opts) {
   if (!(invitePartnerType instanceof HTMLSelectElement)) return;
-  const ph = t("common.admin_services.workflow.partner_type.placeholder", "선택…");
+  const ph = t("common.admin_services.workflow.partner_type.placeholder", "Select…");
   invitePartnerType.innerHTML = "";
   const phOpt = document.createElement("option");
   phOpt.value = "";
@@ -112,7 +114,7 @@ async function ensurePartnerTypeOptionsLoaded() {
   if (!(invitePartnerType instanceof HTMLSelectElement)) return;
   invitePartnerType.innerHTML = `<option value="">${t(
     "common.admin_invitations.partner_type.loading_option",
-    "불러오는 중…",
+    "Loading…",
   )}</option>`;
   try {
     const opts = await getPartnerTypesLoadPromise();
@@ -121,7 +123,7 @@ async function ensurePartnerTypeOptionsLoaded() {
       setPageAlert(
         t(
           "common.admin_invitations.partner_type.empty_list",
-          "파트너 유형 목록이 비어 있습니다. GET /api/admin/partners/types 응답과 서버 설정을 확인해 주세요.",
+          "The partner type list is empty. Check GET /api/admin/partners/types and server configuration.",
         ),
         { error: true },
       );
@@ -132,7 +134,7 @@ async function ensurePartnerTypeOptionsLoaded() {
     setPageAlert(
       t(
         "common.admin_invitations.partner_type.load_failed",
-        "파트너 유형 목록을 불러오지 못했습니다. 네트워크·인증·서버 설정을 확인해 주세요.",
+        "Could not load partner types. Check network, authentication, and server configuration.",
       ),
       { error: true },
     );
@@ -223,7 +225,14 @@ async function loadRoles() {
   }
 }
 
-if (protectCurrentPage() && form) {
+wireDynamicPageI18nRefresh(() => {
+  applyI18nToDom(document);
+  syncInvitePartnerFieldsVisibility();
+}, { keyPrefixes: ["common.admin_invitations.", "admin.", "common."] });
+
+async function initAdminInvitationsPage() {
+  if (!protectCurrentPage() || !form) return;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     setPageAlert("");
@@ -249,7 +258,7 @@ if (protectCurrentPage() && form) {
     const rn = String(role_name).trim().toLowerCase();
     if (rn === "partner") {
       if (!partner_type) {
-        const msg = t("common.admin_invitations.partner_type.required", "파트너 역할/유형을 선택해 주세요.");
+        const msg = t("common.admin_invitations.partner_type.required", "Select a partner role/type.");
         setPageAlert(msg, { error: true });
         openInviteErrorDialog("초대를 보낼 수 없습니다", [msg]);
         return;
@@ -257,7 +266,7 @@ if (protectCurrentPage() && form) {
       if (allowedPartnerTypeValues.size === 0) {
         const msg = t(
           "common.admin_invitations.partner_type.empty_before_send",
-          "파트너 유형 목록이 비어 있습니다. GET /api/admin/partners/types 가 정상인지 확인한 뒤 페이지를 새로고침해 주세요.",
+          "The partner type list is empty. Verify GET /api/admin/partners/types, then refresh the page.",
         );
         setPageAlert(msg, { error: true });
         openInviteErrorDialog("초대를 보낼 수 없습니다", [msg]);
@@ -266,7 +275,7 @@ if (protectCurrentPage() && form) {
       if (!allowedPartnerTypeValues.has(partner_type)) {
         const msg = t(
           "common.admin_invitations.partner_type.not_allowed",
-          "허용되지 않은 파트너 유형입니다. 목록을 새로고침한 뒤 다시 선택해 주세요.",
+          "That partner type is not allowed. Refresh the list and select again.",
         );
         setPageAlert(msg, { error: true });
         openInviteErrorDialog("초대를 보낼 수 없습니다", [msg]);
@@ -348,7 +357,10 @@ if (protectCurrentPage() && form) {
     }
   });
   void loadRoles();
+  });
 }
+
+void initAdminInvitationsPage();
 
 /** @param {string} s */
 function escapeHtmlMeta(s) {

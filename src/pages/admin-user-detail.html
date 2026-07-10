@@ -1,84 +1,84 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>회원 상세 - Landing Help AI Admin</title>
+  <title data-i18n="admin.user_detail.page_title" data-i18n-default="Member detail - Landing Help AI Admin">Member detail - Landing Help AI Admin</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
 </head>
-<body>
+<body data-lhai-i18n-domains="common,nav,admin">
     <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" aria-label="Admin navigation"></aside>
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" data-i18n-default="Admin menu" aria-label="Admin menu"></aside>
     <main class="lhai-main" id="main">
       <section class="lhai-page-header u-flex-between u-gap-4">
         <div>
-          <h1 class="lhai-title">회원 상세</h1>
-          <p class="lhai-subtitle">계정 ID로 조회한 등록 정보입니다. 동일·상위 등급 회원도 열람할 수 있으며, 프로필·가입·인증 수정과 계정 삭제는 자신보다 낮은 티어(본인·동일·상위 제외)에만 적용됩니다.</p>
+          <h1 class="lhai-title" data-i18n="admin.user_detail.title" data-i18n-default="Member detail">Member detail</h1>
+          <p class="lhai-subtitle" data-i18n="admin.user_detail.subtitle" data-i18n-default="Registration info looked up by account ID. Same- and higher-tier members are viewable; profile, sign-up/verification edits, and account deletion apply only to lower tiers (excluding self, same, and higher).">Registration info looked up by account ID. Same- and higher-tier members are viewable; profile, sign-up/verification edits, and account deletion apply only to lower tiers (excluding self, same, and higher).</p>
         </div>
-        <a class="lhai-button lhai-button--secondary" href="admin-users.html">목록으로</a>
+        <a class="lhai-button lhai-button--secondary" href="admin-users.html" data-i18n="admin.user_detail.back_to_list" data-i18n-default="Back to list">Back to list</a>
       </section>
       <p class="lhai-help" id="detailAlert" role="status" aria-live="polite"></p>
-      <p class="lhai-help u-mt-2" id="detailReadOnlyHint" hidden role="status">
-        이 계정은 본인과 동일하거나 더 높은 등급입니다. 아래는 열람만 가능하며 프로필·가입·인증 수정과 계정 삭제는 사용할 수 없습니다.
+      <p class="lhai-help u-mt-2" id="detailReadOnlyHint" hidden role="status" data-i18n="admin.user_detail.read_only_hint" data-i18n-default="This account is the same tier or higher than yours. View only — profile, sign-up/verification edits, and account deletion are not available.">
+        This account is the same tier or higher than yours. View only — profile, sign-up/verification edits, and account deletion are not available.
       </p>
       <section class="lhai-card" id="detailCard" hidden>
         <div class="u-flex-between u-gap-4 u-flex-wrap u-mb-2" style="align-items: center;">
-          <h2 class="lhai-card__title u-mb-0">프로필</h2>
+          <h2 class="lhai-card__title u-mb-0" data-i18n="admin.user_detail.profile.title" data-i18n-default="Profile">Profile</h2>
           <div class="u-flex u-gap-2 u-flex-wrap" id="profileCardActions" hidden>
-            <button type="button" class="lhai-button lhai-button--secondary" id="profileEditBtn">수정</button>
-            <button type="button" class="lhai-button lhai-button--primary" id="profileSaveBtn" hidden>저장</button>
-            <button type="button" class="lhai-button lhai-button--secondary" id="profileCancelBtn" hidden>취소</button>
+            <button type="button" class="lhai-button lhai-button--secondary" id="profileEditBtn" data-i18n="admin.user_detail.profile.edit" data-i18n-default="Edit">Edit</button>
+            <button type="button" class="lhai-button lhai-button--primary" id="profileSaveBtn" hidden data-i18n="admin.user_detail.profile.save" data-i18n-default="Save">Save</button>
+            <button type="button" class="lhai-button lhai-button--secondary" id="profileCancelBtn" hidden data-i18n="admin.user_detail.profile.cancel" data-i18n-default="Cancel">Cancel</button>
           </div>
         </div>
-        <p class="lhai-help u-mb-2" id="profileEditHint" hidden>아이디·이메일·역할·가입 상태는 이 카드에서 바꾸지 않습니다. 가입·인증은 아래 섹션에서 수정하세요.</p>
+        <p class="lhai-help u-mb-2" id="profileEditHint" hidden data-i18n="admin.user_detail.profile.edit_hint" data-i18n-default="Username, email, role, and membership status are not changed in this card. Edit sign-up/verification in the section below.">Username, email, role, and membership status are not changed in this card. Edit sign-up/verification in the section below.</p>
         <p class="lhai-help u-mb-2" id="profileCardAlert" role="status" aria-live="polite" hidden></p>
         <dl class="lhai-detail-dl" id="detailDl"></dl>
       </section>
       <section class="lhai-card u-mt-4" id="registrationEditCard" hidden aria-labelledby="regEditTitle">
-        <h2 class="lhai-card__title" id="regEditTitle">가입·인증 상태 수정</h2>
-        <p class="lhai-help u-mb-3">대상 계정의 티어가 본인보다 낮을 때만 표시됩니다.</p>
+        <h2 class="lhai-card__title" id="regEditTitle" data-i18n="admin.user_detail.registration.title" data-i18n-default="Edit sign-up and verification">Edit sign-up and verification</h2>
+        <p class="lhai-help u-mb-3" data-i18n="admin.user_detail.registration.visible_hint" data-i18n-default="Shown only when the target account tier is lower than yours.">Shown only when the target account tier is lower than yours.</p>
         <form id="registrationEditForm" class="lhai-stack u-gap-3">
           <label class="lhai-field">
-            <span class="lhai-label">이메일 인증</span>
+            <span class="lhai-label" data-i18n="admin.user_detail.registration.email_verified_label" data-i18n-default="Email verified">Email verified</span>
             <select class="lhai-select" id="regEditEmailVerified" name="email_verified" aria-describedby="regEditHint">
-              <option value="true">완료</option>
-              <option value="false">미완료</option>
+              <option value="true" data-i18n="admin.user_detail.registration.verified_yes" data-i18n-default="Verified">Verified</option>
+              <option value="false" data-i18n="admin.user_detail.registration.verified_no" data-i18n-default="Not verified">Not verified</option>
             </select>
           </label>
           <label class="lhai-field">
-            <span class="lhai-label">회원 상태</span>
+            <span class="lhai-label" data-i18n="admin.user_detail.registration.membership_label" data-i18n-default="Membership status">Membership status</span>
             <select class="lhai-select" id="regEditMembership" name="membership_status">
-              <option value="pending_verification">인증 대기</option>
-              <option value="active">정식 회원</option>
+              <option value="pending_verification" data-i18n="admin.user_detail.registration.pending_verification" data-i18n-default="Pending verification">Pending verification</option>
+              <option value="active" data-i18n="admin.user_detail.registration.active" data-i18n-default="Active member">Active member</option>
             </select>
           </label>
-          <p class="lhai-help" id="regEditHint">저장 시 서버에 반영됩니다.</p>
+          <p class="lhai-help" id="regEditHint" data-i18n="admin.user_detail.registration.save_hint" data-i18n-default="Saving applies changes on the server.">Saving applies changes on the server.</p>
           <div class="u-flex u-gap-2 u-flex-wrap">
-            <button type="submit" class="lhai-button lhai-button--primary" id="regEditSubmitBtn">저장</button>
+            <button type="submit" class="lhai-button lhai-button--primary" id="regEditSubmitBtn" data-i18n="admin.user_detail.registration.save" data-i18n-default="Save">Save</button>
           </div>
         </form>
         <p class="lhai-help u-mt-2" id="regEditAlert" role="status" aria-live="polite" hidden></p>
       </section>
       <section class="lhai-card u-mt-4" id="messageSessionsCard" hidden>
-        <h2 class="lhai-card__title">메시지 세션</h2>
-        <p class="lhai-help u-mb-2">해당 회원의 메시지함에서 대화 내용을 확인합니다. 스레드가 있으면 바로 열 수 있습니다.</p>
+        <h2 class="lhai-card__title" data-i18n="admin.user_detail.messages.title" data-i18n-default="Message sessions">Message sessions</h2>
+        <p class="lhai-help u-mb-2" data-i18n="admin.user_detail.messages.help" data-i18n-default="View conversations from this member's inbox. Open a thread directly when available.">View conversations from this member's inbox. Open a thread directly when available.</p>
         <div id="messageSessionsList"></div>
       </section>
       <section class="lhai-card u-mt-4" id="quotesCard" hidden>
-        <h2 class="lhai-card__title">견적</h2>
-        <p class="lhai-help u-mb-2">데이터베이스에 저장된 견적 중 이 회원 프로필(<code>customer_profile_ref</code>)과 연결된 항목입니다. 항목을 누르면 견적 초안·검토 화면으로 이동합니다.</p>
+        <h2 class="lhai-card__title" data-i18n="admin.user_detail.quotes.title" data-i18n-default="Quotes">Quotes</h2>
+        <p class="lhai-help u-mb-2" data-i18n="admin.user_detail.quotes.help" data-i18n-default="Quotes in the database linked to this member profile (customer_profile_ref). Click an item to open the quote draft/review screen.">Quotes in the database linked to this member profile (<code>customer_profile_ref</code>). Click an item to open the quote draft/review screen.</p>
         <div id="adminUserQuotesList"></div>
       </section>
       <section class="lhai-card u-mt-4" id="invoicesCard" hidden>
-        <h2 class="lhai-card__title">청구서</h2>
-        <p class="lhai-help u-mb-2">데이터베이스에 저장된 청구서 중 이 회원과 연결된 항목입니다. 항목을 누르면 청구서 상세 화면으로 이동합니다.</p>
+        <h2 class="lhai-card__title" data-i18n="admin.user_detail.invoices.title" data-i18n-default="Invoices">Invoices</h2>
+        <p class="lhai-help u-mb-2" data-i18n="admin.user_detail.invoices.help" data-i18n-default="Invoices in the database linked to this member. Click an item to open the invoice detail screen.">Invoices in the database linked to this member. Click an item to open the invoice detail screen.</p>
         <div id="adminUserInvoicesList"></div>
       </section>
       <section class="lhai-card u-mt-4" id="dangerZone" hidden aria-labelledby="dangerTitle">
-        <h2 class="lhai-card__title" id="dangerTitle">계정 삭제</h2>
-        <p class="lhai-help u-mb-3">삭제하면 되돌릴 수 없습니다. 데모 시드 계정은 삭제할 수 없습니다.</p>
-        <button type="button" class="lhai-button lhai-button--danger" id="detailDeleteBtn">이 계정 삭제</button>
+        <h2 class="lhai-card__title" id="dangerTitle" data-i18n="admin.user_detail.danger.title" data-i18n-default="Delete account">Delete account</h2>
+        <p class="lhai-help u-mb-3" data-i18n="admin.user_detail.danger.help" data-i18n-default="Deletion cannot be undone. Demo seed accounts cannot be deleted.">Deletion cannot be undone. Demo seed accounts cannot be deleted.</p>
+        <button type="button" class="lhai-button lhai-button--danger" id="detailDeleteBtn" data-i18n="admin.user_detail.danger.delete_btn" data-i18n-default="Delete this account">Delete this account</button>
       </section>
     </main>
   </div>

@@ -23,7 +23,7 @@ import {
   deliveryModeBadgeFromThreadMeta,
   renderIntakeThreadContentBlockBubble,
 } from "../intake/intake-runtime-view.js";
-import { coerceToIsoDateInputValue, effectiveIntakeInputType, intakeRequiredFieldError, intakeRequiredFieldErrorForInputType, isCurrencyUsdInputType, isEffectivelyEmptyIntakeHelpText, normalizeIntakeFormPromptUiPayload, normalizePrefillInputScalar, prefillCandidateOptionLabel, prefillUsesTextInputNotDropdown, renderCurrencyUsdInputControlsHtml, resolveIntakeFieldInitialValue, shouldHideIntakeBlockTitle } from "../intake/intake-form-presentation.js";
+import { coerceToIsoDateInputValue, effectiveIntakeInputType, intakeLabelFromFieldElement, intakeRequiredFieldError, intakeRequiredFieldErrorForInputType, intakeViewerFieldLabel, isCurrencyUsdInputType, isEffectivelyEmptyIntakeHelpText, normalizeIntakeFormPromptUiPayload, normalizePrefillInputScalar, prefillCandidateOptionLabel, prefillUsesTextInputNotDropdown, renderCurrencyUsdInputControlsHtml, resolveIntakeFieldInitialValue, shouldHideIntakeBlockTitle } from "../intake/intake-form-presentation.js";
 import { formatMessageTimestamp, resolveBackendMediaUrl, safeText } from "../core/utils.js";
 import { getRealtimeStatus, subscribeRealtimeEvents } from "../core/realtime-client.js";
 import { logRealtimeDiagnostics, mountRealtimeDiagnosticBadge } from "../core/realtime-diagnostics.js";
@@ -58,18 +58,28 @@ import {
 } from "../core/bid-realtime.js";
 import { t } from "../core/i18n-client.js";
 import { formatLocalizedDataReadout, localizedEnumLabel, localizedStatus } from "../core/i18n-dynamic.js";
-import { applyI18nToDom, initPageI18nAndApplyDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
+import { applyI18nToDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 import {
   adminThreadDisplayTitle,
+  formPromptDisplayLabel,
+  intakeUiPayloadNeedsTranslationPlaceholder,
+  intakeUiPayloadSameLocale,
+  messageIntakeWidgetType,
   logMessageTranslationFailures,
   messageShouldShowViewOriginalToggle,
   messageTranslationNoticeKind,
-  messageTranslationPendingLabel,
-  messageTranslationUnavailableLabel,
+  messageTranslationPreparingFormLabel,
+  messageTranslationRetryLaterLabel,
   messageViewOriginalToggleLabel,
   messageViewerBody,
+  messageViewerTitle,
+  mergeServiceThreadDisplayFields,
+  serviceThreadDisplayName,
   threadListPreviewBody,
-} from "./messages-display-logic.js";
+  workflowCardViewerBody,
+  workflowCardViewerTitle,
+} from "./messages-display-logic.js?v=20260710g";
 import { bindMessageAiFeedback, buildAiFeedbackHtml } from "./message-ai-feedback.js";
 import {
   bindMessageTranslationReport,
@@ -95,10 +105,16 @@ import { loadBiddingNotificationDebugInto } from "./admin-bidding-notification-d
 import { buildIntakeDispatchDiagnosticsHtml } from "./messages-intake-diagnostics-ui.js";
 
 /**
- * Step 9 — data vs UI labels:
- * - Message bodies/titles: prefer `display_body` / `display_title`; user/API text is never passed through `t()`.
- * - Composer sends only user-typed text (`#messageChatInput`); never `display_body`.
- * - Enum/status chips: localize display via `localizedEnumLabel`; keep raw codes in data attributes / logic.
+ * Step 13 — visible fallback policy (Messages page):
+ * - Message bubbles: prefer display_body; cross-locale failure → placeholder (View original reveals body).
+ * - Workflow cards: display_title/display_body only; never card_json or raw title/body cross-locale.
+ * - Intake widgets: prefer display_ui_payload; never raw ui_payload labels/options cross-locale.
+ * - Thread list preview: last_message_display_body only; wrong-locale failure → preparing preview.
+ * - Service thread titles: display_header_title/display_service_name; failure → preparing title.
+ * - Same-locale + not_required may show stored source when display_* is absent.
+ * - Submit always uses canonical field_id / option value from DOM (not translated labels).
+ * - Composer sends only user-typed text (#messageChatInput); never display_body.
+ * - View original toggles message body only; intake widgets stay on display_ui_payload.
  */
 
 /** @type {Record<string, string>} */
@@ -340,6 +356,7 @@ async function applyQuestionGroupNamePrefillFallback(messages) {
   const full = me && typeof me === "object" ? String(me.full_name || "").trim() : "";
   for (const m of messages) {
     if (!m || typeof m !== "object") continue;
+    // Prefill values belong on the canonical stored payload (not display_* labels).
     const up = m.ui_payload && typeof m.ui_payload === "object" ? /** @type {Record<string, unknown>} */ (m.ui_payload) : null;
     if (!up) continue;
     if (String(up.widget_type || "") !== "form_prompt") continue;
@@ -520,18 +537,31 @@ function sortOperatorInboxThreads(list) {
   return rows;
 }
 
-/** 서비스 스레드 표시용 제목: 카탈로그명 우선, 없으면 API title */
-function threadServiceDisplayTitle(row) {
-  const cat = String(row?.service_catalog_title || "").trim();
-  if (cat) return cat;
-  return String(row?.title || "").trim() || t("messages.thread.default_service", "Service");
+/** 목록 한 줄: `서비스명 · 배지` (예: Phone Setup · AI Agent). */
+function serviceThreadListHeadline(row) {
+  const name = serviceThreadDisplayName(row, "", t) || t("messages.thread.default_service", "Service");
+  const mode = deliveryModeBadgeLabel(row);
+  if (mode) return `${name} · ${mode}`;
+  return name;
 }
 
-/** 구매 시점 스냅샷·API 헤더 필드 우선 (목록·상세 공통). */
-function serviceThreadDisplayName(row) {
-  const fromApi = String(row?.header_title || row?.service_name || row?.service_name_snapshot || "").trim();
-  if (fromApi) return fromApi;
-  return threadServiceDisplayTitle(row);
+/** @param {Record<string, unknown> | null | undefined} threadMeta */
+function effectiveThreadHeaderMeta(threadMeta) {
+  const base =
+    threadMeta && typeof threadMeta === "object"
+      ? threadMeta
+      : currentThreadHeaderMeta && typeof currentThreadHeaderMeta === "object"
+        ? currentThreadHeaderMeta
+        : {};
+  return mergeServiceThreadDisplayFields(base, currentThreadDetailThread);
+}
+
+/** Detail API may return fresher ``display_*`` than the list row — merge and re-sync header. */
+function reconcileThreadHeaderMetaAfterDetailLoad() {
+  if (!selectedThreadId) return;
+  const merged = effectiveThreadHeaderMeta(currentThreadHeaderMeta);
+  currentThreadHeaderMeta = /** @type {Record<string, unknown>} */ ({ ...merged });
+  syncChatHeader(currentThreadHeaderMeta);
 }
 
 /** @param {Record<string, unknown> | null | undefined} row */
@@ -544,20 +574,12 @@ function isInPersonServiceThread(row) {
 /** SERVICE thread detail: delivery pill next to title (same vocabulary as preview). */
 function applyServiceDeliveryBadge(el, label) {
   if (!(el instanceof HTMLElement)) return;
-  const t = String(label || "").trim();
-  const show = Boolean(t) && t !== "Service";
-  el.textContent = show ? t : "";
+  const text = String(label || "").trim();
+  const show = Boolean(text) && text !== "Service";
+  el.textContent = show ? text : "";
   el.hidden = !show;
-  const mod = deliveryBadgeModifierFromLabel(t);
+  const mod = deliveryBadgeModifierFromLabel(text);
   el.className = `lhai-service-header__delivery-badge lhai-service-header__delivery-badge--${mod}`;
-}
-
-/** 목록 한 줄: `서비스명 · 배지` (예: Phone Setup · AI Agent). */
-function serviceThreadListHeadline(row) {
-  const name = serviceThreadDisplayName(row);
-  const mode = deliveryModeBadgeLabel(row);
-  if (mode) return `${name} · ${mode}`;
-  return name;
 }
 
 /** @param {string} handlerType */
@@ -626,20 +648,22 @@ function messageViewerText(message) {
   const id = String(message?.id || "").trim();
   const original = scheduleReleasedMessageDisplayBody(message);
   const showingOriginal = Boolean(id && showOriginalMessageIds.has(id));
-  return messageViewerBody(message, { showOriginal: showingOriginal, originalBody: original });
+  return messageViewerBody(message, {
+    showOriginal: showingOriginal,
+    originalBody: original,
+    translate: (key, fallback) => t(key, fallback),
+  });
 }
 
 function messageTranslationNoticeHtml(message) {
   const kind = messageTranslationNoticeKind(message);
   if (kind === "unavailable") {
     return `<p class="lhai-chat-bubble__translation-unavailable u-text-muted">${escapeHtml(
-      messageTranslationUnavailableLabel((key, fallback) => t(key, fallback))
+      messageTranslationRetryLaterLabel((key, fallback) => t(key, fallback))
     )}</p>`;
   }
   if (kind === "pending") {
-    return `<p class="lhai-chat-bubble__translation-unavailable u-text-muted">${escapeHtml(
-      messageTranslationPendingLabel((key, fallback) => t(key, fallback))
-    )}</p>`;
+    return "";
   }
   return "";
 }
@@ -702,7 +726,7 @@ function renderThreadListRow(row) {
           <h3 class="lhai-message-item__title">${headline}</h3>
         </div>
         ${lastType ? `<div class="u-text-muted lhai-message-item__last-type">${escapeHtml(formatLocalizedDataReadout("messages.thread.recent_type", "Recent type: {value}", messageTypeDisplayLabel(lastType)))}</div>` : ""}
-        <p class="u-text-muted lhai-message-item__preview">${safeText(threadListPreviewBody(row))}</p>
+        <p class="u-text-muted lhai-message-item__preview">${escapeHtml(threadListPreviewBody(row, (key, fallback) => t(key, fallback)))}</p>
       </article>
     `;
 }
@@ -711,7 +735,7 @@ function renderThreadListRow(row) {
 function serviceThreadDedupeKey(row) {
   const raw = String(row?.service_item_id ?? "").trim();
   const itemId = isCatalogRecServiceItemUuidString(raw) ? raw : "";
-  const name = serviceThreadDisplayName(row).trim().toLowerCase();
+  const name = serviceThreadDisplayName(row, "", t).trim().toLowerCase();
   const dm = String(row?.selected_delivery_mode || "").trim().toUpperCase();
   return `${itemId}||${name}||${dm}`;
 }
@@ -860,12 +884,170 @@ function normalizeIntakeInputType(raw) {
   return t;
 }
 
+/**
+ * Deep-clone a plain JSON-like object (intake ui_payload shapes).
+ * @param {unknown} value
+ * @returns {any}
+ */
+function cloneIntakePayloadJson(value) {
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return null;
+  }
+}
+
+/** Scalar keys copied from canonical ``ui_payload`` onto display copy (never labels). */
+const INTAKE_CANONICAL_VALUE_KEYS = [
+  "value",
+  "prefill_value",
+  "prefill_resolved_value",
+  "default_value",
+  "is_prefilled",
+  "prefill_blocked",
+  "prefill_editable",
+  "allow_manual_input",
+  "prompt_submitted",
+];
+
+/**
+ * @param {Record<string, unknown>} target
+ * @param {Record<string, unknown> | null | undefined} source
+ */
+function overlayIntakeCanonicalScalars(target, source) {
+  if (!target || typeof target !== "object" || !source || typeof source !== "object") return;
+  for (const key of INTAKE_CANONICAL_VALUE_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      target[key] = source[key];
+    }
+  }
+}
+
+/**
+ * Copy answer/prefill scalars from canonical ``ui_payload`` onto a display clone.
+ * Labels stay from ``display_ui_payload``; ids/values stay canonical.
+ * @param {Record<string, unknown>} display
+ * @param {Record<string, unknown> | null | undefined} canonical
+ */
+function overlayCanonicalIntakeValues(display, canonical) {
+  if (!display || typeof display !== "object" || !canonical || typeof canonical !== "object") return;
+  overlayIntakeCanonicalScalars(display, canonical);
+
+  const dChildren = Array.isArray(display.children) ? display.children : [];
+  const cChildren = Array.isArray(canonical.children) ? canonical.children : [];
+  for (let i = 0; i < dChildren.length; i += 1) {
+    const dCh = dChildren[i];
+    const cCh = cChildren[i];
+    if (dCh && typeof dCh === "object" && cCh && typeof cCh === "object") {
+      overlayIntakeCanonicalScalars(
+        /** @type {Record<string, unknown>} */ (dCh),
+        /** @type {Record<string, unknown>} */ (cCh)
+      );
+    }
+  }
+
+  const dSteps = Array.isArray(display.steps) ? display.steps : [];
+  const cSteps = Array.isArray(canonical.steps) ? canonical.steps : [];
+  for (let i = 0; i < dSteps.length; i += 1) {
+    const dSt = dSteps[i];
+    const cSt = cSteps[i];
+    if (!dSt || typeof dSt !== "object" || !cSt || typeof cSt !== "object") continue;
+    overlayIntakeCanonicalScalars(
+      /** @type {Record<string, unknown>} */ (dSt),
+      /** @type {Record<string, unknown>} */ (cSt)
+    );
+    const dSc = Array.isArray(dSt.children) ? dSt.children : [];
+    const cSc = Array.isArray(cSt.children) ? cSt.children : [];
+    for (let j = 0; j < dSc.length; j += 1) {
+      const dCh = dSc[j];
+      const cCh = cSc[j];
+      if (dCh && typeof dCh === "object" && cCh && typeof cCh === "object") {
+        overlayIntakeCanonicalScalars(
+          /** @type {Record<string, unknown>} */ (dCh),
+          /** @type {Record<string, unknown>} */ (cCh)
+        );
+      }
+    }
+  }
+}
+
+/**
+ * Prefer viewer-locale ``display_ui_payload``; never show raw labels cross-locale on failure.
+ * Returns a deep copy so render/normalize never mutates API message objects.
+ * @param {Record<string, unknown> | null | undefined} m
+ * @returns {Record<string, unknown> | null}
+ */
+function resolveMessageUiPayloadForDisplay(m) {
+  if (!m || typeof m !== "object") return null;
+  if (intakeUiPayloadNeedsTranslationPlaceholder(m)) {
+    return null;
+  }
+  let preferred =
+    m.display_ui_payload && typeof m.display_ui_payload === "object"
+      ? m.display_ui_payload
+      : null;
+  if (!preferred && intakeUiPayloadSameLocale(m)) {
+    preferred =
+      m.ui_payload && typeof m.ui_payload === "object"
+        ? /** @type {Record<string, unknown>} */ (m.ui_payload)
+        : null;
+  }
+  if (!preferred) return null;
+  const copy = cloneIntakePayloadJson(preferred);
+  if (!copy || typeof copy !== "object") return null;
+  const canonical =
+    m.ui_payload && typeof m.ui_payload === "object"
+      ? /** @type {Record<string, unknown>} */ (m.ui_payload)
+      : null;
+  if (canonical && preferred !== canonical) {
+    overlayCanonicalIntakeValues(/** @type {Record<string, unknown>} */ (copy), canonical);
+  }
+  if (String(copy.widget_type || "") === "form_prompt") {
+    normalizeIntakeFormPromptUiPayload(/** @type {Record<string, unknown>} */ (copy));
+  }
+  return /** @type {Record<string, unknown>} */ (copy);
+}
+
+/** Placeholder when intake ``display_ui_payload`` is unavailable for the viewer locale. */
+function renderIntakeFormPreparingPlaceholder() {
+  const label = messageTranslationPreparingFormLabel((key, fallback) => t(key, fallback));
+  return `<div class="lhai-chat-form-prompt lhai-chat-form-prompt--preparing" role="status">
+    <p class="lhai-chat-form-prompt__label">${escapeHtml(label)}</p>
+  </div>`;
+}
+
+/**
+ * Canonical stored widget payload for submit/identity (never display_*).
+ * @param {Record<string, unknown> | null | undefined} m
+ * @returns {Record<string, unknown> | null}
+ */
+function resolveMessageUiPayloadCanonical(m) {
+  if (!m || typeof m !== "object") return null;
+  if (m.ui_payload && typeof m.ui_payload === "object") {
+    return /** @type {Record<string, unknown>} */ (m.ui_payload);
+  }
+  return null;
+}
+
 /** @param {HTMLElement} formRoot */
 function getUiPayloadForFormRoot(formRoot) {
   const mid = formRoot.getAttribute("data-message-id") || "";
   const m = currentThreadMessages.find((x) => String(x.id || "") === mid);
-  const up = m && typeof m === "object" && m.ui_payload && typeof m.ui_payload === "object" ? m.ui_payload : null;
-  return /** @type {Record<string, unknown> | null} */ (up);
+  return resolveMessageUiPayloadForDisplay(
+    m && typeof m === "object" ? /** @type {Record<string, unknown>} */ (m) : null
+  );
+}
+
+/**
+ * Canonical payload for submit paths that need field_id / option value structure.
+ * @param {HTMLElement} formRoot
+ */
+function getCanonicalUiPayloadForFormRoot(formRoot) {
+  const mid = formRoot.getAttribute("data-message-id") || "";
+  const m = currentThreadMessages.find((x) => String(x.id || "") === mid);
+  return resolveMessageUiPayloadCanonical(
+    m && typeof m === "object" ? /** @type {Record<string, unknown>} */ (m) : null
+  );
 }
 
 /**
@@ -1003,7 +1185,8 @@ function togglePrefillConfirmAlt(root) {
  * @param {unknown} [fieldLabel]
  * @returns {{ ok: boolean, valueJson?: Record<string, unknown>, error?: string }}
  */
-function collectPrefillCandidatesFromSection(sec, fieldLabel = "") {
+function collectPrefillCandidatesFromSection(sec, fieldRowOrLabel = "") {
+  const fieldLabel = intakeLabelFromFieldElement(sec instanceof HTMLElement ? sec : null, fieldRowOrLabel);
   if (!(sec instanceof HTMLElement)) {
     return { ok: false, error: t("messages.intake.error.input_not_found", "Could not find the input field.") };
   }
@@ -1034,7 +1217,8 @@ function collectPrefillCandidatesFromSection(sec, fieldLabel = "") {
  * @param {unknown} [fieldLabel]
  * @returns {{ ok: boolean, valueJson?: Record<string, unknown>, error?: string }}
  */
-function collectPrefillConfirmFromSection(sec, fieldLabel = "") {
+function collectPrefillConfirmFromSection(sec, fieldRowOrLabel = "") {
+  const fieldLabel = intakeLabelFromFieldElement(sec instanceof HTMLElement ? sec : null, fieldRowOrLabel);
   if (!(sec instanceof HTMLElement)) {
     return { ok: false, error: t("messages.intake.error.confirm_not_found", "Could not find the confirmation field.") };
   }
@@ -1067,7 +1251,11 @@ function collectPrefillConfirmFromSection(sec, fieldLabel = "") {
  * @param {unknown} [fieldLabel]
  * @returns {{ ok: boolean, valueJson?: Record<string, unknown>, error?: string }}
  */
-function collectChildValueJson(childEl, cit, skipChild, fieldLabel = "") {
+function collectChildValueJson(childEl, cit, skipChild, fieldRowOrLabel = "") {
+  const fieldLabel = intakeLabelFromFieldElement(
+    childEl instanceof HTMLElement ? childEl : null,
+    fieldRowOrLabel,
+  );
   if (!(childEl instanceof HTMLElement)) {
     return { ok: false, error: t("messages.intake.error.field_not_found", "Could not find the field.") };
   }
@@ -1140,8 +1328,9 @@ function collectChildValueJson(childEl, cit, skipChild, fieldLabel = "") {
 /**
  * @param {Record<string, unknown>} up
  * @param {string} messageId
+ * @param {boolean} [submitted]
  */
-function renderQuestionGroupControlsHtml(up, messageId) {
+function renderQuestionGroupControlsHtml(up, messageId, submitted = false) {
   const mid = String(messageId || "msg").replace(/[^a-zA-Z0-9_-]/g, "_");
   const children = Array.isArray(up.children) ? /** @type {Array<Record<string, unknown>>} */ (up.children) : [];
   const layout = String(up.layout || "stack").trim() === "inline_2" ? "inline_2" : "stack";
@@ -1150,7 +1339,7 @@ function renderQuestionGroupControlsHtml(up, messageId) {
     ${children
       .map((ch, idx) => {
         const cid = String(ch.id || "").trim();
-        const lab = String(ch.label || "").trim();
+        const lab = intakeViewerFieldLabel(ch);
         const help = String(ch.help_text || "").trim();
         const req = Boolean(ch.required);
         const reqHtml = req ? ` <abbr class="lhai-chat-form-prompt__req" title="${escapeHtml(t("messages.intake.required", "Required"))}">*</abbr>` : "";
@@ -1159,8 +1348,11 @@ function renderQuestionGroupControlsHtml(up, messageId) {
         const options = Array.isArray(ch.options) ? /** @type {Array<Record<string, unknown>>} */ (ch.options) : [];
         const ivRawBase = resolveIntakeFieldInitialValue(ch);
         const iv = cit === "date" ? coerceToIsoDateInputValue(ivRawBase) || "" : ivRawBase;
-        const readOnlyAttr = "";
-        const selectLocked = "";
+        const readOnlyAttr = submitted
+          ? ' readonly="readonly" aria-readonly="true" disabled'
+          : "";
+        const selectLocked = submitted ? " disabled" : "";
+        const dis = intakeFormPromptDisabledAttr(submitted);
         const suff = `${mid}-c${idx}`;
         let inner = "";
         if (usesPrefillCandidatesDropdown(ch)) {
@@ -1194,7 +1386,7 @@ function renderQuestionGroupControlsHtml(up, messageId) {
           const id = `${name}-${i}`;
           const checked = val === iv ? " checked" : "";
           return `<label class="lhai-chat-form-prompt__radio-label" for="${escapeHtml(id)}">
-            <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(id)}" value="${escapeHtml(val)}" class="lhai-chat-form-prompt__radio"${checked} />
+            <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(id)}" value="${escapeHtml(val)}" class="lhai-chat-form-prompt__radio"${checked}${dis} />
             <span>${escapeHtml(olab)}</span>
           </label>`;
         })
@@ -1202,26 +1394,35 @@ function renderQuestionGroupControlsHtml(up, messageId) {
     </div>`;
         } else if (cit === "yes_no") {
           const name = `lhai-intake-yn-${suff}`;
+          const yesChecked = iv === "yes" ? " checked" : "";
+          const noChecked = iv === "no" ? " checked" : "";
           inner = `<div class="lhai-chat-form-prompt__radio-group" role="radiogroup" aria-label="${escapeHtml(lab)}">
       <label class="lhai-chat-form-prompt__radio-label" for="${escapeHtml(`${name}-y`)}">
-        <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(`${name}-y`)}" value="yes" class="lhai-chat-form-prompt__radio" />
+        <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(`${name}-y`)}" value="yes" class="lhai-chat-form-prompt__radio"${yesChecked}${dis} />
         <span>${escapeHtml(t("messages.intake.yes", "Yes"))}</span>
       </label>
       <label class="lhai-chat-form-prompt__radio-label" for="${escapeHtml(`${name}-n`)}">
-        <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(`${name}-n`)}" value="no" class="lhai-chat-form-prompt__radio" />
+        <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(`${name}-n`)}" value="no" class="lhai-chat-form-prompt__radio"${noChecked}${dis} />
         <span>${escapeHtml(t("messages.intake.no", "No"))}</span>
       </label>
     </div>`;
         } else if (cit === "multi_select") {
           const opts = [...options].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+          const selectedSet = new Set(
+            String(iv || "")
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          );
           inner = `<div class="lhai-chat-form-prompt__checks" role="group" aria-label="${escapeHtml(lab)}">
       ${opts
         .map((o, i) => {
           const val = String(o.value ?? "");
           const olab = String(o.label ?? val);
           const id = `lhai-intake-ms-${suff}-${i}`;
+          const checked = selectedSet.has(val) ? " checked" : "";
           return `<label class="lhai-chat-form-prompt__check-label" for="${escapeHtml(id)}">
-            <input type="checkbox" id="${escapeHtml(id)}" class="lhai-chat-form-prompt__cb" value="${escapeHtml(val)}" />
+            <input type="checkbox" id="${escapeHtml(id)}" class="lhai-chat-form-prompt__cb" value="${escapeHtml(val)}"${checked}${dis} />
             <span>${escapeHtml(olab)}</span>
           </label>`;
         })
@@ -1251,11 +1452,21 @@ function renderQuestionGroupControlsHtml(up, messageId) {
   </div>`;
 }
 
+function intakeFormPromptIsSubmitted(up) {
+  return Boolean(up && typeof up === "object" && up.prompt_submitted);
+}
+
+/** @param {boolean} submitted */
+function intakeFormPromptDisabledAttr(submitted) {
+  return submitted ? " disabled" : "";
+}
+
 /**
  * @param {Record<string, unknown>} up
  * @param {string} messageId
+ * @param {boolean} [submitted]
  */
-function renderFormPromptControlsHtml(up, messageId) {
+function renderFormPromptControlsHtml(up, messageId, submitted = false) {
   const mid = String(messageId || "msg").replace(/[^a-zA-Z0-9_-]/g, "_");
   const it =
     effectiveIntakeInputType(up) === "date" ? "date" : normalizeIntakeInputType(up.input_type);
@@ -1278,8 +1489,11 @@ function renderFormPromptControlsHtml(up, messageId) {
   const ivRaw = usePrefillValue ? resolveIntakeFieldInitialValue(up) : def;
   const ivDate = it === "date" ? coerceToIsoDateInputValue(ivRaw) || "" : "";
   const readOnlyAttr =
-    usePrefillValue && up.prefill_editable === false ? ' readonly="readonly" aria-readonly="true"' : "";
-  const selectLocked = usePrefillValue && up.prefill_editable === false && it === "select" ? " disabled" : "";
+    submitted || (usePrefillValue && up.prefill_editable === false)
+      ? ' readonly="readonly" aria-readonly="true" disabled'
+      : intakeFormPromptDisabledAttr(submitted);
+  const selectLocked =
+    submitted || (usePrefillValue && up.prefill_editable === false && it === "select") ? " disabled" : "";
 
   if (it === "textarea") {
     const v = escapeHtml(ivRaw);
@@ -1303,6 +1517,7 @@ function renderFormPromptControlsHtml(up, messageId) {
   if (it === "radio") {
     const opts = [...options].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
     const name = `lhai-intake-r-${mid}`;
+    const dis = intakeFormPromptDisabledAttr(submitted);
     return `<div class="lhai-chat-form-prompt__radio-group" role="radiogroup" aria-label="${escapeHtml(String(up.label || ""))}">
       ${opts
         .map((o, i) => {
@@ -1311,7 +1526,7 @@ function renderFormPromptControlsHtml(up, messageId) {
           const id = `${name}-${i}`;
           const checked = usePrefillValue && val === ivRaw ? " checked" : "";
           return `<label class="lhai-chat-form-prompt__radio-label" for="${escapeHtml(id)}">
-            <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(id)}" value="${escapeHtml(val)}" class="lhai-chat-form-prompt__radio"${checked} />
+            <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(id)}" value="${escapeHtml(val)}" class="lhai-chat-form-prompt__radio"${checked}${dis} />
             <span>${escapeHtml(lab)}</span>
           </label>`;
         })
@@ -1320,27 +1535,38 @@ function renderFormPromptControlsHtml(up, messageId) {
   }
   if (it === "yes_no") {
     const name = `lhai-intake-yn-${mid}`;
+    const dis = intakeFormPromptDisabledAttr(submitted);
+    const yesChecked = ivRaw === "yes" ? " checked" : "";
+    const noChecked = ivRaw === "no" ? " checked" : "";
     return `<div class="lhai-chat-form-prompt__radio-group" role="radiogroup" aria-label="${escapeHtml(String(up.label || ""))}">
       <label class="lhai-chat-form-prompt__radio-label" for="${escapeHtml(`${name}-y`)}">
-        <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(`${name}-y`)}" value="yes" class="lhai-chat-form-prompt__radio" />
+        <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(`${name}-y`)}" value="yes" class="lhai-chat-form-prompt__radio"${yesChecked}${dis} />
         <span>${escapeHtml(t("messages.intake.yes", "Yes"))}</span>
       </label>
       <label class="lhai-chat-form-prompt__radio-label" for="${escapeHtml(`${name}-n`)}">
-        <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(`${name}-n`)}" value="no" class="lhai-chat-form-prompt__radio" />
+        <input type="radio" name="${escapeHtml(name)}" id="${escapeHtml(`${name}-n`)}" value="no" class="lhai-chat-form-prompt__radio"${noChecked}${dis} />
         <span>${escapeHtml(t("messages.intake.no", "No"))}</span>
       </label>
     </div>`;
   }
   if (it === "multi_select") {
     const opts = [...options].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+    const selectedSet = new Set(
+      String(ivRaw || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    );
     return `<div class="lhai-chat-form-prompt__checks" role="group" aria-label="${escapeHtml(String(up.label || ""))}">
       ${opts
         .map((o, i) => {
           const val = String(o.value ?? "");
           const lab = String(o.label ?? val);
           const id = `lhai-intake-ms-${mid}-${i}`;
+          const checked = selectedSet.has(val) ? " checked" : "";
+          const dis = intakeFormPromptDisabledAttr(submitted);
           return `<label class="lhai-chat-form-prompt__check-label" for="${escapeHtml(id)}">
-            <input type="checkbox" id="${escapeHtml(id)}" class="lhai-chat-form-prompt__cb" value="${escapeHtml(val)}" />
+            <input type="checkbox" id="${escapeHtml(id)}" class="lhai-chat-form-prompt__cb" value="${escapeHtml(val)}"${checked}${dis} />
             <span>${escapeHtml(lab)}</span>
           </label>`;
         })
@@ -1373,7 +1599,7 @@ function renderFormPromptControlsHtml(up, messageId) {
  * @returns {{ ok: boolean, valueJson?: Record<string, unknown>, error?: string }}
  */
 function collectScalarPromptFromSection(sec, st) {
-  const fieldLabel = st?.label;
+  const fieldLabel = intakeLabelFromFieldElement(sec instanceof HTMLElement ? sec : null, st);
   if (sec instanceof HTMLElement && sec.querySelector("[data-lhai-prefill-dropdown]")) {
     return collectPrefillCandidatesFromSection(sec, fieldLabel);
   }
@@ -1439,8 +1665,9 @@ function collectScalarPromptFromSection(sec, st) {
 /**
  * @param {Record<string, unknown>} up
  * @param {string} messageId
+ * @param {boolean} [submitted]
  */
-function renderIntakeMultiControlsHtml(up, messageId) {
+function renderIntakeMultiControlsHtml(up, messageId, submitted = false) {
   const mid = String(messageId || "msg").replace(/[^a-zA-Z0-9_-]/g, "_");
   const steps = Array.isArray(up.steps) ? /** @type {Array<Record<string, unknown>>} */ (up.steps) : [];
   return steps
@@ -1448,14 +1675,14 @@ function renderIntakeMultiControlsHtml(up, messageId) {
       const sfid = String(st.field_id || "").trim();
       const suf = `${mid}_s${si}_${sfid.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
       const stIt = normalizeIntakeInputType(st.input_type);
-      const title = String(st.label || "").trim();
+      const title = intakeViewerFieldLabel(st);
       const help = String(st.help_text || "").trim();
       const reqMark = Boolean(st.required) ? " *" : "";
       let inner = "";
       if (stIt === "question_group") {
-        inner = renderQuestionGroupControlsHtml(st, suf);
+        inner = renderQuestionGroupControlsHtml(st, suf, submitted);
       } else {
-        inner = renderFormPromptControlsHtml(st, suf);
+        inner = renderFormPromptControlsHtml(st, suf, submitted);
       }
       const titleLine = shouldHideIntakeBlockTitle(title)
         ? ""
@@ -1471,15 +1698,19 @@ function renderIntakeMultiControlsHtml(up, messageId) {
 
 /**
  * @param {Record<string, unknown>} m
- * @param {Record<string, unknown>} up
+ * @param {Record<string, unknown>} up Display payload (labels); already a safe copy.
  */
 function renderFormPromptInteractive(m, up) {
-  normalizeIntakeFormPromptUiPayload(up);
+  // ``up`` is a display clone from resolveMessageUiPayloadForDisplay — do not touch m.ui_payload.
   const mid = String(m.id || "");
   const sessionId = String(up.session_id || "");
   const threadId = String(up.thread_id || selectedThreadId || "");
-  const fieldId = String(up.field_id || "");
-  const label = String(up.label || "");
+  // Prefer canonical field_id from stored ui_payload for submit identity.
+  const canonical = resolveMessageUiPayloadCanonical(
+    m && typeof m === "object" ? /** @type {Record<string, unknown>} */ (m) : null
+  );
+  const fieldId = String((canonical && canonical.field_id) || up.field_id || "");
+  const label = formPromptDisplayLabel(up, (key, fallback) => t(key, fallback));
   const helpText = String(up.help_text || "").trim();
   const required = Boolean(up.required);
   const it = normalizeIntakeInputType(up.input_type);
@@ -1487,14 +1718,15 @@ function renderFormPromptInteractive(m, up) {
   const reqHtml = required
     ? ` <abbr class="lhai-chat-form-prompt__req" title="${escapeHtml(t("messages.intake.required", "Required"))}">*</abbr>`
     : "";
+  const submitted = intakeFormPromptIsSubmitted(up);
 
   const blocksHtml = renderIntakeContentBlocksHtml(up);
   const controlsInner =
     it === "intake_multi"
-      ? renderIntakeMultiControlsHtml(up, mid)
+      ? renderIntakeMultiControlsHtml(up, mid, submitted)
       : it === "question_group"
-        ? renderQuestionGroupControlsHtml(up, mid)
-        : renderFormPromptControlsHtml(up, mid);
+        ? renderQuestionGroupControlsHtml(up, mid, submitted)
+        : renderFormPromptControlsHtml(up, mid, submitted);
   const prefillHelper = String(up.helper_text || "").trim();
 
   const labelLine =
@@ -1516,22 +1748,26 @@ function renderFormPromptInteractive(m, up) {
   </div>`;
   }
 
-  return `${blocksHtml}<div class="lhai-chat-form-prompt" data-lhai-intake-form data-message-id="${escapeHtml(mid)}" data-session-id="${escapeHtml(sessionId)}" data-thread-id="${escapeHtml(threadId)}" data-field-id="${escapeHtml(fieldId)}" data-input-type="${escapeHtml(domInputType)}">
+  return `${blocksHtml}<div class="lhai-chat-form-prompt${submitted ? " lhai-chat-form-prompt--submitted" : ""}" data-lhai-intake-form data-message-id="${escapeHtml(mid)}" data-session-id="${escapeHtml(sessionId)}" data-thread-id="${escapeHtml(threadId)}" data-field-id="${escapeHtml(fieldId)}" data-input-type="${escapeHtml(domInputType)}"${submitted ? ' data-lhai-intake-submitted="1"' : ""}>
     ${labelLine}
     ${!isEffectivelyEmptyIntakeHelpText(helpText) ? `<div class="lhai-chat-form-prompt__help">${escapeHtml(helpText)}</div>` : ""}
     ${prefillHelper ? `<div class="lhai-chat-form-prompt__help lhai-chat-form-prompt__help--prefill">${escapeHtml(prefillHelper)}</div>` : ""}
     <div class="lhai-chat-form-prompt__controls">${controlsInner}</div>
     <div class="lhai-chat-form-prompt__error" role="alert" hidden></div>
-    <div class="lhai-chat-form-prompt__actions">
+    ${
+      submitted
+        ? ""
+        : `<div class="lhai-chat-form-prompt__actions">
       <button type="button" class="lhai-button lhai-button--primary lhai-chat-form-prompt__submit" data-lhai-intake-submit>${escapeHtml(t("messages.intake.submit", "Submit"))}</button>
       ${!required && it !== "intake_multi" ? `<button type="button" class="lhai-button lhai-button--secondary lhai-chat-form-prompt__skip" data-lhai-intake-skip>${escapeHtml(t("messages.intake.skip", "Skip"))}</button>` : ""}
-    </div>
+    </div>`
+    }
   </div>`;
 }
 
 /** @param {Record<string, unknown>} up */
 function renderFormPromptOperatorReadonly(up) {
-  const label = String(up.label || "");
+  const label = formPromptDisplayLabel(up, (key, fallback) => t(key, fallback));
   const helpText = String(up.help_text || "").trim();
   const it = normalizeIntakeInputType(up.input_type);
   const blocksHtml = renderIntakeContentBlocksHtml(up);
@@ -1600,8 +1836,14 @@ function collectIntakeValueJson(container, inputType, skip) {
   }
   const it = normalizeIntakeInputType(inputType);
   if (it === "intake_multi") {
-    const up = getUiPayloadForFormRoot(container);
-    const steps = Array.isArray(up?.steps) ? /** @type {Array<Record<string, unknown>>} */ (up.steps) : [];
+    // Prefer canonical step field_ids for submit; display payload only for labels/structure fallback.
+    const canonical = getCanonicalUiPayloadForFormRoot(container);
+    const display = getUiPayloadForFormRoot(container);
+    const steps = Array.isArray(canonical?.steps)
+      ? /** @type {Array<Record<string, unknown>>} */ (canonical.steps)
+      : Array.isArray(display?.steps)
+        ? /** @type {Array<Record<string, unknown>>} */ (display.steps)
+        : [];
     /** @type {Array<{ field_id: string, value_json: Record<string, unknown> }>} */
     const batch_updates = [];
     for (const st of steps) {
@@ -1622,7 +1864,7 @@ function collectIntakeValueJson(container, inputType, skip) {
           const cel = sec.querySelector(`.lhai-chat-form-prompt__group-child[data-child-id="${cid}"]`);
           const cit =
             effectiveIntakeInputType(ch) === "date" ? "date" : normalizeIntakeInputType(ch.input_type);
-          const sub = collectChildValueJson(cel, cit, false, ch.label);
+          const sub = collectChildValueJson(cel, cit, false, ch);
           if (!sub.ok) return { ok: false, error: sub.error || t("messages.intake.error.check_input", "Please check your input.") };
           group_answers[cid] = /** @type {Record<string, unknown>} */ (sub.valueJson || {});
         }
@@ -1636,8 +1878,13 @@ function collectIntakeValueJson(container, inputType, skip) {
     return { ok: true, batchUpdates: batch_updates };
   }
   if (it === "question_group") {
-    const up = getUiPayloadForFormRoot(container);
-    const children = Array.isArray(up?.children) ? /** @type {Array<Record<string, unknown>>} */ (up.children) : [];
+    const canonical = getCanonicalUiPayloadForFormRoot(container);
+    const display = getUiPayloadForFormRoot(container);
+    const children = Array.isArray(canonical?.children)
+      ? /** @type {Array<Record<string, unknown>>} */ (canonical.children)
+      : Array.isArray(display?.children)
+        ? /** @type {Array<Record<string, unknown>>} */ (display.children)
+        : [];
     /** @type {Record<string, Record<string, unknown>>} */
     const group_answers = {};
     for (const ch of children) {
@@ -1646,7 +1893,7 @@ function collectIntakeValueJson(container, inputType, skip) {
       const cel = container.querySelector(`.lhai-chat-form-prompt__group-child[data-child-id="${cid}"]`);
       const cit =
         effectiveIntakeInputType(ch) === "date" ? "date" : normalizeIntakeInputType(ch.input_type);
-      const sub = collectChildValueJson(cel, cit, false, ch.label);
+      const sub = collectChildValueJson(cel, cit, false, ch);
       if (!sub.ok) return { ok: false, error: sub.error || t("messages.intake.error.check_input", "Please check your input.") };
       group_answers[cid] = /** @type {Record<string, unknown>} */ (sub.valueJson || {});
     }
@@ -1654,14 +1901,14 @@ function collectIntakeValueJson(container, inputType, skip) {
   }
   if (container.querySelector("[data-lhai-prefill-dropdown]")) {
     const upRoot = getUiPayloadForFormRoot(container);
-    return collectPrefillCandidatesFromSection(container, upRoot?.label);
+    return collectPrefillCandidatesFromSection(container, upRoot);
   }
   if (container.querySelector("[data-lhai-prefill-confirm]")) {
     const upRoot = getUiPayloadForFormRoot(container);
-    return collectPrefillConfirmFromSection(container, upRoot?.label);
+    return collectPrefillConfirmFromSection(container, upRoot);
   }
   const upRoot = getUiPayloadForFormRoot(container);
-  const rootLabel = upRoot?.label;
+  const rootLabel = intakeViewerFieldLabel(upRoot);
   if (it === "multi_select") {
     const vals = Array.from(container.querySelectorAll(".lhai-chat-form-prompt__cb:checked")).map((c) =>
       String(/** @type {HTMLInputElement} */ (c).value)
@@ -1708,6 +1955,7 @@ function collectIntakeValueJson(container, inputType, skip) {
 async function runIntakePromptSubmit(formRoot, skip) {
   const mid = formRoot.getAttribute("data-message-id") || "";
   if (!mid || intakePromptSubmitting.has(mid)) return;
+  if (formRoot.hasAttribute("data-lhai-intake-submitted")) return;
   const sessionId = formRoot.getAttribute("data-session-id") || "";
   const threadId = formRoot.getAttribute("data-thread-id") || "";
   const fieldId = formRoot.getAttribute("data-field-id") || "";
@@ -1744,14 +1992,14 @@ async function runIntakePromptSubmit(formRoot, skip) {
           const childEl = sec.querySelector(`.lhai-chat-form-prompt__group-child[data-child-id="${cid}"]`);
           const cit =
             effectiveIntakeInputType(ch) === "date" ? "date" : normalizeIntakeInputType(ch.input_type);
-          const sub = collectChildValueJson(childEl, cit, false, ch.label);
+          const sub = collectChildValueJson(childEl, cit, false, ch);
           if (!sub.ok) {
             setIntakeFormError(formRoot, sub.error || t("messages.intake.error.check_input", "Please check your input."));
             return;
           }
           const vj = /** @type {Record<string, unknown>} */ (sub.valueJson || {});
           if (intakeChildAnswerLooksEmpty(cit, vj)) {
-            setIntakeFormError(formRoot, intakeRequiredFieldErrorForInputType(ch.label, cit));
+            setIntakeFormError(formRoot, intakeRequiredFieldErrorForInputType(ch, cit));
             return;
           }
         }
@@ -1767,13 +2015,13 @@ async function runIntakePromptSubmit(formRoot, skip) {
         if (effStIt === "multi_select") {
           const vals = vj.values;
           if (!Array.isArray(vals) || vals.length === 0) {
-            setIntakeFormError(formRoot, intakeRequiredFieldError(st.label, "multi"));
+            setIntakeFormError(formRoot, intakeRequiredFieldError(st, "multi"));
             return;
           }
         } else if (effStIt !== "radio" && effStIt !== "yes_no" && effStIt !== "select" && effStIt !== "date") {
           const v = vj.value;
           if (v === undefined || v === null || String(v).trim() === "") {
-            setIntakeFormError(formRoot, intakeRequiredFieldErrorForInputType(st.label, effStIt));
+            setIntakeFormError(formRoot, intakeRequiredFieldErrorForInputType(st, effStIt));
             return;
           }
         }
@@ -1790,32 +2038,31 @@ async function runIntakePromptSubmit(formRoot, skip) {
       const childEl = formRoot.querySelector(`.lhai-chat-form-prompt__group-child[data-child-id="${cid}"]`);
       const cit =
         effectiveIntakeInputType(ch) === "date" ? "date" : normalizeIntakeInputType(ch.input_type);
-      const sub = collectChildValueJson(childEl, cit, false, ch.label);
+      const sub = collectChildValueJson(childEl, cit, false, ch);
       if (!sub.ok) {
         setIntakeFormError(formRoot, sub.error || t("messages.intake.error.check_input", "Please check your input."));
         return;
       }
       const vj = /** @type {Record<string, unknown>} */ (sub.valueJson || {});
       if (intakeChildAnswerLooksEmpty(cit, vj)) {
-        setIntakeFormError(formRoot, intakeRequiredFieldErrorForInputType(ch.label, cit));
+        setIntakeFormError(formRoot, intakeRequiredFieldErrorForInputType(ch, cit));
         return;
       }
     }
   }
   if (requiredAttr && !skip && normalizeIntakeInputType(inputType) !== "intake_multi") {
     const up = getUiPayloadForFormRoot(formRoot);
-    const rootLabel = up?.label;
     const it = normalizeIntakeInputType(inputType);
     if (it === "multi_select") {
       const vals = /** @type {{ values?: unknown[] }} */ (valueJson || {}).values;
       if (!Array.isArray(vals) || vals.length === 0) {
-        setIntakeFormError(formRoot, intakeRequiredFieldError(rootLabel, "multi"));
+        setIntakeFormError(formRoot, intakeRequiredFieldError(up, "multi"));
         return;
       }
     } else if (it !== "radio" && it !== "yes_no" && it !== "select" && it !== "date" && it !== "question_group") {
       const v = /** @type {{ value?: unknown }} */ (valueJson || {}).value;
       if (v === undefined || v === null || String(v).trim() === "") {
-        setIntakeFormError(formRoot, intakeRequiredFieldErrorForInputType(rootLabel, it));
+        setIntakeFormError(formRoot, intakeRequiredFieldErrorForInputType(up, it));
         return;
       }
     }
@@ -1891,7 +2138,7 @@ function renderWorkflowPublicResponseBlock(publicResponse) {
 }
 
 /**
- * WORKFLOW_CARD — ``title``/``body``/``card_json``는 API 그대로 사용(상태 추측 없음).
+ * WORKFLOW_CARD — visible title/body from ``display_*`` only; ``card_json`` is actions/state.
  * @param {Record<string, unknown>} m
  * @param {Record<string, unknown> | null} up
  */
@@ -1902,8 +2149,9 @@ function renderWorkflowCardBubble(m, up) {
     .trim()
     .toUpperCase() || "WORKFLOW";
   const sk = String(m.workflow_step_key || (up && up.workflow_step_key) || cj.workflow_step_key || "").trim();
-  const title = String(m.display_title || m.title || "").trim();
-  const body = String(m.display_body || m.body || "").trim();
+  const title = workflowCardViewerTitle(m, t);
+  const body = workflowCardViewerBody(m, t);
+  // Visible copy only from API display_* (never card_json.title/body or raw m.title/m.body cross-locale).
   const wfId = String(
     m.workflow_instance_id ||
       (up && up.workflow_instance_id) ||
@@ -2168,11 +2416,12 @@ function renderChatBubbles(options = {}) {
   stream.innerHTML = currentThreadMessages
     .map((m) => {
       const mine = isMineDirection(m.direction);
-      const up =
-        m && typeof m === "object" && m.ui_payload && typeof m.ui_payload === "object"
-          ? /** @type {Record<string, unknown>} */ (m.ui_payload)
-          : null;
-      const wt = up ? String(up.widget_type || "").trim() : "";
+      const up = resolveMessageUiPayloadForDisplay(
+        m && typeof m === "object" ? /** @type {Record<string, unknown>} */ (m) : null
+      );
+      const wt = messageIntakeWidgetType(
+        m && typeof m === "object" ? /** @type {Record<string, unknown>} */ (m) : null
+      );
       const mt = String(m.message_type || "").trim().toUpperCase();
       const isWorkflowCard = mt === "WORKFLOW_CARD" || wt === "workflow_card";
       const isForm = wt === "form_prompt";
@@ -2195,7 +2444,7 @@ function renderChatBubbles(options = {}) {
         .join(" ");
       const resolvedTitle = isPartnerIntakeSummary
         ? t("messages.bubble.partner_intake_title", "Customer application")
-        : String(m.display_title || m.title || "").trim();
+        : messageViewerTitle(m, { translate: (key, fallback) => t(key, fallback) });
       const showTitle =
         !mine &&
         (Boolean(resolvedTitle) || isPartnerIntakeSummary) &&
@@ -2209,8 +2458,12 @@ function renderChatBubbles(options = {}) {
       if (isForm && up) {
         formBlock =
           operatorInboxMode ? renderFormPromptOperatorReadonly(up) : renderFormPromptInteractive(m, up);
+      } else if (isForm) {
+        formBlock = renderIntakeFormPreparingPlaceholder();
       } else if (isIntakeContent && up) {
         formBlock = renderIntakeThreadContentBlockBubble(up);
+      } else if (isIntakeContent) {
+        formBlock = renderIntakeFormPreparingPlaceholder();
       } else if (isWorkflowCard) {
         formBlock = renderWorkflowCardBubble(m, up);
       } else if (isBidComparisonEntry && meta) {
@@ -2222,9 +2475,8 @@ function renderChatBubbles(options = {}) {
       const viewOriginalToggle = messageViewOriginalToggleHtml(m);
       const reportTranslationAction = buildMessageTranslationReportHtml(m);
       const translationUnavailable = messageTranslationNoticeHtml(m);
-      const bodyBlock =
-        (isForm || isIntakeContent || isWorkflowCard || isBidComparisonEntry) &&
-        (up || isWorkflowCard || isBidComparisonEntry)
+      const usesStructuredBubble = isForm || isIntakeContent || isWorkflowCard || isBidComparisonEntry;
+      const bodyBlock = usesStructuredBubble
           ? formBlock
           : `<p class="lhai-chat-bubble__body">${escapeHtml(String(viewerBody))}</p>${translationUnavailable}${viewOriginalToggle}${reportTranslationAction}`;
       return `
@@ -2892,6 +3144,7 @@ function renderMessageDetailShell(threadMeta) {
 
 /** @param {Record<string, unknown> | null | undefined} threadMeta */
 function syncChatHeader(threadMeta) {
+  const meta = effectiveThreadHeaderMeta(threadMeta);
   const eyebrow = document.querySelector("#messageChatEyebrow");
   const badges = document.querySelector("#messageChatHeaderBadges");
   const subtitle = document.querySelector("#messageChatSubtitle");
@@ -2905,7 +3158,7 @@ function syncChatHeader(threadMeta) {
   ) {
     return;
   }
-  if (!threadMeta || !selectedThreadId) {
+  if (!meta || !selectedThreadId) {
     eyebrow.textContent = "";
     eyebrow.hidden = false;
     badges.innerHTML = "";
@@ -2914,25 +3167,25 @@ function syncChatHeader(threadMeta) {
     applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, "");
     return;
   }
-  const role = normalizeThreadRole(threadMeta);
+  const role = normalizeThreadRole(meta);
   const detailBadgeOpts = { forDetailHeader: true, omitDeliveryBadge: role !== "ADMIN" };
 
   if (operatorInboxMode) {
-    badges.innerHTML = threadListBadgesHtml(threadMeta, detailBadgeOpts);
+    badges.innerHTML = threadListBadgesHtml(meta, detailBadgeOpts);
     eyebrow.textContent = role === "ADMIN" ? t("messages.header.operator.admin_eyebrow", "Customer center (operator view)") : t("messages.header.operator.service_eyebrow", "Service (operator view)");
     eyebrow.hidden = false;
     if (role === "ADMIN") {
-      titleEl.textContent = adminThreadDisplayTitle(threadMeta, t);
+      titleEl.textContent = adminThreadDisplayTitle(meta, t);
       applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, "");
     } else {
-      titleEl.textContent = serviceThreadDisplayName(threadMeta);
-      applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, deliveryModeBadgeLabel(threadMeta));
+      titleEl.textContent = serviceThreadDisplayName(meta, "", t);
+      applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, deliveryModeBadgeLabel(meta));
     }
     if (role === "ADMIN") {
       subtitle.textContent = t("messages.header.operator.admin_subtitle", "Thread for account-wide customer inquiries and guidance.");
-    } else if (isInPersonServiceThread(threadMeta)) {
-      const summary = String(threadMeta.agent_assignment_summary || "").trim();
-      const nameOnly = String(threadMeta.assigned_agent_name || "").trim();
+    } else if (isInPersonServiceThread(meta)) {
+      const summary = String(meta.agent_assignment_summary || "").trim();
+      const nameOnly = String(meta.assigned_agent_name || "").trim();
       if (summary) subtitle.textContent = summary;
       else if (nameOnly) subtitle.textContent = localizedStatus("messages.header.agent_assigned", "Assigned agent: {name}", { name: nameOnly });
       else subtitle.textContent = t("messages.header.agent_pending", "Waiting for agent assignment.");
@@ -2946,32 +3199,32 @@ function syncChatHeader(threadMeta) {
     badges.innerHTML = "";
     eyebrow.textContent = t("messages.header.partner.eyebrow", "Partner inbox");
     eyebrow.hidden = false;
-    titleEl.textContent = serviceThreadDisplayName(threadMeta);
+    titleEl.textContent = serviceThreadDisplayName(meta, "", t);
     applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, "");
     subtitle.textContent = t("messages.header.partner.subtitle", "Review assigned customer service threads and chat with customers.");
     return;
   }
 
-  badges.innerHTML = threadListBadgesHtml(threadMeta, detailBadgeOpts);
+  badges.innerHTML = threadListBadgesHtml(meta, detailBadgeOpts);
 
   if (role === "ADMIN") {
     eyebrow.textContent = t("messages.thread.customer_center", "Customer center");
     eyebrow.hidden = false;
-    titleEl.textContent = adminThreadDisplayTitle(threadMeta, t);
+    titleEl.textContent = adminThreadDisplayTitle(meta, t);
     applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, "");
     subtitle.textContent = t("messages.header.customer.admin_subtitle", "Channel for operations, quotes, billing, payments, and general inquiries.");
     return;
   }
 
-  const dm = deliveryModeBadgeLabel(threadMeta);
+  const dm = deliveryModeBadgeLabel(meta);
   eyebrow.textContent = dm ? "" : t("messages.header.customer.service_eyebrow", "Service");
   eyebrow.hidden = !String(eyebrow.textContent || "").trim();
-  titleEl.textContent = serviceThreadDisplayName(threadMeta);
+  titleEl.textContent = serviceThreadDisplayName(meta, "", t);
   applyServiceDeliveryBadge(deliveryBadgeEl instanceof HTMLElement ? deliveryBadgeEl : null, dm);
 
-  if (isInPersonServiceThread(threadMeta)) {
-    const summary = String(threadMeta.agent_assignment_summary || "").trim();
-    const nameOnly = String(threadMeta.assigned_agent_name || "").trim();
+  if (isInPersonServiceThread(meta)) {
+    const summary = String(meta.agent_assignment_summary || "").trim();
+    const nameOnly = String(meta.assigned_agent_name || "").trim();
     if (summary) subtitle.textContent = summary;
     else if (nameOnly) subtitle.textContent = localizedStatus("messages.header.agent_assigned", "Assigned agent: {name}", { name: nameOnly });
     else subtitle.textContent = t("messages.header.agent_pending", "Waiting for agent assignment.");
@@ -2979,7 +3232,7 @@ function syncChatHeader(threadMeta) {
     subtitle.textContent =
       dm === "AI Agent"
         ? t("messages.header.customer.ai_agent_subtitle", "This service is guided by AI Agent within a limited scope.")
-        : handlerSubtitleKo(threadMeta.handler_type);
+        : handlerSubtitleKo(meta.handler_type);
   }
 }
 
@@ -3098,6 +3351,10 @@ async function loadThreadMessages(options = {}) {
     currentThreadMessages = [];
     currentThreadWorkflowSummary = null;
     currentThreadDetailThread = null;
+  }
+
+  if (!operatorInboxMode) {
+    reconcileThreadHeaderMetaAfterDetailLoad();
   }
 
   if (!operatorInboxMode && !partnerInboxMode && Array.isArray(currentThreadMessages) && currentThreadMessages.length) {
@@ -3324,7 +3581,6 @@ let messagesRealtimeStatusBound = false;
 let messagesPageVisibilityBound = false;
 /** ``"run"`` | ``"stop"`` | ``"safety"`` — 디버그 로그 스팸 방지 */
 let messagesLastFallbackPollDesired = null;
-let messagesLanguageRefetchBound = false;
 let messagesLanguageRefetchInFlight = false;
 
 function ensureMessagesPageVisibilityBinding() {
@@ -3831,6 +4087,8 @@ async function refreshMessagesPageOnLanguageChanged() {
     syncChatHeader(currentThreadHeaderMeta);
 
     try {
+      // Refetch so backend returns display_* / display_ui_payload for the new viewer locale.
+      // Do not translate ui_payload on the client.
       await loadThreadMessages({
         reason: "language-changed",
         skipInlineListBadgeSync: true,
@@ -3851,16 +4109,14 @@ async function refreshMessagesPageOnLanguageChanged() {
   }
 }
 
-function bindMessagesLanguageRefetch() {
-  if (messagesLanguageRefetchBound) return;
-  messagesLanguageRefetchBound = true;
-  window.addEventListener("lhai:language-changed", () => {
-    void refreshMessagesPageOnLanguageChanged();
-  });
-}
+wireDynamicPageI18nRefresh(() => {
+  void refreshMessagesPageOnLanguageChanged();
+});
 
-bindMessagesLanguageRefetch();
-wireDynamicPageI18nRefresh(refreshMessagesPageStaticI18n);
+wireDynamicPageI18nRefresh(refreshMessagesPageStaticI18n, {
+  runtimeResolvedOnly: true,
+  keyPrefixes: ["messages.", "common."],
+});
 
 async function refresh() {
   const threads = await fetchThreadsListForMessagesPage();
@@ -3981,24 +4237,28 @@ async function mountMessagesPageShell() {
 }
 
 async function initMessagesPage() {
+  if (!protectCurrentPage()) return;
+  if (!ensureCustomerAccess()) return;
+
   operatorInboxMode = canAccessAdminShell();
   partnerInboxMode = !operatorInboxMode && getCurrentRole() === ROLES.PARTNER;
-  syncHeaderRoleBadge();
-  try {
-    await mountMessagesPageShell();
-    await initPageI18nAndApplyDom(["common", "nav", "messages"], document);
-  } catch {
+
+  await bootAppPageContent(["common", "nav", "messages"], async () => {
+    syncHeaderRoleBadge();
     try {
-      await mountMessagesSidebar();
+      await mountMessagesPageShell();
     } catch {
-      /* ignore */
+      try {
+        await mountMessagesSidebar();
+      } catch {
+        /* ignore */
+      }
     }
-  }
+  });
+
   if (partnerInboxMode) {
     await refreshPartnerModeSession(partnerThreadsApi);
   }
-  if (!protectCurrentPage()) return;
-  if (!ensureCustomerAccess()) return;
 
   const filtersEl = document.querySelector(".lhai-message-filters");
   if (filtersEl instanceof HTMLElement) {
@@ -4099,12 +4359,18 @@ async function initMessagesPage() {
     }
     if (t instanceof Element && t.closest("[data-lhai-intake-submit]")) {
       const root = t.closest("[data-lhai-intake-form]");
-      if (root instanceof HTMLElement) void runIntakePromptSubmit(root, false);
+      if (root instanceof HTMLElement) {
+        if (root.hasAttribute("data-lhai-intake-submitted")) return;
+        void runIntakePromptSubmit(root, false);
+      }
       return;
     }
     if (t instanceof Element && t.closest("[data-lhai-intake-skip]")) {
       const root = t.closest("[data-lhai-intake-form]");
-      if (root instanceof HTMLElement) void runIntakePromptSubmit(root, true);
+      if (root instanceof HTMLElement) {
+        if (root.hasAttribute("data-lhai-intake-submitted")) return;
+        void runIntakePromptSubmit(root, true);
+      }
       return;
     }
     const wfBtn = t instanceof Element ? t.closest("[data-lhai-wf-action]") : null;

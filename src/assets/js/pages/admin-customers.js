@@ -2,6 +2,8 @@ import { adminApi } from "../core/api.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { formatDate, safeText } from "../core/utils.js";
 import { loadSidebar } from "../components/sidebar.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
+import { applyI18nToDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
 
 function customerDetailUrl(customerProfileId) {
   return `admin-customer-detail.html?customer_profile_id=${encodeURIComponent(
@@ -10,6 +12,7 @@ function customerDetailUrl(customerProfileId) {
 }
 
 function renderCustomerList(customers = []) {
+  adminCustomersCache = Array.isArray(customers) ? customers : [];
   const target = document.querySelector("#adminCustomersList");
   if (!target) return;
 
@@ -38,6 +41,18 @@ function renderCustomerList(customers = []) {
   `;
 }
 
+/** @type {Array<Record<string, unknown>>} */
+let adminCustomersCache = [];
+
+function refreshAdminCustomersPageI18n() {
+  applyI18nToDom(document);
+  renderCustomerList(adminCustomersCache);
+}
+
+wireDynamicPageI18nRefresh(refreshAdminCustomersPageI18n, {
+  keyPrefixes: ["admin.", "common."],
+});
+
 function wireOpenForm() {
   const form = document.querySelector("#adminCustomersOpenForm");
   const input = document.querySelector("#adminCustomersProfileId");
@@ -58,6 +73,7 @@ function wireOpenForm() {
 async function initAdminCustomersPage() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   await loadSidebar("#sidebar", "admin");
   wireOpenForm();
 
@@ -70,6 +86,7 @@ async function initAdminCustomersPage() {
       target.innerHTML = `<div class="lhai-state lhai-state--empty">목록 API 오류: ${safeText(err?.message || String(err))}. 프로필 ID로 직접 열어 주세요.</div>`;
     }
   }
+  });
 }
 
 void initAdminCustomersPage();

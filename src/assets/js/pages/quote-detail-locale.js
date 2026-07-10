@@ -1,17 +1,13 @@
 /**
- * 견적 확인 페이지: 설문 `preferred_language` 기준 UI 언어 및 API 번역 공백 시 폴백 문자열.
- * mix / other / 미입력 → ko
+ * Quote detail page — English/Korean fallback strings when runtime StringKey catalog is incomplete.
+ * Viewer UI language comes from ``getEffectiveLanguage()`` (account / ``?lang=`` URL).
+ * Survey intake ``preferred_language`` is not used for shell labels.
+ *
+ * Step 6 migration: keys seeded in ``app/seeds/page_locale_bundles_seed.py``.
+ * Status: ``scripts/page-locale-migration-status.json`` (KO local bundle temporary until runtime verified).
  */
 
-/** @param {unknown} quote */
-export function resolveQuoteUiLang(quote) {
-  const rd = quote?.request_details && typeof quote.request_details === "object" ? quote.request_details : {};
-  const survey = rd.survey_submission && typeof rd.survey_submission === "object" ? rd.survey_submission : {};
-  const common = survey.common_info && typeof survey.common_info === "object" ? survey.common_info : {};
-  const pref = (common.preferred_language || "").toString().trim().toLowerCase();
-  if (pref === "en" || pref === "english") return "en";
-  return "ko";
-}
+import { DEFAULT_LANGUAGE_CODE, normalizeSupportedLanguageCode } from "../core/preferred-language.js";
 
 const KO = {
   "common.header.brand.customer": "Landing Help AI",
@@ -51,6 +47,8 @@ const KO = {
   "customer.quote.loading": "견적을 불러오는 중입니다…",
   "customer.quote.empty": "아직 표시할 견적이 없습니다. 팀에서 제안이 오면 이 페이지에 나타납니다.",
   "customer.quote.load_error": "견적을 불러오지 못했습니다. 링크를 확인하거나 잠시 후 다시 시도해 주세요.",
+  "customer.quote.locale_refresh_failed":
+    "새 언어로 견적 내용을 다시 불러오지 못했습니다. 이전 내용을 표시합니다.",
 
   "customer.quote.hero.title": "견적이 준비되었습니다",
   "customer.quote.hero.subtitle": "요청하신 서비스에 대한 제안 내용을 확인해 주세요.",
@@ -289,6 +287,8 @@ const EN = {
   "customer.quote.loading": "Loading your quote…",
   "customer.quote.empty": "No quote is available here yet. When the team sends a proposal, it will appear on this page.",
   "customer.quote.load_error": "We couldn’t load this quote. Check the link or try again later.",
+  "customer.quote.locale_refresh_failed":
+    "Could not refresh quote details for the new language. Showing the previous version.",
 
   "customer.quote.hero.title": "Your quote is ready",
   "customer.quote.hero.subtitle": "Please review the proposal for your requested service.",
@@ -496,9 +496,9 @@ const EN = {
   "customer.quote.modal.reject.reason_placeholder": "Optional — e.g. timing, budget, or scope",
 };
 
-/** @param {string} lang */
+/** @param {string | null | undefined} lang */
 export function getQuoteLocaleBundle(lang) {
-  const l = (lang || "ko").toString().trim().toLowerCase();
-  if (l === "en") return EN;
-  return KO;
+  const code = normalizeSupportedLanguageCode(lang) || DEFAULT_LANGUAGE_CODE;
+  if (code === "ko") return { ...KO };
+  return { ...EN };
 }

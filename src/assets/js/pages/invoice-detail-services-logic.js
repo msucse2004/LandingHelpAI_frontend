@@ -63,7 +63,7 @@ function matchServiceTitleById(services, serviceItemId) {
   for (const s of services) {
     if (!s || typeof s !== "object") continue;
     if (String(s.id || "").trim() !== sid) continue;
-    const tit = String(s.title || "").trim();
+    const tit = String(s.display_title || s.title || "").trim();
     if (tit && !looksLikeUuid(tit)) return tit;
   }
   return "";
@@ -79,7 +79,7 @@ function resolveTitleFromItems(serviceItemId, items) {
   for (const it of items) {
     if (!it || typeof it !== "object") continue;
     if (String(it.service_item_id || "").trim() !== sid) continue;
-    const d = customerFriendlyLineLabel(String(it.description || "").trim());
+    const d = customerFriendlyLineLabel(String(it.display_description || it.description || "").trim());
     if (d) return d;
   }
   return "";
@@ -98,11 +98,11 @@ export function buildInvoiceServiceRows(invoice, quote) {
     const services = getSelectedServicesFromQuote(quote);
     const { serviceUnitPrices, adminFee } = readQuotePricingMeta(quote);
     const items = Array.isArray(quote.items) ? quote.items : [];
-    const pkg = String(invoice?.service_name || "").trim();
+    const pkg = String(invoice?.display_service_name || invoice?.service_name || "").trim();
 
     for (const s of services) {
       const id = String(s.id || "").trim();
-      let title = String(s.title || "").trim();
+      let title = String(s.display_title || s.title || "").trim();
       if (!title || looksLikeUuid(title)) {
         title = matchServiceTitleById(services, id) || resolveTitleFromItems(id, items);
       }
@@ -134,7 +134,7 @@ export function buildInvoiceServiceRows(invoice, quote) {
       let adminFromItems = 0;
       for (const it of items) {
         if (!it || typeof it !== "object") continue;
-        const desc = String(it.description || "").trim();
+        const desc = String(it.display_description || it.description || "").trim();
         const lineTotal = roundMoney2(Number(it.line_total) || 0);
         if (isAdminFeeLineLabel(desc)) {
           adminFromItems = Math.max(adminFromItems, lineTotal);
@@ -165,7 +165,7 @@ export function buildInvoiceServiceRows(invoice, quote) {
   }
 
   if (!rows.length) {
-    const pkg = String(invoice?.service_name || "").trim();
+    const pkg = String(invoice?.display_service_name || invoice?.service_name || "").trim();
     if (pkg) {
       const amt = roundMoney2(Number(invoice?.amount_due) || 0);
       rows.push({

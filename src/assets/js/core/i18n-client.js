@@ -263,6 +263,18 @@ function isEnglishPassthroughForLocale(lang, key, value) {
   return Boolean(en && value === en);
 }
 
+function containsHangul(text) {
+  return /[가-힣]/.test(String(text ?? ""));
+}
+
+/** Reject ``en`` catalog values that are Korean copy (bad runtime_resolver writes). */
+function isCorruptEnglishCatalogValue(lang, value, fallback) {
+  if (lang !== DEFAULT_LANG || !value) return false;
+  if (!containsHangul(value)) return false;
+  const fb = fallback !== undefined && fallback !== null ? String(fallback) : "";
+  return Boolean(fb && !containsHangul(fb));
+}
+
 /**
  * Translate key. If missing, return fallback or the key itself.
  * Missing keys with a non-empty fallback are queued for runtime backend resolution.
@@ -274,6 +286,9 @@ export function t(key, fallback) {
   const logicalKey = String(key);
   let value = _stringsByKey[logicalKey];
   if (isEnglishPassthroughForLocale(lang, logicalKey, value)) {
+    value = undefined;
+  }
+  if (isCorruptEnglishCatalogValue(lang, value, fallback)) {
     value = undefined;
   }
   if (value === undefined || value === null || value === "") {

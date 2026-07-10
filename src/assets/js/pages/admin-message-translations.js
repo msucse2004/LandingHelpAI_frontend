@@ -2,7 +2,7 @@
  * Admin — message body translation review (search, edit, approve, retry).
  */
 import { adminMessageTranslationAdminApi, messagesApi } from "../core/api.js";
-import { appPageLanguageReady } from "../core/app-page-i18n-boot.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { applyI18nToDom } from "../core/i18n-dom.js";
 import { t } from "../core/i18n-client.js";
@@ -521,7 +521,7 @@ function applyQueryParams() {
 async function init() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
-  await appPageLanguageReady;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   await loadSidebar("#sidebar", "admin");
   const main = qs("#main");
   if (main) applyI18nToDom(main);
@@ -529,6 +529,7 @@ async function init() {
   setStatus(t("localization.message_review.status_idle", "Search for a message to begin."));
   void loadReportedQueue();
   applyQueryParams();
+  });
 }
 
 void init();

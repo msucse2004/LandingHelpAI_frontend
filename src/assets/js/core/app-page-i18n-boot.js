@@ -4,15 +4,20 @@
  */
 
 import { canAccessAdminShell } from "./role-tiers.js";
-import { ensureRuntimeI18nDomListener, initPageI18nAndApplyDom, inferI18nDomainsFromDom } from "./i18n-dom.js";
+import { applyI18nToDom, ensureRuntimeI18nDomListener, initPageI18nAndApplyDom, inferI18nDomainsFromDom } from "./i18n-dom.js";
+import { flushRuntimeMissingKeysAfterPageApply, initI18nDomains } from "./i18n-client.js";
 import { getBodyI18nDomains } from "./public-page-i18n-config.js";
 import {
+  applyUiLanguageFromUrlQuery,
+  getEffectiveLanguage,
   getSessionLanguage,
   resolveAccountPreferredLanguageCode,
   setSavedLocalLanguage,
 } from "./preferred-language.js";
+import { installAppDialogI18n } from "./app-dialog.js";
 
 ensureRuntimeI18nDomListener();
+installAppDialogI18n();
 
 /** @type {Promise<void> | null} */
 let _bootPromise = null;
@@ -84,6 +89,7 @@ async function hydrateAuthenticatedLanguagePreference() {
 export function initAppPageI18n(root = document) {
   if (!_bootPromise) {
     _bootPromise = (async () => {
+      applyUiLanguageFromUrlQuery();
       await hydrateAuthenticatedLanguagePreference();
       await initPageI18nAndApplyDom(resolveAppPageI18nDomains(root), root);
     })().catch((err) => {
@@ -96,3 +102,23 @@ export function initAppPageI18n(root = document) {
 
 /** Await before rendering shell UI that depends on ``t()`` (header, sidebar, page). */
 export const appPageLanguageReady = initAppPageI18n();
+
+/**
+ * Standard logged-in page boot: shell i18n, page domains, render callback, DOM apply, runtime flush.
+ * @param {string[]} pageDomains
+ * @param {() => void | Promise<void>} [renderPage]
+ */
+export async function bootAppPageContent(pageDomains, renderPage) {
+  await appPageLanguageReady;
+  const domains = [...new Set((pageDomains || []).map((d) => String(d).trim()).filter(Boolean))];
+  try {
+    await initI18nDomains(domains, getEffectiveLanguage());
+  } catch {
+    /* keep declarative fallbacks when catalog API is unavailable */
+  }
+  if (typeof renderPage === "function") {
+    await renderPage();
+  }
+  applyI18nToDom(document);
+  await flushRuntimeMissingKeysAfterPageApply();
+}

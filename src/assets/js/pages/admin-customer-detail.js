@@ -3,6 +3,7 @@ import { loadBiddingNotificationDebugInto } from "./admin-bidding-notification-d
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { formatDate, formatMessageTimestamp, safeText } from "../core/utils.js";
 import { loadSidebar } from "../components/sidebar.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 
 /**
  * Admin customer 360 — Step 9: operator view shows API/DB values as-is (names, statuses, survey answers).
@@ -999,6 +1000,7 @@ async function fetchAndRenderCustomer360(customerProfileId) {
 async function initAdminCustomerDetailPage() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   await loadSidebar("#sidebar", "admin");
 
   const customerProfileId = resolveCustomerProfileIdFromUrl();
@@ -1021,6 +1023,7 @@ async function initAdminCustomerDetailPage() {
 
   wireEditDialog();
   await fetchAndRenderCustomer360(customerProfileId);
+  });
 }
 
 void initAdminCustomerDetailPage();

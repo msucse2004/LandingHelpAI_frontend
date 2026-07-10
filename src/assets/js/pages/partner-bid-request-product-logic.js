@@ -76,10 +76,10 @@ export function parseAttributesJson(json) {
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new Error("attributes JSON 형식이 올바르지 않습니다.");
+    throw new Error("attributes_json_invalid");
   }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("attributes는 JSON 객체여야 합니다.");
+    throw new Error("attributes_not_object");
   }
   return parsed;
 }
@@ -106,31 +106,38 @@ export function normalizePhotosForSubmit(photos) {
 /**
  * @param {Record<string, unknown>[]} offers
  * @param {{ requiresOfferPhotos?: boolean }} cfg
+ * @returns {{ code: string, params?: Record<string, number> } | null}
  */
 export function validateProductOffersForSubmit(offers, cfg) {
   const requirePhotos = cfg.requiresOfferPhotos === true;
-  if (!offers.length) return "최소 1개의 제안을 추가해 주세요.";
+  if (!offers.length) return { code: "min_offers" };
   for (let i = 0; i < offers.length; i += 1) {
     const o = offers[i];
-    const n = i + 1;
+    const offer = i + 1;
     const title = String(o.title || "").trim();
-    if (!title) return `제안 ${n}: 상품명(title)을 입력해 주세요.`;
+    if (!title) return { code: "title_required", params: { offer } };
     const total = Number(String(o.estimated_total || "").replace(/,/g, ""));
-    if (!Number.isFinite(total) || total <= 0) return `제안 ${n}: 예상 총액(estimated_total)을 입력해 주세요.`;
+    if (!Number.isFinite(total) || total <= 0) {
+      return { code: "estimated_total_required", params: { offer } };
+    }
     const pa = String(o.price_amount ?? "").trim();
     if (pa) {
       const nPa = Number(pa.replace(/,/g, ""));
-      if (!Number.isFinite(nPa) || nPa < 0) return `제안 ${n}: price_amount 형식이 올바르지 않습니다.`;
+      if (!Number.isFinite(nPa) || nPa < 0) return { code: "price_amount_invalid", params: { offer } };
     }
     const fees = String(o.fees ?? "").trim();
     if (fees) {
       const nFees = Number(fees.replace(/,/g, ""));
-      if (!Number.isFinite(nFees) || nFees < 0) return `제안 ${n}: fees 형식이 올바르지 않습니다.`;
+      if (!Number.isFinite(nFees) || nFees < 0) return { code: "fees_invalid", params: { offer } };
     }
     try {
       parseAttributesJson(String(o.attributes_json || ""));
     } catch (e) {
-      return `제안 ${n}: ${e instanceof Error ? e.message : "attributes 오류"}`;
+      const code =
+        e instanceof Error && (e.message === "attributes_json_invalid" || e.message === "attributes_not_object")
+          ? e.message
+          : "attributes_json_invalid";
+      return { code, params: { offer } };
     }
     const photos = Array.isArray(o.photos) ? o.photos : [];
     let hasPhoto = Boolean(String(o.thumbnail_url || "").trim());
@@ -138,14 +145,14 @@ export function validateProductOffersForSubmit(offers, cfg) {
       const row = p && typeof p === "object" ? p : {};
       if (String(row.url || "").trim() || String(row.thumbnail_url || "").trim()) hasPhoto = true;
       if (String(row.url || "").trim() && !/^https?:\/\//i.test(String(row.url).trim())) {
-        return `제안 ${n}: 사진 URL은 http(s)로 시작해야 합니다.`;
+        return { code: "photo_url_invalid", params: { offer } };
       }
     }
     if (requirePhotos && !hasPhoto) {
-      return `제안 ${n}: 최소 1장의 사진이 필요합니다.`;
+      return { code: "photos_min", params: { offer } };
     }
   }
-  return "";
+  return null;
 }
 
 /**

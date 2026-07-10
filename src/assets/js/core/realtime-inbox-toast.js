@@ -121,55 +121,55 @@ export function normalizeRealtimeMessageType(payload, data) {
  * @returns {{ title: string; body: string; cta: string; href: string }}
  */
 function resolveRealtimeEventCodeToastOverrides(role) {
-  const systemCta = t("common.header.realtime_system_toast_cta", "안내 확인하기");
+  const systemCta = t("common.header.realtime_system_toast_cta", "View update");
   const customer = {
     "customer.bidding.partner_selected": {
-      title: t("common.header.realtime_partner_selected_title", "파트너 선택이 완료되었습니다"),
+      title: t("common.header.realtime_partner_selected_title", "Partner selection complete"),
       body: t(
         "common.header.realtime_partner_selected_body",
-        "메시지함에서 다음 단계를 확인해 주세요.",
+        "Open Messages to see the next step.",
       ),
       cta: systemCta,
     },
     "thread.intake.completed": {
-      title: t("common.header.realtime_intake_completed_title", "필수 정보 입력이 완료되었습니다"),
+      title: t("common.header.realtime_intake_completed_title", "Required information submitted"),
       body: t(
         "common.header.realtime_intake_completed_body",
-        "제출 내용을 바탕으로 다음 단계를 준비합니다.",
+        "We are preparing the next step based on your submission.",
       ),
       cta: systemCta,
     },
     "intake.bidding.requests_sent": {
-      title: t("common.header.realtime_bidding_started_title", "견적 요청이 전송되었습니다"),
+      title: t("common.header.realtime_bidding_started_title", "Quote request sent"),
       body: t(
         "common.header.realtime_bidding_started_body",
-        "파트너 제안이 도착하면 메시지함에서 확인할 수 있습니다.",
+        "Partner proposals will appear in Messages when they arrive.",
       ),
       cta: systemCta,
     },
     "thread.bidding.comparison_entry": {
-      title: t("common.header.realtime_bid_comparison_title", "자동차 견적 요청이 시작되었습니다"),
+      title: t("common.header.realtime_bid_comparison_title", "Vehicle quote request started"),
       body: t(
         "common.header.realtime_bid_comparison_body",
-        "견적 비교 화면에서 파트너 제안을 확인할 수 있습니다.",
+        "Review partner proposals on the comparison screen.",
       ),
       cta: systemCta,
     },
     "customer.bidding.new_round_requested": {
-      title: t("common.header.realtime_new_bid_round_title", "새 견적 라운드가 시작되었습니다"),
+      title: t("common.header.realtime_new_bid_round_title", "A new quote round has started"),
       body: t(
         "common.header.realtime_new_bid_round_body",
-        "메시지함에서 안내를 확인해 주세요.",
+        "Check Messages for guidance.",
       ),
       cta: systemCta,
     },
   };
   const partner = {
     "partner.bidding.quote_selected": {
-      title: t("common.header.realtime_quote_selected_title", "고객이 견적을 선택했습니다"),
+      title: t("common.header.realtime_quote_selected_title", "The customer selected your quote"),
       body: t(
         "common.header.realtime_quote_selected_body",
-        "메시지함에서 대화를 확인해 주세요.",
+        "Open Messages to continue the conversation.",
       ),
       cta: systemCta,
     },
@@ -207,35 +207,35 @@ export function resolveMessageCreatedToastCopy(ctx) {
 
   if (kind === "SYSTEM") {
     return {
-      title: t("common.header.realtime_system_toast_title", "새 안내가 도착했습니다"),
+      title: t("common.header.realtime_system_toast_title", "New service update"),
       body:
         preview ||
         t(
           "common.header.realtime_system_toast_body",
-          "서비스 진행 관련 새로운 안내를 확인해 주세요.",
+          "Review the latest guidance about your service.",
         ),
-      cta: t("common.header.realtime_system_toast_cta", "안내 확인하기"),
+      cta: t("common.header.realtime_system_toast_cta", "View update"),
       href,
     };
   }
 
   if (kind === "AI") {
     return {
-      title: t("common.header.realtime_ai_toast_title", "새 안내가 도착했습니다"),
+      title: t("common.header.realtime_ai_toast_title", "New guidance from Landing Help AI"),
       body:
         preview ||
-        t("common.header.realtime_ai_toast_body", "Landing Help AI의 답변을 확인해 주세요."),
-      cta: t("common.header.realtime_ai_toast_cta", "확인하기"),
+        t("common.header.realtime_ai_toast_body", "Review the response from Landing Help AI."),
+      cta: t("common.header.realtime_ai_toast_cta", "View"),
       href,
     };
   }
 
   return {
-    title: t("common.header.realtime_inbox_toast_title", "새 메시지가 도착했습니다"),
+    title: t("common.header.realtime_inbox_toast_title", "New message received"),
     body:
       preview ||
-      t("common.header.realtime_inbox_toast_body", "메시지함에서 확인해 주세요."),
-    cta: t("common.header.realtime_chat_toast_cta", "메시지 보기"),
+      t("common.header.realtime_inbox_toast_body", "Open Messages to read it."),
+    cta: t("common.header.realtime_chat_toast_cta", "View message"),
     href,
   };
 }
@@ -254,9 +254,9 @@ export function showGlobalRealtimeInboxToast(opts) {
   }
   const title = escapeHtml(opts.title || "");
   const body = opts.body ? escapeHtml(opts.body) : "";
-  const cta = escapeHtml(opts.cta || t("common.header.realtime_inbox_toast_cta", "메시지함 열기"));
-  const closeLabel = escapeHtml(t("common.header.message_toast_close", "닫기"));
-  const closeAria = escapeHtml(t("common.header.message_toast_close_aria", "알림 닫기"));
+  const cta = escapeHtml(opts.cta || t("common.header.realtime_inbox_toast_cta", "Open Messages"));
+  const closeLabel = escapeHtml(t("common.header.message_toast_close", "Close"));
+  const closeAria = escapeHtml(t("common.header.message_toast_close_aria", "Close notification"));
   root.innerHTML = `
     <div class="lhai-message-toast" role="status" aria-live="polite">
       <div class="lhai-message-toast__title">${title}</div>

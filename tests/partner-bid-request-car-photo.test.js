@@ -13,14 +13,14 @@ const logicPath =
 
 test("validateBidOfferPhotoFile rejects oversize and unsupported types", async () => {
   const m = await importFresh(logicPath);
-  assert.equal(m.validateBidOfferPhotoFile(null), "빈 파일입니다.");
+  assert.equal(m.validateBidOfferPhotoFile(null), "empty");
   const badType = new File([new Uint8Array([1])], "x.pdf", { type: "application/pdf" });
-  assert.equal(m.validateBidOfferPhotoFile(badType), "JPEG, PNG, WebP 형식만 업로드할 수 있습니다.");
+  assert.equal(m.validateBidOfferPhotoFile(badType), "bad_type");
   const huge = new File([new Uint8Array([1])], "big.jpg", {
     type: "image/jpeg",
   });
   Object.defineProperty(huge, "size", { value: m.MAX_BID_OFFER_PHOTO_BYTES + 1 });
-  assert.equal(m.validateBidOfferPhotoFile(huge), "파일당 최대 8MB까지 업로드할 수 있습니다.");
+  assert.equal(m.validateBidOfferPhotoFile(huge), "too_large");
   const ok = new File([new Uint8Array([1, 2, 3])], "ok.png", { type: "image/png" });
   assert.equal(m.validateBidOfferPhotoFile(ok), null);
 });

@@ -4,6 +4,8 @@
 import { adminApi } from "../core/api.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
 import { normalizePartnerTypesFromApi, partnerTypeOptionDisplayText } from "./admin-partner-type-options.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
+import { applyI18nToDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
 
 const tbody = document.getElementById("partnersTableBody");
 const loadStatus = document.getElementById("partnersLoadStatus");
@@ -159,6 +161,33 @@ function rowTemplate(row) {
   return tr;
 }
 
+/** @type {Array<Record<string, unknown>>} */
+let partnersRowsCache = [];
+
+function renderPartnersTableRows(rows) {
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  if (!rows.length) {
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td colspan="9" class="lhai-state lhai-state--empty">표시할 파트너가 없습니다. 상단에서 필터를 바꾸거나 파트너를 추가하세요.</td>';
+    tbody.appendChild(tr);
+    return;
+  }
+  for (const row of rows) {
+    tbody.appendChild(rowTemplate(row));
+  }
+}
+
+function refreshAdminPartnersPageI18n() {
+  applyI18nToDom(document.querySelector("main") || document);
+  renderPartnersTableRows(partnersRowsCache);
+}
+
+wireDynamicPageI18nRefresh(refreshAdminPartnersPageI18n, {
+  keyPrefixes: ["admin.", "common."],
+});
+
 async function loadPartnersTable() {
   if (!tbody) return;
   setPageAlert("");
@@ -187,16 +216,8 @@ async function loadPartnersTable() {
   }
 
   setLoadStatus(rows.length ? `총 ${rows.length}건` : "조건에 맞는 파트너가 없습니다.");
-  if (!rows.length) {
-    const tr = document.createElement("tr");
-    tr.innerHTML =
-      '<td colspan="9" class="lhai-state lhai-state--empty">표시할 파트너가 없습니다. 상단에서 필터를 바꾸거나 파트너를 추가하세요.</td>';
-    tbody.appendChild(tr);
-    return;
-  }
-  for (const row of rows) {
-    tbody.appendChild(rowTemplate(row));
-  }
+  partnersRowsCache = rows;
+  renderPartnersTableRows(rows);
 }
 
 function toggleCreateAccountFields() {
@@ -410,8 +431,10 @@ refreshBtn?.addEventListener("click", () => void loadPartnersTable());
 async function init() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   await loadPartnerTypes();
   await loadPartnersTable();
+  });
 }
 
 void init();

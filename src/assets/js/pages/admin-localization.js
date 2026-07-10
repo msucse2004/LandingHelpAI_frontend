@@ -4,7 +4,7 @@
  * UI Strings tab matches Excel export columns: key + locale text only (no status/domain/category).
  */
 import { adminI18nStringsApi } from "../core/api.js";
-import { appPageLanguageReady } from "../core/app-page-i18n-boot.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 import { ensureTierAccess, protectCurrentPage, ROLE_TIER } from "../core/guards.js";
 import { applyI18nToDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
 import {
@@ -1363,13 +1363,14 @@ async function initAdminLocalizationPage() {
     window.location.href = "dashboard.html";
     return;
   }
-  await appPageLanguageReady;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   await loadSidebar("#sidebar", "admin");
   const main = document.getElementById("main");
   if (main) applyI18nToDom(main);
   await loadDomainOptions();
   bindEvents();
   activatePanel("panel-ui-strings");
+  });
 }
 
 void initAdminLocalizationPage();

@@ -277,7 +277,13 @@ function shouldRunDynamicI18nRefresh(options, detail, keys) {
 /**
  * Re-run a page render callback when the UI language changes or runtime keys resolve.
  * @param {() => void} callback
- * @param {{ keyPrefix?: string, keyPrefixes?: string[], shouldRefresh?: (detail: { language?: string, keys?: string[] }) => boolean }} [options]
+ * @param {{
+ *   keyPrefix?: string,
+ *   keyPrefixes?: string[],
+ *   shouldRefresh?: (detail: { language?: string, keys?: string[] }) => boolean,
+ *   languageChangeOnly?: boolean,
+ *   runtimeResolvedOnly?: boolean,
+ * }} [options]
  */
 export function wireDynamicPageI18nRefresh(callback, options = {}) {
   if (typeof window === "undefined" || typeof callback !== "function") return;
@@ -299,7 +305,8 @@ export function wireDynamicPageI18nRefresh(callback, options = {}) {
   wireDynamicPageI18nRefresh._listenersInstalled = true;
 
   window.addEventListener("lhai:language-changed", () => {
-    for (const cb of wireDynamicPageI18nRefresh._entries.keys()) {
+    for (const [cb, entryOptions] of wireDynamicPageI18nRefresh._entries.entries()) {
+      if (entryOptions.runtimeResolvedOnly) continue;
       run(cb);
     }
   });
@@ -308,6 +315,7 @@ export function wireDynamicPageI18nRefresh(callback, options = {}) {
     const detail = event?.detail || {};
     const keys = detail.keys;
     for (const [cb, entryOptions] of wireDynamicPageI18nRefresh._entries.entries()) {
+      if (entryOptions.languageChangeOnly) continue;
       if (!shouldRunDynamicI18nRefresh(entryOptions, detail, keys)) continue;
       run(cb);
     }

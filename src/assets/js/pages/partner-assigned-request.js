@@ -8,10 +8,58 @@ import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { syncHeaderRoleBadge } from "../core/role-header-badge.js";
 import { clearShellTopLayerBlockers } from "../core/ui-blockers.js";
 import { formatMessageTimestamp } from "../core/utils.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
+import { applyI18nToDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
 
 const ERR_GENERIC = "정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
 const ERR_403 = "이 신청에 접근할 권한이 없습니다.";
 const ERR_404 = "신청 정보를 찾을 수 없습니다.";
+
+let partnerAssignedThreadId = "";
+/** @type {Record<string, unknown> | null} */
+let partnerAssignedDetailCache = null;
+
+function readPartnerAssignedChatPreserve() {
+  const input = document.querySelector("#partnerAssignedChatInput");
+  if (!(input instanceof HTMLTextAreaElement)) return null;
+  return {
+    value: input.value,
+    selectionStart: input.selectionStart,
+    selectionEnd: input.selectionEnd,
+  };
+}
+
+function restorePartnerAssignedChatPreserve(preserve) {
+  if (!preserve) return;
+  const input = document.querySelector("#partnerAssignedChatInput");
+  if (!(input instanceof HTMLTextAreaElement)) return;
+  input.value = preserve.value;
+  try {
+    input.setSelectionRange(preserve.selectionStart, preserve.selectionEnd);
+  } catch {
+    /* ignore */
+  }
+}
+
+async function refreshPartnerAssignedPageForViewerLanguage() {
+  const preserve = readPartnerAssignedChatPreserve();
+  applyI18nToDom(document);
+  if (!partnerAssignedThreadId) return;
+  try {
+    const detail = await partnerThreadsApi.threadDetail(partnerAssignedThreadId);
+    partnerAssignedDetailCache = /** @type {Record<string, unknown>} */ (detail);
+    applyDetailToDom(partnerAssignedDetailCache, partnerAssignedThreadId);
+  } catch {
+    if (partnerAssignedDetailCache) {
+      applyDetailToDom(partnerAssignedDetailCache, partnerAssignedThreadId);
+    }
+  }
+  restorePartnerAssignedChatPreserve(preserve);
+}
+
+wireDynamicPageI18nRefresh(() => {
+  void refreshPartnerAssignedPageForViewerLanguage();
+}, { keyPrefixes: ["partner.", "common."] });
 
 /** @param {string} code */
 function statusLabelKo(code) {
@@ -111,8 +159,10 @@ function messageRoleLabel(m) {
 
 /** @param {Record<string, unknown>} m */
 function messageBodyText(m) {
-  const title = String(m.title || "").trim();
-  const body = String(m.body || "").trim();
+  const displayTitle = String(m.display_title || "").trim();
+  const displayBody = String(m.display_body || "").trim();
+  const title = displayTitle || String(m.title || "").trim();
+  const body = displayBody || String(m.body || "").trim();
   if (title && body && title !== body) return `${title}\n\n${body}`;
   return body || title || "—";
 }
@@ -189,8 +239,14 @@ function applyDetailToDom(detail, threadId) {
       intakeBody.innerHTML = answers
         .map((row) => {
           const r = row && typeof row === "object" ? /** @type {Record<string, unknown>} */ (row) : {};
-          const label = escHtml(String(r.label ?? "—"));
-          const value = escHtml(String(r.value ?? "—"));
+          const label = escHtml(
+            String(
+              r.display_label != null && String(r.display_label).trim()
+                ? r.display_label
+                : r.label ?? "—",
+            ),
+          );
+          const value = escHtml(String(r.display_value ?? r.value ?? "—"));
           return `<div class="lhai-par-detail__intake-item"><p class="lhai-par-detail__intake-q">${label}</p><p class="lhai-par-detail__intake-a">${value}</p></div>`;
         })
         .join("");
@@ -212,6 +268,7 @@ async function initPartnerAssignedRequest() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
 
+  await bootAppPageContent(["common", "nav", "partner"], async () => {
   await mountPartnerShell("#app", {
     pageKey: "bid_requests",
     documentTitle: "배정 신청 상세 - Landing Help AI",
@@ -249,6 +306,9 @@ async function initPartnerAssignedRequest() {
     errEl.hidden = true;
     errEl.textContent = "";
   }
+
+  partnerAssignedThreadId = threadId;
+  partnerAssignedDetailCache = detail && typeof detail === "object" ? /** @type {Record<string, unknown>} */ (detail) : null;
 
   applyDetailToDom(detail, threadId);
 
@@ -292,6 +352,7 @@ async function initPartnerAssignedRequest() {
     });
   }
   clearShellTopLayerBlockers();
+  });
 }
 
 void initPartnerAssignedRequest();

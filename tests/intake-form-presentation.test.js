@@ -109,11 +109,19 @@ test("resolveIntakeFieldInitialValue uses prefill_resolved_value when value empt
   assert.equal(resolveIntakeFieldInitialValue(row), "Bryan");
 });
 test("intakeRequiredFieldError includes field label", async () => {
-  const { intakeRequiredFieldError, intakeRequiredFieldErrorForInputType } = await importFreshLogic();
+  const { intakeRequiredFieldError, intakeRequiredFieldErrorForInputType, intakeViewerFieldLabel } = await importFreshLogic();
   assert.equal(intakeRequiredFieldError("차량 브랜드", "select"), "「차량 브랜드」을(를) 선택해 주세요.");
   assert.equal(
     intakeRequiredFieldErrorForInputType("차량 구매 총 예산", "currency_usd"),
     "「차량 구매 총 예산」을(를) 입력해 주세요."
+  );
+  assert.equal(
+    intakeViewerFieldLabel({ label: "한국어", display_label: "Current region" }),
+    "Current region",
+  );
+  assert.equal(
+    intakeRequiredFieldError({ label: "한국어", display_label: "Current region" }, "select"),
+    "Please select 「Current region」.",
   );
 });
 

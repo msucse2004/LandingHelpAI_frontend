@@ -2,6 +2,7 @@ import { getSession, setSession } from "../core/auth.js";
 import { userPreferencesApi } from "../core/api.js";
 import { getCurrentRoleTierLabelKo, protectCurrentPage } from "../core/guards.js";
 import { applyLanguageChangeToPage } from "../core/i18n-dom.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 import {
   getEffectiveLanguage,
   getSupportedLanguageDisplayLabel,
@@ -64,6 +65,7 @@ function renderSessionRows(session) {
 
 async function main() {
   if (!protectCurrentPage()) return;
+  await bootAppPageContent(["common", "nav", "admin"], async () => {
   const session = getSession();
   if (!session || !profileDl) {
     profileEmpty?.removeAttribute("hidden");
@@ -103,6 +105,7 @@ async function main() {
         submitBtn.removeAttribute("aria-busy");
       }
     }
+  });
   });
 }
 

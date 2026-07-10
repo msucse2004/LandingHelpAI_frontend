@@ -1,6 +1,6 @@
 <!doctype html>
 
-<html lang="ko">
+<html lang="en">
 
 <head>
 
@@ -10,7 +10,7 @@
 
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml" />
 
-  <title>견적 확인 - Landing Help AI</title>
+  <title data-i18n="customer.quote.page_title" data-i18n-default="Review your quote - Landing Help AI">Review your quote - Landing Help AI</title>
 
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
 
@@ -20,19 +20,19 @@
 
 </head>
 
-<body>
+<body data-lhai-i18n-domains="common,nav,quote">
 
     <div id="lhai-app-header-root"></div>
 
   <div class="lhai-layout">
 
-    <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial customer-sidebar.html --></aside>
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.customer.aria_label" data-i18n-default="Customer menu" aria-label="Customer menu"><!-- TODO: load partial customer-sidebar.html --></aside>
 
     <main class="lhai-main">
 
       <section class="lhai-page-header lhai-quote-page-header">
 
-        <h1 class="lhai-title lhai-quote-page-header__title" id="quotePageTitle" data-i18n="customer.quote.page_title">Review your quote</h1>
+        <h1 class="lhai-title lhai-quote-page-header__title" id="quotePageTitle" data-i18n="customer.quote.page_title" data-i18n-default="Review your quote">Review your quote</h1>
 
       </section>
 
@@ -40,9 +40,9 @@
 
       <section class="lhai-card lhai-quote-view">
 
-        <div id="quoteLoadingState" class="lhai-state lhai-state--loading">Loading your quote…</div>
+        <div id="quoteLoadingState" class="lhai-state lhai-state--loading" data-i18n="customer.quote.loading" data-i18n-default="Loading your quote…">Loading your quote…</div>
 
-        <div id="quoteEmptyState" class="lhai-state lhai-state--empty" style="display:none;">
+        <div id="quoteEmptyState" class="lhai-state lhai-state--empty" style="display:none;" data-i18n="customer.quote.empty" data-i18n-default="No quote is available here yet. When the team sends a proposal, it will appear on this page.">
 
           No quote is available here yet. When the team sends a proposal, it will appear on this page.
 
@@ -88,9 +88,10 @@
 
                   role="group"
 
-                  aria-label="Quote decision"
+                  aria-label="Decide on this quote"
 
-                  data-i18n-aria="customer.quote.hero.actions_group"
+                  data-i18n-aria-label="customer.quote.hero.actions_group"
+                  data-i18n-default="Decide on this quote"
 
                 >
 
@@ -366,7 +367,7 @@
 
           <section class="lhai-quote-customer-note" id="quoteCustomerNoteSection" hidden>
 
-            <h2 class="lhai-card__title" id="quoteCustomerNoteTitle">Note from your team</h2>
+            <h2 class="lhai-card__title" id="quoteCustomerNoteTitle" data-i18n="customer.quote.customer_note_title" data-i18n-default="Note from your team">Note from your team</h2>
 
             <p id="quoteCustomerNote" class="u-text-muted"></p>
 
@@ -402,9 +403,10 @@
 
                 role="group"
 
-                aria-label="Quote decision"
+                aria-label="Decide on this quote"
 
-                data-i18n-aria="customer.quote.hero.actions_group"
+                data-i18n-aria-label="customer.quote.hero.actions_group"
+                data-i18n-default="Decide on this quote"
 
               >
 
@@ -576,7 +578,7 @@
 
   <script type="module" src="../assets/js/core/admin-user-menu.js?v=20260403"></script>
 
-  <script type="module" src="../assets/js/pages/quote-detail.js?v=20260519g"></script>
+  <script type="module" src="../assets/js/pages/quote-detail.js?v=20260709a"></script>
 
 </body>
 

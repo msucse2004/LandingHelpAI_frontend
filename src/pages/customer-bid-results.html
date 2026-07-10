@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>견적 제안 비교 — Landing Help AI</title>
+  <title data-i18n="customer.bid_results.page_title" data-i18n-default="Compare bid offers - Landing Help AI">Compare bid offers - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" />
   <link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" />
@@ -11,22 +11,22 @@
   <link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/customer-bid-results.css" />
 </head>
-<body data-lhai-page="customer-bid-results">
+<body data-lhai-page="customer-bid-results" data-lhai-i18n-domains="common,nav">
   <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar"></aside>
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.customer.aria_label" data-i18n-default="Customer menu" aria-label="Customer menu"></aside>
     <main class="lhai-main lhai-cbr-page">
-      <p class="lhai-cbr-back"><a id="cbrBackLink" href="messages.html">← 메시지함으로</a></p>
+      <p class="lhai-cbr-back"><a id="cbrBackLink" href="messages.html" data-i18n="customer.bid_results.back_link" data-i18n-default="← Back to messages">← Back to messages</a></p>
 
       <section class="lhai-page-header">
         <div>
-          <h1 class="lhai-title">견적 제안 비교</h1>
-          <p class="lhai-subtitle">파트너가 제출한 제안을 한곳에서 비교하고 선택할 수 있습니다.</p>
+          <h1 class="lhai-title" data-i18n="customer.bid_results.title" data-i18n-default="Compare bid offers">Compare bid offers</h1>
+          <p class="lhai-subtitle" data-i18n="customer.bid_results.subtitle" data-i18n-default="Review partner proposals in one place and choose the offer that fits you best.">Review partner proposals in one place and choose the offer that fits you best.</p>
         </div>
       </section>
 
       <p id="cbrError" class="lhai-state lhai-state--error" role="alert" hidden></p>
-      <p id="cbrLoading" class="lhai-cbr-loading">제안을 불러오는 중…</p>
+      <p id="cbrLoading" class="lhai-cbr-loading" data-i18n="customer.bid_results.loading" data-i18n-default="Loading offers…">Loading offers…</p>
 
       <div id="cbrMain" hidden>
         <div id="cbrCountdownBanner" class="lhai-cbr-countdown" hidden role="status"></div>
@@ -34,45 +34,45 @@
         <div id="cbrConversationBanner" class="lhai-cbr-conversation lhai-cbr-banner--success" hidden role="status"></div>
         <div id="cbrStatusBanner" class="lhai-cbr-banner" hidden role="status"></div>
 
-        <section class="lhai-card lhai-cbr-summary" aria-label="비딩 요약">
+        <section class="lhai-card lhai-cbr-summary" data-i18n-aria-label="customer.bid_results.summary.aria" data-i18n-default="Bidding summary" aria-label="Bidding summary">
           <dl class="lhai-cbr-summary__grid">
-            <div><dt>비딩 상태</dt><dd id="cbrBidStatus">—</dd></div>
-            <div><dt>남은 시간</dt><dd id="cbrCountdown">—</dd></div>
-            <div><dt>총 제안</dt><dd><span id="cbrOfferCount">0</span>개</dd></div>
-            <div><dt>새 비딩 요청</dt><dd id="cbrQuoteUsage">—</dd></div>
+            <div><dt data-i18n="customer.bid_results.summary.bid_status" data-i18n-default="Bid status">Bid status</dt><dd id="cbrBidStatus">—</dd></div>
+            <div><dt data-i18n="customer.bid_results.summary.time_remaining" data-i18n-default="Time remaining">Time remaining</dt><dd id="cbrCountdown">—</dd></div>
+            <div><dt data-i18n="customer.bid_results.summary.total_offers" data-i18n-default="Total offers">Total offers</dt><dd><span id="cbrOfferCount">0</span> <span data-i18n="customer.bid_results.summary.offers_suffix" data-i18n-default="offers">offers</span></dd></div>
+            <div><dt data-i18n="customer.bid_results.summary.new_bid_request" data-i18n-default="New bid requests">New bid requests</dt><dd id="cbrQuoteUsage">—</dd></div>
           </dl>
           <div class="lhai-cbr-new-round">
-            <button type="button" class="lhai-button lhai-button--secondary" id="cbrNewRoundBtn" hidden>
-              이 라운드를 종료하고 새 제안 요청
+            <button type="button" class="lhai-button lhai-button--secondary" id="cbrNewRoundBtn" hidden data-i18n="customer.bid_results.new_round_btn" data-i18n-default="End this round and request new offers">
+              End this round and request new offers
             </button>
             <p id="cbrNewRoundHint" class="lhai-cbr-new-round__hint u-text-muted" hidden></p>
           </div>
         </section>
 
-        <nav id="cbrTabs" class="lhai-cbr-tabs" aria-label="제안 탭" hidden></nav>
+        <nav id="cbrTabs" class="lhai-cbr-tabs" data-i18n-aria-label="customer.bid_results.tabs_aria" data-i18n-default="Offer tabs" aria-label="Offer tabs" hidden></nav>
 
         <section class="lhai-card lhai-cbr-toolbar">
           <label class="lhai-field">
-            <span class="lhai-label">정렬</span>
+            <span class="lhai-label" data-i18n="customer.bid_results.sort.label" data-i18n-default="Sort">Sort</span>
             <select id="cbrSort"></select>
           </label>
           <div id="cbrFilters" class="lhai-cbr-filters">
-            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterPhotos" /> 사진 있음</label>
-            <label class="lhai-checkbox" id="cbrFilterBudgetWrap" hidden><input type="checkbox" id="cbrFilterBudget" /> 예산 안</label>
+            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterPhotos" /> <span data-i18n="customer.bid_results.filter.has_photos" data-i18n-default="Has photos">Has photos</span></label>
+            <label class="lhai-checkbox" id="cbrFilterBudgetWrap" hidden><input type="checkbox" id="cbrFilterBudget" /> <span data-i18n="customer.bid_results.filter.within_budget" data-i18n-default="Within budget">Within budget</span></label>
             <label class="lhai-field">
-              <span class="lhai-label">카테고리</span>
-              <select id="cbrFilterCategory"><option value="">전체</option></select>
+              <span class="lhai-label" data-i18n="customer.bid_results.filter.category" data-i18n-default="Category">Category</span>
+              <select id="cbrFilterCategory"><option value="" data-i18n="customer.bid_results.filter.all" data-i18n-default="All">All</option></select>
             </label>
             <label class="lhai-field">
-              <span class="lhai-label">파트너</span>
-              <select id="cbrFilterPartner"><option value="">전체</option></select>
+              <span class="lhai-label" data-i18n="customer.bid_results.filter.partner" data-i18n-default="Partner">Partner</span>
+              <select id="cbrFilterPartner"><option value="" data-i18n="customer.bid_results.filter.all" data-i18n-default="All">All</option></select>
             </label>
             <label class="lhai-field">
-              <span class="lhai-label">위치</span>
-              <select id="cbrFilterLocation"><option value="">전체</option></select>
+              <span class="lhai-label" data-i18n="customer.bid_results.filter.location" data-i18n-default="Location">Location</span>
+              <select id="cbrFilterLocation"><option value="" data-i18n="customer.bid_results.filter.all" data-i18n-default="All">All</option></select>
             </label>
-            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterAlt" checked /> 대안 포함</label>
-            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterUpdated" /> 업데이트된 제안만</label>
+            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterAlt" checked /> <span data-i18n="customer.bid_results.filter.include_alternatives" data-i18n-default="Include alternatives">Include alternatives</span></label>
+            <label class="lhai-checkbox"><input type="checkbox" id="cbrFilterUpdated" /> <span data-i18n="customer.bid_results.filter.updated_only" data-i18n-default="Updated offers only">Updated offers only</span></label>
           </div>
         </section>
 
@@ -87,36 +87,36 @@
     <div class="lhai-cbr-modal__inner">
       <div id="cbrDetailBody" class="lhai-cbr-modal__body"></div>
       <div class="lhai-cbr-modal__foot">
-        <button type="button" class="lhai-button lhai-button--secondary" id="cbrDetailClose">닫기</button>
-        <button type="button" class="lhai-button lhai-button--primary" id="cbrDetailSelect" hidden>Select this offer</button>
+        <button type="button" class="lhai-button lhai-button--secondary" id="cbrDetailClose" data-i18n="customer.bid_results.modal.close" data-i18n-default="Close">Close</button>
+        <button type="button" class="lhai-button lhai-button--primary" id="cbrDetailSelect" hidden data-i18n="customer.bid_results.modal.select" data-i18n-default="Select this offer">Select this offer</button>
       </div>
     </div>
   </dialog>
 
   <dialog id="cbrNewRoundModal" class="lhai-cbr-modal">
     <div class="lhai-cbr-modal__inner">
-      <h3 class="lhai-cbr-modal__title">새 제안을 요청할까요?</h3>
-      <p>현재 비딩 라운드가 종료되고, 파트너에게 새 제안 제출을 요청합니다.</p>
+      <h3 class="lhai-cbr-modal__title" data-i18n="customer.bid_results.new_round_modal.title" data-i18n-default="Request new offers?">Request new offers?</h3>
+      <p data-i18n="customer.bid_results.new_round_modal.body" data-i18n-default="This bidding round will end and partners will be asked to submit new proposals.">This bidding round will end and partners will be asked to submit new proposals.</p>
       <p id="cbrNewRoundRemaining" class="lhai-cbr-new-round__remaining"></p>
       <label class="lhai-field lhai-cbr-new-round__reason">
-        <span class="lhai-label">사유 (선택)</span>
-        <textarea id="cbrNewRoundReason" rows="3" maxlength="2000" placeholder="예: 마음에 드는 제안이 없어요"></textarea>
+        <span class="lhai-label" data-i18n="customer.bid_results.new_round_modal.reason_label" data-i18n-default="Reason (optional)">Reason (optional)</span>
+        <textarea id="cbrNewRoundReason" rows="3" maxlength="2000" data-i18n-placeholder="customer.bid_results.new_round_modal.reason_placeholder" data-i18n-default="e.g. None of the offers fit my needs" placeholder="e.g. None of the offers fit my needs"></textarea>
       </label>
       <div class="lhai-cbr-modal__foot">
-        <button type="button" class="lhai-button lhai-button--secondary" id="cbrNewRoundCancel">취소</button>
-        <button type="button" class="lhai-button lhai-button--primary" id="cbrNewRoundSubmit">새 제안 요청</button>
+        <button type="button" class="lhai-button lhai-button--secondary" id="cbrNewRoundCancel" data-i18n="customer.bid_results.new_round_modal.cancel" data-i18n-default="Cancel">Cancel</button>
+        <button type="button" class="lhai-button lhai-button--primary" id="cbrNewRoundSubmit" data-i18n="customer.bid_results.new_round_modal.submit" data-i18n-default="Request new offers">Request new offers</button>
       </div>
     </div>
   </dialog>
 
   <dialog id="cbrConfirmModal" class="lhai-cbr-modal">
     <div class="lhai-cbr-modal__inner">
-      <h3 class="lhai-cbr-modal__title">제안 선택 확인</h3>
+      <h3 class="lhai-cbr-modal__title" data-i18n="customer.bid_results.confirm_modal.title" data-i18n-default="Confirm offer selection">Confirm offer selection</h3>
       <div id="cbrConfirmBody"></div>
       <p id="cbrConfirmWarn" class="lhai-cbr-confirm-warn" hidden role="alert"></p>
       <div class="lhai-cbr-modal__foot">
-        <button type="button" class="lhai-button lhai-button--secondary" id="cbrConfirmCancel">취소</button>
-        <button type="button" class="lhai-button lhai-button--primary" id="cbrConfirmSubmit">선택 확정</button>
+        <button type="button" class="lhai-button lhai-button--secondary" id="cbrConfirmCancel" data-i18n="customer.bid_results.confirm_modal.cancel" data-i18n-default="Cancel">Cancel</button>
+        <button type="button" class="lhai-button lhai-button--primary" id="cbrConfirmSubmit" data-i18n="customer.bid_results.confirm_modal.submit" data-i18n-default="Confirm selection">Confirm selection</button>
       </div>
     </div>
   </dialog>

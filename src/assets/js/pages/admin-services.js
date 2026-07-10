@@ -23,9 +23,10 @@ import {
 import { getSinglePartnerMatchingRuleOptions } from "./workflow-matching-rule-registry.js";
 import { initManageServiceDocumentsTab } from "./admin-service-documents-tab.js";
 import { ensureAdminAccess, protectCurrentPage } from "../core/guards.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 import { loadSidebar } from "../components/sidebar.js";
 import { initI18nDomains, t } from "../core/i18n-client.js";
-import { applyI18nToDom } from "../core/i18n-dom.js";
+import { applyI18nToDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
 import { formatDate, formatMoney, qsa, qs, safeText } from "../core/utils.js";
 import { assertServiceItemUuid, isCatalogRecServiceItemUuidString } from "../lib/catalog-rec-service-item-id.js";
 
@@ -491,6 +492,7 @@ async function reorderAddonByIds(newOrderIds) {
 async function initAdminServicesPage() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
+  await bootAppPageContent(["common", "nav", "admin"]);
 
   await loadSidebar("#sidebar", "admin");
 
@@ -555,7 +557,7 @@ async function initAdminServicesPage() {
       await refreshCategories();
       setStatus("#adminCategoryStatus", `Category ${nextActive ? "activated" : "deactivated"}.`);
     } else if (action === "archive") {
-      if (!window.confirm("Archive this category?")) return;
+      if (!window.confirm(t("common.admin_services.categories.confirm.archive", "Archive this category?"))) return;
       await serviceCatalogAdminApi.archiveCategory(catId);
       await refreshCategories();
       setStatus("#adminCategoryStatus", "Category archived.");
@@ -599,7 +601,7 @@ async function initAdminServicesPage() {
       await serviceCatalogAdminApi.setPackageActivation(pkgId, !Boolean(pkg?.active));
       await refreshPackages();
     } else if (action === "archive") {
-      if (!window.confirm("Archive this package?")) return;
+      if (!window.confirm(t("common.admin_services.packages.confirm.archive", "Archive this package?"))) return;
       await serviceCatalogAdminApi.archivePackage(pkgId);
       await refreshPackages();
       if (selectedPackageId === pkgId) {
@@ -694,7 +696,7 @@ async function initAdminServicesPage() {
   // Archive
   qs("#archivePackageBtn")?.addEventListener("click", async () => {
     if (!selectedPackageId) return setStatus("#packageEditorSubtitle", "Select a package first.");
-    if (!window.confirm("Archive this package?")) return;
+    if (!window.confirm(t("common.admin_services.packages.confirm.archive", "Archive this package?"))) return;
     await serviceCatalogAdminApi.archivePackage(selectedPackageId);
     setStatus("#packageEditorSubtitle", "Package archived.");
     await refreshPackages();
@@ -1408,7 +1410,7 @@ function sf_resetEditor() {
   qs("#serviceReorderUpBtn").disabled = true;
   qs("#serviceReorderDownBtn").disabled = true;
 
-  sf_setText("#serviceEditorSubtitle", t("common.admin_services.editor.subtitle.click_to_edit", "row를 클릭해 편집하세요."));
+  sf_setText("#serviceEditorSubtitle", t("common.admin_services.editor.subtitle.click_to_edit", "Click a row to edit."));
 }
 
 function sf_fillEditorFromRow(row) {
@@ -1500,7 +1502,7 @@ function sf_beginCreateMode() {
   qs("#serviceReorderUpBtn").disabled = true;
   qs("#serviceReorderDownBtn").disabled = true;
 
-  sf_setText("#serviceEditorSubtitle", t("common.admin_services.editor.subtitle.create_and_assign", "서비스 아이템을 만든 뒤, 패키지에 연결합니다."));
+  sf_setText("#serviceEditorSubtitle", t("common.admin_services.editor.subtitle.create_and_assign", "Create a service item, then assign it to a package."));
 }
 
 function sf_refreshPackageSelectForEditor() {
@@ -1759,6 +1761,7 @@ async function sf_removeLink() {
 async function initAdminServicesServiceFirstPage() {
   if (!protectCurrentPage()) return;
   if (!ensureAdminAccess()) return;
+  await bootAppPageContent(["common", "nav", "admin"]);
 
   await loadSidebar("#sidebar", "admin");
 
@@ -1766,10 +1769,6 @@ async function initAdminServicesServiceFirstPage() {
   const panelsRoot = qs("#adminServicesTopPanels");
   mountTabs(tabsRoot, panelsRoot, { defaultPanelId: "panel-inventory" });
 
-  // i18n: admin-services uses common domain.
-  const lang = document.documentElement.lang || "ko";
-  await initI18nDomains(["common"], lang);
-  applyI18nToDom(document);
   sf_applyAdminServicesI18n();
 
   sf_categories = await serviceCatalogAdminApi.listCategories(true);
@@ -1950,7 +1949,7 @@ async function sf_renderCategoriesTab() {
       qs("#categoryCreateVisible").checked = cat.visible === undefined ? true : Boolean(cat.visible);
       qs("#categoryCreateSortOrder").value = cat.sort_order ?? 0;
     } else if (action === "archive") {
-      if (!window.confirm("Archive this category?")) return;
+      if (!window.confirm(t("common.admin_services.categories.confirm.archive", "Archive this category?"))) return;
       await serviceCatalogAdminApi.archiveCategory(id);
       sf_categories = await serviceCatalogAdminApi.listCategories(true);
       await sf_renderCategoriesTab();
@@ -2178,7 +2177,7 @@ async function pk_refreshSelectedPackageDetail() {
   const pkgId = pk_selectedPackageId;
   if (!pkgId) {
     pk_setPackagesEditorEnabled(false);
-    if (status) status.textContent = t("common.admin_services.packages.status.select_package", "패키지를 선택하세요.");
+    if (status) status.textContent = t("common.admin_services.packages.status.select_package", "Select a package.");
     qs("#adminPackageModulesTable").innerHTML = "";
     qs("#adminPackageAddonsTable").innerHTML = "";
     return;
@@ -2230,16 +2229,16 @@ async function pk_refreshSelectedPackageDetail() {
     dangerHelp.textContent = hasLinkedServices
       ? t(
           "common.admin_services.packages.danger.blocked_by_links",
-          "이 패키지에는 연결된 서비스가 있어 안전 삭제가 차단됩니다. Remove from package 또는 Archive/Deactivate를 사용하세요."
+          "This package still has linked services, so safe delete is blocked. Use Remove from package or Archive/Deactivate."
         )
       : t(
           "common.admin_services.packages.danger.delete_possible",
-          "연결된 서비스가 없으면 안전 삭제(Delete)가 가능합니다."
+          "Safe delete is available when no services are linked."
         );
   }
 
   if (status) {
-    const selectedTpl = t("common.admin_services.packages.status.selected", "선택됨: {name}");
+    const selectedTpl = t("common.admin_services.packages.status.selected", "Selected: {name}");
     const nameVal = pkg?.name || pkgId;
     status.textContent = selectedTpl.includes("{name}") ? selectedTpl.replace("{name}", nameVal) : `${selectedTpl} ${nameVal}`;
   }
@@ -3145,7 +3144,7 @@ function ucdPopulateManagePackageCategorySelect(preferredCategoryId = null) {
     preferredCategoryId != null
       ? String(preferredCategoryId).trim()
       : String(catSel.value || ucdSelectedCategoryId || "").trim();
-  const placeholder = t("common.admin_services.manage.select_placeholder", "선택");
+  const placeholder = t("common.admin_services.manage.select_placeholder", "Select");
   catSel.innerHTML = `<option value="">${esc(placeholder)}</option>${ucdCategories
     .map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`)
     .join("")}`;
@@ -4664,7 +4663,7 @@ function ucdBindManageEvents() {
         successMsg: isEdit
           ? `${t("common.admin_services.manage.feedback.saved", "Saved.")}\n${t(
               "common.admin_services.manage.feedback.workflow_db_after_basic_save",
-              "워크플로·파트너 배정 DB(service_workflow_configs)는 Service Workflow 탭에서「워크플로 저장」할 때 반영됩니다."
+              "Workflow and partner assignment DB (service_workflow_configs) is updated when you save the workflow on the Service Workflow tab."
             )}`
           : t("common.admin_services.manage.feedback.created", "Created."),
         errorPrefix: t("common.admin_services.manage.feedback.error", "Error"),
@@ -4674,7 +4673,7 @@ function ucdBindManageEvents() {
     // 신규 생성 직후 워크플로 안내가 연결 오류 메시지를 덮어쓰지 않도록 순서를 분리한다.
     const workflowAfterCreateMsg = t(
       "common.admin_services.manage.feedback.workflow_setup_after_create",
-      "서비스 저장이 완료되었습니다. 계속 진행하려면 Service Workflow 탭에서 워크플로를 설정하고 저장해 주세요."
+      "Service saved. To continue, configure and save the workflow on the Service Workflow tab."
     );
     if (linkSyncWarning) {
       const recoverHint =
@@ -4727,7 +4726,7 @@ function ucdBindManageEvents() {
       ucdWorkflowSaveStatusSet(
         t(
           "common.admin_services.workflow.save_need_service",
-          "먼저 서비스를 저장하거나 목록에서 서비스를 선택한 뒤 워크플로를 저장하세요."
+          "Save the service or select one from the list before saving the workflow."
         ),
         "error"
       );
@@ -4738,7 +4737,7 @@ function ucdBindManageEvents() {
         id,
         t(
           "common.admin_services.workflow.save_need_rec_uuid",
-          "워크플로 저장은 rec_service_items.id(UUID)인 서비스에서만 가능합니다. 목록에서 UUID 서비스를 선택하세요."
+          "Workflow save is only available for services with rec_service_items.id (UUID). Select a UUID service from the list."
         )
       );
     } catch (e) {
@@ -4752,7 +4751,7 @@ function ucdBindManageEvents() {
     }
     if (wfCheck.warnings.length) {
       ucdWorkflowSaveStatusSet(
-        `${t("common.admin_services.workflow.save_warnings_prefix", "저장은 가능합니다. 확인:")} ${wfCheck.warnings.join(" ")}`,
+        `${t("common.admin_services.workflow.save_warnings_prefix", "You can save. Review:")} ${wfCheck.warnings.join(" ")}`,
         "neutral"
       );
     } else {
@@ -4778,11 +4777,11 @@ function ucdBindManageEvents() {
         Number.isFinite(prc) &&
         prc >= 1
       ) {
-        savedMsg += `\n${t("common.admin_services.workflow.db.save_meta", "DB 동기화")}: workflow_config_id=${saved.workflow_config_id}, v${String(saved.workflow_config_version)}, partner_rule_count=${String(saved.partner_rule_count)}`;
+        savedMsg += `\n${t("common.admin_services.workflow.db.save_meta", "DB sync")}: workflow_config_id=${saved.workflow_config_id}, v${String(saved.workflow_config_version)}, partner_rule_count=${String(saved.partner_rule_count)}`;
       }
       let wfSaveVariant = "success";
       if (saved && saved.workflow_db_health_warning) {
-        savedMsg += `\n${t("common.admin_services.workflow.db.health_warning_label", "워크플로 DB 점검")}: ${String(saved.workflow_db_health_warning)}`;
+        savedMsg += `\n${t("common.admin_services.workflow.db.health_warning_label", "Workflow DB health check")}: ${String(saved.workflow_db_health_warning)}`;
         wfSaveVariant = "neutral";
       }
       ucdWorkflowSaveStatusSet(savedMsg, wfSaveVariant);
@@ -5031,10 +5030,8 @@ async function initAdminServicesUcdPage() {
   if (!tabsRoot) return false;
   if (!protectCurrentPage()) return false;
   if (!ensureAdminAccess()) return false;
+  await bootAppPageContent(["common", "nav", "admin"]);
   await loadSidebar("#sidebar", "admin");
-  const lang = document.documentElement.lang || "ko";
-  await initI18nDomains(["common"], lang);
-  applyI18nToDom(document);
   void tabsRoot;
   ucdInitTopTabs();
   ucdInitManageTabs();
@@ -5060,6 +5057,22 @@ async function initAdminServicesUcdPage() {
   initManageServiceDocumentsTab();
   return true;
 }
+
+function refreshAdminServicesPageI18n() {
+  applyI18nToDom(document);
+  sf_applyAdminServicesI18n();
+  if (qs("#adminInventoryTable")) {
+    sf_renderInventoryTable(sf_inventoryRows);
+  }
+  if (typeof pk_renderPackageListRows === "function") pk_renderPackageListRows();
+  if (typeof pk_renderCategoriesListRows === "function") pk_renderCategoriesListRows();
+  if (typeof ucdRenderInventory === "function") ucdRenderInventory();
+  if (typeof ucdRenderManage === "function") ucdRenderManage();
+}
+
+wireDynamicPageI18nRefresh(refreshAdminServicesPageI18n, {
+  keyPrefixes: ["common.admin_services.", "admin."],
+});
 
 // Decide which UI to initialize.
 const hasUcdUi = Boolean(qs("#panel-manage") && qs("#inventoryTreeRoot"));

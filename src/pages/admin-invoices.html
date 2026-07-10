@@ -1,35 +1,40 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>청구서 관리 - Landing Help AI</title>
+  <title data-i18n="admin.invoices.page_title" data-i18n-default="Invoice management - Landing Help AI">Invoice management - Landing Help AI</title>
   <link rel="stylesheet" href="../assets/css/reset.css" /><link rel="stylesheet" href="../assets/css/tokens.css" />
   <link rel="stylesheet" href="../assets/css/layout.css" /><link rel="stylesheet" href="../assets/css/components.css" /><link rel="stylesheet" href="../assets/css/utilities.css" />
   <link rel="stylesheet" href="../assets/css/pages/admin-invoices.css" />
 </head>
-<body>
+<body data-lhai-i18n-domains="common,nav,admin">
     <div id="lhai-app-header-root"></div>
   <div class="lhai-layout">
-    <aside class="lhai-sidebar" id="sidebar"><!-- TODO: load partial admin-sidebar.html --></aside>
+    <aside class="lhai-sidebar" id="sidebar" data-i18n-aria-label="common.sidebar.admin.aria_label" data-i18n-default="Admin menu" aria-label="Admin menu"></aside>
     <main class="lhai-main">
-      <section class="lhai-page-header"><div><h1 class="lhai-title">청구서</h1><p class="lhai-subtitle">청구 발행·결제·수금 상태를 관리합니다.</p></div></section>
+      <section class="lhai-page-header">
+        <div>
+          <h1 class="lhai-title" data-i18n="admin.invoices.title" data-i18n-default="Invoices">Invoices</h1>
+          <p class="lhai-subtitle" data-i18n="admin.invoices.subtitle" data-i18n-default="Manage invoice issuance, payment, and collection status.">Manage invoice issuance, payment, and collection status.</p>
+        </div>
+      </section>
       <section class="lhai-grid">
         <article class="lhai-card lhai-invoice-list">
           <div class="lhai-admin-invoices__toolbar">
-            <h2 class="lhai-card__title lhai-admin-invoices__title">청구서 목록</h2>
+            <h2 class="lhai-card__title lhai-admin-invoices__title" data-i18n="admin.invoices.list.title" data-i18n-default="Invoice list">Invoice list</h2>
             <div class="lhai-admin-invoices__filter">
-              <label class="lhai-label lhai-admin-invoices__filter-label" for="adminInvoiceStatusFilter">상태로 조회</label>
+              <label class="lhai-label lhai-admin-invoices__filter-label" for="adminInvoiceStatusFilter" data-i18n="admin.invoices.filter.label" data-i18n-default="Filter by status">Filter by status</label>
               <select class="lhai-select lhai-admin-invoices__select" id="adminInvoiceStatusFilter" aria-describedby="adminInvoiceStatusFilterHelp">
-                <option value="">전체</option>
-                <option value="DRAFT">초안 (DRAFT)</option>
-                <option value="SENT">발송됨 (SENT)</option>
-                <option value="PAID">결제완료 (PAID)</option>
-                <option value="FAILED">실패 (FAILED)</option>
-                <option value="CANCELED">취소 (CANCELED)</option>
+                <option value="" data-i18n="admin.invoices.filter.all" data-i18n-default="All">All</option>
+                <option value="DRAFT" data-i18n="admin.invoices.filter.draft" data-i18n-default="Draft (DRAFT)">Draft (DRAFT)</option>
+                <option value="SENT" data-i18n="admin.invoices.filter.sent" data-i18n-default="Sent (SENT)">Sent (SENT)</option>
+                <option value="PAID" data-i18n="admin.invoices.filter.paid" data-i18n-default="Paid (PAID)">Paid (PAID)</option>
+                <option value="FAILED" data-i18n="admin.invoices.filter.failed" data-i18n-default="Failed (FAILED)">Failed (FAILED)</option>
+                <option value="CANCELED" data-i18n="admin.invoices.filter.canceled" data-i18n-default="Canceled (CANCELED)">Canceled (CANCELED)</option>
               </select>
             </div>
           </div>
-          <p class="lhai-help u-mb-2" id="adminInvoiceStatusFilterHelp">상태를 바꾸면 해당 청구서만 불러옵니다. 필터는 주소의 <code>?status=</code>와 맞춰 저장됩니다.</p>
+          <p class="lhai-help u-mb-2" id="adminInvoiceStatusFilterHelp" data-i18n="admin.invoices.filter.help" data-i18n-default="Changing status loads only matching invoices. The filter is synced with the URL ?status= parameter.">Changing status loads only matching invoices. The filter is synced with the URL <code>?status=</code> parameter.</p>
           <div id="adminInvoiceList"></div>
         </article>
       </section>

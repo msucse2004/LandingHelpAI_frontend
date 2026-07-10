@@ -1,5 +1,6 @@
 import { APP_CONFIG } from "./config.js";
 import { clearAccessToken, clearSession, getAccessToken } from "./auth.js";
+import { getEffectiveLanguage } from "./preferred-language.js";
 import {
   debugPartnerDashboardApi,
   partnerDashboardResponsePreview,
@@ -86,6 +87,22 @@ function withAuthHeaders(extra = {}) {
     h.Authorization = `Bearer ${String(token).trim()}`;
   }
   return h;
+}
+
+/** Current UI language for message thread ``display_*`` enrichment on the API. */
+function messagesViewerLanguageHeaders(opts = {}) {
+  const headers = {};
+  const lang = String(opts.acceptLanguage ?? getEffectiveLanguage() ?? "").trim();
+  if (lang) headers["Accept-Language"] = lang;
+  return headers;
+}
+
+/** Append explicit viewer ``lang`` query (wins over browser Accept-Language on the API). */
+function appendViewerLanguageQueryParams(params, opts = {}) {
+  const search = params instanceof URLSearchParams ? params : new URLSearchParams(params);
+  const lang = String(opts.acceptLanguage ?? getEffectiveLanguage() ?? "").trim();
+  if (lang) search.set("lang", lang);
+  return search;
 }
 
 /** FastAPI `detail`: string, validation list, or `{ message, code }` (e.g. 409 conflict). */
@@ -437,10 +454,16 @@ const quoteApi = {
       return [];
     }
   },
-  async getDetail(quoteId) {
+  async getDetail(quoteId, opts = {}) {
     const id = String(quoteId || "").trim();
+    const headers = {};
+    const lang = String(opts.acceptLanguage || getEffectiveLanguage() || "").trim();
+    if (lang) headers["Accept-Language"] = lang;
     try {
-      return await tryBackendGet(`/api/quotes/${encodeURIComponent(id || "invalid-missing-id")}`);
+      return await tryBackendGet(
+        `/api/quotes/${encodeURIComponent(id || "invalid-missing-id")}`,
+        headers,
+      );
     } catch (err) {
       // 404/403 등은 목 데이터(3200달러 등)로 숨기면 안 됩니다 — 오프라인·CORS일 때만 목 사용.
       if (!shouldUseMockFallback(err)) throw err;
@@ -654,9 +677,15 @@ const invoiceApi = {
       return { id: invoiceId, status: "SENT", mocked: true };
     }
   },
-  async getDetail(invoiceId) {
+  async getDetail(invoiceId, opts = {}) {
+    const headers = {};
+    const lang = String(opts.acceptLanguage || getEffectiveLanguage() || "").trim();
+    if (lang) headers["Accept-Language"] = lang;
     try {
-      return await tryBackendGet(`/api/invoices/${encodeURIComponent(invoiceId || "inv-demo-1")}`);
+      return await tryBackendGet(
+        `/api/invoices/${encodeURIComponent(invoiceId || "inv-demo-1")}`,
+        headers,
+      );
     } catch {
       await mockDelay();
       return {
@@ -823,12 +852,18 @@ const messagesApi = {
       ];
     }
   },
-  async listThreads({ customerProfileId = "profile::demo@customer.com", category = "", unreadOnly = false } = {}) {
-    const params = new URLSearchParams({ customer_profile_id: customerProfileId });
+  async listThreads({ customerProfileId = "profile::demo@customer.com", category = "", unreadOnly = false, acceptLanguage = "" } = {}) {
+    const params = appendViewerLanguageQueryParams(
+      { customer_profile_id: customerProfileId },
+      { acceptLanguage },
+    );
     if (category) params.set("category", category);
     if (unreadOnly) params.set("unread_only", "true");
     try {
-      return await tryBackendGet(`/api/messages/threads?${params.toString()}`);
+      return await tryBackendGet(
+        `/api/messages/threads?${params.toString()}`,
+        messagesViewerLanguageHeaders({ acceptLanguage }),
+      );
     } catch (err) {
       if (getAccessToken()) throw err;
       await mockDelay();
@@ -873,11 +908,15 @@ const messagesApi = {
     };
     return await tryBackendPost(`/api/messages/${encodeURIComponent(mid)}/report-translation`, body);
   },
-  async threadMessages(threadId, { customerProfileId = "profile::demo@customer.com" } = {}) {
-    const params = new URLSearchParams({ customer_profile_id: customerProfileId });
+  async threadMessages(threadId, { customerProfileId = "profile::demo@customer.com", acceptLanguage = "" } = {}) {
+    const params = appendViewerLanguageQueryParams(
+      { customer_profile_id: customerProfileId },
+      { acceptLanguage },
+    );
     try {
       return await tryBackendGet(
-        `/api/messages/threads/${encodeURIComponent(threadId)}/messages?${params.toString()}`
+        `/api/messages/threads/${encodeURIComponent(threadId)}/messages?${params.toString()}`,
+        messagesViewerLanguageHeaders({ acceptLanguage }),
       );
     } catch {
       await mockDelay();
@@ -894,9 +933,12 @@ const messagesApi = {
    * @param {{ customerProfileId?: string }} opts
    * @returns {Promise<{ thread: object, workflow: object|null, messages: object[] }>}
    */
-  async threadDetail(threadId, { customerProfileId = "profile::demo@customer.com" } = {}) {
+  async threadDetail(threadId, { customerProfileId = "profile::demo@customer.com", acceptLanguage = "" } = {}) {
     const t = String(threadId || "").trim();
-    const params = new URLSearchParams({ customer_profile_id: customerProfileId });
+    const params = appendViewerLanguageQueryParams(
+      { customer_profile_id: customerProfileId },
+      { acceptLanguage },
+    );
     const path = `/api/messages/threads/${encodeURIComponent(t)}/detail?${params.toString()}`;
     const dbg = _lhaiDebugCustomerMessagesEnabled();
     if (dbg) {
@@ -909,7 +951,7 @@ const messagesApi = {
       });
     }
     try {
-      const body = await tryBackendGet(path);
+      const body = await tryBackendGet(path, messagesViewerLanguageHeaders({ acceptLanguage }));
       if (dbg) {
         const msgs = body && typeof body === "object" && Array.isArray(body.messages) ? body.messages : [];
         const ids = msgs.map((m) => String((m && m.id) || ""));
@@ -1298,11 +1340,19 @@ const documentsApi = {
 
 /** 고객 필수 서류(결제 완료·요청 생성 후) — GET /api/customer/required-documents */
 const requiredDocumentsCustomerApi = {
-  async list(customerProfileId) {
+  /**
+   * @param {string} customerProfileId
+   * @param {{ acceptLanguage?: string }} [opts]
+   */
+  async list(customerProfileId, opts = {}) {
     const cp = customerProfileId || "profile::demo@customer.com";
+    const headers = {};
+    const lang = String(opts.acceptLanguage || "").trim();
+    if (lang) headers["Accept-Language"] = lang;
     try {
       return await tryBackendGet(
-        `/api/customer/required-documents?customer_profile_id=${encodeURIComponent(cp)}`
+        `/api/customer/required-documents?customer_profile_id=${encodeURIComponent(cp)}`,
+        headers,
       );
     } catch {
       await mockDelay();
@@ -3891,14 +3941,30 @@ const serviceDocumentsAdminApi = {
 
 /** Customer: browse categories & services (no prices). GET /api/service-catalog/browse/... */
 const serviceCatalogBrowseApi = {
+  _browseHeaders() {
+    const headers = {};
+    const lang = String(getEffectiveLanguage() || "").trim();
+    if (lang) headers["Accept-Language"] = lang;
+    return headers;
+  },
+
+  _withLangQuery(path) {
+    const lang = String(getEffectiveLanguage() || "").trim();
+    if (!lang) return path;
+    const sep = path.includes("?") ? "&" : "?";
+    return `${path}${sep}lang=${encodeURIComponent(lang)}`;
+  },
+
   async listCategories() {
-    const rows = await tryBackendGet("/api/service-catalog/browse/categories");
+    const path = this._withLangQuery("/api/service-catalog/browse/categories");
+    const rows = await tryBackendGet(path, this._browseHeaders());
     return Array.isArray(rows) ? rows : [];
   },
 
   /** Flat catalog (``rec_service_items``); non-UUID rows are dropped client-side. */
   async listAllServiceItems() {
-    const rows = await tryBackendGet("/api/service-catalog/browse/service-items");
+    const path = this._withLangQuery("/api/service-catalog/browse/service-items");
+    const rows = await tryBackendGet(path, this._browseHeaders());
     return filterBrowseCatalogServiceItems(rows);
   },
 
@@ -3906,7 +3972,8 @@ const serviceCatalogBrowseApi = {
   async listServiceItems(categoryId) {
     const cid = String(categoryId ?? "").trim();
     const q = cid ? `?category_id=${encodeURIComponent(cid)}` : "";
-    const rows = await tryBackendGet(`/api/service-catalog/browse/service-items${q}`);
+    const path = this._withLangQuery(`/api/service-catalog/browse/service-items${q}`);
+    const rows = await tryBackendGet(path, this._browseHeaders());
     return filterBrowseCatalogServiceItems(rows);
   },
 };

@@ -238,7 +238,7 @@ function mswPopulateSinglePostWorkflowOptions() {
     el.innerHTML = "";
     const ph = document.createElement("option");
     ph.value = "";
-    ph.textContent = "선택…";
+    ph.textContent = "Select…";
     el.appendChild(ph);
     for (const o of MSW_SINGLE_POST_WORKFLOW_OPTIONS[key] || []) {
       const op = document.createElement("option");
@@ -291,7 +291,7 @@ function mswPopulateSingleMatchingRuleOptions() {
   const ph = document.createElement("option");
   ph.value = "";
   ph.dataset.mswPlaceholder = "1";
-  ph.textContent = t("common.admin_services.workflow.matching_rule.placeholder", "선택…");
+  ph.textContent = t("common.admin_services.workflow.matching_rule.placeholder", "Select…");
   el.appendChild(ph);
   for (const o of opts) {
     const value = String(o.value || "").trim();
@@ -370,7 +370,7 @@ function mswPartnerTypeLabel(value) {
 /** (Re)build standard options on partner-type selects; keeps placeholder row. */
 function mswPopulatePartnerTypeSelectOptions() {
   const opts = mswPartnerTypeOptionsSync();
-  const phLabel = t("common.admin_services.workflow.partner_type.placeholder", "선택…");
+  const phLabel = t("common.admin_services.workflow.partner_type.placeholder", "Select…");
   for (const sid of ["mswHumanPartnerType", "mswSinglePartnerType", "mswMultiPartnerType"]) {
     const el = qs(`#${sid}`);
     if (!(el instanceof HTMLSelectElement)) continue;
@@ -414,7 +414,7 @@ function mswAssignPartnerTypeSelectValue(selectId, storedRaw) {
   const raw = String(storedRaw || "").trim().toUpperCase();
   qsa(`#${selectId} option[data-msw-legacy='1']`).forEach((n) => n.remove());
   const ph = el.querySelector("option[data-msw-placeholder]");
-  if (ph) ph.textContent = t("common.admin_services.workflow.partner_type.placeholder", "선택…");
+  if (ph) ph.textContent = t("common.admin_services.workflow.partner_type.placeholder", "Select…");
   if (!raw) {
     el.value = "";
     return;
@@ -758,7 +758,7 @@ function mswMultiMatchingStrategyLabel(value) {
   if (!raw) {
     return t(
       "common.admin_services.workflow.matching_strategy.default_label",
-      "고객 주 우선 후 확장 (same_state_first_then_expand)"
+      "Customer state first, then expand (same_state_first_then_expand)"
     );
   }
   const hit = mswMultiMatchingStrategyOptionsSync().find((o) => String(o.value || "").trim() === raw);
@@ -779,7 +779,7 @@ function mswPopulateMultiMatchingStrategyOptions() {
   const ph = document.createElement("option");
   ph.value = "";
   ph.dataset.mswPlaceholder = "1";
-  ph.textContent = t("common.admin_services.workflow.matching_strategy.placeholder", "선택…");
+  ph.textContent = t("common.admin_services.workflow.matching_strategy.placeholder", "Select…");
   el.appendChild(ph);
   for (const o of opts) {
     const value = String(o.value || "").trim();
@@ -809,7 +809,7 @@ function mswPopulateSingleIntakeBuilderOptions() {
   const ph = document.createElement("option");
   ph.value = "";
   ph.dataset.mswPlaceholder = "1";
-  ph.textContent = t("common.admin_services.workflow.intake_builder.placeholder", "선택…");
+  ph.textContent = t("common.admin_services.workflow.intake_builder.placeholder", "Select…");
   el.appendChild(ph);
   for (const o of opts) {
     const value = String(o.value || "").trim();
@@ -1577,10 +1577,10 @@ function mswUpdateValidationHost(v) {
 
 function mswRankLabel(rank) {
   const rankLabels = {
-    low_price_first: t("common.admin_services.workflow.rank.low_price", "낮은 가격 우선"),
-    high_rating_first: t("common.admin_services.workflow.rank.high_rating", "높은 평점 우선"),
-    fast_response_first: t("common.admin_services.workflow.rank.fast", "빠른 응답 우선"),
-    manual: t("common.admin_services.workflow.rank.manual", "관리자 수동 정렬"),
+    low_price_first: t("common.admin_services.workflow.rank.low_price", "Lowest price first"),
+    high_rating_first: t("common.admin_services.workflow.rank.high_rating", "Highest rating first"),
+    fast_response_first: t("common.admin_services.workflow.rank.fast", "Fastest response first"),
+    manual: t("common.admin_services.workflow.rank.manual", "Manual admin ordering"),
   };
   return rankLabels[rank] || rank || "";
 }
@@ -1727,12 +1727,12 @@ function mswBuildPreviewSections() {
   const hasIntake = keyArr.length > 0;
 
   const typeLabel = {
-    AI_ONLY_GUIDE: t("common.admin_services.workflow.type.ai_only", "AI가 고객에게 안내만 합니다"),
-    HUMAN_AGENT_MANAGED: t("common.admin_services.workflow.type.human", "관리자가 직접 처리합니다"),
-    SINGLE_PARTNER_APPLICATION: t("common.admin_services.workflow.type.single_partner", "한 명의 파트너에게 신청서를 보냅니다"),
+    AI_ONLY_GUIDE: t("common.admin_services.workflow.type.ai_only", "AI guides the customer only"),
+    HUMAN_AGENT_MANAGED: t("common.admin_services.workflow.type.human", "An admin handles the case directly"),
+    SINGLE_PARTNER_APPLICATION: t("common.admin_services.workflow.type.single_partner", "Send the application to one partner"),
     MULTI_PARTNER_QUOTE_AND_SELECT: t(
       "common.admin_services.workflow.type.multi_partner",
-      "여러 파트너에게 견적 요청 후 고객이 선택합니다 (선택 후 메시지·이메일 진행 포함)"
+      "Request quotes from multiple partners, then let the customer choose (includes in-app messaging and email follow-up)"
     ),
   }[type] || type;
 
@@ -1740,11 +1740,11 @@ function mswBuildPreviewSections() {
   const blocks = [];
   blocks.push({
     kind: "heading",
-    text: t("common.admin_services.workflow.preview.flow_title", "결제 후 고객에게 이렇게 진행됩니다"),
+    text: t("common.admin_services.workflow.preview.flow_title", "After payment, the customer will see this flow"),
   });
   blocks.push({
     kind: "paragraph",
-    text: t("common.admin_services.workflow.preview.flow_selected", "선택한 방식: {type}").replace("{type}", typeLabel),
+    text: t("common.admin_services.workflow.preview.flow_selected", "Selected mode: {type}").replace("{type}", typeLabel),
   });
 
   const foot = [];
@@ -1755,11 +1755,11 @@ function mswBuildPreviewSections() {
       hasIntake
         ? t(
             "common.admin_services.workflow.preview.step.intake_yes",
-            "고객이 서비스 대화에서 추가 질문(인테이크)에 답합니다. 답변은 아래에 나열된 질문 키에 저장됩니다."
+            "The customer answers additional intake questions in the service thread. Answers are stored under the field keys listed below."
           )
         : t(
             "common.admin_services.workflow.preview.step.intake_no",
-            "고객이 추가 질문(인테이크)에 답합니다. (Intake Builder에 질문을 추가하면 이 단계에서 화면에 나타납니다.)"
+            "The customer answers additional intake questions. (Add questions in Intake Builder to show them at this step.)"
           )
     );
     const match = mswVal("mswMultiMatchingStrategy", "");
@@ -1767,24 +1767,24 @@ function mswBuildPreviewSections() {
       steps.push(
         t(
           "common.admin_services.workflow.preview.step.multi_state_first",
-          "시스템은 고객과 같은 주(주에 등록된) 파트너를 먼저 찾습니다."
+          "The system looks for partners registered in the customer's state first."
         )
       );
       steps.push(
         t(
           "common.admin_services.workflow.preview.step.multi_state_expand",
-          "같은 주에 해당 유형 파트너가 부족하면, 고객 주에 서비스를 제공할 수 있는 다른 후보 파트너도 포함합니다."
+          "If there are not enough partners of this type in the same state, other eligible partners who can serve that state are included."
         )
       );
     } else {
       steps.push(
         t(
           "common.admin_services.workflow.preview.step.multi_match_generic",
-          "시스템이 아래에 적어 둔 매칭 전략에 맞게 후보 파트너를 찾습니다."
+          "The system finds candidate partners using the matching strategy configured below."
         )
       );
       steps.push(
-        t("common.admin_services.workflow.preview.step.strategy_detail", "매칭 전략: {s}").replace(
+        t("common.admin_services.workflow.preview.step.strategy_detail", "Matching strategy: {s}").replace(
           "{s}",
           mswMultiMatchingStrategyLabel(match)
         )
@@ -1797,7 +1797,7 @@ function mswBuildPreviewSections() {
     const minOk = Number.isFinite(minR) ? minR : 1;
     const bidHrsOk = Number.isFinite(bidHrs) ? bidHrs : 72;
     steps.push(
-      t("common.admin_services.workflow.preview.step.multi_max_requests", "최대 {n}곳의 파트너에게 견적·회신 요청을 보냅니다.").replace(
+      t("common.admin_services.workflow.preview.step.multi_max_requests", "Send quote/reply requests to up to {n} partners.").replace(
         "{n}",
         String(maxOk)
       )
@@ -1807,34 +1807,34 @@ function mswBuildPreviewSections() {
       steps.push(
         t(
           "common.admin_services.workflow.preview.step.multi_request_auto",
-          "파트너 요청 유형은 자동차 구매 RFP(AUTO_PURCHASE_RFP)로 전달됩니다."
+          "Partner request type is AUTO_PURCHASE_RFP (vehicle purchase RFP)."
         )
       );
     } else if (ptMulti === "PHONE_VENDOR") {
       steps.push(
         t(
           "common.admin_services.workflow.preview.step.multi_request_phone",
-          "파트너 요청 유형은 전화/개통 신청(PHONE_ACTIVATION_APPLICATION)으로 전달됩니다."
+          "Partner request type is PHONE_ACTIVATION_APPLICATION."
         )
       );
     } else if (ptMulti) {
       steps.push(
         t(
           "common.admin_services.workflow.preview.step.multi_request_quote",
-          "파트너 요청 유형은 일반 견적(QUOTE_REQUEST)으로 전달됩니다."
+          "Partner request type is QUOTE_REQUEST."
         )
       );
     }
     steps.push(
       t(
         "common.admin_services.workflow.preview.step.multi_bidding_window",
-        "파트너는 Bidding window({h}시간) 안에 견적을 제출·수정할 수 있고, 고객은 제출되는 대로 제안을 비교합니다."
+        "Partners can submit or revise quotes within the bidding window ({h} hours). The customer can compare proposals as they arrive."
       ).replace("{h}", String(bidHrsOk))
     );
     steps.push(
       t(
         "common.admin_services.workflow.preview.step.multi_min_responses",
-        "메시지 안내 카드는 최소 {m}건의 제안이 모이거나, Bidding window가 끝나면 고객에게 표시됩니다."
+        "A guidance card appears when at least {m} proposals are received or when the bidding window ends."
       ).replace("{m}", String(minOk))
     );
     const rank = mswVal("mswMultiRankingRule", "low_price_first") || "low_price_first";
@@ -1842,33 +1842,33 @@ function mswBuildPreviewSections() {
     steps.push(
       t(
         "common.admin_services.workflow.preview.step.multi_compare",
-        "고객은 받은 제안을 비교하고({rule} 기준), 원하는 파트너를 선택합니다."
-      ).replace("{rule}", rk || t("common.admin_services.workflow.preview.rule_fallback", "설정한 정렬"))
+        "The customer compares received proposals (by {rule}) and selects a partner."
+      ).replace("{rule}", rk || t("common.admin_services.workflow.preview.rule_fallback", "configured ranking"))
     );
     steps.push(
       t(
         "common.admin_services.workflow.preview.step.multi_in_app",
-        "고객이 선택한 파트너(앱 계정 보유)가 서비스 메시지 스레드에 연결되어 이후 대화를 이어갑니다."
+        "The selected partner (with an app account) is linked to the service message thread for follow-up."
       )
     );
     blocks.push({ kind: "ol", items: steps });
     const pt = mswVal("mswMultiPartnerType", "").trim();
     if (pt) {
       const disp = mswPartnerTypeAllowedSet().has(pt.toUpperCase()) ? `${mswPartnerTypeLabel(pt)} (${pt})` : pt;
-      foot.push(t("common.admin_services.workflow.preview.foot.partner_type", "대상 파트너 유형: {p}").replace("{p}", disp));
+      foot.push(t("common.admin_services.workflow.preview.foot.partner_type", "Target partner type: {p}").replace("{p}", disp));
     }
     const thr = String(qs("#mswEmailAutoPublishThreshold")?.value || "").trim();
     if (thr !== "") {
       foot.push(
         t(
           "common.admin_services.workflow.preview.foot.email_threshold",
-          "이메일로 온 파트너 회신은 신뢰도 {v} 이상일 때 자동으로 고객에게 반영될 수 있습니다. (그 미만이면 검토·수동 처리에 가깝게 동작할 수 있습니다.)"
+          "Email partner replies with confidence {v} or higher may be published to the customer automatically. (Lower scores may require review.)"
         ).replace("{v}", thr)
       );
     }
     if (hasIntake) {
       foot.push(
-        t("common.admin_services.workflow.preview.foot.intake_keys", "연결된 Intake 질문(field_key): {keys}").replace(
+        t("common.admin_services.workflow.preview.foot.intake_keys", "Linked intake questions (field_key): {keys}").replace(
           "{keys}",
           keyArr.join(", ")
         )
@@ -1880,23 +1880,23 @@ function mswBuildPreviewSections() {
       hasIntake
         ? t(
             "common.admin_services.workflow.preview.step.intake_yes",
-            "고객이 서비스 대화에서 추가 질문(인테이크)에 답합니다. 답변은 아래에 나열된 질문 키에 저장됩니다."
+            "The customer answers additional intake questions in the service thread. Answers are stored under the field keys listed below."
           )
         : t(
             "common.admin_services.workflow.preview.step.intake_no",
-            "고객이 추가 질문(인테이크)에 답합니다. (Intake Builder에 질문을 추가하면 이 단계에서 화면에 나타납니다.)"
+            "The customer answers additional intake questions. (Add questions in Intake Builder to show them at this step.)"
           )
     );
     steps.push(
       t(
         "common.admin_services.workflow.preview.step.ai_placeholder_customer",
-        "[현재 구현] 인테이크 완료 후 고객 스레드에 안내 카드가 올라가지만, 카드 본문은 플레이스홀더입니다. 실제 LLM·자동 안내 생성은 아직 연결되지 않았습니다."
+        "[Current implementation] After intake completes, a guidance card appears in the customer thread, but the body is still a placeholder. LLM-generated guidance is not connected yet."
       )
     );
     const role = mswVal("mswAiRole", "").trim();
     if (role) {
       steps.push(
-        t("common.admin_services.workflow.preview.step.ai_role_saved_for_future", "(저장되는 역할·맥락: 향후 AI 연결 시 프롬프트에 사용할 수 있습니다 — {r})").replace(
+        t("common.admin_services.workflow.preview.step.ai_role_saved_for_future", "(Saved role/context for future AI prompts — {r})").replace(
           "{r}",
           role.length > 160 ? `${role.slice(0, 160)}…` : role
         )
@@ -1905,7 +1905,7 @@ function mswBuildPreviewSections() {
     const intakeNotes = mswVal("mswAiIntakeRef", "").trim();
     if (intakeNotes) {
       steps.push(
-        t("common.admin_services.workflow.preview.step.ai_intake_notes", "운영팀이 적어 둔 ‘참고 Intake’ 메모는 AI 프롬프트 맥락에 활용될 수 있습니다.")
+        t("common.admin_services.workflow.preview.step.ai_intake_notes", "Reference intake notes from ops may be used in AI prompt context.")
       );
     }
     const auto = Boolean(mswVal("mswAiAutoSend", false));
@@ -1914,28 +1914,28 @@ function mswBuildPreviewSections() {
       steps.push(
         t(
           "common.admin_services.workflow.preview.step.ai_send_review_both",
-          "생성된 안내는 관리자 검토를 거친 뒤, 승인되면 고객에게 자동으로 전송됩니다."
+          "Generated guidance is sent to the customer automatically after admin review and approval."
         )
       );
     } else if (auto && !review) {
       steps.push(
         t(
           "common.admin_services.workflow.preview.step.ai_auto_only",
-          "생성된 안내는 별도 검토 없이 고객에게 자동으로 전송됩니다."
+          "Generated guidance is sent to the customer automatically without a separate review step."
         )
       );
     } else if (!auto && review) {
       steps.push(
         t(
           "common.admin_services.workflow.preview.step.ai_review_only",
-          "AI가 만든 안내는 관리자가 확인·편집한 뒤 고객에게 전달됩니다. (자동 전송은 꺼져 있습니다.)"
+          "AI-generated guidance is reviewed and edited by an admin before it reaches the customer. (Auto-send is off.)"
         )
       );
     } else {
       steps.push(
         t(
           "common.admin_services.workflow.preview.step.ai_neither",
-          "자동 전송과 관리자 검토가 모두 꺼져 있으면, 실제로 언제·어떻게 보낼지 운영 규칙을 팀에서 정해야 합니다."
+          "With auto-send and admin review both off, your team must define when and how guidance is delivered."
         )
       );
     }
@@ -1944,21 +1944,21 @@ function mswBuildPreviewSections() {
       questions
         ? t(
             "common.admin_services.workflow.preview.step.ai_customer_q_on",
-            "고객은 필요하면 같은 스레드에서 추가 질문을 이어갈 수 있습니다."
+            "The customer can ask follow-up questions in the same thread when needed."
           )
         : t(
             "common.admin_services.workflow.preview.step.ai_customer_q_off",
-            "고객의 추가 질문은 제한됩니다. (필요하면 나중에 설정을 켤 수 있습니다.)"
+            "Follow-up questions from the customer are limited. (You can enable this later.)"
           )
     );
     const completion = mswVal("mswAiCompletionMode", "") || "open_ended";
     const completionLabels = {
-      checklist_done: t("common.admin_services.workflow.completion.checklist", "체크리스트 완료 시 자동 완료"),
-      admin_confirms: t("common.admin_services.workflow.completion.admin", "관리자 확인 후 완료"),
-      open_ended: t("common.admin_services.workflow.completion.open", "명시적 완료 없이 진행"),
+      checklist_done: t("common.admin_services.workflow.completion.checklist", "Auto-complete when checklist is done"),
+      admin_confirms: t("common.admin_services.workflow.completion.admin", "Complete after admin confirmation"),
+      open_ended: t("common.admin_services.workflow.completion.open", "Continue without explicit completion"),
     };
     steps.push(
-      t("common.admin_services.workflow.preview.step.ai_completion", "완료 처리: {c}").replace(
+      t("common.admin_services.workflow.preview.step.ai_completion", "Completion handling: {c}").replace(
         "{c}",
         completionLabels[completion] || completion
       )
@@ -1966,7 +1966,7 @@ function mswBuildPreviewSections() {
     blocks.push({ kind: "ol", items: steps });
     if (hasIntake) {
       foot.push(
-        t("common.admin_services.workflow.preview.foot.intake_keys", "연결된 Intake 질문(field_key): {keys}").replace(
+        t("common.admin_services.workflow.preview.foot.intake_keys", "Linked intake questions (field_key): {keys}").replace(
           "{keys}",
           keyArr.join(", ")
         )
@@ -1978,29 +1978,29 @@ function mswBuildPreviewSections() {
       hasIntake
         ? t(
             "common.admin_services.workflow.preview.step.intake_yes",
-            "고객이 서비스 대화에서 추가 질문(인테이크)에 답합니다. 답변은 아래에 나열된 질문 키에 저장됩니다."
+            "The customer answers additional intake questions in the service thread. Answers are stored under the field keys listed below."
           )
         : t(
             "common.admin_services.workflow.preview.step.intake_no",
-            "고객이 추가 질문(인테이크)에 답합니다. (Intake Builder에 질문을 추가하면 이 단계에서 화면에 나타납니다.)"
+            "The customer answers additional intake questions. (Add questions in Intake Builder to show them at this step.)"
           )
     );
     steps.push(
       t(
         "common.admin_services.workflow.preview.step.human_queue",
-        "접수 내용은 운영 화면에 쌓이고, 아래에서 고른 방식으로 담당자에게 배정됩니다."
+        "Submissions appear in the operations queue and are routed to an assignee using the method selected below."
       )
     );
     const assign = mswVal("mswHumanAssignment", "");
     const assignLabels = {
-      manual: t("common.admin_services.workflow.assign.manual", "수동 배정"),
-      round_robin: t("common.admin_services.workflow.assign.round_robin", "라운드로빈"),
-      pull_queue: t("common.admin_services.workflow.assign.pull", "대기열에서 인수"),
+      manual: t("common.admin_services.workflow.assign.manual", "Manual assignment"),
+      round_robin: t("common.admin_services.workflow.assign.round_robin", "Round robin"),
+      pull_queue: t("common.admin_services.workflow.assign.pull", "Pull from queue"),
     };
     steps.push(
-      t("common.admin_services.workflow.preview.step.human_assign", "담당자 배정: {a}").replace(
+      t("common.admin_services.workflow.preview.step.human_assign", "Assignee routing: {a}").replace(
         "{a}",
-        assignLabels[assign] || assign || t("common.admin_services.workflow.preview.not_chosen", "아직 선택 안 함")
+        assignLabels[assign] || assign || t("common.admin_services.workflow.preview.not_chosen", "Not selected yet")
       )
     );
     const humanPartnerEm = mswVal("mswHumanPartnerNotifyEmail", "").trim();
@@ -2008,7 +2008,7 @@ function mswBuildPreviewSections() {
       steps.push(
         t(
           "common.admin_services.workflow.preview.step.human_partner_email",
-          "인테이크 제출 시 파트너(이메일)로 요약 메일: {em}"
+          "Summary email to partner on intake submit: {em}"
         ).replace("{em}", humanPartnerEm)
       );
     }
@@ -2016,7 +2016,7 @@ function mswBuildPreviewSections() {
       steps.push(
         t(
           "common.admin_services.workflow.preview.step.human_notify",
-          "새 접수가 생기면 관리자에게 알림을 보냅니다."
+          "Notify admins when a new submission arrives."
         )
       );
     }
@@ -2025,27 +2025,27 @@ function mswBuildPreviewSections() {
       steps.push(
         t(
           "common.admin_services.workflow.preview.step.human_receipt",
-          "고객에게는 접수 직후 안내 문구가 보입니다. (처음 일부: “{snippet}”)"
+          "The customer sees a receipt message right after submission. (Opening snippet: \"{snippet}\")"
         ).replace("{snippet}", msg.length > 100 ? `${msg.slice(0, 100)}…` : msg)
       );
     } else {
       steps.push(
         t(
           "common.admin_services.workflow.preview.step.human_receipt_empty",
-          "고객 접수 메시지를 비워 두었습니다. 필요하면 한 줄 안내를 적어 주세요."
+          "The customer receipt message is empty. Add a short line if needed."
         )
       );
     }
     steps.push(
       t(
         "common.admin_services.workflow.preview.step.human_ops",
-        "이후 일정·문서·견적 등은 담당자가 고객 대화와 운영 도구를 통해 처리합니다."
+        "Schedule, documents, quotes, and follow-up are handled by the assignee via customer messaging and ops tools."
       )
     );
     blocks.push({ kind: "ol", items: steps });
     if (hasIntake) {
       foot.push(
-        t("common.admin_services.workflow.preview.foot.intake_keys", "연결된 Intake 질문(field_key): {keys}").replace(
+        t("common.admin_services.workflow.preview.foot.intake_keys", "Linked intake questions (field_key): {keys}").replace(
           "{keys}",
           keyArr.join(", ")
         )
@@ -2057,7 +2057,7 @@ function mswBuildPreviewSections() {
       ? mswPartnerTypeAllowedSet().has(pt.toUpperCase())
         ? `${mswPartnerTypeLabel(pt)} (${pt})`
         : pt
-      : t("common.admin_services.workflow.preview.not_chosen", "아직 선택 안 함");
+      : t("common.admin_services.workflow.preview.not_chosen", "Not selected yet");
     const strategy = mswSingleStrategySelected();
     const spSnap = mswPerTypeConfig.SINGLE_PARTNER_APPLICATION || {};
     const fixedMode = mswInferFixedTargetModeFromSlice(spSnap);
@@ -2111,7 +2111,7 @@ function mswBuildPreviewSections() {
     }
     if (hasIntake) {
       foot.push(
-        t("common.admin_services.workflow.preview.foot.intake_keys", "연결된 Intake 질문(field_key): {keys}").replace(
+        t("common.admin_services.workflow.preview.foot.intake_keys", "Linked intake questions (field_key): {keys}").replace(
           "{keys}",
           keyArr.join(", ")
         )
@@ -2521,7 +2521,7 @@ export async function workflowRefreshDbStatusPanel() {
     body.innerHTML = `<p class="lhai-help">${esc(
       t(
         "common.admin_services.workflow.db.need_rec_uuid",
-        "워크플로 DB 상태는 rec_service_items.id(UUID)인 서비스에서만 조회됩니다. 목록에서 서비스를 다시 선택하세요."
+        "Workflow DB status is available only for services with rec_service_items.id (UUID). Reselect a service from the list."
       )
     )}</p>`;
     return;
@@ -2539,7 +2539,7 @@ export async function workflowRefreshDbStatusPanel() {
       body.innerHTML = `<p class="lhai-help">${esc(
         t(
           "common.admin_services.workflow.db.no_sql",
-          "DB 워크플로 상태는 SQL 백엔드가 켜진 환경에서만 조회됩니다."
+          "Workflow DB status requires a SQL-backed environment."
         )
       )}</p>`;
       return;
@@ -2549,7 +2549,7 @@ export async function workflowRefreshDbStatusPanel() {
       body.innerHTML = `<p class="lhai-help">${esc(
         t(
           "common.admin_services.workflow.db.no_active_config",
-          "활성 service_workflow_config 가 없습니다. 아래에서 워크플로를 저장하면 생성됩니다."
+          "No active service_workflow_config. Save the workflow below to create one."
         )
       )}</p>`;
       const syncSt = String(data.sync_health_status || "").toUpperCase();

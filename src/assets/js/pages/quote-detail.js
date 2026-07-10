@@ -3,11 +3,13 @@ import { getCustomerMessagingProfileId } from "../core/auth.js";
 import { ensureCustomerAccess, protectCurrentPage } from "../core/guards.js";
 import { patchState } from "../core/state.js";
 import { loadSidebar } from "../components/sidebar.js";
-import { applyI18nToDom } from "../core/i18n-dom.js";
-import { initI18nDomains, mergeFallbackStrings, resetI18nClientState, t } from "../core/i18n-client.js";
+import { applyI18nToDom, applyDocumentLanguageAttributes, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
+import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
+import { mergeFallbackStrings, reloadI18nForLanguage, t, flushRuntimeMissingKeysAfterPageApply } from "../core/i18n-client.js";
+import { getEffectiveLanguage, applyUiLanguageFromUrlQuery } from "../core/preferred-language.js";
 import { formatMoney } from "../core/utils.js";
 import { resolveAppHeaderShell, refreshHeaderMailUnreadBadge } from "../core/app-header.js";
-import { getQuoteLocaleBundle, resolveQuoteUiLang } from "./quote-detail-locale.js";
+import { getQuoteLocaleBundle } from "./quote-detail-locale.js";
 import { buildQuotePricingBreakdown } from "./quote-detail-pricing-logic.js";
 import { buildQuoteScopeContentFromQuote } from "./quote-detail-scope-logic.js";
 import { buildQuoteSupportContent } from "./quote-detail-support-logic.js";
@@ -36,6 +38,58 @@ function qs(selector) {
 let quoteApprovalBoostPollTimer = 0;
 let quoteApprovalBoostStopTimer = 0;
 let quoteDecisionInFlight = false;
+/** @type {Record<string, unknown> | null} */
+let activeQuoteRef = null;
+let quoteViewerLocaleRefetchInFlight = false;
+const QUOTE_I18N_DOMAINS = ["common", "nav", "quote"];
+
+function applyQuotePageLocaleBundle() {
+  const lang = getEffectiveLanguage();
+  applyDocumentLanguageAttributes(lang);
+  mergeFallbackStrings(getQuoteLocaleBundle(lang));
+}
+
+function readQuoteRejectReasonPreserve() {
+  const input = document.getElementById("quoteRejectModalReason");
+  if (!(input instanceof HTMLTextAreaElement)) return null;
+  const dialog = document.getElementById("quoteRejectConfirmDialog");
+  if (!dialog || !dialog.open) return null;
+  return {
+    value: input.value,
+    selectionStart: input.selectionStart,
+    selectionEnd: input.selectionEnd,
+  };
+}
+
+function restoreQuoteRejectReasonPreserve(preserve) {
+  if (!preserve) return;
+  const input = document.getElementById("quoteRejectModalReason");
+  if (!(input instanceof HTMLTextAreaElement)) return;
+  input.value = preserve.value;
+  try {
+    input.setSelectionRange(preserve.selectionStart, preserve.selectionEnd);
+  } catch {
+    /* ignore */
+  }
+}
+
+function readQuotePagePreserve() {
+  return {
+    reject: readQuoteRejectReasonPreserve(),
+    scrollY: window.scrollY || 0,
+  };
+}
+
+function restoreQuotePagePreserve(preserve) {
+  if (!preserve) return;
+  restoreQuoteRejectReasonPreserve(preserve.reject);
+  try {
+    window.scrollTo(0, preserve.scrollY);
+  } catch {
+    /* non-browser */
+  }
+}
+
 /** @type {HTMLElement | null} */
 let quoteDecisionModalTrigger = null;
 
@@ -71,7 +125,7 @@ async function startPostApprovalMessageBoostPolling() {
         setStatus(
           t(
             "customer.quote.transition.invoice_arrived_hint",
-            "새 메시지가 도착했습니다. 메시지함에서 청구서 안내를 바로 확인해 주세요."
+            "New message received. Open Messages to view the invoice guidance right away."
           ),
           "default"
         );
@@ -464,14 +518,36 @@ function looksLikeUuid(str) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
 }
 
+/** @param {unknown} entry */
+function surveyEntryDisplayTitle(entry) {
+  if (!entry || typeof entry !== "object") return "";
+  return String(entry.display_title || entry.title || "").trim();
+}
+
+/** @param {unknown} quote */
+function quoteDisplayTitle(quote) {
+  return String(quote?.display_title || quote?.title || "").trim();
+}
+
+/** @param {unknown} quote */
+function quoteDisplayServiceName(quote) {
+  return String(quote?.display_service_name || quote?.service_name || "").trim();
+}
+
+/** @param {unknown} quote */
+function quoteDisplayCustomerNote(quote) {
+  return String(quote?.display_customer_facing_note || quote?.customer_facing_note || "").trim();
+}
+
 /** 견적서 파일명용: 내부 접미사 제거해 기록용으로만 짧게 */
 function customerFacingQuoteRecordTitle(quote) {
-  const raw = quote?.title ? String(quote.title).trim() : "";
+  const raw = quoteDisplayTitle(quote);
   if (!raw) return "";
-  const suffix = " Landing Help AI 견적서";
-  if (raw.endsWith(suffix)) {
-    const base = raw.slice(0, -suffix.length).trim();
-    return base || raw;
+  for (const suffix of [" Landing Help AI 견적서", " Landing Help AI quote"]) {
+    if (raw.endsWith(suffix)) {
+      const base = raw.slice(0, -suffix.length).trim();
+      return base || raw;
+    }
   }
   return raw;
 }
@@ -482,33 +558,19 @@ function heroServiceRequestLabel(quote) {
   const survey = rd.survey_submission && typeof rd.survey_submission === "object" ? rd.survey_submission : {};
   const services = Array.isArray(survey.selected_services) ? survey.selected_services : [];
   const titles = services
-    .map((s) => {
-      if (!s || typeof s !== "object") return "";
-      const tit = (s.title || "").toString().trim();
-      if (tit) return tit;
-      const id = (s.id || "").toString().trim();
-      if (id && !looksLikeUuid(id)) return id;
-      return "";
-    })
+    .map((s) => surveyEntryDisplayTitle(s))
     .filter(Boolean);
   if (titles.length) return titles.join(", ");
 
   const cats = Array.isArray(survey.selected_categories) ? survey.selected_categories : [];
   const catTitles = cats
-    .map((c) => {
-      if (!c || typeof c !== "object") return "";
-      const tit = (c.title || "").toString().trim();
-      if (tit) return tit;
-      const id = (c.id || "").toString().trim();
-      if (id && !looksLikeUuid(id)) return id;
-      return "";
-    })
+    .map((c) => surveyEntryDisplayTitle(c))
     .filter(Boolean);
   if (catTitles.length) return catTitles.join(", ");
 
   const rawItem = String(rd.service_item_id || "").trim();
   const fromUuid = isCatalogRecServiceItemUuidString(rawItem) ? rawItem : "";
-  let sn = (quote?.service_name || fromUuid || "").toString().trim();
+  let sn = quoteDisplayServiceName(quote) || fromUuid;
   if (/^survey request:\s*/i.test(sn)) {
     sn = sn.replace(/^survey request:\s*/i, "").trim();
   }
@@ -1408,6 +1470,7 @@ function renderWhatsNextSection(quote) {
 }
 
 function renderQuote(quote) {
+  activeQuoteRef = quote;
   setQuoteDecisionButtonsBusy(false, "approve");
   renderQuoteHero(quote);
   renderQuotePricingSection(quote);
@@ -1421,7 +1484,7 @@ function renderQuote(quote) {
   }
   const noteSection = qs("#quoteCustomerNoteSection");
   const noteEl = qs("#quoteCustomerNote");
-  const note = (quote.customer_facing_note || "").toString().trim();
+  const note = quoteDisplayCustomerNote(quote);
   if (noteSection && noteEl) {
     noteSection.hidden = !note;
     noteEl.textContent = note || "";
@@ -1478,9 +1541,113 @@ function applyQuotePageShell() {
   }
 }
 
+async function bootstrapQuotePageShellI18n() {
+  applyQuotePageLocaleBundle();
+  applyQuotePageShell();
+  applyI18nToDom(document);
+  const brandEl = document.querySelector(".lhai-brand");
+  if (brandEl) brandEl.textContent = resolveAppHeaderShell().brand;
+  await flushRuntimeMissingKeysAfterPageApply();
+}
+
+async function refetchQuoteDetailForViewerLocale() {
+  const quoteId = String(activeQuoteRef?.id || "").trim();
+  if (!quoteId) return true;
+  const previous = activeQuoteRef;
+  try {
+    const quote = await quoteApi.getDetail(quoteId);
+    activeQuoteRef = quote;
+    patchState({ quote });
+    return true;
+  } catch {
+    activeQuoteRef = previous;
+    if (previous) patchState({ quote: previous });
+    return false;
+  }
+}
+
+function rerenderQuotePageFromCache() {
+  if (!activeQuoteRef) return;
+  renderQuote(activeQuoteRef);
+  applyQuoteStatusStripForQuote(activeQuoteRef);
+}
+
+/** Runtime i18n keys resolved: rerender cached quote from local bundle only (no API). */
+function refreshQuotePageStaticFromCache() {
+  if (quoteViewerLocaleRefetchInFlight || !activeQuoteRef) return;
+  applyQuotePageLocaleBundle();
+  const preserve = readQuotePagePreserve();
+  rerenderQuotePageFromCache();
+  applyI18nToDom(document);
+  restoreQuotePagePreserve(preserve);
+  void flushRuntimeMissingKeysAfterPageApply();
+}
+
+async function refreshQuotePageForViewerLanguage() {
+  if (quoteViewerLocaleRefetchInFlight) return;
+  quoteViewerLocaleRefetchInFlight = true;
+  try {
+    const preserve = readQuotePagePreserve();
+    applyQuotePageLocaleBundle();
+    try {
+      await reloadI18nForLanguage(getEffectiveLanguage(), QUOTE_I18N_DOMAINS);
+    } catch {
+      /* keep merged locale bundle fallbacks */
+    }
+    let refetchOk = true;
+    if (activeQuoteRef?.id) {
+      refetchOk = await refetchQuoteDetailForViewerLocale();
+    }
+    applyI18nToDom(document);
+    rerenderQuotePageFromCache();
+    restoreQuotePagePreserve(preserve);
+    if (!refetchOk && activeQuoteRef) {
+      setStatus(
+        t(
+          "customer.quote.locale_refresh_failed",
+          "Could not refresh quote details for the new language. Showing the previous version.",
+        ),
+        "default",
+      );
+    }
+    await flushRuntimeMissingKeysAfterPageApply();
+  } finally {
+    quoteViewerLocaleRefetchInFlight = false;
+  }
+}
+
+function applyQuoteStatusStripForQuote(quote) {
+  if (!quote) return;
+  const st0 = normalizeQuoteStatus(quote.status);
+  let stripKey = "customer.quote.status_strip.other";
+  let stripFb = "When the team sends a proposal, you can review and respond here.";
+  if (st0 === "PROPOSED") {
+    stripKey = "customer.quote.status_strip.proposed";
+    stripFb = "This quote is proposed by the team. Choose Approve or Reject below.";
+  } else if (st0 === "APPROVED") {
+    stripKey = "customer.quote.status_strip.approved";
+    stripFb = "Approval is complete. Open your invoice from messages or email and proceed to payment.";
+  } else if (st0 === "REJECTED" || st0 === "EXPIRED") {
+    stripKey = "customer.quote.status_strip.rejected";
+    stripFb = "This quote was declined.";
+  }
+  setStatus(t(stripKey, stripFb), "default");
+}
+
+wireDynamicPageI18nRefresh(() => {
+  void refreshQuotePageForViewerLanguage();
+}, { languageChangeOnly: true });
+
+wireDynamicPageI18nRefresh(refreshQuotePageStaticFromCache, {
+  runtimeResolvedOnly: true,
+  keyPrefixes: ["customer.quote.", "quote.", "common."],
+});
+
 async function initQuoteDetailPage() {
   if (!protectCurrentPage()) return;
   if (!ensureCustomerAccess()) return;
+  applyUiLanguageFromUrlQuery();
+  await bootAppPageContent(QUOTE_I18N_DOMAINS, async () => {
   window.addEventListener("beforeunload", () => {
     stopPostApprovalMessageBoostPolling();
   });
@@ -1513,25 +1680,9 @@ async function initQuoteDetailPage() {
     quote = await fetchLatestCustomerQuoteDetail();
   }
 
-  const uiLang = quote ? resolveQuoteUiLang(quote) : "ko";
-  document.documentElement.lang = uiLang === "en" ? "en" : "ko";
-
-  resetI18nClientState();
-  try {
-    await initI18nDomains(["common", "quote"], uiLang);
-  } catch {
-    /* 폴백 번들만 사용 */
-  }
-  mergeFallbackStrings(getQuoteLocaleBundle(uiLang));
-
+  await bootstrapQuotePageShellI18n();
   await loadSidebar("#sidebar", "customer");
-  applyI18nToDom(document);
-
-  const brandEl = document.querySelector(".lhai-brand");
-  if (brandEl) brandEl.textContent = resolveAppHeaderShell().brand;
   void refreshHeaderMailUnreadBadge();
-
-  applyQuotePageShell();
 
   if (!quote) {
     const loadEl = qs("#quoteLoadingState");
@@ -1549,22 +1700,7 @@ async function initQuoteDetailPage() {
   const contentEl = qs("#quoteContent");
   if (loadEl) loadEl.style.display = "none";
   if (contentEl) contentEl.style.display = "block";
-  {
-    const st0 = normalizeQuoteStatus(quote.status);
-    let stripKey = "customer.quote.status_strip.other";
-    let stripFb = "When the team sends a proposal, you can review and respond here.";
-    if (st0 === "PROPOSED") {
-      stripKey = "customer.quote.status_strip.proposed";
-      stripFb = "This quote is proposed by the team. Choose Approve or Reject below.";
-    } else if (st0 === "APPROVED") {
-      stripKey = "customer.quote.status_strip.approved";
-      stripFb = "Approval is complete. Open your invoice from messages or email and proceed to payment.";
-    } else if (st0 === "REJECTED" || st0 === "EXPIRED") {
-      stripKey = "customer.quote.status_strip.rejected";
-      stripFb = "This quote was declined.";
-    }
-    setStatus(t(stripKey, stripFb), "default");
-  }
+  applyQuoteStatusStripForQuote(quote);
 
   async function runApproveQuoteDecision() {
     if (!canCustomerDecideOnQuote(quote?.status) || quoteDecisionInFlight) return;
@@ -1676,6 +1812,7 @@ async function initQuoteDetailPage() {
     });
   }
 
+  });
 }
 
 void initQuoteDetailPage().catch((err) => {

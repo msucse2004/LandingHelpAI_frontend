@@ -789,6 +789,16 @@
   font-size: 0.85rem;
 }
 
+.lhai-chat-form-prompt--submitted .lhai-chat-form-prompt__actions {
+  display: none;
+}
+
+.lhai-chat-form-prompt--submitted input,
+.lhai-chat-form-prompt--submitted select,
+.lhai-chat-form-prompt--submitted textarea {
+  cursor: default;
+}
+
 .lhai-chat-form-prompt__meta {
   font-size: 0.75rem;
   margin: 0;
