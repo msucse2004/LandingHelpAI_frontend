@@ -1,3 +1,4 @@
+import { partnerDashboardServiceDisplayName } from "./partner-dashboard-bidding-logic.js";
 import { mountPartnerShell } from "../layouts/partner-shell.js";
 import { renderPartnerAssignedRequestContentHtml } from "./partner-assigned-request-content.js";
 import { partnerThreadsApi } from "../core/api.js";
@@ -10,14 +11,38 @@ import { clearShellTopLayerBlockers } from "../core/ui-blockers.js";
 import { formatMessageTimestamp } from "../core/utils.js";
 import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
 import { applyI18nToDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
+import { t } from "../core/i18n-client.js";
+import { messageViewerBody, messageViewerTitle } from "./messages-display-logic.js";
 
-const ERR_GENERIC = "정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
-const ERR_403 = "이 신청에 접근할 권한이 없습니다.";
-const ERR_404 = "신청 정보를 찾을 수 없습니다.";
+const ERR_GENERIC = () =>
+  t("partner.assigned.error.generic", "Could not load details. Please try again in a moment.");
+const ERR_403 = () => t("partner.assigned.error.forbidden", "You do not have access to this request.");
+const ERR_404 = () => t("partner.assigned.error.not_found", "Request not found.");
 
 let partnerAssignedThreadId = "";
 /** @type {Record<string, unknown> | null} */
 let partnerAssignedDetailCache = null;
+let partnerAssignedLanguageRefetchInFlight = false;
+
+const PARTNER_ASSIGNED_I18N_PREFIXES = ["partner.", "common.", "messages."];
+
+/**
+ * Viewer-locale service title for partner assigned detail service block.
+ * @param {Record<string, unknown> | null | undefined} service
+ * @returns {string}
+ */
+function partnerAssignedServiceDisplayName(service) {
+  return partnerDashboardServiceDisplayName(
+    {
+      display_name: service?.display_name,
+      display_name_status: service?.display_name_status,
+      source_locale: service?.source_locale,
+      display_locale: service?.display_locale,
+      name: service?.name,
+    },
+    t,
+  );
+}
 
 function readPartnerAssignedChatPreserve() {
   const input = document.querySelector("#partnerAssignedChatInput");
@@ -41,36 +66,49 @@ function restorePartnerAssignedChatPreserve(preserve) {
   }
 }
 
-async function refreshPartnerAssignedPageForViewerLanguage() {
-  const preserve = readPartnerAssignedChatPreserve();
+function refreshPartnerAssignedStaticI18n() {
   applyI18nToDom(document);
-  if (!partnerAssignedThreadId) return;
+}
+
+async function handlePartnerAssignedLanguageChanged() {
+  if (partnerAssignedLanguageRefetchInFlight) return;
+  partnerAssignedLanguageRefetchInFlight = true;
+  const preserve = readPartnerAssignedChatPreserve();
   try {
+    refreshPartnerAssignedStaticI18n();
+    if (!partnerAssignedThreadId) return;
     const detail = await partnerThreadsApi.threadDetail(partnerAssignedThreadId);
     partnerAssignedDetailCache = /** @type {Record<string, unknown>} */ (detail);
     applyDetailToDom(partnerAssignedDetailCache, partnerAssignedThreadId);
-  } catch {
-    if (partnerAssignedDetailCache) {
-      applyDetailToDom(partnerAssignedDetailCache, partnerAssignedThreadId);
-    }
+  } catch (err) {
+    console.warn("[lhai][partner-assigned] language refetch failed", err);
+    // Do not re-apply stale viewer-locale display_* from cache.
+  } finally {
+    restorePartnerAssignedChatPreserve(preserve);
+    partnerAssignedLanguageRefetchInFlight = false;
   }
-  restorePartnerAssignedChatPreserve(preserve);
 }
 
 wireDynamicPageI18nRefresh(() => {
-  void refreshPartnerAssignedPageForViewerLanguage();
-}, { keyPrefixes: ["partner.", "common."] });
+  void handlePartnerAssignedLanguageChanged();
+}, { languageChangeOnly: true });
+
+wireDynamicPageI18nRefresh(refreshPartnerAssignedStaticI18n, {
+  runtimeResolvedOnly: true,
+  keyPrefixes: PARTNER_ASSIGNED_I18N_PREFIXES,
+});
 
 /** @param {string} code */
-function statusLabelKo(code) {
+function statusLabel(code) {
   const c = String(code || "").trim().toUpperCase();
-  const map = {
-    NEW_REQUEST: "새 신청",
-    IN_PROGRESS: "진행 중",
-    WAITING_CUSTOMER: "고객 응답 대기",
-    COMPLETED: "완료",
+  const key = `partner.assigned.status.${c}`;
+  const fallbacks = {
+    NEW_REQUEST: "New request",
+    IN_PROGRESS: "In progress",
+    WAITING_CUSTOMER: "Waiting on customer",
+    COMPLETED: "Completed",
   };
-  return map[c] || c || "—";
+  return t(key, fallbacks[c] || c || "—");
 }
 
 function escHtml(s) {
@@ -82,13 +120,13 @@ function escHtml(s) {
 }
 
 /** @param {unknown} raw */
-function genderLabelKo(raw) {
+function genderLabel(raw) {
   const g = String(raw ?? "")
     .trim()
     .toLowerCase();
-  if (g === "male" || g === "m" || g === "남") return "남성";
-  if (g === "female" || g === "f" || g === "여") return "여성";
-  if (g === "other" || g === "o" || g === "기타") return "기타";
+  if (g === "male" || g === "m" || g === "남") return t("partner.gender.male", "Male");
+  if (g === "female" || g === "f" || g === "여") return t("partner.gender.female", "Female");
+  if (g === "other" || g === "o" || g === "기타") return t("partner.gender.other", "Other");
   if (!g) return "—";
   return String(raw ?? "").trim();
 }
@@ -111,9 +149,9 @@ function httpStatusFromError(err) {
 /** @param {unknown} err */
 function errorMessageForDetail(err) {
   const st = httpStatusFromError(err);
-  if (st === 403) return ERR_403;
-  if (st === 404) return ERR_404;
-  return ERR_GENERIC;
+  if (st === 403) return ERR_403();
+  if (st === 404) return ERR_404();
+  return ERR_GENERIC();
 }
 
 function getThreadIdFromLocation() {
@@ -152,19 +190,19 @@ function messageRoleLabel(m) {
   const dir = String(m.direction || "").toUpperCase();
   const mt = String(m.message_type || "").toUpperCase();
   if (mt && mt !== "CHAT") return mt;
-  if (dir === "INBOUND") return "고객";
-  if (dir === "OUTBOUND") return "파트너·시스템";
-  return "메시지";
+  if (dir === "INBOUND") return t("messages.role.customer", "Customer");
+  if (dir === "OUTBOUND") return t("messages.role.partner_system", "Partner / system");
+  return t("messages.role.message", "Message");
 }
 
 /** @param {Record<string, unknown>} m */
 function messageBodyText(m) {
-  const displayTitle = String(m.display_title || "").trim();
-  const displayBody = String(m.display_body || "").trim();
-  const title = displayTitle || String(m.title || "").trim();
-  const body = displayBody || String(m.body || "").trim();
+  const translate = (key, fallback) => t(key, fallback);
+  const title = messageViewerTitle(m, { translate });
+  const body = messageViewerBody(m, { translate });
   if (title && body && title !== body) return `${title}\n\n${body}`;
-  return body || title || "—";
+  const combined = body || title;
+  return combined || t("common.em_dash", "—");
 }
 
 /**
@@ -174,7 +212,9 @@ function messageBodyText(m) {
 function renderMessages(scrollEl, messages) {
   const rows = messages.filter((m) => m && typeof m === "object" && !shouldSkipMessageRow(/** @type {Record<string, unknown>} */ (m)));
   if (!rows.length) {
-    scrollEl.innerHTML = `<div class="u-text-muted">아직 표시할 메시지가 없습니다.</div>`;
+    scrollEl.innerHTML = `<div class="u-text-muted">${escHtml(
+      t("partner.assigned.messages.empty", "No messages to show yet."),
+    )}</div>`;
     return;
   }
   scrollEl.innerHTML = rows
@@ -198,7 +238,7 @@ function applyDetailToDom(detail, threadId) {
   if (root instanceof HTMLElement) root.hidden = false;
   if (sub instanceof HTMLElement) {
     sub.hidden = false;
-    sub.textContent = `스레드 · ${threadId}`;
+    sub.textContent = t("partner.assigned.subtitle_thread", "Thread · {id}").replace("{id}", threadId);
   }
 
   const d = detail && typeof detail === "object" ? /** @type {Record<string, unknown>} */ (detail) : {};
@@ -207,8 +247,8 @@ function applyDetailToDom(detail, threadId) {
   const service = d.service && typeof d.service === "object" ? /** @type {Record<string, unknown>} */ (d.service) : {};
   const intake = d.intake && typeof d.intake === "object" ? /** @type {Record<string, unknown>} */ (d.intake) : {};
 
-  const svcName = String(service.name || "—");
-  const threadSt = statusLabelKo(/** @type {string} */ (thread.status));
+  const svcName = partnerAssignedServiceDisplayName(service);
+  const threadSt = statusLabel(/** @type {string} */ (thread.status));
   const submittedAt = formatMessageTimestamp(/** @type {string | undefined} */ (intake.submitted_at));
 
   const setText = (id, text) => {
@@ -223,18 +263,21 @@ function applyDetailToDom(detail, threadId) {
   setText("#partnerAssignedCustName", String(customer.name || "—"));
   setText("#partnerAssignedCustEmail", String(customer.email || "—"));
   setText("#partnerAssignedCustDob", dobDisplay(customer.date_of_birth));
-  setText("#partnerAssignedCustGender", genderLabelKo(customer.gender));
+  setText("#partnerAssignedCustGender", genderLabel(customer.gender));
 
   setText("#partnerAssignedSvcName", svcName);
   const paid = Boolean(service.paid);
-  setText("#partnerAssignedSvcPaid", paid ? "결제 완료" : "미결제");
-  setText("#partnerAssignedSvcStatus", statusLabelKo(/** @type {string} */ (service.status)));
+  setText(
+    "#partnerAssignedSvcPaid",
+    paid ? t("partner.assigned.payment.paid", "Paid") : t("partner.assigned.payment.unpaid", "Unpaid"),
+  );
+  setText("#partnerAssignedSvcStatus", statusLabel(/** @type {string} */ (service.status)));
 
   const intakeBody = document.querySelector("#partnerAssignedIntakeBody");
   if (intakeBody) {
     const answers = Array.isArray(intake.answers) ? intake.answers : [];
     if (!answers.length) {
-      intakeBody.innerHTML = `<p class="u-text-muted">제출된 인테이크 답변이 없습니다.</p>`;
+      intakeBody.innerHTML = `<p class="u-text-muted">${escHtml(t("partner.assigned.intake.empty", "No intake answers were submitted."))}</p>`;
     } else {
       intakeBody.innerHTML = answers
         .map((row) => {
@@ -271,7 +314,7 @@ async function initPartnerAssignedRequest() {
   await bootAppPageContent(["common", "nav", "partner"], async () => {
   await mountPartnerShell("#app", {
     pageKey: "bid_requests",
-    documentTitle: "배정 신청 상세 - Landing Help AI",
+    documentTitle: t("partner.assigned.doc_title", "Assigned request detail — Landing Help AI"),
     contentHtml: renderPartnerAssignedRequestContentHtml(),
   });
 
@@ -290,7 +333,7 @@ async function initPartnerAssignedRequest() {
   };
 
   if (!threadId) {
-    showError(ERR_404);
+    showError(ERR_404());
     return;
   }
 

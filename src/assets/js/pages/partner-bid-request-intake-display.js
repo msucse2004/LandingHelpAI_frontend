@@ -2,6 +2,104 @@
  * Partner bid detail: AI briefing card + full intake answers disclosure.
  */
 
+import { t } from "../core/i18n-client.js";
+import { catalogDisplayText } from "./catalog-display-logic.js";
+import {
+  messageTranslationPreparingFormLabel,
+  messageTranslationPreparingMessageLabel,
+  messageTranslationStatusPending,
+  messageTranslationStatusUnavailable,
+} from "./messages-display-logic.js";
+
+const SAME_LOCALE_INTAKE_STATUSES = new Set([
+  "not_required",
+  "copied_source_same_locale",
+  "translated",
+  "auto_translated",
+]);
+
+/** @param {unknown} raw */
+function normalizeTranslationStatus(raw) {
+  return String(raw ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, "_");
+}
+
+/**
+ * Viewer-locale service title for partner bid detail pages.
+ * @param {Record<string, unknown> | null | undefined} detail
+ * @param {(key: string, fallback: string) => string} [translate]
+ * @returns {string}
+ */
+export function resolvePartnerBidServiceTitle(detail, translate = null) {
+  const tr = typeof translate === "function" ? translate : t;
+  const service =
+    detail?.service && typeof detail.service === "object"
+      ? /** @type {Record<string, unknown>} */ (detail.service)
+      : {};
+  const fromCatalog = catalogDisplayText(service, "name", tr, { kind: "title" });
+  if (fromCatalog) return fromCatalog;
+  return tr("partner.bid.request_title", "Bid request");
+}
+
+/** @param {Record<string, unknown>} row */
+function partnerIntakeRowCrossLocale(row) {
+  const src = String(row?.source_locale ?? "").trim().toLowerCase();
+  const disp = String(row?.display_locale ?? "").trim().toLowerCase();
+  return Boolean(src && disp && src !== disp);
+}
+
+/**
+ * @param {Record<string, unknown>} row
+ * @param {(key: string, fallback: string) => string} [translate]
+ */
+export function partnerIntakeAnswerDisplayLabel(row, translate = null) {
+  const tr = typeof translate === "function" ? translate : t;
+  const status = normalizeTranslationStatus(row?.translation_status);
+  if (
+    messageTranslationStatusUnavailable(status) ||
+    status === "translation_required_failed" ||
+    messageTranslationStatusPending(status)
+  ) {
+    return messageTranslationPreparingFormLabel(tr);
+  }
+  const display = row?.display_label != null ? String(row.display_label).trim() : "";
+  const raw = String(row?.label ?? "").trim();
+  if (display) return display;
+  if (partnerIntakeRowCrossLocale(row)) {
+    return messageTranslationPreparingFormLabel(tr);
+  }
+  if (SAME_LOCALE_INTAKE_STATUSES.has(status) && raw) return raw;
+  if (raw) return messageTranslationPreparingFormLabel(tr);
+  return tr("common.em_dash", "—");
+}
+
+/**
+ * @param {Record<string, unknown>} row
+ * @param {(key: string, fallback: string) => string} [translate]
+ */
+export function partnerIntakeAnswerDisplayValue(row, translate = null) {
+  const tr = typeof translate === "function" ? translate : t;
+  const status = normalizeTranslationStatus(row?.translation_status);
+  if (
+    messageTranslationStatusUnavailable(status) ||
+    status === "translation_required_failed" ||
+    messageTranslationStatusPending(status)
+  ) {
+    return messageTranslationPreparingMessageLabel(tr);
+  }
+  const display = row?.display_value != null ? String(row.display_value).trim() : "";
+  const raw = String(row?.value ?? "").trim();
+  if (display) return display;
+  if (partnerIntakeRowCrossLocale(row)) {
+    return messageTranslationPreparingMessageLabel(tr);
+  }
+  if (SAME_LOCALE_INTAKE_STATUSES.has(status) && raw) return raw;
+  if (raw) return messageTranslationPreparingMessageLabel(tr);
+  return tr("common.em_dash", "—");
+}
+
 /** @type {ReadonlySet<string>} */
 const MEANINGLESS_BRIEFING_VALUE_KEYS = new Set([
   "__skipped__",
@@ -46,10 +144,8 @@ export function filterPartnerIntakeAnswerRows(rows) {
   return list.filter((row) => {
     if (!row || typeof row !== "object") return false;
     if (String(row.kind || "answer").trim().toLowerCase() === "section") return true;
-    const raw = row.display_value != null && String(row.display_value).trim()
-      ? String(row.display_value)
-      : String(row.value ?? "");
-    return !isMeaninglessBriefingValue(raw) && !isMeaninglessBriefingValue(row.value);
+    const visible = partnerIntakeAnswerDisplayValue(row);
+    return !isMeaninglessBriefingValue(visible) && !isMeaninglessBriefingValue(row.value);
   });
 }
 
@@ -228,17 +324,32 @@ export function resolvePartnerIntakeAnswerRows(detail) {
   return [];
 }
 
-const BRIEFING_ERROR_HINT_KO = {
-  ollama_unavailable:
-    "AI 서버(Ollama)에 연결하지 못했습니다. Ollama가 실행 중인지, 백엔드 .env의 OLLAMA_BASE_URL이 맞는지 확인하세요.",
-  llm_disabled: "브리핑 기능이 비활성화되어 있습니다(BID_BRIEFING_ENABLED).",
-  ollama_timeout: "AI 응답 시간이 초과되었습니다. 모델이 로드되었는지 확인하세요.",
-  ollama_invalid_response: "AI 응답 형식이 올바르지 않습니다.",
-  unexpected_error: "예기치 않은 오류로 브리핑을 만들지 못했습니다.",
+const BRIEFING_ERROR_I18N = {
+  ollama_unavailable: [
+    "partner.bid.brief.error.ollama_unavailable",
+    "Could not connect to the AI server (Ollama). Check that Ollama is running and OLLAMA_BASE_URL in the backend .env is correct.",
+  ],
+  llm_disabled: [
+    "partner.bid.brief.error.llm_disabled",
+    "Briefing is disabled (BID_BRIEFING_ENABLED).",
+  ],
+  ollama_timeout: [
+    "partner.bid.brief.error.ollama_timeout",
+    "The AI response timed out. Check that the model is loaded.",
+  ],
+  ollama_invalid_response: [
+    "partner.bid.brief.error.ollama_invalid_response",
+    "The AI response format was invalid.",
+  ],
+  unexpected_error: [
+    "partner.bid.brief.error.unexpected_error",
+    "An unexpected error prevented briefing generation.",
+  ],
 };
 
-/** @param {unknown} brief */
-export function briefingFailureHint(brief) {
+/** @param {unknown} brief @param {(key: string, fallback: string) => string} [translate] */
+export function briefingFailureHint(brief, translate = null) {
+  const tr = typeof translate === "function" ? translate : t;
   if (!brief || typeof brief !== "object") return "";
   const b = /** @type {Record<string, unknown>} */ (brief);
   const fallback =
@@ -249,9 +360,18 @@ export function briefingFailureHint(brief) {
       ? /** @type {Record<string, unknown>} */ (b._internal)
       : null;
   const kind = String(b.error_kind || internal?.error_kind || "").trim();
-  if (kind && BRIEFING_ERROR_HINT_KO[kind]) return BRIEFING_ERROR_HINT_KO[kind];
-  if (kind) return `브리핑 생성 실패 (${kind}).`;
-  return "자동 요약을 생성하지 못했습니다. 아래 인테이크 답변을 참고해 주세요.";
+  const spec = kind ? BRIEFING_ERROR_I18N[kind] : null;
+  if (spec) return tr(spec[0], spec[1]);
+  if (kind) {
+    return tr("partner.bid.brief.error.generic_with_kind", "Briefing generation failed ({kind}).").replace(
+      "{kind}",
+      kind,
+    );
+  }
+  return tr(
+    "partner.bid.brief.error.generic",
+    "Automatic summary could not be generated. Review the full intake answers below.",
+  );
 }
 
 /** @param {unknown} raw */
@@ -305,14 +425,14 @@ function normalizeKeyPointForDisplay(kp) {
   return row;
 }
 
-/** @param {Record<string, unknown>} b @param {{ serviceTitle?: string }} [opts] */
+/** @param {Record<string, unknown>} b @param {{ serviceTitle?: string, translate?: (key: string, fallback: string) => string }} [opts] */
 function resolveBriefCardTitle(b, opts = {}) {
+  const tr = typeof opts.translate === "function" ? opts.translate : t;
   const fromBrief = String(b.brief_title || b.title || "").trim();
   if (fromBrief) return fromBrief;
-  const fromService = String(
-    opts.serviceTitle || b.service_title || "",
-  ).trim();
-  return fromService || "고객 요청 브리핑";
+  const fromService = String(opts.serviceTitle || b.service_title || "").trim();
+  if (fromService) return fromService;
+  return tr("partner.bid.brief.eyebrow", "Customer request briefing");
 }
 
 /** @param {Record<string, unknown>} b */
@@ -324,10 +444,12 @@ function resolveBriefSummaryForDisplay(b) {
   return raw;
 }
 
-/** @param {Array<{ label: string, value: string }>} keyPoints */
-function renderBriefKeyPointListHtml(keyPoints) {
+/** @param {Array<{ label: string, value: string }>} keyPoints @param {(key: string, fallback: string) => string} tr */
+function renderBriefKeyPointListHtml(keyPoints, tr) {
   if (!keyPoints.length) {
-    return `<p class="lhai-par-bid__brief-empty-kp">전체 인테이크 답변을 확인해 주세요.</p>`;
+    return `<p class="lhai-par-bid__brief-empty-kp">${escHtml(
+      tr("partner.bid.brief.review_intake", "Review the full intake answers below."),
+    )}</p>`;
   }
   const items = keyPoints
     .map((kp) => {
@@ -344,20 +466,26 @@ function renderBriefKeyPointListHtml(keyPoints) {
 
 /**
  * @param {Record<string, unknown> | null | undefined} brief
- * @param {{ serviceTitle?: string }} [opts]
+ * @param {{ serviceTitle?: string, translate?: (key: string, fallback: string) => string }} [opts]
  */
 export function renderAiBidRequestBriefCard(brief, opts = {}) {
-  const eyebrow = "고객 요청 브리핑";
+  const tr = typeof opts.translate === "function" ? opts.translate : t;
+  const eyebrow = tr("partner.bid.brief.eyebrow", "Customer request briefing");
 
   if (!briefHasRenderableContent(brief)) {
-    const hint = briefingFailureHint(brief);
+    const hint = briefingFailureHint(brief, tr);
     const hintHtml = hint
       ? `<p class="lhai-par-bid__brief-fallback-hint">${escHtml(hint)}</p>`
       : "";
     return `<section class="lhai-par-bid__brief-card lhai-par-bid__brief-card--fallback" aria-label="${escHtml(eyebrow)}">
       <p class="lhai-par-bid__brief-eyebrow">${escHtml(eyebrow)}</p>
       <h3 class="lhai-par-bid__brief-card-title">${escHtml(eyebrow)}</h3>
-      <p class="lhai-par-bid__brief-fallback-body">고객 요청 브리핑을 생성하지 못했습니다. 전체 인테이크 답변을 확인해 주세요.</p>
+      <p class="lhai-par-bid__brief-fallback-body">${escHtml(
+        tr(
+          "partner.bid.brief.fallback_body",
+          "We could not generate the customer request briefing. Review the full intake answers below.",
+        ),
+      )}</p>
       ${hintHtml}
     </section>`;
   }
@@ -368,7 +496,7 @@ export function renderAiBidRequestBriefCard(brief, opts = {}) {
     )
   );
 
-  const title = escHtml(resolveBriefCardTitle(b, opts));
+  const title = escHtml(resolveBriefCardTitle(b, { ...opts, translate: tr }));
   const summaryRaw = resolveBriefSummaryForDisplay(b);
   const summary = summaryRaw ? escHtml(summaryRaw) : "";
   const keyPoints = (Array.isArray(b.key_points) ? b.key_points : [])
@@ -381,11 +509,14 @@ export function renderAiBidRequestBriefCard(brief, opts = {}) {
 
   const kpHtml = renderBriefKeyPointListHtml(
     /** @type {Array<{ label: string, value: string }>} */ (keyPoints),
+    tr,
   );
 
   const missHtml = missing.length
     ? `<div class="lhai-par-bid__brief-section lhai-par-bid__brief-section--missing">
-        <h4 class="lhai-par-bid__brief-section-title">확인 필요</h4>
+        <h4 class="lhai-par-bid__brief-section-title">${escHtml(
+          tr("partner.bid.brief.section.missing", "Needs clarification"),
+        )}</h4>
         <ul class="lhai-par-bid__brief-missing-list">${missing
             .map((m) => `<li>${escHtml(m)}</li>`)
             .join("")}</ul>
@@ -394,7 +525,9 @@ export function renderAiBidRequestBriefCard(brief, opts = {}) {
 
   const guideHtml = guidance
     ? `<div class="lhai-par-bid__brief-section lhai-par-bid__brief-section--guidance">
-        <h4 class="lhai-par-bid__brief-section-title">파트너 안내</h4>
+        <h4 class="lhai-par-bid__brief-section-title">${escHtml(
+          tr("partner.bid.brief.section.guidance", "Partner guidance"),
+        )}</h4>
         <p class="lhai-par-bid__brief-guidance">${guidance}</p>
       </div>`
     : "";
@@ -411,13 +544,15 @@ export function renderAiBidRequestBriefCard(brief, opts = {}) {
 
 /**
  * @param {Array<Record<string, unknown>>} rows
- * @param {{ listClass?: string, itemClass?: string, emptyMessage?: string }} [opts]
+ * @param {{ listClass?: string, itemClass?: string, emptyMessage?: string, translate?: (key: string, fallback: string) => string }} [opts]
  */
 export function renderFullIntakeAnswersDisclosure(rows, opts = {}) {
+  const tr = typeof opts.translate === "function" ? opts.translate : t;
   const listClass = opts.listClass || "lhai-par-bid__intake-list";
   const itemClass = opts.itemClass || "lhai-par-bid__intake-item";
   const emptyMessage =
-    opts.emptyMessage || "파트너에게 공개된 인테이크 답변이 없습니다.";
+    opts.emptyMessage ||
+    tr("partner.bid.intake.empty", "No intake answers are visible to partners.");
 
   const list = filterPartnerIntakeAnswerRows(Array.isArray(rows) ? rows : []);
 
@@ -427,23 +562,13 @@ export function renderFullIntakeAnswersDisclosure(rows, opts = {}) {
       : `<div class="${listClass}" role="list">${list
           .map((row) => {
             const r = row && typeof row === "object" ? row : {};
-            const label = escHtml(
-              String(
-                r.display_label != null && String(r.display_label).trim()
-                  ? r.display_label
-                  : r.label || "—",
-              ),
-            );
+            const label = escHtml(partnerIntakeAnswerDisplayLabel(r, tr));
             if (String(r.kind || "answer").trim().toLowerCase() === "section") {
               return `<div class="lhai-par-bid__intake-section ${itemClass}" role="listitem">
                 <p class="lhai-par-bid__intake-section-title">${label}</p>
               </div>`;
             }
-            const display =
-              r.display_value != null && String(r.display_value).trim()
-                ? String(r.display_value)
-                : String(r.value || "—");
-            const val = escHtml(display);
+            const val = escHtml(partnerIntakeAnswerDisplayValue(r, tr));
             return `<div class="${itemClass}" role="listitem">
               <p class="lhai-par-bid__intake-q">${label}</p>
               <p class="lhai-par-bid__intake-a">${val}</p>
@@ -451,27 +576,43 @@ export function renderFullIntakeAnswersDisclosure(rows, opts = {}) {
           })
           .join("")}</div>`;
 
-  return `<section class="lhai-par-bid__intake-disclosure-wrap" aria-label="전체 인테이크 답변">
+  return `<section class="lhai-par-bid__intake-disclosure-wrap" aria-label="${escHtml(
+    tr("partner.bid.intake.disclosure_aria", "Full intake answers"),
+  )}">
     <details class="lhai-par-bid__intake-disclosure">
-      <summary class="lhai-par-bid__intake-disclosure-trigger">전체 인테이크 답변 보기</summary>
+      <summary class="lhai-par-bid__intake-disclosure-trigger">${escHtml(
+        tr("partner.bid.intake.disclosure_summary", "View full intake answers"),
+      )}</summary>
       <div class="lhai-par-bid__intake-disclosure-body">${body}</div>
     </details>
   </section>`;
 }
 
+/**
+ * Replace viewer-locale brief + intake blocks after API refetch (language change / soft refresh).
+ * @param {ParentNode} root
+ * @param {Record<string, unknown> | null | undefined} detail
+ * @param {object} [opts]
+ */
+export function patchPartnerBidLocaleSections(root, detail, opts = {}) {
+  const host = root.querySelector("[data-partner-bid-locale-sections]");
+  if (!(host instanceof HTMLElement)) return;
+  host.innerHTML = renderPartnerBidIntakeSectionHtml(detail, opts);
+}
+
 /** @param {Record<string, unknown> | null | undefined} detail @param {object} [opts] */
 export function renderPartnerBidIntakeSectionHtml(detail, opts = {}) {
+  const tr = typeof opts.translate === "function" ? opts.translate : t;
   const brief =
     detail?.ai_bid_request_brief && typeof detail.ai_bid_request_brief === "object"
       ? detail.ai_bid_request_brief
       : null;
-  const serviceTitle = String(
-    detail?.service_title || detail?.service?.title || "",
-  ).trim();
+  const serviceTitle = resolvePartnerBidServiceTitle(detail, tr);
   return `${renderAiBidRequestBriefCard(brief, {
-    serviceTitle: serviceTitle || undefined,
+    serviceTitle,
+    translate: tr,
   })}${renderFullIntakeAnswersDisclosure(
     filterPartnerIntakeAnswerRows(resolvePartnerIntakeAnswerRows(detail)),
-    opts,
+    { ...opts, translate: tr },
   )}`;
 }

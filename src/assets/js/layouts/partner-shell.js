@@ -106,6 +106,24 @@ export function syncPartnerPageState(pageKey) {
 
 let partnerHashNavWired = false;
 
+/**
+ * Re-apply partner sidebar labels after UI language change.
+ */
+export async function refreshPartnerSidebarI18n() {
+  const target = document.querySelector("#sidebar");
+  if (!(target instanceof HTMLElement) || !target.querySelector(".lhai-partner-nav")) return;
+  if (getCurrentRole() !== ROLES.PARTNER) return;
+
+  const lang = getEffectiveLanguage();
+  try {
+    await initI18nDomains(["common", "partner"], lang);
+  } catch {
+    /* keep English fallbacks when catalog API is unavailable */
+  }
+  applyI18nToDom(target);
+  applyPartnerNavActive(detectPartnerPageKey());
+}
+
 function wirePartnerHashNavActive() {
   if (partnerHashNavWired) return;
   partnerHashNavWired = true;
@@ -126,8 +144,8 @@ export async function loadPartnerSidebar(activeKey) {
   if (!target) return;
 
   const lang = getEffectiveLanguage();
-  await initI18nDomains(["common"], lang);
-  target.innerHTML = renderPartnerNavHtml((label) => label);
+  await initI18nDomains(["common", "partner"], lang);
+  target.innerHTML = renderPartnerNavHtml((item) => t(item.i18nKey, item.fallback));
   applyI18nToDom(target);
   applyPartnerNavActive(activeKey || detectPartnerPageKey());
   wirePartnerHashNavActive();

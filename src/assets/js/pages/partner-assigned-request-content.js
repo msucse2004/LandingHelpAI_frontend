@@ -4,61 +4,61 @@ import { renderPartnerPageContentHtml } from "../layouts/partner-page-layout.js"
 /** Partner assigned request detail page content (shell slot). */
 export function renderPartnerAssignedRequestContentHtml() {
   const listHref = partnerNavHref("bid_requests");
-  const eyebrowHtml = `<p class="lhai-partner-page__back"><a class="lhai-link" href="${listHref}">← 신청 리스트로</a></p>`;
+  const eyebrowHtml = `<p class="lhai-partner-page__back"><a class="lhai-link" href="${listHref}" data-i18n="partner.assigned.back_to_list">← Back to request list</a></p>`;
 
   const bodyHtml = `<p class="lhai-help lhai-par-detail__error" id="partnerAssignedError" role="alert" hidden></p>
 
       <div id="partnerAssignedContent" hidden>
-        <section class="lhai-card lhai-par-detail__hero" aria-label="요약">
+        <section class="lhai-card lhai-par-detail__hero" data-i18n-aria-label="partner.assigned.hero.aria" aria-label="Summary">
           <div class="lhai-par-detail__hero-grid">
             <div>
-              <h2 class="lhai-card__title lhai-par-detail__hero-label">서비스명</h2>
+              <h2 class="lhai-card__title lhai-par-detail__hero-label" data-i18n="partner.assigned.hero.service_name">Service</h2>
               <p class="lhai-par-detail__hero-value" id="partnerAssignedServiceName">—</p>
             </div>
             <div>
-              <h2 class="lhai-card__title lhai-par-detail__hero-label">상태</h2>
+              <h2 class="lhai-card__title lhai-par-detail__hero-label" data-i18n="partner.assigned.hero.status">Status</h2>
               <p class="lhai-par-detail__hero-value" id="partnerAssignedStatus">—</p>
             </div>
             <div>
-              <h2 class="lhai-card__title lhai-par-detail__hero-label">제출 시간</h2>
+              <h2 class="lhai-card__title lhai-par-detail__hero-label" data-i18n="partner.assigned.hero.submitted_at">Submitted</h2>
               <p class="lhai-par-detail__hero-value" id="partnerAssignedSubmittedAt">—</p>
             </div>
           </div>
         </section>
 
         <section class="lhai-card" aria-labelledby="partnerAssignedCustomerHeading">
-          <h2 class="lhai-card__title" id="partnerAssignedCustomerHeading">고객 기본 정보</h2>
+          <h2 class="lhai-card__title" id="partnerAssignedCustomerHeading" data-i18n="partner.assigned.customer_heading">Customer profile</h2>
           <dl class="lhai-par-detail__dl">
-            <div><dt>이름</dt><dd id="partnerAssignedCustName">—</dd></div>
-            <div><dt>이메일</dt><dd id="partnerAssignedCustEmail">—</dd></div>
-            <div><dt>생년월일</dt><dd id="partnerAssignedCustDob">—</dd></div>
-            <div><dt>성별</dt><dd id="partnerAssignedCustGender">—</dd></div>
+            <div><dt data-i18n="partner.assigned.field.name">Name</dt><dd id="partnerAssignedCustName">—</dd></div>
+            <div><dt data-i18n="partner.assigned.field.email">Email</dt><dd id="partnerAssignedCustEmail">—</dd></div>
+            <div><dt data-i18n="partner.assigned.field.dob">Date of birth</dt><dd id="partnerAssignedCustDob">—</dd></div>
+            <div><dt data-i18n="partner.assigned.field.gender">Gender</dt><dd id="partnerAssignedCustGender">—</dd></div>
           </dl>
         </section>
 
         <section class="lhai-card" aria-labelledby="partnerAssignedServiceHeading">
-          <h2 class="lhai-card__title" id="partnerAssignedServiceHeading">서비스 정보</h2>
+          <h2 class="lhai-card__title" id="partnerAssignedServiceHeading" data-i18n="partner.assigned.service_heading">Service information</h2>
           <dl class="lhai-par-detail__dl">
-            <div><dt>서비스명</dt><dd id="partnerAssignedSvcName">—</dd></div>
-            <div><dt>결제 상태</dt><dd id="partnerAssignedSvcPaid">—</dd></div>
-            <div><dt>현재 상태</dt><dd id="partnerAssignedSvcStatus">—</dd></div>
+            <div><dt data-i18n="partner.assigned.field.service_name">Service</dt><dd id="partnerAssignedSvcName">—</dd></div>
+            <div><dt data-i18n="partner.assigned.field.payment_status">Payment status</dt><dd id="partnerAssignedSvcPaid">—</dd></div>
+            <div><dt data-i18n="partner.assigned.field.current_status">Current status</dt><dd id="partnerAssignedSvcStatus">—</dd></div>
           </dl>
         </section>
 
         <section class="lhai-card" aria-labelledby="partnerAssignedIntakeHeading">
-          <h2 class="lhai-card__title" id="partnerAssignedIntakeHeading">인테이크 답변</h2>
+          <h2 class="lhai-card__title" id="partnerAssignedIntakeHeading" data-i18n="partner.assigned.intake_heading">Intake answers</h2>
           <div id="partnerAssignedIntakeBody" class="lhai-par-detail__intake"></div>
         </section>
 
         <section class="lhai-card" aria-labelledby="partnerAssignedChatHeading">
-          <h2 class="lhai-card__title" id="partnerAssignedChatHeading">고객과 메시지</h2>
-          <p class="u-text-muted lhai-par-detail__chat-hint">이 대화는 고객과 배정 파트너가 함께 볼 수 있는 메시지로 전달됩니다.</p>
+          <h2 class="lhai-card__title" id="partnerAssignedChatHeading" data-i18n="partner.assigned.chat_heading">Messages with customer</h2>
+          <p class="u-text-muted lhai-par-detail__chat-hint" data-i18n="partner.assigned.chat_hint">Messages in this thread are visible to the customer and assigned partner.</p>
           <div class="lhai-par-detail__chat-scroll" id="partnerAssignedChatScroll" role="log" aria-live="polite"></div>
           <form class="lhai-par-detail__composer" id="partnerAssignedChatForm" autocomplete="off">
-            <label class="u-sr-only" for="partnerAssignedChatInput">메시지</label>
-            <textarea id="partnerAssignedChatInput" class="lhai-par-detail__textarea" rows="3" placeholder="메시지를 입력하세요" required></textarea>
+            <label class="u-sr-only" for="partnerAssignedChatInput" data-i18n="partner.assigned.chat.input_label">Message</label>
+            <textarea id="partnerAssignedChatInput" class="lhai-par-detail__textarea" rows="3" data-i18n-placeholder="partner.assigned.chat.input_placeholder" placeholder="Type a message…" required></textarea>
             <div class="lhai-par-detail__composer-actions">
-              <button type="submit" class="lhai-button lhai-button--primary" id="partnerAssignedSendBtn">보내기</button>
+              <button type="submit" class="lhai-button lhai-button--primary" id="partnerAssignedSendBtn" data-i18n="partner.assigned.chat.send">Send</button>
             </div>
           </form>
           <p class="lhai-help lhai-par-detail__send-error" id="partnerAssignedSendError" role="alert" hidden></p>
@@ -66,7 +66,8 @@ export function renderPartnerAssignedRequestContentHtml() {
       </div>`;
 
   return renderPartnerPageContentHtml({
-    title: "배정 신청 상세",
+    title: "Assigned request detail",
+    titleI18nKey: "partner.assigned.page_title",
     titleId: "partnerAssignedPageTitle",
     subtitleId: "partnerAssignedSubtitle",
     subtitle: "",

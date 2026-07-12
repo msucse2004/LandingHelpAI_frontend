@@ -105,6 +105,19 @@ function appendViewerLanguageQueryParams(params, opts = {}) {
   return search;
 }
 
+/**
+ * Partner read endpoints return viewer-locale ``display_*`` fields.
+ * Always send ``?lang=getEffectiveLanguage()`` and ``Accept-Language`` on refetch.
+ * @param {{ acceptLanguage?: string }} [opts]
+ * @returns {{ headers: Record<string, string>, queryString: string }}
+ */
+function partnerViewerLocaleRequestInit(opts = {}) {
+  return {
+    headers: messagesViewerLanguageHeaders(opts),
+    queryString: appendViewerLanguageQueryParams({}, opts).toString(),
+  };
+}
+
 /** FastAPI `detail`: string, validation list, or `{ message, code }` (e.g. 409 conflict). */
 function formatFastApiDetail(detail) {
   if (detail == null || detail === "") return "";
@@ -1130,11 +1143,12 @@ const messagesApi = {
 
 const partnerThreadsApi = {
   async dashboard() {
-    const path = "/api/partner/dashboard";
+    const { queryString: qs, headers } = partnerViewerLocaleRequestInit();
+    const path = qs ? `/api/partner/dashboard?${qs}` : "/api/partner/dashboard";
     const url = `${APP_CONFIG.apiBaseUrl}${path}`;
     debugPartnerDashboardApi("fetch", { method: "GET", url });
     try {
-      const data = await tryBackendGet(path);
+      const data = await tryBackendGet(path, headers);
       debugPartnerDashboardApi("response", {
         method: "GET",
         url,
@@ -1160,7 +1174,9 @@ const partnerThreadsApi = {
   async bidRequestDetail(bidRequestId) {
     const id = String(bidRequestId || "").trim();
     if (!id) throw new Error("bidRequestId required");
-    return await tryBackendGet(`/api/partner/bid-requests/${encodeURIComponent(id)}`);
+    const { queryString: qs, headers } = partnerViewerLocaleRequestInit();
+    const path = `/api/partner/bid-requests/${encodeURIComponent(id)}${qs ? `?${qs}` : ""}`;
+    return await tryBackendGet(path, headers);
   },
   /**
    * @param {string} bidRequestId
@@ -1201,12 +1217,16 @@ const partnerThreadsApi = {
     );
   },
   async listThreads() {
-    return await tryBackendGet("/api/partner/threads");
+    const { queryString: qs, headers } = partnerViewerLocaleRequestInit();
+    const path = qs ? `/api/partner/threads?${qs}` : "/api/partner/threads";
+    return await tryBackendGet(path, headers);
   },
   async threadDetail(threadId) {
     const t = String(threadId || "").trim();
     if (!t) throw new Error("threadId required");
-    return await tryBackendGet(`/api/partner/threads/${encodeURIComponent(t)}/detail`);
+    const { queryString: qs, headers } = partnerViewerLocaleRequestInit();
+    const path = `/api/partner/threads/${encodeURIComponent(t)}/detail${qs ? `?${qs}` : ""}`;
+    return await tryBackendGet(path, headers);
   },
   async sendMessage(threadId, body) {
     const t = String(threadId || "").trim();
@@ -4130,8 +4150,16 @@ function buildCustomerBidsListQueryString(query) {
   setBool("no_accident", query.no_accident === true);
   if (query.include_alternatives === false) p.set("include_alternatives", "false");
   setBool("updated_only", query.updated_only === true);
+  setBool("has_photos", query.has_photos === true);
   const make = String(query.make || "").trim();
   if (make) p.set("make", make);
+  const productCategory = String(query.product_category || "").trim();
+  if (productCategory) p.set("product_category", productCategory);
+  const partner = String(query.partner || "").trim();
+  if (partner) p.set("partner", partner);
+  const location = String(query.location || "").trim();
+  if (location) p.set("location", location);
+  appendViewerLanguageQueryParams(p);
   const qs = p.toString();
   return qs ? `?${qs}` : "";
 }
@@ -4184,7 +4212,7 @@ const customerBidsApi = {
     const qs = buildCustomerBidsListQueryString(query);
     const path = `/api/customer/service-requests/${encodeURIComponent(id)}/bids${qs}`;
     try {
-      const raw = await tryBackendGet(path);
+      const raw = await tryBackendGet(path, messagesViewerLanguageHeaders());
       return normalizeCustomerBidListResponse(raw);
     } catch (err) {
       if (isHttp404Error(err)) {
@@ -4204,7 +4232,7 @@ const customerBidsApi = {
     const qs = buildCustomerBidsListQueryString(query);
     const path = `/api/customer/threads/${encodeURIComponent(id)}/bids${qs}`;
     try {
-      const raw = await tryBackendGet(path);
+      const raw = await tryBackendGet(path, messagesViewerLanguageHeaders());
       return normalizeCustomerBidListResponse(raw);
     } catch (err) {
       if (isHttp404Error(err)) {

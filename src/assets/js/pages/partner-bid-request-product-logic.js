@@ -3,19 +3,36 @@
  */
 
 import { formatBidDeadlineRemaining, isBidDeadlinePassed } from "../core/bid-deadline-display.js";
+import { t } from "../core/i18n-client.js";
 
 export const PRODUCT_OFFER_BID_TYPE = "PRODUCT_OFFER";
 
-const SORT_BASIS_LABEL = {
-  recommended: "추천순",
-  lowest_total: "총액 낮은순",
-  recently_updated: "최근 업데이트순",
-  fastest_timeline: "빠른 진행순",
-  photo_first: "사진 있는 순",
-  newest_year: "연식 최신순",
-  lowest_mileage: "주행거리 낮은순",
-  lowest_fees: "수수료 낮은순",
+const SORT_BASIS_KEYS = {
+  recommended: "partner.bid.rank.sort.recommended",
+  lowest_total: "partner.bid.rank.sort.lowest_total",
+  recently_updated: "partner.bid.rank.sort.recently_updated",
+  fastest_timeline: "partner.bid.rank.sort.fastest_timeline",
+  photo_first: "partner.bid.rank.sort.photo_first",
+  newest_year: "partner.bid.rank.sort.newest_year",
+  lowest_mileage: "partner.bid.rank.sort.lowest_mileage",
+  lowest_fees: "partner.bid.rank.sort.lowest_fees",
 };
+
+/** @param {string} basis @param {(key: string, fallback: string) => string} [translate] */
+function sortBasisLabel(basis, translate = t) {
+  const key = SORT_BASIS_KEYS[basis];
+  const fallbacks = {
+    recommended: "Recommended",
+    lowest_total: "Lowest total",
+    recently_updated: "Recently updated",
+    fastest_timeline: "Fastest timeline",
+    photo_first: "Photos first",
+    newest_year: "Newest year",
+    lowest_mileage: "Lowest mileage",
+    lowest_fees: "Lowest fees",
+  };
+  return key ? translate(key, fallbacks[basis] || basis) : translate("partner.bid.rank.sort.recommended", "Recommended");
+}
 
 /** @param {unknown} raw */
 export function offersFromIncludedItems(raw) {
@@ -204,18 +221,25 @@ export function buildProductSubmitPayload(offers, opts = {}) {
   };
 }
 
-/** @param {Record<string, unknown>|null|undefined} summary @param {{ prefix?: string }} [opts] */
+/** @param {Record<string, unknown>|null|undefined} summary @param {{ prefix?: string, translate?: (key: string, fallback: string) => string }} [opts] */
 export function formatRankSummaryLabel(summary, opts = {}) {
   if (!summary || typeof summary !== "object") return "";
-  const prefix = String(opts.prefix || "내 제안 현재 순위").trim();
+  const tr = typeof opts.translate === "function" ? opts.translate : t;
+  const prefix = String(
+    opts.prefix || tr("partner.bid.rank.prefix", "My offer rank"),
+  ).trim();
   const labelKo = String(summary.label_ko || "").trim();
   if (labelKo) return `${prefix}: ${labelKo}`;
   const rank = summary.best_rank ?? summary.partner_best_rank;
   const total = summary.total_offers;
   const basis = String(summary.basis || summary.sort_basis || "recommended").trim();
-  const basisLabel = SORT_BASIS_LABEL[basis] || "추천순";
+  const basisLabel = sortBasisLabel(basis, tr);
   if (rank != null && total != null) {
-    return `${prefix}: ${basisLabel} 기준 ${rank}위 / ${total}개`;
+    return tr("partner.bid.rank.format", "{prefix}: #{rank} of {total} ({basis})")
+      .replace("{prefix}", prefix)
+      .replace("{rank}", String(rank))
+      .replace("{total}", String(total))
+      .replace("{basis}", basisLabel);
   }
   return "";
 }
@@ -257,61 +281,74 @@ export function isPartnerBidDetailPollingPhase(requestStatus) {
   return String(requestStatus || "").trim().toUpperCase() === "OPEN";
 }
 
-/** @param {string} bidStatus @param {string} requestStatus */
-export function partnerBidStatusLabel(bidStatus, requestStatus) {
+/** @param {string} bidStatus @param {string} requestStatus @param {(key: string, fallback: string) => string} [translate] */
+export function partnerBidStatusLabel(bidStatus, requestStatus, translate = t) {
+  const tr = translate;
   const rs = String(requestStatus || "").trim().toUpperCase();
-  if (rs === "CUSTOMER_SELECTED") return "고객 선택 완료";
-  if (rs === "EXPIRED") return "비딩 종료 (기한 만료)";
-  if (rs === "CANCELLED") return "라운드 종료 (새 라운드)";
-  if (rs === "CLOSED") return "종료됨";
+  if (rs === "CUSTOMER_SELECTED") return tr("partner.bid.status.customer_selected", "Customer selection complete");
+  if (rs === "EXPIRED") return tr("partner.bid.status.expired", "Bidding ended (deadline passed)");
+  if (rs === "CANCELLED") return tr("partner.bid.status.cancelled", "Round closed (new round)");
+  if (rs === "CLOSED") return tr("partner.bid.status.closed", "Closed");
   const bs = String(bidStatus || "").trim().toUpperCase();
-  if (bs === "SELECTED") return "고객이 내 제안 선택";
-  if (bs === "REJECTED") return "선택되지 않음";
-  if (bs === "SUBMITTED") return "제출 완료";
-  if (bs === "NOT_SUBMITTED" || bs === "DRAFT") return "미제출";
+  if (bs === "SELECTED") return tr("partner.bid.status.my_offer_selected", "Customer selected my offer");
+  if (bs === "REJECTED") return tr("partner.bid.status.not_selected", "Not selected");
+  if (bs === "SUBMITTED") return tr("partner.bid.status.submitted", "Submitted");
+  if (bs === "NOT_SUBMITTED" || bs === "DRAFT") return tr("partner.bid.status.not_submitted", "Not submitted");
   return bs || "—";
 }
 
-/** 고객 견적 요청(라운드) 상태 — 파트너 히어로 카드용 */
-export function partnerBidRequestRoundLabel(requestStatus) {
+/** @param {string} requestStatus @param {(key: string, fallback: string) => string} [translate] */
+export function partnerBidRequestRoundLabel(requestStatus, translate = t) {
+  const tr = translate;
   const rs = String(requestStatus || "").trim().toUpperCase();
-  if (rs === "OPEN") return "견적 접수 중";
-  if (rs === "CUSTOMER_SELECTED") return "고객 선택 완료";
-  if (rs === "EXPIRED") return "제출 마감됨";
-  if (rs === "CANCELLED") return "라운드 종료 (재요청)";
-  if (rs === "CLOSED") return "종료됨";
+  if (rs === "OPEN") return tr("partner.bid.round.open", "Accepting offers");
+  if (rs === "CUSTOMER_SELECTED") return tr("partner.bid.status.customer_selected", "Customer selection complete");
+  if (rs === "EXPIRED") return tr("partner.bid.round.expired", "Submission deadline passed");
+  if (rs === "CANCELLED") return tr("partner.bid.round.cancelled", "Round closed (re-requested)");
+  if (rs === "CLOSED") return tr("partner.bid.status.closed", "Closed");
   return rs || "—";
 }
 
-/** 이 파트너의 견적 제안 제출 여부 — 파트너 히어로 카드용 */
-export function partnerMyBidSubmissionLabel(bidStatus) {
+/** @param {string} bidStatus @param {(key: string, fallback: string) => string} [translate] */
+export function partnerMyBidSubmissionLabel(bidStatus, translate = t) {
+  const tr = translate;
   const bs = String(bidStatus || "").trim().toUpperCase();
-  if (bs === "SUBMITTED") return "제출 완료";
-  if (bs === "SELECTED") return "제출 완료 · 고객 선택";
-  if (bs === "DRAFT") return "초안 저장됨 (미제출)";
-  if (bs === "REJECTED") return "제출했으나 선택되지 않음";
-  if (bs === "CLOSED") return "수정 불가";
-  return "아직 제출 안 함";
+  if (bs === "SUBMITTED") return tr("partner.bid.my_bid.submitted", "Submitted");
+  if (bs === "SELECTED") return tr("partner.bid.my_bid.submitted_selected", "Submitted · customer selected");
+  if (bs === "DRAFT") return tr("partner.bid.my_bid.draft", "Draft saved (not submitted)");
+  if (bs === "REJECTED") return tr("partner.bid.my_bid.rejected", "Submitted but not selected");
+  if (bs === "CLOSED") return tr("partner.bid.my_bid.closed", "Cannot edit");
+  return tr("partner.bid.my_bid.not_submitted", "Not submitted yet");
 }
 
-/** @param {Record<string, unknown>} bid @param {string} requestStatus */
-export function endedStateMessage(bid, requestStatus) {
+/** @param {Record<string, unknown>} bid @param {string} requestStatus @param {(key: string, fallback: string) => string} [translate] */
+export function endedStateMessage(bid, requestStatus, translate = t) {
+  const tr = translate;
   const bs = String(bid?.status ?? "").trim().toUpperCase();
   const rs = String(requestStatus || "").trim().toUpperCase();
   if (bs === "SELECTED") {
-    return "Customer selected your offer. You have been added to the message thread.";
+    return tr(
+      "partner.bid.ended.selected",
+      "Customer selected your offer. You have been added to the message thread.",
+    );
   }
   if (rs === "EXPIRED") {
-    return "Bidding ended. You can no longer edit offers. A customer may still select an existing offer.";
+    return tr(
+      "partner.bid.ended.expired",
+      "Bidding ended. You can no longer edit offers. A customer may still select an existing offer.",
+    );
   }
   if (rs === "CANCELLED") {
-    return "Customer requested a new bidding round. This round is closed.";
+    return tr(
+      "partner.bid.ended.cancelled",
+      "Customer requested a new bidding round. This round is closed.",
+    );
   }
   if (rs === "CUSTOMER_SELECTED" && bs === "REJECTED") {
-    return "Bidding ended. Another offer was selected.";
+    return tr("partner.bid.ended.other_selected", "Bidding ended. Another offer was selected.");
   }
   if (rs === "CUSTOMER_SELECTED" || rs === "CLOSED" || bs === "REJECTED" || bs === "EXPIRED") {
-    return "This bidding round is closed.";
+    return tr("partner.bid.ended.closed", "This bidding round is closed.");
   }
   return "";
 }

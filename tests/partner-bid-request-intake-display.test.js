@@ -124,6 +124,95 @@ test("intake display exports briefing and disclosure renderers", async () => {
   assert.match(empty, /파트너에게 공개된 인테이크 답변이 없습니다/);
 });
 
+test("intake display hides raw Korean when translation_required_failed", async () => {
+  const mod = await import(`file:///${MOD.replace(/\\/g, "/")}`);
+  const translate = (key, fallback) => {
+    if (key === "messages.translation.preparing_form") return "Preparing form label...";
+    if (key === "messages.translation.preparing_message") return "Preparing message...";
+    return fallback;
+  };
+  const label = mod.partnerIntakeAnswerDisplayLabel(
+    {
+      label: "예산",
+      value: "신차",
+      display_label: "",
+      display_value: "",
+      source_locale: "ko",
+      display_locale: "en",
+      translation_status: "translation_required_failed",
+    },
+    translate,
+  );
+  const value = mod.partnerIntakeAnswerDisplayValue(
+    {
+      label: "예산",
+      value: "신차",
+      display_label: "",
+      display_value: "",
+      source_locale: "ko",
+      display_locale: "en",
+      translation_status: "translation_required_failed",
+    },
+    translate,
+  );
+  assert.equal(label, "Preparing form label...");
+  assert.equal(value, "Preparing message...");
+  assert.doesNotMatch(label, /예산/);
+  assert.doesNotMatch(value, /신차/);
+});
+
+test("intake display blocks raw fallback on cross-locale missing display", async () => {
+  const mod = await import(`file:///${MOD.replace(/\\/g, "/")}`);
+  const translate = (key, fallback) => {
+    if (key === "messages.translation.preparing_form") return "Preparing form label...";
+    if (key === "messages.translation.preparing_message") return "Preparing message...";
+    return fallback;
+  };
+  const row = {
+    label: "예산",
+    value: "25000",
+    display_label: "",
+    display_value: "",
+    source_locale: "ko",
+    display_locale: "en",
+    translation_status: "translation_required_failed",
+  };
+  const label = mod.partnerIntakeAnswerDisplayLabel(row, translate);
+  const value = mod.partnerIntakeAnswerDisplayValue(row, translate);
+  assert.equal(label, "Preparing form label...");
+  assert.equal(value, "Preparing message...");
+  assert.doesNotMatch(label, /예산/);
+  assert.doesNotMatch(value, /25000/);
+
+  const withoutSourceLocale = { ...row, source_locale: undefined };
+  const rawFallbackLabel = mod.partnerIntakeAnswerDisplayLabel(withoutSourceLocale, translate);
+  assert.equal(rawFallbackLabel, "Preparing form label...");
+});
+
+test("intake display allows same-locale Korean source for ko viewer", async () => {
+  const mod = await import(`file:///${MOD.replace(/\\/g, "/")}`);
+  const label = mod.partnerIntakeAnswerDisplayLabel({
+    label: "예산",
+    value: "신차",
+    display_label: "예산",
+    display_value: "신차",
+    source_locale: "ko",
+    display_locale: "ko",
+    translation_status: "not_required",
+  });
+  const value = mod.partnerIntakeAnswerDisplayValue({
+    label: "예산",
+    value: "신차",
+    display_label: "예산",
+    display_value: "신차",
+    source_locale: "ko",
+    display_locale: "ko",
+    translation_status: "not_required",
+  });
+  assert.equal(label, "예산");
+  assert.equal(value, "신차");
+});
+
 test("brief card uses multiline kv list not card grid", async () => {
   const mod = await import(`file:///${join(ROOT, "src/assets/js/pages/partner-bid-request-intake-display.js").replace(/\\/g, "/")}`);
   const html = mod.renderAiBidRequestBriefCard({

@@ -15,14 +15,18 @@ import {
   validateProductOffersForSubmit,
 } from "./partner-bid-request-product-logic.js";
 import {
-  renderAiBidRequestBriefCard,
-  renderFullIntakeAnswersDisclosure,
-  resolvePartnerIntakeAnswerRows,
+  patchPartnerBidLocaleSections,
+  renderPartnerBidIntakeSectionHtml,
+  resolvePartnerBidServiceTitle,
 } from "./partner-bid-request-intake-display.js";
 import { setInnerHtmlIfChanged, setTextIfChanged } from "../core/page-refresh.js";
 import { t } from "../core/i18n-client.js";
-import { catalogDisplayText } from "./catalog-display-logic.js";
 import { localizeProductOfferValidationError } from "./partner-bid-offer-validation-i18n.js";
+
+/** @param {string} key @param {string} fallback */
+function P(key, fallback) {
+  return t(`partner.bid.product.${key}`, fallback);
+}
 
 function escHtml(s) {
   return String(s ?? "")
@@ -38,20 +42,20 @@ function renderPhotoRow(photo, index, disabled) {
   const dis = disabled ? "disabled" : "";
   return `<div class="lhai-par-prod__photo-row" data-photo-index="${index}">
     <div class="lhai-par-prod__field-row">
-      <label>URL</label>
+      <label>${escHtml(P("photo_url", "URL"))}</label>
       <input type="url" name="photo_url" placeholder="https://..." value="${escHtml(p.url || "")}" ${dis} />
     </div>
     <div class="lhai-par-prod__grid-2">
       <div class="lhai-par-prod__field-row">
-        <label>Thumbnail URL</label>
+        <label>${escHtml(P("photo_thumb", "Thumbnail URL"))}</label>
         <input type="url" name="photo_thumbnail_url" value="${escHtml(p.thumbnail_url || "")}" ${dis} />
       </div>
       <div class="lhai-par-prod__field-row">
-        <label>Caption</label>
+        <label>${escHtml(P("photo_caption", "Caption"))}</label>
         <input type="text" name="photo_caption" value="${escHtml(p.caption || "")}" ${dis} />
       </div>
     </div>
-    <button type="button" class="lhai-button lhai-button--ghost lhai-par-prod__photo-remove" data-action="remove-photo" ${dis}>Remove photo</button>
+    <button type="button" class="lhai-button lhai-button--ghost lhai-par-prod__photo-remove" data-action="remove-photo" ${dis}>${escHtml(P("photo_remove", "Remove photo"))}</button>
   </div>`;
 }
 
@@ -61,38 +65,40 @@ function renderOfferPanel(offer, index, disabled) {
   const photos = Array.isArray(offer.photos) ? offer.photos : [];
   const photosHtml = photos.length
     ? photos.map((p, i) => renderPhotoRow(p, i, disabled)).join("")
-    : `<p class="u-text-muted lhai-par-prod__photo-empty">No photos yet.</p>`;
+    : `<p class="u-text-muted lhai-par-prod__photo-empty">${escHtml(P("photo_empty", "No photos yet."))}</p>`;
+
+  const req = escHtml(P("required", "required"));
 
   return `<div class="lhai-par-prod__offer-panel" data-offer-index="${index}">
     <div class="lhai-par-prod__field-row">
-      <label>Title <span class="u-text-muted">(required)</span></label>
+      <label>${escHtml(P("field.title", "Title"))} <span class="u-text-muted">(${req})</span></label>
       <input type="text" name="title" required maxlength="256" value="${escHtml(offer.title || "")}" ${dis} />
     </div>
     <div class="lhai-par-prod__field-row">
-      <label>Description</label>
+      <label>${escHtml(P("field.description", "Description"))}</label>
       <textarea name="description" rows="2" ${dis}>${escHtml(offer.description || "")}</textarea>
     </div>
     <div class="lhai-par-prod__grid-2">
       <div class="lhai-par-prod__field-row">
-        <label>Category</label>
+        <label>${escHtml(P("field.category", "Category"))}</label>
         <input type="text" name="product_category" value="${escHtml(offer.product_category || "")}" ${dis} />
       </div>
       <div class="lhai-par-prod__field-row">
-        <label>Estimated total <span class="u-text-muted">(required)</span></label>
+        <label>${escHtml(P("field.estimated_total", "Estimated total"))} <span class="u-text-muted">(${req})</span></label>
         <input type="number" name="estimated_total" min="0" step="0.01" value="${escHtml(offer.estimated_total ?? "")}" ${dis} />
       </div>
     </div>
     <div class="lhai-par-prod__grid-3">
       <div class="lhai-par-prod__field-row">
-        <label>Price (price_amount)</label>
+        <label>${escHtml(P("field.price_amount", "Price (price_amount)"))}</label>
         <input type="number" name="price_amount" min="0" step="0.01" value="${escHtml(offer.price_amount ?? "")}" ${dis} />
       </div>
       <div class="lhai-par-prod__field-row">
-        <label>Fees</label>
+        <label>${escHtml(P("field.fees", "Fees"))}</label>
         <input type="number" name="fees" min="0" step="0.01" value="${escHtml(offer.fees ?? "")}" ${dis} />
       </div>
       <div class="lhai-par-prod__field-row">
-        <label>Currency</label>
+        <label>${escHtml(P("field.currency", "Currency"))}</label>
         <select name="currency" ${dis}>
           ${["USD", "KRW", "EUR"]
             .map((c) => {
@@ -105,30 +111,30 @@ function renderOfferPanel(offer, index, disabled) {
     </div>
     <div class="lhai-par-prod__grid-2">
       <div class="lhai-par-prod__field-row">
-        <label>Available timeline</label>
+        <label>${escHtml(P("field.timeline", "Available timeline"))}</label>
         <input type="text" name="available_timeline" value="${escHtml(offer.available_timeline || "")}" ${dis} />
       </div>
       <div class="lhai-par-prod__field-row">
-        <label>Location</label>
+        <label>${escHtml(P("field.location", "Location"))}</label>
         <input type="text" name="location" value="${escHtml(offer.location || "")}" ${dis} />
       </div>
     </div>
     <div class="lhai-par-prod__field-row">
-      <label>Message to customer (optional)</label>
+      <label>${escHtml(P("field.message", "Message to customer (optional)"))}</label>
       <textarea name="message_to_customer" rows="2" ${dis}>${escHtml(offer.message_to_customer || "")}</textarea>
     </div>
     <div class="lhai-par-prod__photos">
       <div class="lhai-par-prod__photos-head">
-        <h4 class="lhai-par-prod__subhead">Photos (URL)</h4>
-        <button type="button" class="lhai-button lhai-button--ghost" data-action="add-photo" ${dis}>+ Add photo URL</button>
+        <h4 class="lhai-par-prod__subhead">${escHtml(P("photos_title", "Photos (URL)"))}</h4>
+        <button type="button" class="lhai-button lhai-button--ghost" data-action="add-photo" ${dis}>${escHtml(P("add_photo", "+ Add photo URL"))}</button>
       </div>
       <div class="lhai-par-prod__photo-list">${photosHtml}</div>
-      <p class="lhai-par-prod__hint">Add image URLs for this offer. Vehicle bids may use file upload on the car form.</p>
+      <p class="lhai-par-prod__hint">${escHtml(P("photos_hint", "Add image URLs for this offer. Vehicle bids may use file upload on the car form."))}</p>
     </div>
     <div class="lhai-par-prod__field-row">
-      <label>Attributes (JSON object)</label>
+      <label>${escHtml(P("attributes_title", "Attributes (JSON object)"))}</label>
       <textarea name="attributes_json" rows="4" placeholder='{"year":2021,"make":"Toyota","model":"Camry"}' ${dis}>${escHtml(offer.attributes_json || "")}</textarea>
-      <p class="lhai-par-prod__hint">Optional: year, make, model, mileage, condition</p>
+      <p class="lhai-par-prod__hint">${escHtml(P("attributes_hint", "Optional: year, make, model, mileage, condition"))}</p>
     </div>
   </div>`;
 }
@@ -147,11 +153,15 @@ export function refreshProductBidMeta(root, data) {
   const bidStatus = String(bid.status ?? "").trim().toUpperCase();
   const reqStatus = String(data.bid_request_status ?? "OPEN").trim().toUpperCase();
   const bidStatusLine =
-    bidStatus === "SUBMITTED" ? "Submitted" : bidStatus === "DRAFT" ? "Draft" : bidStatus || "—";
+    bidStatus === "SUBMITTED"
+      ? t("partner.bid.my_bid.submitted_short", "Submitted")
+      : bidStatus === "DRAFT"
+        ? t("partner.bid.my_bid.draft_short", "Draft")
+        : bidStatus || "—";
 
   setTextIfChanged(
     root.querySelector("#pbrProdReqStatus"),
-    partnerBidStatusLabel(bidStatus, reqStatus),
+    partnerBidStatusLabel(bidStatus, reqStatus, t),
   );
   setTextIfChanged(root.querySelector("#pbrProdYourBidStatus"), bidStatusLine);
   const brBlock =
@@ -172,10 +182,13 @@ export function refreshProductBidMeta(root, data) {
     data.last_view_rank_summary && typeof data.last_view_rank_summary === "object"
       ? data.last_view_rank_summary
       : null;
-  const rankLabel = formatRankSummaryLabel(rankSummary);
+  const rankLabel = formatRankSummaryLabel(rankSummary, { translate: t });
   const lastViewLabel =
     lastViewRank && lastViewRank.basis !== rankSummary?.basis
-      ? formatRankSummaryLabel(lastViewRank, { prefix: "Last view" })
+      ? formatRankSummaryLabel(lastViewRank, {
+          prefix: t("partner.bid.rank.last_view_prefix", "Rank at last check"),
+          translate: t,
+        })
       : "";
   const rankCard = root.querySelector("#pbrProdRankCard");
   const rankEl = root.querySelector("#pbrProdRank");
@@ -202,7 +215,7 @@ export function refreshProductBidMeta(root, data) {
     }
   }
 
-  const endedMsg = endedStateMessage(bid, reqStatus);
+  const endedMsg = endedStateMessage(bid, reqStatus, t);
   const selectedBanner = root.querySelector("#pbrProdSelectedBanner");
   const closedBanner = root.querySelector("#pbrProdClosedBanner");
   if (bidStatus === "SELECTED" && selectedBanner instanceof HTMLElement) {
@@ -223,6 +236,15 @@ export function refreshProductBidMeta(root, data) {
       closedBanner.hidden = true;
       closedBanner.innerHTML = "";
     }
+  }
+
+  patchPartnerBidLocaleSections(root, data, {
+    translate: t,
+    emptyMessage: t("partner.bid.intake.empty", "No intake answers are visible to partners."),
+  });
+  const heroTitle = root.querySelector("#pbrProdHeroTitle");
+  if (heroTitle instanceof HTMLElement) {
+    setTextIfChanged(heroTitle, resolvePartnerBidServiceTitle(data, t));
   }
 }
 
@@ -252,79 +274,82 @@ export function mountProductOfferBidUi(root, ctx) {
     requestStatus: reqStatus,
     expiresAt: ctx.expiresAtQuery,
   });
-  const endedMsg = endedStateMessage(bid, reqStatus);
+  const endedMsg = endedStateMessage(bid, reqStatus, t);
   const rankSummary =
     data.rank_summary && typeof data.rank_summary === "object" ? data.rank_summary : null;
   const lastViewRank =
     data.last_view_rank_summary && typeof data.last_view_rank_summary === "object"
       ? data.last_view_rank_summary
       : null;
-  const rankLabel = formatRankSummaryLabel(rankSummary);
+  const rankLabel = formatRankSummaryLabel(rankSummary, { translate: t });
   const lastViewLabel =
     lastViewRank && lastViewRank.basis !== rankSummary?.basis
-      ? formatRankSummaryLabel(lastViewRank, { prefix: "Last view" })
+      ? formatRankSummaryLabel(lastViewRank, {
+          prefix: t("partner.bid.rank.last_view_prefix", "Rank at last check"),
+          translate: t,
+        })
       : "";
 
   let offers = offersFromIncludedItems(bid.included_items);
   if (!offers.length) offers = [createEmptyProductOffer()];
   let activeIndex = 0;
 
-  const svcName =
-    catalogDisplayText(svc, "name", t, { kind: "title" }) ||
-    t("partner.bid.request_title", "Bid request");
+  const svcName = resolvePartnerBidServiceTitle(data, t);
   const bidStatusLine =
-    bidStatus === "SUBMITTED" ? "Submitted" : bidStatus === "DRAFT" ? "Draft" : bidStatus || "—";
-  const submitLabel = bidStatus === "SUBMITTED" ? "Update offer" : "Submit offer";
+    bidStatus === "SUBMITTED"
+      ? t("partner.bid.my_bid.submitted_short", "Submitted")
+      : bidStatus === "DRAFT"
+        ? t("partner.bid.my_bid.draft_short", "Draft")
+        : bidStatus || "—";
+  const submitLabel =
+    bidStatus === "SUBMITTED"
+      ? P("submit_update", "Update offer")
+      : P("submit_offer", "Submit offer");
 
   root.innerHTML = `
     <section class="lhai-card lhai-par-prod__hero">
-      <h2 class="lhai-card__title">${escHtml(svcName)}</h2>
+      <h2 class="lhai-card__title" id="pbrProdHeroTitle">${escHtml(svcName)}</h2>
       <dl class="lhai-par-prod__summary-dl">
-        <div><dt>Request status</dt><dd id="pbrProdReqStatus">${escHtml(partnerBidStatusLabel(bidStatus, reqStatus))}</dd></div>
-        <div><dt>Your bid</dt><dd id="pbrProdYourBidStatus">${escHtml(bidStatusLine)}</dd></div>
-        <div><dt>Deadline</dt><dd id="pbrProdDeadline">${escHtml(formatDeadlineCountdown(ctx.expiresAtQuery))}</dd></div>
-        <div><dt>Customer</dt><dd>${escHtml(String(cust.display_name || "—"))}</dd></div>
-        <div><dt>Location</dt><dd>${escHtml(String(cust.location || svc.location || "—"))}</dd></div>
+        <div><dt>${escHtml(P("hero.request_status", "Request status"))}</dt><dd id="pbrProdReqStatus">${escHtml(partnerBidStatusLabel(bidStatus, reqStatus, t))}</dd></div>
+        <div><dt>${escHtml(P("hero.your_bid", "Your bid"))}</dt><dd id="pbrProdYourBidStatus">${escHtml(bidStatusLine)}</dd></div>
+        <div><dt>${escHtml(P("hero.deadline", "Deadline"))}</dt><dd id="pbrProdDeadline">${escHtml(formatDeadlineCountdown(ctx.expiresAtQuery))}</dd></div>
+        <div><dt>${escHtml(P("hero.customer", "Customer"))}</dt><dd>${escHtml(String(cust.display_name || "—"))}</dd></div>
+        <div><dt>${escHtml(P("hero.location", "Location"))}</dt><dd>${escHtml(String(cust.location || svc.location || "—"))}</dd></div>
       </dl>
       <div class="lhai-par-prod__rank-card" id="pbrProdRankCard" hidden>
         <p class="lhai-par-prod__rank" id="pbrProdRank"></p>
-        <p class="lhai-par-prod__rank-hint">Rank is indicative only and does not guarantee selection.</p>
+        <p class="lhai-par-prod__rank-hint">${escHtml(P("rank_hint", "Rank is indicative only and does not guarantee selection."))}</p>
         <p class="lhai-par-prod__rank lhai-par-prod__rank--secondary" id="pbrProdLastViewRank" hidden></p>
       </div>
     </section>
 
     <div id="pbrProdSelectedBanner" class="lhai-par-bid__selected-banner" hidden>
-      <p><strong>Customer selected your offer. Open conversation.</strong></p>
+      <p><strong>${escHtml(P("selected_banner", "Customer selected your offer. Open conversation."))}</strong></p>
       <div class="lhai-par-bid__actions">
-        <button type="button" class="lhai-button lhai-button--primary" id="pbrProdOpenMessages">Open conversation</button>
+        <button type="button" class="lhai-button lhai-button--primary" id="pbrProdOpenMessages">${escHtml(P("open_messages", "Open conversation"))}</button>
       </div>
     </div>
     <div id="pbrProdClosedBanner" class="lhai-par-bid__closed-banner" hidden></div>
 
     <div class="lhai-par-prod__request-stack">
-      ${renderAiBidRequestBriefCard(
-        data.ai_bid_request_brief && typeof data.ai_bid_request_brief === "object"
-          ? data.ai_bid_request_brief
-          : null,
-        {
-          serviceTitle: String(data.service_title || "").trim() || undefined,
-        },
-      )}
-      ${renderFullIntakeAnswersDisclosure(resolvePartnerIntakeAnswerRows(data), {
-        emptyMessage: "No partner-visible intake answers.",
-      })}
+      <div data-partner-bid-locale-sections>
+        ${renderPartnerBidIntakeSectionHtml(data, {
+          translate: t,
+          emptyMessage: t("partner.bid.intake.empty", "No intake answers are visible to partners."),
+        })}
+      </div>
     </div>
 
     <section class="lhai-card lhai-par-prod__offer-block" id="pbrProdEditorSection">
       <div class="lhai-par-prod__editor-head">
-        <h2 class="lhai-card__title">Product offers</h2>
-        <button type="button" class="lhai-button lhai-button--secondary" id="pbrProdAddOffer" ${editable ? "" : "disabled"}>+ Add offer</button>
+        <h2 class="lhai-card__title">${escHtml(P("offers_title", "Product offers"))}</h2>
+        <button type="button" class="lhai-button lhai-button--secondary" id="pbrProdAddOffer" ${editable ? "" : "disabled"}>${escHtml(P("add_offer", "+ Add offer"))}</button>
       </div>
       <div class="lhai-par-prod__offer-tabs" id="pbrProdOfferTabs"></div>
       <form class="lhai-par-prod__form" id="pbrProdForm" novalidate>
         <div id="pbrProdOfferPanels"></div>
         <div class="lhai-par-prod__field-row">
-          <label>Overall message to customer (optional)</label>
+          <label>${escHtml(P("global_message", "Overall message to customer (optional)"))}</label>
           <textarea id="pbrProdBidMessage" name="bid_message" rows="3" ${editable ? "" : "disabled"}>${escHtml(String(bid.message_to_customer || ""))}</textarea>
         </div>
         <p class="lhai-par-bid__form-error" id="pbrProdFormError" role="alert" hidden></p>
@@ -332,7 +357,7 @@ export function mountProductOfferBidUi(root, ctx) {
           <button type="submit" class="lhai-button lhai-button--primary" id="pbrProdSubmit" ${editable ? "" : "disabled"}>${escHtml(submitLabel)}</button>
         </div>
       </form>
-      <div class="lhai-par-bid__msg-gate" id="pbrProdMsgGate" hidden>Open conversation after the customer selects your offer.</div>
+      <div class="lhai-par-bid__msg-gate" id="pbrProdMsgGate" hidden>${escHtml(P("msg_gate", "Open conversation after the customer selects your offer."))}</div>
     </section>`;
 
   const selectedBanner = root.querySelector("#pbrProdSelectedBanner");
@@ -367,7 +392,7 @@ export function mountProductOfferBidUi(root, ctx) {
     if (activeIndex >= offers.length) activeIndex = Math.max(0, offers.length - 1);
     tabsEl.innerHTML = offers
       .map((o, i) => {
-        const title = String(o.title || "").trim() || `Offer ${i + 1}`;
+        const title = String(o.title || "").trim() || P("offer_tab", "Offer {index}").replace("{index}", String(i + 1));
         const cls = i === activeIndex ? " lhai-par-prod__tab is-active" : " lhai-par-prod__tab";
         return `<button type="button" class="${cls.trim()}" data-tab="${i}">${escHtml(title)}</button>`;
       })

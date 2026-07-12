@@ -45,11 +45,11 @@ test("buildProductSubmitPayload shapes PRODUCT_OFFER included_items", async () =
 test("formatRankSummaryLabel uses API label_ko", async () => {
   const m = await importFresh();
   const label = m.formatRankSummaryLabel({
-    label_ko: "추천순 기준 2위 / 9개",
+    label_ko: "Recommended · #2 of 9",
     best_rank: 2,
     total_offers: 9,
   });
-  assert.match(label, /내 제안 현재 순위: 추천순 기준 2위 \/ 9개/);
+  assert.match(label, /My offer rank: Recommended · #2 of 9/);
 });
 
 test("endedStateMessage distinguishes EXPIRED and CANCELLED", async () => {

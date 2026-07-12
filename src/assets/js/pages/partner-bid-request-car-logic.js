@@ -72,7 +72,7 @@ export async function prepareBidOfferPhotoFileForUpload(file) {
     canvas.height = height;
     const ctx = canvas.getContext("2d");
     if (!ctx) {
-      throw new Error("이미지를 처리할 수 없습니다.");
+      throw new Error("image_process_failed");
     }
     ctx.drawImage(bitmap, 0, 0, width, height);
 
@@ -90,7 +90,7 @@ export async function prepareBidOfferPhotoFileForUpload(file) {
 
     if (!blob || blob.size > MAX_BID_OFFER_PHOTO_BYTES) {
       throw new Error(
-        "사진 용량이 너무 큽니다. 더 작은 사진을 선택하거나 카메라 해상도를 낮춰 주세요.",
+        "photo_too_large_after_compress",
       );
     }
 
@@ -702,7 +702,7 @@ export function formatDeadlineCountdown(expiresAt) {
 /** @param {Record<string, unknown> | null | undefined} bidRequestBlock */
 export function formatDeadlineFromBidRequestBlock(bidRequestBlock) {
   if (!bidRequestBlock || typeof bidRequestBlock !== "object") return "—";
-  if (bidRequestBlock.is_expired === true) return "비딩 종료";
+  if (bidRequestBlock.is_expired === true) return "Bidding ended";
   const label = String(bidRequestBlock.remaining_label || "").trim();
   if (label && label !== "—") return label;
   return formatBidDeadlineRemaining(
@@ -768,14 +768,6 @@ const VP_TIMELINE_LABELS = {
   flexible: "Flexible",
 };
 
-const VP_TIMELINE_LABELS_KO = {
-  asap: "가능한 한 빨리",
-  "1_week": "1주 이내",
-  "2_weeks": "2주 이내",
-  "1_month": "1개월 이내",
-  flexible: "유연함",
-};
-
 /**
  * @param {Record<string, unknown> | null | undefined} carReq
  * @returns {number | null}
@@ -805,7 +797,7 @@ export function resolveCarPurchaseBudgetMax(carReq) {
 export function formatCarDesiredTimeline(raw) {
   const key = String(raw ?? "").trim().toLowerCase();
   if (!key) return "";
-  return VP_TIMELINE_LABELS_KO[key] || VP_TIMELINE_LABELS[key] || String(raw).trim();
+  return VP_TIMELINE_LABELS[key] || String(raw).trim();
 }
 
 /**
@@ -933,7 +925,7 @@ export function vehicleRequestSummaryLines(vr) {
   }
 
   const cond = String(vr.vehicle_condition || "").trim();
-  const condLabel = cond === "NEW" ? "신차" : cond === "USED" ? "중고차" : cond || "";
+  const condLabel = cond === "NEW" ? "New" : cond === "USED" ? "Used" : cond || "";
   if (condLabel) parts.push(condLabel);
   const year = formatYearMin(vr.year_min);
   if (year) parts.push(`Year: ${year}`);

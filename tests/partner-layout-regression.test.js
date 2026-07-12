@@ -121,12 +121,13 @@ test("1. partner pages include header root, shell CSS, and header scripts", () =
 
 test("2. sidebar nav — four items on every surface (incl. messages)", () => {
   const html = renderPartnerNavHtml();
-  const labels = ["대시보드", "신청 리스트", "메시지함", "프로필"];
+  const labels = ["Dashboard", "Request list", "Messages", "Profile"];
   for (const label of labels) {
     assert.ok(html.includes(label), `nav must include ${label}`);
   }
   assert.equal((html.match(/lhai-partner-nav__item/g) || []).length, 4);
   assert.ok(!html.includes("lhai-partner-nav__link"), "legacy __link class removed");
+  assert.ok(!html.includes("대시보드"), "nav must not hardcode Korean labels");
 });
 
 test("3. active menu keys for all partner routes", () => {

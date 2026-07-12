@@ -20,14 +20,16 @@ test("PARTNER_NAV_ITEMS always includes messages in fixed order", () => {
     PARTNER_NAV_ITEMS.map((i) => i.key),
     ["dashboard", "bid_requests", "messages", "profile"]
   );
-  assert.equal(PARTNER_NAV_ITEMS.find((i) => i.key === "messages")?.label, "메시지함");
+  assert.equal(PARTNER_NAV_ITEMS.find((i) => i.key === "messages")?.fallback, "Messages");
+  assert.equal(PARTNER_NAV_ITEMS.find((i) => i.key === "messages")?.i18nKey, "partner.nav.messages");
 });
 
 test("renderPartnerNavHtml includes all four links", () => {
   const html = renderPartnerNavHtml();
   assert.ok(html.includes('data-partner-nav="messages"'));
   assert.ok(html.includes("lhai-partner-nav__item"));
-  assert.ok(html.includes("메시지함"));
+  assert.ok(html.includes("Messages"));
+  assert.ok(html.includes('data-i18n="partner.nav.messages"'));
   assert.ok(html.includes('data-partner-nav="profile"'));
 });
 

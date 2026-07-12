@@ -65,13 +65,20 @@ test("buildCustomerBidsApiQuery maps product filters", async () => {
   assert.equal(q.location, "Raleigh");
 });
 
-test("formatOfferRankBadge shows rank total", async () => {
+test("formatOfferRankBadge shows rank total in English", async () => {
   const m = await importFresh(logicPath);
   const badge = m.formatOfferRankBadge(
     { rank: 1, rank_total: 12, rank_basis: "recommended" },
     "recommended",
   );
-  assert.match(badge, /추천순 기준 1위 \/ 12개/);
+  assert.equal(badge, "Recommended #1 of 12");
+});
+
+test("formatBidRequestStatusLabel uses code-based English fallbacks", async () => {
+  const m = await importFresh(logicPath);
+  assert.equal(m.formatBidRequestStatusLabel("OPEN"), "Bidding in progress");
+  assert.equal(m.formatBidRequestStatusLabel("EXPIRED"), "Bidding ended");
+  assert.equal(m.formatBidRequestStatusLabel("CUSTOMER_SELECTED"), "Offer selected");
 });
 
 test("buildOfferThumbImgHtml includes fallback data attribute when thumb differs from full", async () => {
@@ -116,10 +123,10 @@ test("collectOfferPhotos resolves relative upload paths", async () => {
   assert.match(photos[0].thumbnail_url, /thumbs\/abc\.jpg$/);
 });
 
-test("emptyOffersMessage OPEN vs EXPIRED", async () => {
+test("emptyOffersMessage OPEN vs EXPIRED in English", async () => {
   const m = await importFresh(logicPath);
-  assert.match(m.emptyOffersMessage("OPEN", 0), /준비 중/);
-  assert.match(m.emptyOffersMessage("EXPIRED", 0), /새 비딩/);
+  assert.match(m.emptyOffersMessage("OPEN", 0), /preparing offers/i);
+  assert.match(m.emptyOffersMessage("EXPIRED", 0), /new bidding round/i);
 });
 
 test("formatOfferVehicleTitle joins year make model", async () => {
@@ -139,10 +146,10 @@ test("offerShowsUpdatedBadge when timestamps close", async () => {
   assert.equal(m.offerShowsUpdatedBadge(iso, "2020-01-01T00:00:00.000Z"), false);
 });
 
-test("formatRelativeTimeKo shows minutes ago", async () => {
+test("formatRelativeTime shows minutes ago in English", async () => {
   const m = await importFresh(logicPath);
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-  assert.match(m.formatRelativeTimeKo(fiveMinAgo), /5분 전/);
+  assert.match(m.formatRelativeTime(fiveMinAgo), /5 min ago/);
 });
 
 test("buildCustomerBidResultsPageHref encodes params", async () => {
@@ -183,7 +190,7 @@ test("renderSelectionConversationBannerHtml includes Open conversation", async (
 test("customerBidStatusBannerMessage for EXPIRED and CLOSED", async () => {
   const m = await importFresh(logicPath);
   assert.match(m.customerBidStatusBannerMessage("EXPIRED"), /Bidding has ended/i);
-  assert.match(m.customerBidStatusBannerMessage("CLOSED"), /종료/);
+  assert.match(m.customerBidStatusBannerMessage("CLOSED"), /bidding round has ended/i);
   assert.equal(m.canSelectCustomerBid("OPEN"), true);
   assert.equal(m.canSelectCustomerBid("EXPIRED"), true);
 });
@@ -199,18 +206,18 @@ test("buildCustomerBidSelectConfirmContent EXPIRED vs OPEN", async () => {
   const expired = m.buildCustomerBidSelectConfirmContent("EXPIRED", vehicleOffer, {});
   assert.equal(expired.modalTitle, "Select this offer?");
   assert.match(expired.bodyHtml, /bidding round has ended/i);
-  assert.match(expired.bodyHtml, /다른 구매자에게 먼저 판매/);
+  assert.match(expired.bodyHtml, /sold to another buyer first/i);
   assert.equal(expired.submitLabel, "Select and contact partner");
   const open = m.buildCustomerBidSelectConfirmContent("OPEN", vehicleOffer, {
     expires_at: new Date(Date.now() + 3600_000).toISOString(),
   });
-  assert.equal(open.modalTitle, "제안 선택 확인");
-  assert.match(open.bodyHtml, /다른 구매자에게 먼저 판매/);
-  assert.match(open.warnText, /비딩 마감/);
+  assert.equal(open.modalTitle, "Confirm offer selection");
+  assert.match(open.bodyHtml, /sold to another buyer first/i);
+  assert.match(open.warnText, /left until bidding closes/i);
 
   const productOffer = { title: "Phone plan", product_category: "service", estimated_total: 99 };
   const openProduct = m.buildCustomerBidSelectConfirmContent("OPEN", productOffer, {});
-  assert.doesNotMatch(openProduct.bodyHtml, /다른 구매자에게 먼저 판매/);
+  assert.doesNotMatch(openProduct.bodyHtml, /sold to another buyer first/i);
 });
 
 test("resolveCustomerBidActions prefers API flags", async () => {
@@ -241,7 +248,7 @@ test("vehicle offer card shows minor and major accident labels", async () => {
     { phase: "OPEN", activeSort: "recommended", snap: { status: "OPEN" } },
     (s) => String(s),
   );
-  assert.match(html, /경미한 사고/);
+  assert.match(html, /Minor accident reported/);
   const majorHtml = m.buildVehicleOfferCardHtml(
     {
       offer_id: "o2",
@@ -255,7 +262,7 @@ test("vehicle offer card shows minor and major accident labels", async () => {
     { phase: "OPEN", activeSort: "recommended", snap: { status: "OPEN" } },
     (s) => String(s),
   );
-  assert.match(majorHtml, /중대 사고/);
+  assert.match(majorHtml, /Major accident reported/);
 });
 
 test("isVehicleOffer detects vehicle category and block", async () => {

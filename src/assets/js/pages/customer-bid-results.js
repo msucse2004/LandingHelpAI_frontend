@@ -1,5 +1,5 @@
 /**
- * 고객 견적 제안 비교 — PRODUCT_OFFER 카드 리스트.
+ * Customer bid offer comparison — PRODUCT_OFFER card list.
  */
 import { customerBidsApi } from "../core/api.js";
 import { alertI18n, alertPlain } from "../core/app-dialog.js";
@@ -34,6 +34,7 @@ import {
   customerBidStatusBannerMessage,
   buildCustomerBidSelectConfirmContent,
   canSelectCustomerBid,
+  cbrT,
   formatCountdownToExpiry,
   formatMoney,
   formatOfferPartnerName,
@@ -41,6 +42,7 @@ import {
   formatOfferRankBadge,
   formatOfferTitle,
   formatQuoteRequestUsage,
+  formatSortOptionLabel,
   canRequestNewBidRound,
   quoteRequestRemaining,
   isProductOfferListResponse,
@@ -54,12 +56,16 @@ import {
   buildVehicleOfferCardHtml,
   buildVehicleOfferDetailModalHtml,
   offerSelectionUiState,
+  offerDisplayDescription,
+  offerDisplayPartnerMessage,
+  offerDisplayAvailability,
 } from "./customer-bid-results-logic.js";
 import {
   createBidCountdownTicker,
   formatBidDeadlineForUi,
   formatCustomerCountdownBanner,
   normalizeDeadlineSnapshot,
+  remainingSecondsFromDeadline,
 } from "../core/bid-deadline-display.js";
 import { setInnerHtmlIfChanged } from "../core/page-refresh.js";
 
@@ -128,7 +134,7 @@ function buildApiQuery() {
     includeAlternatives: activeFilters.includeAlternatives,
     updatedOnly: activeFilters.updatedOnly,
   });
-  const tab = buildCustomerBidRequestTabs(listSnapshot?.customer_vehicle_requests || []);
+  const tab = buildCustomerBidRequestTabs(listSnapshot?.customer_vehicle_requests || [], t);
   const tabRow = tab.find((t) => t.key === activeTabKey);
   if (tabRow?.requestIndex != null && activeTabKey.startsWith("req-")) {
     q.request_index = tabRow.requestIndex;
@@ -141,7 +147,7 @@ async function fetchList() {
   const query = buildApiQuery();
   if (serviceRequestId) return await customerBidsApi.listByServiceRequest(serviceRequestId, query);
   if (threadId) return await customerBidsApi.listByThread(threadId, query);
-  throw new Error("service_request_id 또는 thread_id가 필요합니다.");
+  throw new Error(t("customer.bid_results.error.missing_ids", "A service_request_id or thread_id is required in the URL."));
 }
 
 function deadlineSnapshot() {
@@ -172,7 +178,7 @@ function renderSelectedBanner(phase) {
     el.textContent = "";
     return;
   }
-  const title = String(summary.vehicle_title || summary.title || "선택한 제안").trim();
+  const title = String(summary.vehicle_title || summary.title || t("customer.bid_results.selection.yours", "Your selection")).trim();
   const total = summary.estimated_total;
   const cur = String(summary.currency || "USD");
   const partner = String(summary.partner_name || "").trim();
@@ -180,7 +186,12 @@ function renderSelectedBanner(phase) {
   const price =
     total != null ? ` · ${formatMoney(total, cur)}` : "";
   const partnerBit = partner ? ` · ${partner}` : "";
-  el.textContent = `선택한 제안: ${title}${price}${partnerBit}`;
+  el.textContent = cbrT(
+    t,
+    "customer.bid_results.banner.selected_offer",
+    "Selected offer: {title}{price}{partner}",
+    { title, price, partner: partnerBit },
+  );
 }
 
 function renderConversationBanner(phase) {
@@ -211,7 +222,7 @@ function renderConversationBanner(phase) {
 function renderStatusBanner(phase) {
   const el = document.querySelector("#cbrStatusBanner");
   if (!(el instanceof HTMLElement)) return;
-  const msg = customerBidStatusBannerMessage(phase);
+  const msg = customerBidStatusBannerMessage(phase, t);
   if (!msg) {
     el.hidden = true;
     el.textContent = "";
@@ -236,6 +247,14 @@ function applyCountdownBannerText(text, expired) {
   if (el.hidden) el.hidden = false;
 }
 
+function isDeadlineExpired(snap, phase) {
+  if (phase === "EXPIRED") return true;
+  if (!snap || typeof snap !== "object") return false;
+  if (snap.is_expired === true || snap.bid_request_status === "EXPIRED") return true;
+  const rem = remainingSecondsFromDeadline(snap);
+  return rem != null && rem <= 0;
+}
+
 function renderCountdownBanner(phase) {
   const el = document.querySelector("#cbrCountdownBanner");
   if (!(el instanceof HTMLElement)) return;
@@ -245,22 +264,23 @@ function renderCountdownBanner(phase) {
     return;
   }
   const snap = deadlineSnapshot();
-  const text = formatCustomerCountdownBanner(snap);
-  const expired = phase === "EXPIRED" || text === "비딩 종료";
-  applyCountdownBannerText(text, expired);
+  const text = formatCustomerCountdownBanner(snap, Date.now(), t);
+  applyCountdownBannerText(text, isDeadlineExpired(snap, phase));
 }
 
 function renderHeader() {
   const phase = displayPhase();
   const snap = listSnapshot;
   const status = snap?.bid_request_status ?? snap?.status;
-  setText("#cbrBidStatus", formatBidRequestStatusLabel(String(status || "")));
+  setText("#cbrBidStatus", formatBidRequestStatusLabel(String(status || ""), t));
   setText("#cbrOfferCount", snap?.offer_count != null ? String(snap.offer_count) : "0");
-  setText("#cbrQuoteUsage", formatQuoteRequestUsage(snap?.quote_request_usage));
+  setText("#cbrQuoteUsage", formatQuoteRequestUsage(snap?.quote_request_usage, t));
   const countdownEl = document.querySelector("#cbrCountdown");
   if (countdownEl) {
     countdownEl.textContent =
-      phase === "OPEN" || phase === "EXPIRED" ? formatBidDeadlineForUi(deadlineSnapshot()) : "—";
+      phase === "OPEN" || phase === "EXPIRED"
+        ? formatBidDeadlineForUi(deadlineSnapshot(), Date.now(), t)
+        : "—";
   }
   renderCountdownBanner(phase);
   renderSelectedBanner(phase);
@@ -285,13 +305,13 @@ function renderNewRoundCta(phase) {
   if (hint instanceof HTMLElement) {
     if (phase === "CUSTOMER_SELECTED") {
       hint.hidden = false;
-      hint.textContent = "이미 파트너를 선택했습니다.";
+      hint.textContent = t("customer.bid_results.hint.already_selected", "You already selected a partner.");
     } else if (quoteRequestRemaining(snap?.quote_request_usage) === 0) {
       hint.hidden = false;
-      hint.textContent = "새 비딩 요청 횟수를 모두 사용했습니다.";
+      hint.textContent = t("customer.bid_results.hint.no_rounds_left", "You have used all new bid requests.");
     } else if (newRoundInFlight) {
       hint.hidden = false;
-      hint.textContent = "새 라운드를 요청하는 중…";
+      hint.textContent = t("customer.bid_results.hint.requesting_round", "Requesting a new round…");
     } else {
       hint.hidden = true;
       hint.textContent = "";
@@ -308,7 +328,7 @@ function renderTabs() {
   const nav = document.querySelector("#cbrTabs");
   if (!(nav instanceof HTMLElement)) return;
   const vehicleReqs = listSnapshot?.customer_vehicle_requests;
-  const tabs = buildCustomerBidRequestTabs(vehicleReqs || []);
+  const tabs = buildCustomerBidRequestTabs(vehicleReqs || [], t);
   const showTabs = Array.isArray(vehicleReqs) && vehicleReqs.length > 0;
   nav.hidden = !showTabs;
   if (!showTabs) {
@@ -341,7 +361,8 @@ function renderToolbar() {
   if (sortSel instanceof HTMLSelectElement) {
     if (!sortSelectInitialized) {
       sortSel.innerHTML = CUSTOMER_BID_SORT_OPTIONS.map(
-        (o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`,
+        (o) =>
+          `<option value="${escapeHtml(o.value)}">${escapeHtml(formatSortOptionLabel(o, t))}</option>`,
       ).join("");
       sortSelectInitialized = true;
     }
@@ -357,13 +378,14 @@ function renderToolbar() {
   const optionsKey = buildToolbarOptionsKey(offers);
   const rebuildFilters = optionsKey !== lastToolbarOptionsKey;
   if (rebuildFilters) lastToolbarOptionsKey = optionsKey;
+  const allLabel = t("customer.bid_results.filter.all", "All");
 
   const catSel = document.querySelector("#cbrFilterCategory");
   if (catSel instanceof HTMLSelectElement && rebuildFilters) {
     const cats = collectDistinctProductCategories(offers);
     const cur = String(activeFilters.productCategory || "");
     catSel.innerHTML =
-      `<option value="">전체</option>` +
+      `<option value="">${escapeHtml(allLabel)}</option>` +
       cats.map((c) => `<option value="${escapeHtml(c)}"${c === cur ? " selected" : ""}>${escapeHtml(c)}</option>`).join("");
   }
   const partnerSel = document.querySelector("#cbrFilterPartner");
@@ -371,7 +393,7 @@ function renderToolbar() {
     const partners = collectDistinctPartners(offers);
     const cur = String(activeFilters.partner || "");
     partnerSel.innerHTML =
-      `<option value="">전체</option>` +
+      `<option value="">${escapeHtml(allLabel)}</option>` +
       partners
         .map(
           (p) =>
@@ -384,7 +406,7 @@ function renderToolbar() {
     const locs = collectDistinctLocations(offers);
     const cur = String(activeFilters.location || "");
     locSel.innerHTML =
-      `<option value="">전체</option>` +
+      `<option value="">${escapeHtml(allLabel)}</option>` +
       locs.map((l) => `<option value="${escapeHtml(l)}"${l === cur ? " selected" : ""}>${escapeHtml(l)}</option>`).join("");
   }
 
@@ -406,6 +428,7 @@ function offerCardContext() {
     snap: listSnapshot,
     selectedBidId,
     selectedOfferId,
+    translate: t,
   };
 }
 
@@ -417,13 +440,13 @@ function renderOfferCard(offer) {
   const bidId = String(offer.bid_id || "").trim();
   const offerId = String(offer.offer_id || "").trim();
   const cur = String(offer.currency || "USD");
-  const rankBadge = formatOfferRankBadge(offer, activeSort);
-  const partner = escapeHtml(formatOfferPartnerName(offer));
-  const desc = String(offer.description || "").trim();
+  const rankBadge = formatOfferRankBadge(offer, activeSort, t);
+  const partner = escapeHtml(formatOfferPartnerName(offer, t));
+  const desc = offerDisplayDescription(offer, t);
   const descShort = desc ? escapeHtml(desc.slice(0, 120)) + (desc.length > 120 ? "…" : "") : "";
-  const msg = String(offer.message_to_customer || "").trim();
+  const msg = offerDisplayPartnerMessage(offer, t, { placeholderOnFailure: true });
   const msgPreview = msg ? escapeHtml(msg.slice(0, 140)).replace(/\n/g, "<br />") : "—";
-  const breakdown = formatOfferPriceBreakdownLines(offer);
+  const breakdown = formatOfferPriceBreakdownLines(offer, t);
   const breakdownHtml = breakdown
     .map((line) => {
       const cls = line.strong ? " lhai-cbr-card__price-line--strong" : "";
@@ -432,17 +455,24 @@ function renderOfferCard(offer) {
     })
     .join("");
   const updatedBadge = offerShowsUpdatedBadge(offer.updated_at, listSnapshot?.recent_updated_at)
-    ? `<span class="lhai-cbr-badge lhai-cbr-badge--updated">업데이트됨</span>`
+    ? `<span class="lhai-cbr-badge lhai-cbr-badge--updated">${escapeHtml(
+        t("customer.bid_results.badge.updated", "Updated"),
+      )}</span>`
     : "";
   const sel = offerSelectionUiState(ctx.phase, offer, {
     selectedBidId,
     selectedOfferId,
     snap: listSnapshot,
+    translate: t,
   });
-  const thumbHtml = buildOfferThumbImgHtml(offer, escapeHtml);
+  const thumbHtml = buildOfferThumbImgHtml(offer, escapeHtml, t);
   const selectBtn = sel.showSelectButton
-    ? `<button type="button" class="lhai-button lhai-button--primary" data-cbr-select="${escapeHtml(bidId)}" data-cbr-offer="${escapeHtml(offerId)}"${sel.selectDisabled ? " disabled" : ""}>이 제안 선택</button>`
+    ? `<button type="button" class="lhai-button lhai-button--primary" data-cbr-select="${escapeHtml(bidId)}" data-cbr-offer="${escapeHtml(offerId)}"${sel.selectDisabled ? " disabled" : ""}>${escapeHtml(sel.selectLabel)}</button>`
     : "";
+  const availabilityLabel = t("customer.bid_results.card.availability", "Availability");
+  const locationLabel = t("customer.bid_results.card.location", "Location");
+  const partnerMessageLabel = t("customer.bid_results.card.partner_message", "Partner message");
+  const viewDetailsLabel = t("customer.bid_results.action.view_details", "View details");
   const cardClasses = [
     "lhai-cbr-card",
     sel.isSelected ? "lhai-cbr-card--selected" : "",
@@ -456,19 +486,19 @@ function renderOfferCard(offer) {
       <div class="lhai-cbr-card__thumb">${thumbHtml}</div>
       <div class="lhai-cbr-card__body">
         <div class="lhai-cbr-card__badges">${rankBadge ? `<span class="lhai-cbr-badge lhai-cbr-badge--rank">${escapeHtml(rankBadge)}</span>` : ""}${updatedBadge}</div>
-        <h3 class="lhai-cbr-card__title">${escapeHtml(formatOfferTitle(offer))}</h3>
+        <h3 class="lhai-cbr-card__title">${escapeHtml(formatOfferTitle(offer, t))}</h3>
         <p class="lhai-cbr-card__partner">${partner}</p>
         <p class="lhai-cbr-card__total">${escapeHtml(formatMoney(offer.estimated_total, cur))}</p>
         <ul class="lhai-cbr-card__prices">${breakdownHtml || `<li>—</li>`}</ul>
-        <p class="lhai-cbr-card__timeline"><span>가능 시점</span> ${escapeHtml(String(offer.available_timeline || "—"))}</p>
-        <p class="lhai-cbr-card__location"><span>위치</span> ${escapeHtml(String(offer.location || "—"))}</p>
+        <p class="lhai-cbr-card__timeline"><span>${escapeHtml(availabilityLabel)}</span> ${escapeHtml(String(offerDisplayAvailability(offer) || "—"))}</p>
+        <p class="lhai-cbr-card__location"><span>${escapeHtml(locationLabel)}</span> ${escapeHtml(String(offer.location || "—"))}</p>
         ${descShort ? `<p class="lhai-cbr-card__desc">${descShort}</p>` : ""}
         <div class="lhai-cbr-card__preview">
-          <span class="lhai-cbr-card__preview-label">파트너 메시지</span>
+          <span class="lhai-cbr-card__preview-label">${escapeHtml(partnerMessageLabel)}</span>
           <p>${msgPreview}</p>
         </div>
         <div class="lhai-cbr-card__actions">
-          <button type="button" class="lhai-button lhai-button--secondary" data-cbr-detail="${escapeHtml(offerId)}">자세히 보기</button>
+          <button type="button" class="lhai-button lhai-button--secondary" data-cbr-detail="${escapeHtml(offerId)}">${escapeHtml(viewDetailsLabel)}</button>
           ${selectBtn}
         </div>
       </div>
@@ -508,7 +538,7 @@ function renderCards() {
   if (!(grid instanceof HTMLElement)) return;
   const offers = visibleOffers();
   const phase = displayPhase();
-  const emptyMsg = emptyOffersMessage(phase, totalOfferCount());
+  const emptyMsg = emptyOffersMessage(phase, totalOfferCount(), t);
   if (!offers.length) {
     lastCardsRenderKey = `empty:${phase}:${totalOfferCount()}`;
     grid.innerHTML = "";
@@ -527,7 +557,7 @@ function renderCards() {
   grid.innerHTML = offers
     .map((o) => renderOfferCard(/** @type {Record<string, unknown>} */ (o)))
     .join("");
-  wireOfferPhotoImgFallbacks(grid);
+  wireOfferPhotoImgFallbacks(grid, t);
 }
 
 function renderMessagesCta() {
@@ -541,7 +571,9 @@ function renderMessagesCta() {
   const href = buildMessagesThreadHref(threadId);
   setInnerHtmlIfChanged(
     el,
-    `<a class="lhai-button lhai-button--primary" href="${escapeHtml(href)}">Open conversation</a>`,
+    `<a class="lhai-button lhai-button--primary" href="${escapeHtml(href)}">${escapeHtml(
+      t("customer.bid_results.action.open_conversation", "Open conversation"),
+    )}</a>`,
   );
 }
 
@@ -571,7 +603,7 @@ async function reloadList(options = {}) {
   try {
     listSnapshot = await fetchList();
     if (!isProductOfferListResponse(listSnapshot)) {
-      throw new Error("제안 목록을 불러올 수 없습니다.");
+      throw new Error(t("customer.bid_results.error.invalid_list", "Could not load the offer list."));
     }
     const serverSort = String(listSnapshot.default_sort || "").trim();
     if (serverSort) activeSort = serverSort;
@@ -589,7 +621,10 @@ async function reloadList(options = {}) {
     syncListPolling();
     if (!silent && main instanceof HTMLElement) main.hidden = false;
   } catch (e) {
-    const msg = e && typeof e.message === "string" ? e.message : "제안을 불러오지 못했습니다.";
+    const msg =
+      e && typeof e.message === "string"
+        ? e.message
+        : t("customer.bid_results.error.load_failed", "Could not load offers.");
     if (err instanceof HTMLElement) {
       err.hidden = false;
       err.textContent = msg;
@@ -636,7 +671,7 @@ function openDetailModal(offerId) {
   if (vehicle) {
     body.innerHTML = buildVehicleOfferDetailModalHtml(offer, ctx, escapeHtml);
     wireDetailModalGallery(body);
-    wireOfferPhotoImgFallbacks(body);
+    wireOfferPhotoImgFallbacks(body, t);
   } else {
     const cur = String(offer.currency || "USD");
     const photos = Array.isArray(offer.photos) ? offer.photos : [];
@@ -655,40 +690,51 @@ function openDetailModal(offerId) {
     const attrsHtml = attrs.length
       ? `<dl class="lhai-cbr-dl">${attrs.map((a) => `<div><dt>${escapeHtml(a.key)}</dt><dd>${escapeHtml(a.value)}</dd></div>`).join("")}</dl>`
       : `<p class="u-text-muted">—</p>`;
-    const breakdown = formatOfferPriceBreakdownLines(offer);
+    const breakdown = formatOfferPriceBreakdownLines(offer, t);
+    const descLabel = t("customer.bid_results.modal.description", "Description");
+    const attrsLabel = t("customer.bid_results.modal.attributes", "Details");
+    const priceLabel = t("customer.bid_results.modal.price", "Price");
+    const partnerMessageLabel = t("customer.bid_results.card.partner_message", "Partner message");
+    const limitedNotice = t(
+      "customer.bid_results.modal.limited_notice",
+      "Some information may be limited before selection. After selection, continue in messages.",
+    );
+    const descText = offerDisplayDescription(offer, t, { placeholderOnFailure: true });
+    const msgText = offerDisplayPartnerMessage(offer, t, { placeholderOnFailure: true });
     body.innerHTML = `
-    <h3 class="lhai-cbr-modal__title">${escapeHtml(formatOfferTitle(offer))}</h3>
-    <p class="lhai-cbr-modal__partner">${escapeHtml(formatOfferPartnerName(offer))}</p>
+    <h3 class="lhai-cbr-modal__title">${escapeHtml(formatOfferTitle(offer, t))}</h3>
+    <p class="lhai-cbr-modal__partner">${escapeHtml(formatOfferPartnerName(offer, t))}</p>
     ${photosHtml}
     <section class="lhai-cbr-modal__section">
-      <h4>설명</h4>
-      <p>${escapeHtml(String(offer.description || "—")).replace(/\n/g, "<br />")}</p>
+      <h4>${escapeHtml(descLabel)}</h4>
+      <p>${escapeHtml(String(descText || "—")).replace(/\n/g, "<br />")}</p>
     </section>
     <section class="lhai-cbr-modal__section">
-      <h4>상세 속성</h4>
+      <h4>${escapeHtml(attrsLabel)}</h4>
       ${attrsHtml}
     </section>
     <section class="lhai-cbr-modal__section">
-      <h4>가격</h4>
+      <h4>${escapeHtml(priceLabel)}</h4>
       <ul>${breakdown.map((line) => `<li>${line.label ? `${escapeHtml(line.label)}: ` : ""}${escapeHtml(line.value)}</li>`).join("")}</ul>
     </section>
     <section class="lhai-cbr-modal__section">
-      <h4>파트너 메시지</h4>
-      <p>${escapeHtml(String(offer.message_to_customer || "—")).replace(/\n/g, "<br />")}</p>
+      <h4>${escapeHtml(partnerMessageLabel)}</h4>
+      <p>${escapeHtml(String(msgText || "—")).replace(/\n/g, "<br />")}</p>
     </section>
-    <p class="lhai-cbr-modal__notice u-text-muted">선택 전에는 일부 정보가 제한될 수 있습니다. 선택 후 메시지함에서 상세 협의를 진행합니다.</p>
+    <p class="lhai-cbr-modal__notice u-text-muted">${escapeHtml(limitedNotice)}</p>
   `;
-    wireOfferPhotoImgFallbacks(body);
+    wireOfferPhotoImgFallbacks(body, t);
   }
   if (selectBtn instanceof HTMLButtonElement) {
     const sel = offerSelectionUiState(ctx.phase, offer, {
       selectedBidId,
       selectedOfferId,
       snap: listSnapshot,
+      translate: t,
     });
     selectBtn.hidden = !sel.showSelectButton;
     selectBtn.disabled = sel.selectDisabled;
-    selectBtn.textContent = vehicle ? "Select this offer" : "이 제안 선택";
+    selectBtn.textContent = sel.selectLabel;
   }
   dlg.showModal();
 }
@@ -702,7 +748,7 @@ function openConfirmModal(bidId, offer) {
   const submitBtn = document.querySelector("#cbrConfirmSubmit");
   if (!(dlg instanceof HTMLDialogElement) || !(body instanceof HTMLElement)) return;
   const phase = displayPhase();
-  const content = buildCustomerBidSelectConfirmContent(phase, offer, listSnapshot);
+  const content = buildCustomerBidSelectConfirmContent(phase, offer, listSnapshot, t);
   if (titleEl instanceof HTMLElement) titleEl.textContent = content.modalTitle;
   body.innerHTML = content.bodyHtml;
   if (warn instanceof HTMLElement) {
@@ -729,7 +775,9 @@ function openNewRoundModal() {
   if (remainingEl instanceof HTMLElement) {
     remainingEl.textContent =
       remaining != null
-        ? `새 요청 가능 횟수: ${remaining}회 남음`
+        ? cbrT(t, "customer.bid_results.new_round.remaining", "Remaining new bid requests: {count}", {
+            count: remaining,
+          })
         : "";
   }
   if (reasonEl instanceof HTMLTextAreaElement) reasonEl.value = "";
@@ -865,14 +913,14 @@ function startCountdownTicker() {
   }
   countdownStop = createBidCountdownTicker({
     getDeadline: () => deadlineSnapshot(),
-    formatBanner: formatCustomerCountdownBanner,
+    formatBanner: (snap) => formatCustomerCountdownBanner(snap, Date.now(), t),
     onTick: (text, expired) => {
       const phase = displayPhase();
       if (phase !== "OPEN" && phase !== "EXPIRED") return;
       applyCountdownBannerText(text, expired);
       const countdownEl = document.querySelector("#cbrCountdown");
       if (countdownEl) {
-        const uiText = formatBidDeadlineForUi(deadlineSnapshot());
+        const uiText = formatBidDeadlineForUi(deadlineSnapshot(), Date.now(), t);
         if (countdownEl.textContent !== uiText) countdownEl.textContent = uiText;
       }
       if (expired && phase === "OPEN" && !deadlineExpireReloadPending) {
@@ -1006,7 +1054,7 @@ function refreshCustomerBidResultsPageI18nFromCache() {
 
 wireDynamicPageI18nRefresh(() => {
   void reloadList({ silent: true });
-}, { keyPrefixes: ["customer.bid.", "cbr.", "common."] });
+}, { languageChangeOnly: true });
 
 wireDynamicPageI18nRefresh(refreshCustomerBidResultsPageI18nFromCache, {
   runtimeResolvedOnly: true,
@@ -1015,13 +1063,16 @@ wireDynamicPageI18nRefresh(refreshCustomerBidResultsPageI18nFromCache, {
 
 async function initCustomerBidResultsPage() {
   if (!ensureCustomerAccess()) return;
-  await bootAppPageContent(["common", "nav"], async () => {
+  await bootAppPageContent(["common", "nav", "customer"], async () => {
   await loadSidebar("#sidebar", "customer");
   if (!serviceRequestId && !threadId) {
     const err = document.querySelector("#cbrError");
     if (err instanceof HTMLElement) {
       err.hidden = false;
-      err.textContent = "URL에 service_request_id 또는 thread_id가 필요합니다.";
+      err.textContent = t(
+        "customer.bid_results.error.missing_ids",
+        "A service_request_id or thread_id is required in the URL.",
+      );
     }
     return;
   }

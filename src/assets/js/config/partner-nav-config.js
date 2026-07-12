@@ -8,16 +8,37 @@
 /**
  * @typedef {Object} PartnerNavItem
  * @property {PartnerNavKey} key
- * @property {string} label
+ * @property {string} i18nKey
+ * @property {string} fallback English default label for t() / data-i18n
  * @property {string} href Page-relative URL (same directory as other partner pages).
  */
 
 /** All partner pages render these four items in this order (never hide by page or mode). */
 export const PARTNER_NAV_ITEMS = /** @type {const} */ ([
-  { key: "dashboard", label: "대시보드", href: "partner-dashboard.html" },
-  { key: "bid_requests", label: "신청 리스트", href: "partner-dashboard.html#partner-requests" },
-  { key: "messages", label: "메시지함", href: "messages.html" },
-  { key: "profile", label: "프로필", href: "profile.html" },
+  {
+    key: "dashboard",
+    i18nKey: "partner.nav.dashboard",
+    fallback: "Dashboard",
+    href: "partner-dashboard.html",
+  },
+  {
+    key: "bid_requests",
+    i18nKey: "partner.nav.bid_requests",
+    fallback: "Request list",
+    href: "partner-dashboard.html#partner-requests",
+  },
+  {
+    key: "messages",
+    i18nKey: "partner.nav.messages",
+    fallback: "Messages",
+    href: "messages.html",
+  },
+  {
+    key: "profile",
+    i18nKey: "partner.nav.profile",
+    fallback: "Profile",
+    href: "profile.html",
+  },
 ]);
 
 /**
@@ -114,12 +135,21 @@ export function resolvePartnerHeaderLinks() {
 
 /**
  * Render sidebar nav HTML (no role-based hiding).
- * @param {(key: string) => string} [labelFn] optional i18n wrapper
+ * Uses ``data-i18n`` bindings with English fallbacks; call {@link applyI18nToDom} after insert.
+ * @param {(item: PartnerNavItem) => string} [labelFn] optional resolver (e.g. t(item.i18nKey, item.fallback))
  */
-export function renderPartnerNavHtml(labelFn = (label) => label) {
+export function renderPartnerNavHtml(labelFn) {
+  const labelFor =
+    typeof labelFn === "function" ? labelFn : (/** @type {PartnerNavItem} */ item) => item.fallback;
   const items = PARTNER_NAV_ITEMS.map(
     (item) =>
-      `<a class="lhai-partner-nav__item" data-partner-nav="${item.key}" href="${item.href}">${labelFn(item.label)}</a>`
+      `<a class="lhai-partner-nav__item" data-partner-nav="${item.key}" href="${item.href}" data-i18n="${item.i18nKey}">${labelFor(item)}</a>`
   ).join("");
-  return `<nav class="lhai-nav lhai-partner-nav" aria-label="파트너 메뉴">${items}</nav>`;
+  const navAriaFallback = labelFor({
+    key: "dashboard",
+    i18nKey: "partner.nav.aria",
+    fallback: "Partner menu",
+    href: "",
+  });
+  return `<nav class="lhai-nav lhai-partner-nav" aria-label="${navAriaFallback}" data-i18n-aria-label="partner.nav.aria">${items}</nav>`;
 }

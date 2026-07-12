@@ -21,7 +21,6 @@ import {
   formatMoney,
   linkedRequestDisplayLabel,
   offersFromIncludedItems,
-  PARTNER_BID_EXPIRED_POLICY_BANNER,
   partnerHasCarPurchaseCapability,
   resolveDefaultLinkedRequestIndex,
   resolvePartnerBidEditable,
@@ -30,9 +29,9 @@ import {
   withLinkedRequestIndex,
 } from "./partner-bid-request-car-logic.js";
 import {
-  renderAiBidRequestBriefCard,
-  renderFullIntakeAnswersDisclosure,
-  resolvePartnerIntakeAnswerRows,
+  patchPartnerBidLocaleSections,
+  renderPartnerBidIntakeSectionHtml,
+  resolvePartnerBidServiceTitle,
 } from "./partner-bid-request-intake-display.js";
 import {
   clearPartnerCarOfferDraft,
@@ -58,6 +57,19 @@ const PHOTO_FILE_ERROR_I18N = {
 function localizeBidOfferPhotoFileError(code) {
   const spec = PHOTO_FILE_ERROR_I18N[String(code || "")];
   return spec ? t(spec[0], spec[1]) : String(code || "");
+}
+
+/** @param {string} key @param {string} fallback */
+function L(key, fallback) {
+  return t(`partner.bid.car.${key}`, fallback);
+}
+
+/** @param {Record<string, unknown> | null | undefined} block */
+function partnerCarDeadlineLabel(block) {
+  if (block && typeof block === "object" && block.is_expired === true) {
+    return t("partner.bid.car.deadline_ended", "Bidding ended");
+  }
+  return formatDeadlineFromBidRequestBlock(block);
 }
 
 function escHtml(s) {
@@ -99,22 +111,24 @@ const TITLE_STATUS_OPTIONS = [
   { value: "Unknown", label: "Unknown" },
 ];
 
-const ACCIDENT_OPTIONS = [
-  { value: "", label: "—" },
-  { value: "No accident reported", label: "No accident reported" },
-  { value: "Minor accident reported", label: "Minor accident reported (경미한 사고)" },
-  { value: "Major accident reported", label: "Major accident reported (중대 사고)" },
-  { value: "Unknown", label: "Unknown" },
-];
+function accidentOptions() {
+  return [
+    { value: "", label: "—" },
+    { value: "No accident reported", label: L("accident.none", "No accident reported") },
+    { value: "Minor accident reported", label: L("accident.minor", "Minor accident reported") },
+    { value: "Major accident reported", label: L("accident.major", "Major accident reported") },
+    { value: "Unknown", label: L("accident.unknown", "Unknown") },
+  ];
+}
 
 /** @param {string} selected */
 function accidentHistorySelectOptionsHtml(selected) {
   const value = String(selected || "").trim();
-  const options = [...ACCIDENT_OPTIONS];
+  const options = [...accidentOptions()];
   if (value === "Accident reported" && !options.some((o) => o.value === value)) {
     options.splice(3, 0, {
       value: "Accident reported",
-      label: "Accident reported (기존 제안 — 세부 등급 미지정)",
+      label: L("accident.legacy_unspecified", "Accident reported (legacy — severity not specified)"),
     });
   }
   return renderSelectOptions(options, value);
@@ -132,22 +146,22 @@ function renderVehicleCard(vr, currency) {
   const idx = vr.request_index ?? "";
   const opts = Array.isArray(vr.required_options) ? vr.required_options.join(", ") : "";
   const lines = [
-    `<p class="lhai-par-car__vreq-title">${escHtml(vr.label || `요청 ${idx}`)}</p>`,
+    `<p class="lhai-par-car__vreq-title">${escHtml(vr.label || L("request_label", "Request {index}").replace("{index}", String(idx)))}</p>`,
     `<p class="lhai-par-car__vreq-model">${escHtml([vr.make, vr.model].filter(Boolean).join(" ") || "—")}</p>`,
     `<p class="lhai-par-car__vreq-meta">${escHtml(vehicleRequestSummaryLines(vr))}</p>`,
   ];
   if (vr.budget_max != null) {
     lines.push(
-      `<p class="lhai-par-car__vreq-meta">예산: ${escHtml(formatMoney(vr.budget_max, currency))} 이하</p>`,
+      `<p class="lhai-par-car__vreq-meta">${escHtml(L("budget_max", "Budget: up to {amount}").replace("{amount}", formatMoney(vr.budget_max, currency)))}</p>`,
     );
   }
-  if (opts) lines.push(`<p class="lhai-par-car__vreq-meta">필수 옵션: ${escHtml(opts)}</p>`);
+  if (opts) lines.push(`<p class="lhai-par-car__vreq-meta">${escHtml(L("required_options", "Required options: {options}").replace("{options}", opts))}</p>`);
   if (vr.notes) lines.push(`<p class="lhai-par-car__vreq-notes">${escHtml(vr.notes)}</p>`);
   return `<article class="lhai-par-car__vreq-card" data-request-index="${escHtml(idx)}">
     ${lines.join("")}
     <div class="lhai-par-car__vreq-actions">
-      <button type="button" class="lhai-button lhai-button--primary" data-action="match" data-index="${escHtml(idx)}">이 요청으로 견적 작성</button>
-      <button type="button" class="lhai-button lhai-button--ghost lhai-par-car__alt-btn" data-action="alt" data-index="${escHtml(idx)}">대안 차량 제안</button>
+      <button type="button" class="lhai-button lhai-button--primary" data-action="match" data-index="${escHtml(idx)}">${escHtml(L("match_request", "Create offer for this request"))}</button>
+      <button type="button" class="lhai-button lhai-button--ghost lhai-par-car__alt-btn" data-action="alt" data-index="${escHtml(idx)}">${escHtml(L("alt_vehicle", "Suggest alternative vehicle"))}</button>
     </div>
   </article>`;
 }
@@ -185,14 +199,14 @@ function renderCarPhotosHtml(photos, primaryIndex, disabled, opts = {}) {
             ${thumb ? `<img class="lhai-par-car__photo-thumb" src="${escHtml(thumb)}" alt="" loading="lazy" />` : ""}
             <div class="lhai-par-car__photo-meta">
               <p class="lhai-par-car__photo-name">${escHtml(name)}</p>
-              <input type="text" class="lhai-par-car__photo-caption" name="photo_caption" data-photo-index="${i}" placeholder="캡션 (선택)" value="${escHtml(row.caption || "")}" ${dis} />
+              <input type="text" class="lhai-par-car__photo-caption" name="photo_caption" data-photo-index="${i}" placeholder="${escHtml(L("photo_caption_ph", "Caption (optional)"))}" value="${escHtml(row.caption || "")}" ${dis} />
               <div class="lhai-par-car__photo-actions">
                 ${
                   isPrimary
-                    ? '<span class="lhai-par-car__photo-primary-badge">Primary</span>'
-                    : `<button type="button" class="lhai-button lhai-button--ghost lhai-par-car__photo-set-primary" data-action="set-primary" data-photo-index="${i}" ${dis}>Set primary</button>`
+                    ? `<span class="lhai-par-car__photo-primary-badge">${escHtml(L("photo_primary", "Primary"))}</span>`
+                    : `<button type="button" class="lhai-button lhai-button--ghost lhai-par-car__photo-set-primary" data-action="set-primary" data-photo-index="${i}" ${dis}>${escHtml(L("photo_set_primary", "Set primary"))}</button>`
                 }
-                <button type="button" class="lhai-button lhai-button--ghost" data-action="remove-photo" data-photo-index="${i}" ${dis}>Remove</button>
+                <button type="button" class="lhai-button lhai-button--ghost" data-action="remove-photo" data-photo-index="${i}" ${dis}>${escHtml(L("photo_remove", "Remove"))}</button>
               </div>
             </div>
             <input type="hidden" name="photo_url" value="${escHtml(url)}" />
@@ -201,30 +215,30 @@ function renderCarPhotosHtml(photos, primaryIndex, disabled, opts = {}) {
           </div>`;
         })
         .join("")
-    : '<p class="lhai-par-car__photo-empty u-text-muted">업로드된 사진이 없습니다.</p>';
+    : `<p class="lhai-par-car__photo-empty u-text-muted">${escHtml(L("photo_empty", "No photos uploaded yet."))}</p>`;
 
   const uploadBusy = uploading
-    ? '<p class="lhai-par-car__photo-uploading" role="status"><span class="lhai-par-car__spinner" aria-hidden="true"></span> 사진 업로드 중…</p>'
+    ? `<p class="lhai-par-car__photo-uploading" role="status"><span class="lhai-par-car__spinner" aria-hidden="true"></span> ${escHtml(L("photo_uploading", "Uploading photos…"))}</p>`
     : "";
 
   return `<div class="lhai-par-car__photos">
-    <h3 class="lhai-par-car__subhead">Vehicle photos</h3>
-    <p class="lhai-par-car__photo-hint">JPEG, PNG, WebP · 최대 8MB · ${list.length}/${maxPhotos}장</p>
+    <h3 class="lhai-par-car__subhead">${escHtml(L("photo_section_title", "Vehicle photos"))}</h3>
+    <p class="lhai-par-car__photo-hint">${escHtml(L("photo_hint", "JPEG, PNG, WebP · max 8 MB · {count}/{max} photos").replace("{count}", String(list.length)).replace("{max}", String(maxPhotos)))}</p>
     <div class="lhai-par-car__photo-dropzone ${uploading ? "is-uploading" : ""} ${atLimit ? "is-at-limit" : ""}" data-action="photo-dropzone">
-      <p class="lhai-par-car__photo-drop-label">Drag photos here or choose files</p>
+      <p class="lhai-par-car__photo-drop-label">${escHtml(L("photo_drop_label", "Drag photos here or choose files"))}</p>
       <label class="lhai-button lhai-button--secondary lhai-par-car__photo-choose">
         <input type="file" accept="image/jpeg,image/png,image/webp" data-action="upload-photo" multiple ${dis || atLimit || uploading ? "disabled" : ""} hidden />
-        Choose files
+        ${escHtml(L("photo_choose", "Choose files"))}
       </label>
       ${uploadBusy}
     </div>
-    <h4 class="lhai-par-car__photo-list-title">Uploaded photos</h4>
+    <h4 class="lhai-par-car__photo-list-title">${escHtml(L("photo_list_title", "Uploaded photos"))}</h4>
     <div class="lhai-par-car__photo-list">${uploadedRows}</div>
     <details class="lhai-par-car__photo-advanced">
-      <summary>Advanced: Add photo URL</summary>
+      <summary>${escHtml(L("photo_advanced_summary", "Advanced: Add photo URL"))}</summary>
       <div class="lhai-par-car__photo-url-add">
         <input type="url" name="advanced_photo_url" placeholder="https://..." ${dis || atLimit ? "disabled" : ""} />
-        <button type="button" class="lhai-button lhai-button--ghost" data-action="add-photo-url" ${dis || atLimit ? "disabled" : ""}>Add URL</button>
+        <button type="button" class="lhai-button lhai-button--ghost" data-action="add-photo-url" ${dis || atLimit ? "disabled" : ""}>${escHtml(L("photo_add_url", "Add URL"))}</button>
       </div>
     </details>
   </div>`;
@@ -251,122 +265,122 @@ function renderOfferFields(offer, disabled, photoOpts = {}) {
 
   return `
     <fieldset class="lhai-par-car__section">
-      <legend class="lhai-par-car__section-title">제안 유형</legend>
+      <legend class="lhai-par-car__section-title">${escHtml(L("section.offer_type", "Offer type"))}</legend>
       <div class="lhai-par-car__field-row">
-        <label>제안 유형</label>
+        <label>${escHtml(L("field.offer_type", "Offer type"))}</label>
         <select name="offer_kind" ${dis}>
-          <option value="REQUESTED_MATCH" ${!isAlt ? "selected" : ""}>요청 차량과 일치</option>
-          <option value="ALTERNATIVE" ${isAlt ? "selected" : ""}>비슷한 대안 차량</option>
+          <option value="REQUESTED_MATCH" ${!isAlt ? "selected" : ""}>${escHtml(L("offer.match", "Matches customer request"))}</option>
+          <option value="ALTERNATIVE" ${isAlt ? "selected" : ""}>${escHtml(L("offer.alternative", "Similar alternative vehicle"))}</option>
         </select>
       </div>
       <div class="lhai-par-car__field-row lhai-par-car__alt-reason ${isAlt ? "" : "lhai-par-car__hidden"}">
-        <label>대안 제안 사유 <span class="u-text-muted">(필수)</span></label>
+        <label>${escHtml(L("field.alt_reason", "Alternative reason"))} <span class="u-text-muted">(${escHtml(L("required", "required"))})</span></label>
         <textarea name="alternative_reason" rows="2" ${dis}>${escHtml(offer.alternative_reason || "")}</textarea>
       </div>
       <div class="lhai-par-car__field-row lhai-par-car__linked-request-row">
-        <label>연결된 고객 요청 #</label>
+        <label>${escHtml(L("field.linked_request", "Linked customer request #"))}</label>
         <input type="hidden" name="linked_request_index" value="${escHtml(String(linkedIdx))}" />
         <p class="lhai-par-car__linked-request-value">
           <strong>#${escHtml(String(linkedIdx))}</strong>${linkedLabel ? ` — ${escHtml(linkedLabel)}` : ""}
         </p>
-        <p class="lhai-help u-mt-1">고객 요청과 자동으로 연결됩니다.</p>
+        <p class="lhai-help u-mt-1">${escHtml(L("linked_request_help", "Linked automatically to the customer request."))}</p>
       </div>
     </fieldset>
 
     <fieldset class="lhai-par-car__section">
-      <legend class="lhai-par-car__section-title">차량 정보</legend>
-      <p class="lhai-par-car__auto-title">자동 제목: <strong>${escHtml(autoTitle)}</strong></p>
+      <legend class="lhai-par-car__section-title">${escHtml(L("section.vehicle_info", "Vehicle details"))}</legend>
+      <p class="lhai-par-car__auto-title">${escHtml(L("auto_title", "Auto title"))}: <strong>${escHtml(autoTitle)}</strong></p>
       <div class="lhai-par-car__grid-2">
         <div class="lhai-par-car__field-row">
-          <label>연식 <span class="u-text-muted">(필수)</span></label>
+          <label>${escHtml(L("field.year", "Year"))} <span class="u-text-muted">(${escHtml(L("required", "required"))})</span></label>
           <input type="number" name="year" min="1980" max="2100" value="${offer.year ?? ""}" required ${dis} />
         </div>
         <div class="lhai-par-car__field-row">
-          <label>신차/중고</label>
+          <label>${escHtml(L("field.condition", "New / used"))}</label>
           <select name="vehicle_condition" ${dis}>${renderSelectOptions(CONDITION_OPTIONS, cond)}</select>
         </div>
       </div>
       <div class="lhai-par-car__grid-2">
         <div class="lhai-par-car__field-row">
-          <label>브랜드 <span class="u-text-muted">(필수)</span></label>
+          <label>${escHtml(L("field.make", "Make"))} <span class="u-text-muted">(${escHtml(L("required", "required"))})</span></label>
           <input name="make" value="${escHtml(offer.make || "")}" required ${dis} />
         </div>
         <div class="lhai-par-car__field-row">
-          <label>모델 <span class="u-text-muted">(필수)</span></label>
+          <label>${escHtml(L("field.model", "Model"))} <span class="u-text-muted">(${escHtml(L("required", "required"))})</span></label>
           <input name="model" value="${escHtml(offer.model || "")}" required ${dis} />
         </div>
       </div>
       <div class="lhai-par-car__field-row">
-        <label>트림</label>
+        <label>${escHtml(L("field.trim", "Trim"))}</label>
         <input name="trim" value="${escHtml(offer.trim || "")}" ${dis} />
       </div>
       <div class="lhai-par-car__grid-2">
         <div class="lhai-par-car__field-row">
-          <label>주행거리 (miles) <span class="u-text-muted">(필수)</span></label>
+          <label>${escHtml(L("field.mileage", "Mileage (miles)"))} <span class="u-text-muted">(${escHtml(L("required", "required"))})</span></label>
           <input type="number" name="mileage" min="0" value="${offer.mileage ?? ""}" required ${dis} />
         </div>
         <div class="lhai-par-car__field-row">
-          <label>VIN / 재고 번호</label>
+          <label>${escHtml(L("field.vin", "VIN / stock #"))}</label>
           <input name="vin_or_stock" value="${escHtml(offer.vin_or_stock || "")}" ${dis} />
         </div>
       </div>
       <div class="lhai-par-car__grid-2">
         <div class="lhai-par-car__field-row">
-          <label>외장 색상</label>
+          <label>${escHtml(L("field.exterior_color", "Exterior color"))}</label>
           <input name="exterior_color" value="${escHtml(offer.exterior_color || "")}" ${dis} />
         </div>
         <div class="lhai-par-car__field-row">
-          <label>위치</label>
+          <label>${escHtml(L("field.location", "Location"))}</label>
           <input name="location" value="${escHtml(offer.location || "")}" ${dis} />
         </div>
       </div>
       <div class="lhai-par-car__field-row">
-        <label>납품 가능 시기 <span class="u-text-muted">(필수)</span></label>
-        <input name="available_timeline" value="${escHtml(offer.available_timeline || "")}" required ${dis} placeholder="예: 즉시 가능" />
+        <label>${escHtml(L("field.available_timeline", "Available timeline"))} <span class="u-text-muted">(${escHtml(L("required", "required"))})</span></label>
+        <input name="available_timeline" value="${escHtml(offer.available_timeline || "")}" required ${dis} placeholder="${escHtml(L("field.available_timeline_ph", "e.g. Available immediately"))}" />
       </div>
     </fieldset>
 
     <fieldset class="lhai-par-car__section">
-      <legend class="lhai-par-car__section-title">차량 이력</legend>
+      <legend class="lhai-par-car__section-title">${escHtml(L("section.history", "Vehicle history"))}</legend>
       <div class="lhai-par-car__grid-2">
         <div class="lhai-par-car__field-row">
-          <label>소유권 상태</label>
+          <label>${escHtml(L("field.title_status", "Title status"))}</label>
           <select name="title_status" ${dis}>${renderSelectOptions(TITLE_STATUS_OPTIONS, titleSt)}</select>
         </div>
         <div class="lhai-par-car__field-row">
-          <label>사고 이력</label>
+          <label>${escHtml(L("field.accident_history", "Accident history"))}</label>
           <select name="accident_history" ${dis}>${accidentHistorySelectOptionsHtml(accident)}</select>
         </div>
       </div>
     </fieldset>
 
     <fieldset class="lhai-par-car__section">
-      <legend class="lhai-par-car__section-title">가격</legend>
+      <legend class="lhai-par-car__section-title">${escHtml(L("section.pricing", "Pricing"))}</legend>
       <div class="lhai-par-car__grid-2">
         <div class="lhai-par-car__field-row">
-          <label>차량 가격 <span class="u-text-muted">(필수)</span></label>
+          <label>${escHtml(L("field.vehicle_price", "Vehicle price"))} <span class="u-text-muted">(${escHtml(L("required", "required"))})</span></label>
           <input type="number" name="vehicle_price" min="0" step="1" value="${offer.vehicle_price ?? ""}" ${dis} />
         </div>
         <div class="lhai-par-car__field-row">
-          <label>예상 세금·수수료</label>
+          <label>${escHtml(L("field.estimated_tax_fees", "Estimated tax & fees"))}</label>
           <input type="number" name="estimated_tax_fees" min="0" step="1" value="${optionalNumberInputValue(offer.estimated_tax_fees)}" ${dis} />
         </div>
         <div class="lhai-par-car__field-row">
-          <label>딜러 수수료</label>
+          <label>${escHtml(L("field.dealer_fee", "Dealer fee"))}</label>
           <input type="number" name="dealer_fee" min="0" step="1" value="${optionalNumberInputValue(offer.dealer_fee)}" ${dis} />
         </div>
         <div class="lhai-par-car__field-row">
-          <label>파트너 서비스 수수료</label>
+          <label>${escHtml(L("field.partner_service_fee", "Partner service fee"))}</label>
           <input type="number" name="partner_service_fee" min="0" step="1" value="${optionalNumberInputValue(offer.partner_service_fee)}" ${dis} />
         </div>
         <div class="lhai-par-car__field-row">
-          <label>배송비</label>
+          <label>${escHtml(L("field.delivery_fee", "Delivery fee"))}</label>
           <input type="number" name="delivery_fee" min="0" step="1" value="${optionalNumberInputValue(offer.delivery_fee)}" ${dis} />
         </div>
         <div class="lhai-par-car__field-row lhai-par-car__total-row">
-          <label>총 견적 <span class="u-text-muted">(수동 입력 가능)</span></label>
+          <label>${escHtml(L("field.estimated_total", "Total quote"))} <span class="u-text-muted">(${escHtml(L("manual_total_ok", "manual entry allowed"))})</span></label>
           <input type="number" name="estimated_total" min="0" step="1" value="${offer.estimated_total ?? ""}" data-manual-total ${dis} />
-          <p class="lhai-par-car__total-hint">자동 합계: <output name="estimated_total_display" class="lhai-par-car__total-out">${escHtml(formatMoney(computeOfferEstimatedTotal(offer), offer.currency || "USD"))}</output></p>
+          <p class="lhai-par-car__total-hint">${escHtml(L("auto_total", "Auto total"))}: <output name="estimated_total_display" class="lhai-par-car__total-out">${escHtml(formatMoney(computeOfferEstimatedTotal(offer), offer.currency || "USD"))}</output></p>
         </div>
       </div>
       <input type="hidden" name="estimated_total_manual_override" value="${offer.estimated_total_manual_override ? "1" : "0"}" />
@@ -375,13 +389,13 @@ function renderOfferFields(offer, disabled, photoOpts = {}) {
     ${renderCarPhotosHtml(offer.photos, safePrimary, disabled, photoOpts)}
 
     <fieldset class="lhai-par-car__section">
-      <legend class="lhai-par-car__section-title">메시지</legend>
+      <legend class="lhai-par-car__section-title">${escHtml(L("section.message", "Message"))}</legend>
       <div class="lhai-par-car__field-row">
-        <label>고객에게 보낼 메시지</label>
+        <label>${escHtml(L("field.message_to_customer", "Message to customer"))}</label>
         <textarea name="message_to_customer" rows="3" ${dis}>${escHtml(offer.message_to_customer || "")}</textarea>
       </div>
       <div class="lhai-par-car__field-row">
-        <label>포함 서비스 / 설명 (선택)</label>
+        <label>${escHtml(L("field.included_services", "Included services / notes (optional)"))}</label>
         <textarea name="included_services" rows="2" ${dis}>${escHtml(offer.included_services || offer.description || "")}</textarea>
       </div>
     </fieldset>
@@ -396,7 +410,7 @@ function renderVehicleOfferFormHtml(params) {
   const { vehicleRequests, isEditable, bidStatus, bid } = params;
   const vreqSection = vehicleRequests.length
     ? `<section class="lhai-card lhai-par-car__vreq-section lhai-par-car__offer-block">
-        <h2 class="lhai-card__title">고객 요청 차량</h2>
+        <h2 class="lhai-card__title">${escHtml(L("customer_vehicles", "Customer requested vehicles"))}</h2>
         <div id="partnerCarVreqList" class="lhai-par-car__vreq-list"></div>
       </section>`
     : "";
@@ -405,22 +419,22 @@ function renderVehicleOfferFormHtml(params) {
     ${vreqSection}
     <section class="lhai-card lhai-par-car__editor lhai-par-car__offer-block" id="partnerCarEditorSection" ${isEditable ? "" : "hidden"}>
       <div class="lhai-par-car__editor-head">
-        <h2 class="lhai-card__title">차량 견적 제안</h2>
-        <button type="button" class="lhai-button lhai-button--secondary" id="partnerCarAddOfferBtn" ${isEditable ? "" : "disabled"}>+ 제안 추가</button>
+        <h2 class="lhai-card__title">${escHtml(L("vehicle_offer_title", "Vehicle offer proposal"))}</h2>
+        <button type="button" class="lhai-button lhai-button--secondary" id="partnerCarAddOfferBtn" ${isEditable ? "" : "disabled"}>${escHtml(L("add_offer", "+ Add offer"))}</button>
       </div>
       <div class="lhai-par-car__offer-tabs" id="partnerCarOfferTabs"></div>
       <form class="lhai-par-car__form" id="partnerCarForm" novalidate>
         <div id="partnerCarOfferFields"></div>
         <div class="lhai-par-bid__field">
-          <label for="partnerCarGlobalMessage">전체 메시지 (선택, 모든 제안에 공통)</label>
+          <label for="partnerCarGlobalMessage">${escHtml(L("global_message", "Global message (optional, shared by all offers)"))}</label>
           <textarea id="partnerCarGlobalMessage" name="global_message" rows="3" ${isEditable ? "" : "disabled"}>${escHtml(String(bid.message_to_customer || ""))}</textarea>
         </div>
         <p class="lhai-par-bid__form-error" id="partnerCarFormError" role="alert" hidden></p>
         <div class="lhai-par-car__toolbar">
-          <button type="button" class="lhai-button lhai-button--ghost" id="partnerCarApplyDefaultsBtn" ${isEditable ? "" : "disabled"}>기본값 적용</button>
-          <button type="button" class="lhai-button lhai-button--ghost" id="partnerCarCopyOfferBtn" ${isEditable ? "" : "disabled"}>제안 복사</button>
-          <button type="button" class="lhai-button lhai-button--ghost" id="partnerCarRemoveOfferBtn" ${isEditable ? "" : "disabled"}>제안 삭제</button>
-          <button type="submit" class="lhai-button lhai-button--primary" id="partnerCarSubmitBtn" ${isEditable ? "" : "disabled"}>${bidStatus === "SUBMITTED" ? "견적 수정 제출" : "견적 제출"}</button>
+          <button type="button" class="lhai-button lhai-button--ghost" id="partnerCarApplyDefaultsBtn" ${isEditable ? "" : "disabled"}>${escHtml(L("apply_defaults", "Apply defaults"))}</button>
+          <button type="button" class="lhai-button lhai-button--ghost" id="partnerCarCopyOfferBtn" ${isEditable ? "" : "disabled"}>${escHtml(L("copy_offer", "Copy offer"))}</button>
+          <button type="button" class="lhai-button lhai-button--ghost" id="partnerCarRemoveOfferBtn" ${isEditable ? "" : "disabled"}>${escHtml(L("remove_offer", "Remove offer"))}</button>
+          <button type="submit" class="lhai-button lhai-button--primary" id="partnerCarSubmitBtn" ${isEditable ? "" : "disabled"}>${bidStatus === "SUBMITTED" ? escHtml(L("submit_update", "Update offer")) : escHtml(L("submit_offer", "Submit offer"))}</button>
         </div>
       </form>
     </section>
@@ -450,51 +464,58 @@ export function refreshCarPurchaseBidMeta(root, data) {
   const bidStatus = String(bid.status ?? "").trim().toUpperCase();
   setTextIfChanged(
     root.querySelector("#partnerCarReqRound"),
-    partnerBidRequestRoundLabel(reqStatus),
+    partnerBidRequestRoundLabel(reqStatus, t),
   );
   setTextIfChanged(
     root.querySelector("#partnerCarMyBidStatus"),
-    partnerMyBidSubmissionLabel(bidStatus),
+    partnerMyBidSubmissionLabel(bidStatus, t),
   );
   setTextIfChanged(
     root.querySelector("#partnerCarDeadline"),
-    formatDeadlineFromBidRequestBlock(bidRequestBlock || data),
+    partnerCarDeadlineLabel(bidRequestBlock || data),
   );
 
   const rankSummary =
     data.rank_summary && typeof data.rank_summary === "object" ? data.rank_summary : null;
-  const rankLabel = formatRankSummaryLabel(rankSummary, { prefix: "현재 순위" });
+  const rankLabel = formatRankSummaryLabel(rankSummary, {
+    prefix: L("rank.current", "Current rank"),
+    translate: t,
+  });
   const lastViewSummary =
     data.last_view_rank_summary && typeof data.last_view_rank_summary === "object"
       ? data.last_view_rank_summary
       : null;
   const lastViewLabel = formatRankSummaryLabel(lastViewSummary, {
-    prefix: "마지막 확인 시 순위",
+    prefix: L("rank.last_view", "Rank at last check"),
+    translate: t,
   });
   const rankCard = root.querySelector("#partnerCarRankCard");
   const rankEl = root.querySelector("#partnerCarRank");
   const lastViewRankEl = root.querySelector("#partnerCarLastViewRank");
-  if (!(rankCard instanceof HTMLElement) || !(rankEl instanceof HTMLElement)) return;
-  if (rankLabel) {
-    rankCard.hidden = false;
-    setTextIfChanged(rankEl, rankLabel);
-    if (lastViewRankEl instanceof HTMLElement) {
-      if (lastViewLabel) {
-        lastViewRankEl.hidden = false;
-        setTextIfChanged(lastViewRankEl, lastViewLabel);
-      } else {
+  if (rankCard instanceof HTMLElement && rankEl instanceof HTMLElement) {
+    if (rankLabel) {
+      rankCard.hidden = false;
+      setTextIfChanged(rankEl, rankLabel);
+      if (lastViewRankEl instanceof HTMLElement) {
+        if (lastViewLabel) {
+          lastViewRankEl.hidden = false;
+          setTextIfChanged(lastViewRankEl, lastViewLabel);
+        } else {
+          lastViewRankEl.hidden = true;
+          lastViewRankEl.textContent = "";
+        }
+      }
+    } else {
+      rankCard.hidden = true;
+      rankEl.textContent = "";
+      if (lastViewRankEl instanceof HTMLElement) {
         lastViewRankEl.hidden = true;
         lastViewRankEl.textContent = "";
       }
     }
-  } else {
-    rankCard.hidden = true;
-    rankEl.textContent = "";
-    if (lastViewRankEl instanceof HTMLElement) {
-      lastViewRankEl.hidden = true;
-      lastViewRankEl.textContent = "";
-    }
   }
+
+  patchPartnerBidLocaleSections(root, data, { translate: t });
 }
 
 /**
@@ -560,13 +581,17 @@ export function mountCarPurchaseBidUi(root, ctx) {
 
   const rankSummary =
     data.rank_summary && typeof data.rank_summary === "object" ? data.rank_summary : null;
-  const rankLabel = formatRankSummaryLabel(rankSummary, { prefix: "현재 순위" });
+  const rankLabel = formatRankSummaryLabel(rankSummary, {
+    prefix: L("rank.current", "Current rank"),
+    translate: t,
+  });
   const lastViewSummary =
     data.last_view_rank_summary && typeof data.last_view_rank_summary === "object"
       ? data.last_view_rank_summary
       : null;
   const lastViewLabel = formatRankSummaryLabel(lastViewSummary, {
-    prefix: "마지막 확인 시 순위",
+    prefix: L("rank.last_view", "Rank at last check"),
+    translate: t,
   });
 
   const vehicleRequests = Array.isArray(carReq.vehicle_requests) ? carReq.vehicle_requests : [];
@@ -590,48 +615,35 @@ export function mountCarPurchaseBidUi(root, ctx) {
 
   const hasCap = partnerHasCarPurchaseCapability(readPartnerCapabilities());
 
-  const intakeAnswerRows = resolvePartnerIntakeAnswerRows(data);
-  const aiBrief =
-    data.ai_bid_request_brief && typeof data.ai_bid_request_brief === "object"
-      ? data.ai_bid_request_brief
-      : null;
-
   root.innerHTML = `
     <section class="lhai-card lhai-par-car__hero">
-      <h2 class="lhai-card__title">자동차 구매 견적 요청</h2>
-      ${!hasCap ? '<p class="lhai-par-car__cap-warn" role="status">CAR_PURCHASE 견적 권한이 프로필에 없을 수 있습니다. 제출이 거절되면 관리자에게 문의하세요.</p>' : ""}
+      <h2 class="lhai-card__title">${escHtml(L("page_title", "Vehicle purchase bid request"))}</h2>
+      ${!hasCap ? `<p class="lhai-par-car__cap-warn" role="status">${escHtml(L("cap_warn", "CAR_PURCHASE bidding may not be enabled on your profile. Contact an admin if submission is rejected."))}</p>` : ""}
       <dl class="lhai-par-car__status-dl">
-        <div><dt>견적 요청</dt><dd id="partnerCarReqRound">${escHtml(partnerBidRequestRoundLabel(reqStatus))}</dd></div>
-        <div><dt>내 견적</dt><dd id="partnerCarMyBidStatus">${escHtml(partnerMyBidSubmissionLabel(bidStatus))}</dd></div>
-        <div><dt>제출 마감</dt><dd id="partnerCarDeadline">${escHtml(formatDeadlineFromBidRequestBlock(bidRequestBlock) || formatDeadlineFromBidRequestBlock({ expires_at: expiresAtQuery }))}</dd></div>
+        <div><dt>${escHtml(L("request_round", "Bid request"))}</dt><dd id="partnerCarReqRound">${escHtml(partnerBidRequestRoundLabel(reqStatus, t))}</dd></div>
+        <div><dt>${escHtml(L("your_bid", "Your bid"))}</dt><dd id="partnerCarMyBidStatus">${escHtml(partnerMyBidSubmissionLabel(bidStatus, t))}</dd></div>
+        <div><dt>${escHtml(L("deadline", "Deadline"))}</dt><dd id="partnerCarDeadline">${escHtml(partnerCarDeadlineLabel(bidRequestBlock) || partnerCarDeadlineLabel({ expires_at: expiresAtQuery }))}</dd></div>
       </dl>
       <div class="lhai-par-car__rank-card" id="partnerCarRankCard" hidden>
         <p class="lhai-par-car__rank" id="partnerCarRank"></p>
-        <p class="lhai-par-car__rank-hint">순위는 제출 후 갱신됩니다. 고객 화면과 기준이 다를 수 있습니다.</p>
+        <p class="lhai-par-car__rank-hint">${escHtml(L("rank_hint", "Rank updates after you submit and may differ from the customer view."))}</p>
         <p class="lhai-par-car__rank lhai-par-car__rank--secondary" id="partnerCarLastViewRank" hidden></p>
       </div>
       <dl class="lhai-par-car__summary-dl">
-        <div><dt>고객</dt><dd>${escHtml(cust.display_name || "—")}</dd></div>
-        <div><dt>지역</dt><dd>${escHtml(carReq.location || cust.location || "—")}</dd></div>
-        <div><dt>대안 차량</dt><dd>${allowAlternatives ? "허용" : "불가"}</dd></div>
+        <div><dt>${escHtml(L("customer", "Customer"))}</dt><dd>${escHtml(cust.display_name || "—")}</dd></div>
+        <div><dt>${escHtml(L("location", "Location"))}</dt><dd>${escHtml(carReq.location || cust.location || "—")}</dd></div>
+        <div><dt>${escHtml(L("alternatives", "Alternative vehicles"))}</dt><dd>${allowAlternatives ? escHtml(L("allowed", "Allowed")) : escHtml(L("not_allowed", "Not allowed"))}</dd></div>
       </dl>
     </section>
 
-    ${isSelected ? '<section class="lhai-par-bid__selected-banner"><p><strong>고객이 이 견적을 선택했습니다.</strong> 이후에는 수정할 수 없습니다.</p><button type="button" class="lhai-button lhai-button--primary" id="partnerCarOpenMessagesBtn">고객과 메시지</button></section>' : ""}
-    ${isTerminal && !isSelected ? '<p class="lhai-par-bid__closed-banner">이 견적 요청은 종료되었습니다. 더 이상 수정할 수 없습니다.</p>' : ""}
-    ${!isEditable && !isSelected && !isTerminal && (reqStatus === "EXPIRED" || serverExpired) ? `<p class="lhai-par-car__expired" role="status">${escHtml(PARTNER_BID_EXPIRED_POLICY_BANNER)}</p>` : ""}
+    ${isSelected ? `<section class="lhai-par-bid__selected-banner"><p><strong>${escHtml(L("selected_banner", "The customer selected your offer. You can no longer edit it."))}</strong></p><button type="button" class="lhai-button lhai-button--primary" id="partnerCarOpenMessagesBtn">${escHtml(L("open_messages", "Open conversation"))}</button></section>` : ""}
+    ${isTerminal && !isSelected ? `<p class="lhai-par-bid__closed-banner">${escHtml(L("closed_banner", "This bid request has ended. You can no longer edit your offer."))}</p>` : ""}
+    ${!isEditable && !isSelected && !isTerminal && (reqStatus === "EXPIRED" || serverExpired) ? `<p class="lhai-par-car__expired" role="status">${escHtml(t("partner.bid.car.expired_banner", "Bidding ended. You can no longer edit offers. A customer may still select an existing offer."))}</p>` : ""}
 
     <div class="lhai-par-car__request-stack">
-      ${renderAiBidRequestBriefCard(aiBrief, {
-        serviceTitle: String(
-          data.service_title ||
-            (data.service && typeof data.service === "object"
-              ? data.service.title
-              : "") ||
-            "",
-        ).trim() || undefined,
-      })}
-      ${renderFullIntakeAnswersDisclosure(intakeAnswerRows)}
+      <div data-partner-bid-locale-sections>
+        ${renderPartnerBidIntakeSectionHtml(data, { translate: t })}
+      </div>
       ${renderVehicleOfferFormHtml({
         vehicleRequests,
         isEditable,
@@ -685,8 +697,8 @@ export function mountCarPurchaseBidUi(root, ctx) {
   if (deadlineEl) {
     const tick = () => {
       deadlineEl.textContent =
-        formatDeadlineFromBidRequestBlock(bidRequestBlock) ||
-        formatDeadlineFromBidRequestBlock({
+        partnerCarDeadlineLabel(bidRequestBlock) ||
+        partnerCarDeadlineLabel({
           expires_at: deadlineExpires || expiresAtQuery,
         });
     };
@@ -824,8 +836,9 @@ export function mountCarPurchaseBidUi(root, ctx) {
     }
     offerTabs.innerHTML = offers
       .map((o, i) => {
-        const title = buildAutoOfferTitle(o) || `제안 ${i + 1}`;
-        return `<button type="button" class="lhai-par-car__tab ${i === activeIdx ? "is-active" : ""}" data-idx="${i}">${escHtml(title)}${o.is_alternative ? " · 대안" : ""}</button>`;
+        const title = buildAutoOfferTitle(o) || L("offer_tab", "Offer {index}").replace("{index}", String(i + 1));
+        const altSuffix = o.is_alternative ? ` · ${L("offer_alt_suffix", "Alternative")}` : "";
+        return `<button type="button" class="lhai-par-car__tab ${i === activeIdx ? "is-active" : ""}" data-idx="${i}">${escHtml(title)}${escHtml(altSuffix)}</button>`;
       })
       .join("");
     offerTabs.querySelectorAll(".lhai-par-car__tab").forEach((btn) => {
@@ -889,7 +902,7 @@ export function mountCarPurchaseBidUi(root, ctx) {
         }
         const res = await uploadOfferPhotoFn(uploadFile, { offerId });
         const url = String(res?.url || "").trim();
-        if (!url) throw new Error("업로드 URL을 받지 못했습니다.");
+        if (!url) throw new Error(t("common.dialog.partner.photo_upload_no_url", "Did not receive an upload URL."));
         const isFirst = list.length === 0;
         list.push({
           asset_id: String(res.asset_id || "").trim() || undefined,

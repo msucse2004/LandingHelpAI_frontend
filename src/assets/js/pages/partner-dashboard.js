@@ -29,18 +29,28 @@ import {
 } from "../core/partner-dashboard-debug.js";
 import { clearShellTopLayerBlockers, diagnoseShellTopLayerBlockers } from "../core/ui-blockers.js";
 import { formatMessageTimestamp } from "../core/utils.js";
-import { buildBiddingDashboardCardHtml } from "./partner-dashboard-bidding-logic.js";
+import { buildBiddingDashboardCardHtml, partnerDashboardServiceDisplayName } from "./partner-dashboard-bidding-logic.js";
+// Bidding list cards: titles and request_summary_lines come from API viewer-locale fields (no client summary translation).
+import { threadListPreviewBody } from "./messages-display-logic.js";
 
-const ERR_LOAD =
-  "대시보드를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
-const ERR_UNSUPPORTED_MODE =
-  "지원하지 않는 파트너 모드입니다. HYBRID는 사용할 수 없으며, 관리자에게 프로필(ASSIGNED_ONLY / BIDDING_ONLY) 확인을 요청해 주세요.";
-const EMPTY_BIDDING = "아직 새 견적 요청이 없습니다.";
-const EMPTY_IN_PROGRESS =
-  "진행 중인 서비스 요청이 없습니다. 새 요청이 연결되면 이곳에 표시됩니다.";
-const EMPTY_COMPLETED =
-  "완료된 요청이 없습니다. 처리가 끝난 요청은 완료 후 이곳에 표시됩니다.";
-
+/**
+ * Viewer-locale last message preview for partner assigned dashboard cards.
+ * @param {Record<string, unknown>} row
+ * @returns {string}
+ */
+function partnerDashboardLastMessagePreview(row) {
+  return threadListPreviewBody(
+    {
+      last_message_body: row.last_message_preview,
+      preview: row.last_message_preview,
+      last_message_display_body: row.last_message_display_preview,
+      last_message_translation_status: row.last_message_translation_status,
+      last_message_source_locale: row.last_message_source_locale,
+      last_message_display_locale: row.last_message_display_locale,
+    },
+    t,
+  );
+}
 const PM_ASSIGNED = "ASSIGNED_ONLY";
 const PM_BIDDING = "BIDDING_ONLY";
 
@@ -133,7 +143,9 @@ function renderUnsupportedPartnerMode(data) {
   const emptyEl = document.querySelector("#partnerDashboardEmpty");
   const bodyEl = document.querySelector("#partnerDashboardUnsupportedBody");
 
-  if (secTitle) secTitle.textContent = "안내";
+  if (secTitle instanceof HTMLElement) {
+    secTitle.textContent = t("partner.dashboard.section.notice", "Notice");
+  }
 
   if (emptyEl instanceof HTMLElement) {
     emptyEl.hidden = true;
@@ -142,9 +154,15 @@ function renderUnsupportedPartnerMode(data) {
 
   const raw = String(data.partner_mode ?? "").trim();
   const reason = String(data.unsupported_reason ?? "").trim();
-  let body = ERR_UNSUPPORTED_MODE;
+  let body = t(
+    "partner.dashboard.error.unsupported_mode",
+    "This partner mode is not supported. HYBRID is unavailable — ask an admin to set ASSIGNED_ONLY or BIDDING_ONLY on your profile.",
+  );
   if (raw && raw.toUpperCase() !== "HYBRID") {
-    body = `저장된 파트너 모드(${raw})는 사용할 수 없습니다. ASSIGNED_ONLY 또는 BIDDING_ONLY로 설정되어 있는지 관리자에게 확인해 주세요.`;
+    body = t(
+      "partner.dashboard.error.unsupported_mode_invalid",
+      "Saved partner mode ({mode}) is not available. Ask an admin to confirm ASSIGNED_ONLY or BIDDING_ONLY.",
+    ).replace("{mode}", raw);
   }
   if (reason && reason !== "invalid_partner_mode") {
     body = `${body} (${reason})`;
@@ -266,7 +284,7 @@ function partnerCustomerDisplayFromRow(r) {
   }
   if (email) return email;
   if (name) return name;
-  return "고객";
+  return t("partner.dashboard.customer_fallback", "Customer");
 }
 
 /**
@@ -279,7 +297,7 @@ function renderAssignedRequestCard(r, ui) {
   const detailHref = tid
     ? `partner-assigned-request.html?thread_id=${encodeURIComponent(tid)}`
     : "partner-assigned-request.html";
-  const svc = escHtml(r.service_name || "—");
+  const svc = escHtml(partnerDashboardServiceDisplayName(r, t) || "—");
   const cust = escHtml(partnerCustomerDisplayFromRow(r));
   const lastAt = formatMessageTimestamp(r.last_message_at);
   const lastAtHtml = escHtml(lastAt);
@@ -287,20 +305,29 @@ function renderAssignedRequestCard(r, ui) {
   const hasUnread = Boolean(r.has_unread_customer_message);
   let unreadBadge = "";
   if (unreadN > 0) {
-    unreadBadge = `<span class="lhai-partner-dash__unread-badge" title="읽지 않은 메시지" aria-label="읽지 않은 메시지 ${unreadN}건">${unreadN}</span>`;
+    const unreadTitle = t("partner.dashboard.unread.title", "Unread messages");
+    const unreadAria = t("partner.dashboard.unread.aria", "Unread messages ({count})").replace(
+      "{count}",
+      String(unreadN),
+    );
+    unreadBadge = `<span class="lhai-partner-dash__unread-badge" title="${escHtml(unreadTitle)}" aria-label="${escHtml(unreadAria)}">${unreadN}</span>`;
   } else if (hasUnread) {
-    unreadBadge = `<span class="lhai-partner-dash__unread-badge lhai-partner-dash__unread-badge--flag" title="읽지 않은 메시지 있음" aria-label="읽지 않은 메시지 있음">!</span>`;
+    const flagTitle = t("partner.dashboard.unread.flag_title", "Unread messages");
+    const flagAria = t("partner.dashboard.unread.flag_aria", "Unread messages");
+    unreadBadge = `<span class="lhai-partner-dash__unread-badge lhai-partner-dash__unread-badge--flag" title="${escHtml(flagTitle)}" aria-label="${escHtml(flagAria)}">!</span>`;
   }
-  const rawPreview = String(r.last_message_preview ?? "").trim();
-  const previewBlock = rawPreview
-    ? `<span class="lhai-partner-dash__preview-q"><q>${escHtml(rawPreview)}</q></span>`
+  const previewText = partnerDashboardLastMessagePreview(r);
+  const previewBlock = previewText
+    ? `<span class="lhai-partner-dash__preview-q"><q>${escHtml(previewText)}</q></span>`
     : "—";
 
-  const badgeDone = ui === "COMPLETED";
-  const badgeClass = badgeDone
+  const badgeClass = ui === "COMPLETED"
     ? "lhai-partner-dash__status-badge lhai-partner-dash__status-badge--done"
     : "lhai-partner-dash__status-badge lhai-partner-dash__status-badge--progress";
-  const badgeText = badgeDone ? "완료" : "진행중";
+  const badgeText =
+    ui === "COMPLETED"
+      ? t("partner.dashboard.card.status.done", "Completed")
+      : t("partner.dashboard.card.status.in_progress", "In progress");
   const safeId = tid.replace(/[^a-zA-Z0-9_-]/g, "") || "row";
   const titleId = `lhai-pd-svc-${safeId}`;
 
@@ -308,7 +335,7 @@ function renderAssignedRequestCard(r, ui) {
     ui === "IN_PROGRESS" && tid
       ? `<button type="button" class="lhai-button lhai-button--secondary lhai-partner-dash__complete-btn" data-thread-id="${escHtml(
           tid,
-        )}" data-action="complete-assigned">완료 처리</button>`
+        )}" data-action="complete-assigned">${escHtml(t("partner.dashboard.card.complete_btn", "Mark complete"))}</button>`
       : "";
 
   const tailSlot =
@@ -320,42 +347,49 @@ function renderAssignedRequestCard(r, ui) {
     unreadN > 0
       ? `<strong>${unreadN}</strong>`
       : hasUnread
-        ? "<strong>있음</strong>"
+        ? `<strong>${escHtml(t("partner.dashboard.card.unread.yes", "Yes"))}</strong>`
         : "<strong>0</strong>";
+
+  const customerLabel = escHtml(t("partner.dashboard.card.customer_label", "Customer:"));
+  const lastMsgLabel = escHtml(t("partner.dashboard.card.last_message_label", "Latest message:"));
+  const unreadLabel = escHtml(t("partner.dashboard.card.unread_label", "Unread messages:"));
+  const previewLabel = escHtml(t("partner.dashboard.card.preview_label", "Last message:"));
+  const openMsg = escHtml(t("partner.dashboard.card.open_messages", "Open messages"));
+  const viewDetail = escHtml(t("partner.dashboard.card.view_detail", "View details"));
 
   return `<article class="lhai-partner-dash__request-card lhai-assigned-request-card" aria-labelledby="${titleId}">
     <div class="lhai-partner-dash__request-card__head">
       <h4 class="lhai-partner-dash__request-card__title" id="${titleId}">${svc}</h4>
-      <span class="${badgeClass}">${badgeText}</span>
+      <span class="${badgeClass}">${escHtml(badgeText)}</span>
     </div>
-    <p class="lhai-partner-dash__request-card__meta"><strong>고객:</strong> ${cust}</p>
+    <p class="lhai-partner-dash__request-card__meta"><strong>${customerLabel}</strong> ${cust}</p>
     <div class="lhai-partner-dash__request-card__row">
-      <span class="lhai-partner-dash__request-card__meta">최근 메시지: <strong>${lastAtHtml}</strong></span>
+      <span class="lhai-partner-dash__request-card__meta">${lastMsgLabel} <strong>${lastAtHtml}</strong></span>
       ${unreadBadge}
     </div>
-    <p class="lhai-partner-dash__request-card__meta">읽지 않은 메시지: ${unreadLine}</p>
-    <p class="lhai-partner-dash__request-card__preview">마지막 메시지: ${previewBlock}</p>
+    <p class="lhai-partner-dash__request-card__meta">${unreadLabel} ${unreadLine}</p>
+    <p class="lhai-partner-dash__request-card__preview">${previewLabel} ${previewBlock}</p>
     <div class="lhai-partner-dash__actions">
-      <a class="lhai-button lhai-button--primary" href="${messagesHref}">메시지 열기</a>
-      <a class="lhai-button lhai-button--secondary" href="${detailHref}">상세 보기</a>
+      <a class="lhai-button lhai-button--primary" href="${messagesHref}">${openMsg}</a>
+      <a class="lhai-button lhai-button--secondary" href="${detailHref}">${viewDetail}</a>
       ${completeBtn}
       ${tailSlot}
     </div>
   </article>`;
 }
 
-/** API bid_status: NOT_SUBMITTED | SUBMITTED | SELECTED | CLOSED */
 /** @param {string} code */
-function biddingBidStatusLabelKo(code) {
+function biddingBidStatusLabel(code) {
   const c = String(code || "").trim().toUpperCase();
-  const map = {
-    NOT_SUBMITTED: "견적 제출 전",
-    SUBMITTED: "견적 제출 완료",
-    SELECTED: "선택됨",
-    CLOSED: "종료됨",
-    REJECTED: "종료됨",
+  const key = `partner.dashboard.bid_status.${c}`;
+  const fallbacks = {
+    NOT_SUBMITTED: "Offer not submitted",
+    SUBMITTED: "Offer submitted",
+    SELECTED: "Selected",
+    CLOSED: "Closed",
+    REJECTED: "Closed",
   };
-  return map[c] || c || "—";
+  return t(key, fallbacks[c] || c || "—");
 }
 
 function scrollToHash() {
@@ -385,32 +419,56 @@ function applyPartnerDashboardTitles(branch) {
   const secTitle = document.querySelector("#partnerRequestsSectionTitle");
 
   if (pageKey === "bid_requests") {
-    if (titleEl) titleEl.textContent = "신청 리스트";
+    if (titleEl) {
+      titleEl.textContent = t("partner.dashboard.title.bid_requests", "Request list");
+    }
     if (subEl) {
       subEl.textContent =
         branch === "bidding"
-          ? "받은 견적 신청을 확인하고 상세에서 견적을 제출합니다."
-          : "배정된 고객 신청을 확인하고 메시지로 서비스를 진행하세요.";
+          ? t(
+              "partner.dashboard.subtitle.bid_requests.bidding",
+              "Review incoming bid requests and submit offers from the detail page.",
+            )
+          : t(
+              "partner.dashboard.subtitle.bid_requests.assigned",
+              "Review assigned customer requests and continue service in messages.",
+            );
     }
-    if (secTitle) secTitle.textContent = "신청 목록";
+    if (secTitle) {
+      secTitle.textContent = t("partner.dashboard.section.bid_requests", "Request list");
+    }
     return;
   }
 
   if (branch === "assigned") {
-    if (titleEl) titleEl.textContent = "배정 업무 대시보드";
-    if (subEl) subEl.textContent = "배정된 고객 신청을 확인하고 메시지로 서비스를 진행하세요.";
-    if (secTitle) secTitle.textContent = "요청 목록";
+    if (titleEl) titleEl.textContent = t("partner.dashboard.title.assigned", "Assigned work dashboard");
+    if (subEl) {
+      subEl.textContent = t(
+        "partner.dashboard.subtitle.assigned",
+        "Review assigned customer requests and continue service in messages.",
+      );
+    }
+    if (secTitle) {
+      secTitle.textContent = t("partner.dashboard.section.assigned_requests", "Request list");
+    }
     return;
   }
   if (branch === "bidding") {
-    if (titleEl) titleEl.textContent = "견적 요청 대시보드";
-    if (subEl) subEl.textContent = "받은 견적 요청을 확인하고 견적을 제출합니다.";
-    if (secTitle) secTitle.textContent = "견적 요청 리스트";
+    if (titleEl) titleEl.textContent = t("partner.dashboard.title.bidding", "Bid request dashboard");
+    if (subEl) {
+      subEl.textContent = t(
+        "partner.dashboard.subtitle.bidding",
+        "Review incoming bid requests and submit your offers.",
+      );
+    }
+    if (secTitle) {
+      secTitle.textContent = t("partner.dashboard.section.bidding_requests", "Bid request list");
+    }
     return;
   }
-  if (titleEl) titleEl.textContent = "파트너 대시보드";
+  if (titleEl) titleEl.textContent = t("partner.dashboard.title", "Partner dashboard");
   if (subEl) subEl.textContent = "";
-  if (secTitle) secTitle.textContent = "목록";
+  if (secTitle) secTitle.textContent = t("partner.dashboard.section.list", "List");
 }
 
 function onPartnerDashboardHashChange() {
@@ -494,11 +552,11 @@ function ensurePartnerCompleteDialog() {
   dlg.setAttribute("aria-labelledby", "lhaiPartnerCompleteDialogTitle");
   dlg.innerHTML = `
     <div class="lhai-partner-dash__complete-dialog__inner">
-      <h3 class="lhai-partner-dash__complete-dialog__title" id="lhaiPartnerCompleteDialogTitle">이 요청을 완료 처리하시겠습니까?</h3>
-      <p class="lhai-partner-dash__complete-dialog__desc">완료 처리 후 이 요청은 완료 목록으로 이동합니다. 고객과의 대화 기록은 계속 보관됩니다.</p>
+      <h3 class="lhai-partner-dash__complete-dialog__title" id="lhaiPartnerCompleteDialogTitle">${escHtml(t("partner.dashboard.complete_dialog.title", "Mark this request as complete?"))}</h3>
+      <p class="lhai-partner-dash__complete-dialog__desc">${escHtml(t("partner.dashboard.complete_dialog.desc", "After completion, this request moves to the completed list. Conversation history is kept."))}</p>
       <div class="lhai-partner-dash__complete-dialog__actions">
-        <button type="button" class="lhai-button lhai-button--secondary" data-role="complete-cancel">취소</button>
-        <button type="button" class="lhai-button lhai-button--primary" data-role="complete-confirm">완료 처리</button>
+        <button type="button" class="lhai-button lhai-button--secondary" data-role="complete-cancel">${escHtml(t("common.cancel", "Cancel"))}</button>
+        <button type="button" class="lhai-button lhai-button--primary" data-role="complete-confirm">${escHtml(t("partner.dashboard.complete_dialog.confirm", "Mark complete"))}</button>
       </div>
     </div>
   `;
@@ -529,7 +587,7 @@ function wirePartnerCompleteDialogOnce() {
         schedulePartnerShellModalCleanup();
         const refreshed = await refreshPartnerDashboardInPlace();
         if (refreshed) {
-          showPartnerDashboardToast("완료 처리되었습니다.");
+          showPartnerDashboardToast(t("partner.dashboard.toast.completed", "Marked as complete."));
         }
       } catch (e) {
         const msg = e && typeof e.message === "string" ? e.message : String(e);
@@ -559,11 +617,23 @@ async function refreshPartnerDashboardInPlace() {
     debugDashboard("api-refresh-error", {
       message: e && typeof e.message === "string" ? e.message.slice(0, 400) : String(e).slice(0, 400),
     });
-    showDashboardError(errEl, emptyEl, assignedWrap, biddingWrap, ERR_LOAD);
+    showDashboardError(
+      errEl,
+      emptyEl,
+      assignedWrap,
+      biddingWrap,
+      t("partner.dashboard.error.load", "Could not load the dashboard. Please try again in a moment."),
+    );
     return false;
   }
   if (!data || typeof data !== "object") {
-    showDashboardError(errEl, emptyEl, assignedWrap, biddingWrap, ERR_LOAD);
+    showDashboardError(
+      errEl,
+      emptyEl,
+      assignedWrap,
+      biddingWrap,
+      t("partner.dashboard.error.load", "Could not load the dashboard. Please try again in a moment."),
+    );
     return false;
   }
   clearDashboardError(errEl);
@@ -585,16 +655,35 @@ async function refreshPartnerDashboardInPlace() {
 
 /** @type {Record<string, unknown> | null} */
 let partnerDashboardPayloadCache = null;
+let partnerDashboardLanguageRefetchInFlight = false;
 
-function refreshPartnerDashboardPageI18n() {
-  applyI18nToDom(document.querySelector("#partnerDashboardMain") || document);
-  if (partnerDashboardPayloadCache) {
-    renderPartnerDashboardFromPayload(partnerDashboardPayloadCache);
+const PARTNER_DASHBOARD_I18N_PREFIXES = ["partner.", "common.", "messages."];
+
+function refreshPartnerDashboardStaticI18n() {
+  const root = document.querySelector("#partnerDashboardMain") || document;
+  applyI18nToDom(root);
+  applyPartnerDashboardTitles(detectDashboardBranchFromDom());
+}
+
+async function handlePartnerDashboardLanguageChanged() {
+  if (partnerDashboardLanguageRefetchInFlight) return;
+  partnerDashboardLanguageRefetchInFlight = true;
+  try {
+    refreshPartnerDashboardStaticI18n();
+    // Refetch so backend returns viewer-locale display_* for the new UI language.
+    await refreshPartnerDashboardInPlace();
+  } finally {
+    partnerDashboardLanguageRefetchInFlight = false;
   }
 }
 
-wireDynamicPageI18nRefresh(refreshPartnerDashboardPageI18n, {
-  keyPrefixes: ["partner.", "common."],
+wireDynamicPageI18nRefresh(() => {
+  void handlePartnerDashboardLanguageChanged();
+}, { languageChangeOnly: true });
+
+wireDynamicPageI18nRefresh(refreshPartnerDashboardStaticI18n, {
+  runtimeResolvedOnly: true,
+  keyPrefixes: PARTNER_DASHBOARD_I18N_PREFIXES,
 });
 
 /** @param {Record<string, unknown>} data */
@@ -712,7 +801,10 @@ function renderAssignedDashboard(data) {
   if (ipEmpty instanceof HTMLElement) {
     if (!inProgressRows.length) {
       ipEmpty.hidden = false;
-      ipEmpty.textContent = EMPTY_IN_PROGRESS;
+      ipEmpty.textContent = t(
+        "partner.dashboard.empty.in_progress",
+        "No active service requests. New assignments will appear here.",
+      );
     } else {
       ipEmpty.hidden = true;
       ipEmpty.textContent = "";
@@ -721,7 +813,10 @@ function renderAssignedDashboard(data) {
   if (coEmpty instanceof HTMLElement) {
     if (!completedRows.length) {
       coEmpty.hidden = false;
-      coEmpty.textContent = EMPTY_COMPLETED;
+      coEmpty.textContent = t(
+        "partner.dashboard.empty.completed",
+        "No completed requests yet. Finished work will appear here after you mark requests complete.",
+      );
     } else {
       coEmpty.hidden = true;
       coEmpty.textContent = "";
@@ -761,7 +856,7 @@ function renderBiddingDashboard(data) {
   if (!requests.length) {
     if (emptyEl instanceof HTMLElement) {
       emptyEl.hidden = false;
-      emptyEl.textContent = EMPTY_BIDDING;
+      emptyEl.textContent = t("partner.dashboard.empty.bidding", "No new bid requests yet.");
     }
     setHidden(listRoot, false);
     if (listRoot instanceof HTMLElement) listRoot.innerHTML = "";
@@ -786,7 +881,7 @@ function renderBiddingDashboard(data) {
         if (reqSt) qs.set("request_status", reqSt);
         const expQ = qs.toString() ? `?${qs.toString()}` : "";
         const detailHref = `partner-bid-request.html${expQ}#/partner/bid-requests/${encodeURIComponent(bidRequestId)}`;
-        return buildBiddingDashboardCardHtml(r, detailHref, escHtml);
+        return buildBiddingDashboardCardHtml(r, detailHref, escHtml, t);
       })
       .join("");
   }
@@ -819,7 +914,9 @@ async function initPartnerDashboard() {
   await mountPartnerShell("#app", {
     pageKey,
     documentTitle:
-      pageKey === "bid_requests" ? "신청 리스트 - Landing Help AI" : "파트너 대시보드 - Landing Help AI",
+      pageKey === "bid_requests"
+        ? t("partner.dashboard.doc_title_bid_requests", "Request list — Landing Help AI")
+        : t("partner.dashboard.doc_title", "Partner dashboard — Landing Help AI"),
     contentHtml: renderPartnerDashboardContentHtml(),
     mainExtraClass: "lhai-partner-dash",
     mainId: "partnerDashboardMain",
@@ -842,7 +939,13 @@ async function initPartnerDashboard() {
     debugDashboard("api-request-error", {
       message: e && typeof e.message === "string" ? e.message.slice(0, 400) : String(e).slice(0, 400),
     });
-    showDashboardError(errEl, emptyEl, assignedWrap, biddingWrap, ERR_LOAD);
+    showDashboardError(
+      errEl,
+      emptyEl,
+      assignedWrap,
+      biddingWrap,
+      t("partner.dashboard.error.load", "Could not load the dashboard. Please try again in a moment."),
+    );
     debugDashboard("render-complete", { path: "error-no-data" });
     logPartnerDashboardDomAfterRender("");
     schedulePartnerShellModalCleanup();
@@ -853,7 +956,13 @@ async function initPartnerDashboard() {
 
   if (!data || typeof data !== "object") {
     debugDashboard("api-request-error", { reason: "invalid_or_empty_json" });
-    showDashboardError(errEl, emptyEl, assignedWrap, biddingWrap, ERR_LOAD);
+    showDashboardError(
+      errEl,
+      emptyEl,
+      assignedWrap,
+      biddingWrap,
+      t("partner.dashboard.error.load", "Could not load the dashboard. Please try again in a moment."),
+    );
     debugDashboard("render-complete", { path: "invalid-payload" });
     logPartnerDashboardDomAfterRender("");
     schedulePartnerShellModalCleanup();

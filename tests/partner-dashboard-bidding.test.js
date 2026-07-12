@@ -71,3 +71,88 @@ test("buildBiddingDashboardCardHtml uses pending badge for Not submitted", async
   assert.match(html, /lhai-par-dash-bid__status--pending/);
   assert.match(html, />Not submitted</);
 });
+
+test("partnerDashboardServiceDisplayName prefers display_service_name", async () => {
+  const m = await importFresh(logicPath);
+  const name = m.partnerDashboardServiceDisplayName({
+    service_name: "한글 원본",
+    display_service_name: "English title",
+    service_name_status: "translated",
+    service_name_source_locale: "ko",
+    service_name_display_locale: "en",
+  });
+  assert.equal(name, "English title");
+});
+
+test("partnerDashboardServiceDisplayName hides raw service_name on translation failure", async () => {
+  const m = await importFresh(logicPath);
+  const translate = (key, fallback) => (key === "messages.translation.preparing_title" ? "Preparing title translation..." : fallback);
+  const name = m.partnerDashboardServiceDisplayName(
+    {
+      service_name: "한글 스냅샷",
+      display_service_name: null,
+      service_name_status: "translation_required_failed",
+      service_name_source_locale: "ko",
+      service_name_display_locale: "en",
+    },
+    translate,
+  );
+  assert.equal(name, "Preparing title translation...");
+  assert.notEqual(name, "한글 스냅샷");
+});
+
+test("partnerDashboardServiceDisplayName allows same-locale audit name", async () => {
+  const m = await importFresh(logicPath);
+  const name = m.partnerDashboardServiceDisplayName({
+    service_name: "미국 전화번호 개통",
+    display_service_name: "미국 전화번호 개통",
+    service_name_status: "not_required",
+    service_name_source_locale: "ko",
+    service_name_display_locale: "ko",
+  });
+  assert.equal(name, "미국 전화번호 개통");
+});
+
+test("partnerDashboardServiceDisplayName hides raw service_name on cross-locale without display", async () => {
+  const m = await importFresh(logicPath);
+  const translate = (key, fallback) =>
+    key === "messages.translation.preparing_title" ? "Preparing title translation..." : fallback;
+  const name = m.partnerDashboardServiceDisplayName(
+    {
+      service_name: "한글 원본",
+      display_service_name: "",
+      service_name_status: "translated",
+      service_name_source_locale: "ko",
+      service_name_display_locale: "en",
+    },
+    translate,
+  );
+  assert.equal(name, "Preparing title translation...");
+  assert.notEqual(name, "한글 원본");
+});
+
+test("partnerDashboardRequestSummaryLines passes backend lines without mutation", async () => {
+  const m = await importFresh(logicPath);
+  const lines = m.partnerDashboardRequestSummaryLines({
+    request_summary_lines: [" Budget: up to $35,000 ", "", "Vehicle: New"],
+  });
+  assert.deepEqual(lines, ["Budget: up to $35,000", "Vehicle: New"]);
+});
+
+test("buildBiddingDashboardCardHtml omits empty summary lines", async () => {
+  const m = await importFresh(logicPath);
+  const esc = (s) => String(s);
+  const html = m.buildBiddingDashboardCardHtml(
+    {
+      bid_request_id: "uuid-3",
+      display_service_name: "Vehicle purchase",
+      request_summary_lines: ["", "  "],
+      partner_status: "NOT_SUBMITTED",
+      partner_status_label: "Not submitted",
+    },
+    "partner-bid-request.html",
+    esc,
+  );
+  assert.match(html, /summary_empty|View request details for full intake/);
+  assert.doesNotMatch(html, /<li>\s*<\/li>/);
+});

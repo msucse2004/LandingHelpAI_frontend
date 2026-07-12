@@ -1,5 +1,5 @@
 /**
- * 고객 견적 제안 비교 — 순수 로직(테스트 가능).
+ * Customer bid results — pure logic (testable).
  */
 
 import {
@@ -7,11 +7,401 @@ import {
   isBidDeadlinePassed,
 } from "../core/bid-deadline-display.js";
 
+/** @typedef {(key: string, fallback: string) => string} CustomerBidTranslate */
+
+/** @param {CustomerBidTranslate | null | undefined} translate @param {string} key @param {string} fallback @param {Record<string, string | number>} [params] */
+export function cbrT(translate, key, fallback, params = null) {
+  const fn = typeof translate === "function" ? translate : (_k, fb) => fb;
+  let text = fn(key, fallback);
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      text = text.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
+    }
+  }
+  return text;
+}
+
+export const OFFER_TRANSLATION_STATUS_FAILED = "translation_required_failed";
+
+export const OFFER_TRANSLATION_I18N_KEYS = {
+  preparingTitle: "messages.translation.preparing_title",
+  preparingMessage: "messages.translation.preparing_message",
+};
+
+/** @param {Record<string, unknown> | null | undefined} offer */
+export function normalizeOfferTranslationStatus(offer) {
+  return String(offer?.translation_status ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, "_");
+}
+
+/** @param {Record<string, unknown> | null | undefined} offer */
+export function offerCrossLocaleViewer(offer) {
+  const src = String(offer?.source_locale ?? "")
+    .trim()
+    .toLowerCase();
+  const disp = String(offer?.display_locale ?? "")
+    .trim()
+    .toLowerCase();
+  if (!src || !disp) return false;
+  return src !== disp;
+}
+
+/** @param {Record<string, unknown> | null | undefined} offer */
+export function offerTranslationFailed(offer) {
+  return normalizeOfferTranslationStatus(offer) === OFFER_TRANSLATION_STATUS_FAILED;
+}
+
+/** @param {CustomerBidTranslate | null | undefined} [translate] */
+export function offerTranslationPreparingTitle(translate = null) {
+  return cbrT(translate, OFFER_TRANSLATION_I18N_KEYS.preparingTitle, "Preparing title translation...");
+}
+
+/** @param {CustomerBidTranslate | null | undefined} [translate] */
+export function offerTranslationPreparingMessage(translate = null) {
+  return cbrT(translate, OFFER_TRANSLATION_I18N_KEYS.preparingMessage, "Preparing message...");
+}
+
 /**
- * `/uploads/...` 등 상대 경로를 API 베이스(또는 현재 origin)에 붙임.
+ * Viewer-locale offer title — never leaks raw ``title`` on cross-locale failure.
+ * @param {Record<string, unknown>} offer
+ * @param {CustomerBidTranslate | null | undefined} [translate]
+ */
+export function offerDisplayTitle(offer, translate = null) {
+  const display = String(offer?.display_title ?? "").trim();
+  if (display) return display;
+  const original = String(offer?.title ?? "").trim();
+  if (offerCrossLocaleViewer(offer)) {
+    if (offerTranslationFailed(offer) || original) {
+      return offerTranslationPreparingTitle(translate);
+    }
+    return offerTranslationPreparingTitle(translate);
+  }
+  if (original) return original;
+  return formatOfferVehicleTitle(offer, translate);
+}
+
+/**
+ * @param {Record<string, unknown>} offer
+ * @param {CustomerBidTranslate | null | undefined} [translate]
+ * @param {{ placeholderOnFailure?: boolean }} [options]
+ */
+export function offerDisplayDescription(offer, translate = null, options = {}) {
+  const display = String(offer?.display_description ?? "").trim();
+  if (display) return display;
+  const original = String(offer?.description ?? "").trim();
+  if (offerCrossLocaleViewer(offer)) {
+    if (offerTranslationFailed(offer) && options.placeholderOnFailure) {
+      return offerTranslationPreparingMessage(translate);
+    }
+    return null;
+  }
+  return original || null;
+}
+
+/**
+ * @param {Record<string, unknown>} offer
+ * @param {CustomerBidTranslate | null | undefined} [translate]
+ * @param {{ placeholderOnFailure?: boolean }} [options]
+ */
+export function offerDisplayPartnerMessage(offer, translate = null, options = {}) {
+  const svc =
+    offer.service && typeof offer.service === "object"
+      ? /** @type {Record<string, unknown>} */ (offer.service)
+      : {};
+  const display = String(offer.display_message_to_customer ?? svc.display_message ?? "").trim();
+  if (display) return display;
+  const original = String(offer.message_to_customer ?? svc.message ?? "").trim();
+  if (offerCrossLocaleViewer(offer)) {
+    if (offerTranslationFailed(offer) || original) {
+      if (options.placeholderOnFailure !== false) {
+        return offerTranslationPreparingMessage(translate);
+      }
+      return null;
+    }
+    return null;
+  }
+  return original || null;
+}
+
+/** @param {Record<string, unknown>} offer */
+export function offerDisplayAvailability(offer) {
+  const svc =
+    offer.service && typeof offer.service === "object"
+      ? /** @type {Record<string, unknown>} */ (offer.service)
+      : {};
+  const display = String(offer.display_available_timeline ?? svc.display_available_timeline ?? "").trim();
+  if (display) return display;
+  if (offerCrossLocaleViewer(offer)) return null;
+  return offerAvailabilityLabel(offer) || null;
+}
+
+/** @param {Record<string, unknown>} offer @param {CustomerBidTranslate | null | undefined} [translate] */
+export function offerDisplayVehicleCondition(offer, translate = null) {
+  const veh =
+    offer.vehicle && typeof offer.vehicle === "object"
+      ? /** @type {Record<string, unknown>} */ (offer.vehicle)
+      : {};
+  const display = String(veh.display_condition ?? "").trim();
+  if (display) return display;
+  if (offerCrossLocaleViewer(offer)) return null;
+  const raw = veh.condition ?? resolveVehicleFromOffer(offer).condition;
+  return conditionLabel(raw, translate) || null;
+}
+
+/** @param {Record<string, unknown>} offer @param {CustomerBidTranslate | null | undefined} [translate] */
+export function offerDisplayTitleStatus(offer, translate = null) {
+  const veh =
+    offer.vehicle && typeof offer.vehicle === "object"
+      ? /** @type {Record<string, unknown>} */ (offer.vehicle)
+      : {};
+  const display = String(veh.display_title_status ?? "").trim();
+  if (display) return display;
+  if (offerCrossLocaleViewer(offer)) return null;
+  const raw = veh.title_status ?? resolveVehicleFromOffer(offer).title_status;
+  return titleStatusLabel(raw, translate) || null;
+}
+
+/** @param {Record<string, unknown>} offer @param {CustomerBidTranslate | null | undefined} [translate] */
+export function offerDisplayAccidentHistory(offer, translate = null) {
+  const veh =
+    offer.vehicle && typeof offer.vehicle === "object"
+      ? /** @type {Record<string, unknown>} */ (offer.vehicle)
+      : {};
+  const display = String(veh.display_accident_history ?? "").trim();
+  if (display) return display;
+  if (offerCrossLocaleViewer(offer)) return null;
+  const raw = veh.accident_history ?? resolveVehicleFromOffer(offer).accident_history;
+  return accidentLabel(raw, translate) || null;
+}
+
+/** @param {Record<string, unknown>} offer @returns {string[]} */
+export function offerDisplayIncludedServices(offer) {
+  const svc =
+    offer.service && typeof offer.service === "object"
+      ? /** @type {Record<string, unknown>} */ (offer.service)
+      : {};
+  const display = svc.display_included_services;
+  if (Array.isArray(display) && display.length) {
+    return display
+      .map((item) => (item == null ? "" : String(item).trim()))
+      .filter(Boolean);
+  }
+  if (offerCrossLocaleViewer(offer)) return [];
+  const raw = svc.included_services;
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item) => String(item || "").trim()).filter(Boolean);
+}
+
+/** @typedef {'recommended'|'lowest_total'|'recently_updated'|'fastest_timeline'|'photo_first'|'newest_year'|'lowest_mileage'|'lowest_fees'} CustomerOfferSort */
+
+export const CUSTOMER_BID_SORT_OPTIONS = [
+  { value: "recommended", i18nKey: "customer.bid_results.sort.recommended", fallback: "Recommended" },
+  { value: "lowest_total", i18nKey: "customer.bid_results.sort.lowest_total", fallback: "Lowest total" },
+  { value: "recently_updated", i18nKey: "customer.bid_results.sort.recently_updated", fallback: "Recently updated" },
+  { value: "fastest_timeline", i18nKey: "customer.bid_results.sort.fastest_timeline", fallback: "Fastest timeline" },
+  { value: "photo_first", i18nKey: "customer.bid_results.sort.photo_first", fallback: "With photos first" },
+];
+
+export const RANK_BASIS_I18N = {
+  recommended: { i18nKey: "customer.bid_results.sort.recommended", fallback: "Recommended" },
+  lowest_total: { i18nKey: "customer.bid_results.sort.lowest_total", fallback: "Lowest total" },
+  recently_updated: { i18nKey: "customer.bid_results.sort.recently_updated", fallback: "Recently updated" },
+  fastest_timeline: { i18nKey: "customer.bid_results.sort.fastest_timeline", fallback: "Fastest timeline" },
+  photo_first: { i18nKey: "customer.bid_results.sort.photo_first", fallback: "With photos first" },
+  newest_year: { i18nKey: "customer.bid_results.sort.newest_year", fallback: "Newest year" },
+  lowest_mileage: { i18nKey: "customer.bid_results.sort.lowest_mileage", fallback: "Lowest mileage" },
+  lowest_fees: { i18nKey: "customer.bid_results.sort.lowest_fees", fallback: "Lowest fees" },
+};
+
+/** @type {Record<string, { i18nKey: string, fallback: string }>} */
+export const MATCH_CONDITION_I18N = {
+  within_budget: {
+    i18nKey: "customer.bid_results.match.within_budget",
+    fallback: "Within budget",
+  },
+  clean_title: {
+    i18nKey: "customer.bid_results.match.clean_title",
+    fallback: "Clean title",
+  },
+  make: { i18nKey: "customer.bid_results.match.make", fallback: "Make matches request" },
+  model: { i18nKey: "customer.bid_results.match.model", fallback: "Model matches request" },
+  make_model_match: {
+    i18nKey: "customer.bid_results.match.make_model_match",
+    fallback: "Matches requested vehicle",
+  },
+  year: { i18nKey: "customer.bid_results.match.year", fallback: "Year matches request" },
+  year_min_met: {
+    i18nKey: "customer.bid_results.match.year_min_met",
+    fallback: "Year {year_min} or newer",
+  },
+  mileage_within_limit: {
+    i18nKey: "customer.bid_results.match.mileage_within_limit",
+    fallback: "Within mileage limit",
+  },
+};
+
+/** @type {Record<string, { i18nKey: string, fallback: string }>} */
+export const MATCH_WARNING_I18N = {
+  over_budget: {
+    i18nKey: "customer.bid_results.match.over_budget",
+    fallback: "Over budget",
+  },
+  alternative_vehicle: {
+    i18nKey: "customer.bid_results.match.alternative_vehicle",
+    fallback: "Alternative vehicle",
+  },
+  mileage_above_request: {
+    i18nKey: "customer.bid_results.match.mileage_above",
+    fallback: "Above mileage limit",
+  },
+};
+
+/** @type {Record<string, { i18nKey: string, fallback: string }>} */
+export const PRICE_BREAKDOWN_I18N = {
+  vehicle_price: {
+    i18nKey: "customer.bid_results.price.vehicle_line",
+    fallback: "Vehicle price",
+  },
+  tax_fees: {
+    i18nKey: "customer.bid_results.price.tax_fees_line",
+    fallback: "Tax & fees",
+  },
+  dealer_fee: {
+    i18nKey: "customer.bid_results.price.dealer_fee_line",
+    fallback: "Dealer fee",
+  },
+  partner_service_fee: {
+    i18nKey: "customer.bid_results.price.partner_fee_line",
+    fallback: "Partner service fee",
+  },
+  delivery_fee: {
+    i18nKey: "customer.bid_results.price.delivery_line",
+    fallback: "Delivery fee",
+  },
+  estimated_total: {
+    i18nKey: "customer.bid_results.price.estimated_total",
+    fallback: "Estimated total",
+  },
+};
+
+/**
+ * @param {string | null | undefined} code
+ * @param {CustomerBidTranslate | null | undefined} [translate]
+ * @param {Record<string, string | number>} [params]
+ */
+export function formatMatchConditionCode(code, translate = null, params = {}) {
+  const raw = String(code || "").trim();
+  if (!raw) return "";
+  const key = raw.toLowerCase().replace(/\s+/g, "_");
+  const row = MATCH_CONDITION_I18N[key];
+  if (row) return cbrT(translate, row.i18nKey, row.fallback, params);
+  const missing = /^missing_(.+)$/.exec(key);
+  if (missing) {
+    return cbrT(translate, "customer.bid_results.match.missing_field", "Missing {field}", {
+      field: missing[1],
+    });
+  }
+  return raw;
+}
+
+/**
+ * @param {string | null | undefined} code
+ * @param {CustomerBidTranslate | null | undefined} [translate]
+ * @param {Record<string, unknown>} [offer]
+ */
+export function formatMatchWarningCode(code, translate = null, offer = null) {
+  const raw = String(code || "").trim();
+  if (!raw) return "";
+  const key = raw.toLowerCase().replace(/\s+/g, "_");
+  const row = MATCH_WARNING_I18N[key];
+  if (row) return cbrT(translate, row.i18nKey, row.fallback);
+  const mismatch = /^(.+)_mismatch$/.exec(key);
+  if (mismatch) {
+    return cbrT(translate, "customer.bid_results.match.field_mismatch", "{field} differs from request", {
+      field: mismatch[1],
+    });
+  }
+  const match = offer?.match && typeof offer.match === "object" ? offer.match : {};
+  const pricing = offer?.pricing && typeof offer.pricing === "object" ? offer.pricing : {};
+  const delta = match.budget_delta ?? pricing.budget_delta;
+  if (key === "over_budget" && delta != null && Number(delta) > 0) {
+    return cbrT(translate, "customer.bid_results.match.over_budget_amount", "{amount} over budget", {
+      amount: formatMoney(delta),
+    });
+  }
+  return raw;
+}
+
+/**
+ * @param {Record<string, unknown>} offer
+ * @param {CustomerBidTranslate | null | undefined} [translate]
+ * @param {{ useWarnings?: boolean, limit?: number }} [options]
+ */
+export function formatMatchCodesList(offer, translate = null, options = {}) {
+  const m = offer.match && typeof offer.match === "object" ? offer.match : {};
+  const useWarnings = Boolean(options.useWarnings);
+  const source = useWarnings
+    ? Array.isArray(m.display_warnings)
+      ? m.display_warnings
+      : Array.isArray(m.warnings)
+        ? m.warnings
+        : []
+    : Array.isArray(m.display_matched_conditions)
+      ? m.display_matched_conditions
+      : Array.isArray(m.matched_conditions)
+        ? m.matched_conditions
+        : [];
+  const limit = options.limit ?? 3;
+  const yearMin = m.year_min;
+  const formatter = useWarnings ? formatMatchWarningCode : formatMatchConditionCode;
+  return source
+    .map((code) => {
+      if (code == null || String(code).trim() === "") return "";
+      const params =
+        !useWarnings && String(code).toLowerCase() === "year_min_met" && yearMin != null
+          ? { year_min: yearMin }
+          : {};
+      return useWarnings
+        ? formatter(code, translate, offer)
+        : formatter(code, translate, params);
+    })
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+/** @deprecated use RANK_BASIS_I18N */
+export const RANK_BASIS_LABELS_EN = {
+  recommended: "Recommended",
+  lowest_total: "Lowest total",
+  recently_updated: "Recently updated",
+  fastest_timeline: "Fastest timeline",
+  photo_first: "With photos",
+  newest_year: "Newest year",
+  lowest_mileage: "Lowest mileage",
+  lowest_fees: "Lowest fees",
+};
+
+const BID_STATUS_I18N = {
+  OPEN: { i18nKey: "customer.bid_results.status.open", fallback: "Bidding in progress" },
+  EXPIRED: { i18nKey: "customer.bid_results.status.expired", fallback: "Bidding ended" },
+  CUSTOMER_SELECTED: { i18nKey: "customer.bid_results.status.customer_selected", fallback: "Offer selected" },
+  CLOSED: { i18nKey: "customer.bid_results.status.closed", fallback: "Closed" },
+  CANCELLED: { i18nKey: "customer.bid_results.status.cancelled", fallback: "Cancelled" },
+};
+
+/** @param {{ i18nKey: string, fallback: string }} row @param {CustomerBidTranslate | null | undefined} [translate] */
+export function formatSortOptionLabel(row, translate = null) {
+  return cbrT(translate, row.i18nKey, row.fallback);
+}
+
+/**
+ * `/uploads/...` etc. — resolve relative media paths against API base or origin.
  * @param {string} url
  */
 export function resolveOfferMediaUrl(url) {
+
   const s = String(url || "").trim();
   if (!s) return "";
   if (/^https?:\/\//i.test(s)) return s;
@@ -39,45 +429,13 @@ export function resolveOfferMediaUrl(url) {
 
 export { formatBidDeadlineRemaining, isBidDeadlinePassed };
 
-/** @typedef {'recommended'|'lowest_total'|'recently_updated'|'fastest_timeline'|'photo_first'|'newest_year'|'lowest_mileage'|'lowest_fees'} CustomerOfferSort */
-
-export const CUSTOMER_BID_SORT_OPTIONS = [
-  { value: "recommended", label: "추천순" },
-  { value: "lowest_total", label: "총액 낮은순" },
-  { value: "recently_updated", label: "최근 업데이트순" },
-  { value: "fastest_timeline", label: "빠른 진행순" },
-  { value: "photo_first", label: "사진 있는 순" },
-];
-
-export const RANK_BASIS_LABELS = {
-  recommended: "추천순",
-  lowest_total: "총액 낮은순",
-  recently_updated: "최근 업데이트순",
-  fastest_timeline: "빠른 진행순",
-  photo_first: "사진 있는 순",
-  newest_year: "연식 최신순",
-  lowest_mileage: "주행거리 낮은순",
-  lowest_fees: "수수료 낮은순",
-};
-
-export const RANK_BASIS_LABELS_EN = {
-  recommended: "Recommended",
-  lowest_total: "Lowest total",
-  recently_updated: "Recently updated",
-  fastest_timeline: "Fastest timeline",
-  photo_first: "With photos",
-  newest_year: "Newest year",
-  lowest_mileage: "Lowest mileage",
-  lowest_fees: "Lowest fees",
-};
-
 /** Shown on vehicle offer cards when bidding is EXPIRED. */
 export const EXPIRED_AVAILABILITY_BADGE =
   "Bidding ended — availability needs confirmation";
 
 /** Shown when customer confirms a vehicle offer selection. */
 export const VEHICLE_BID_SELECT_AVAILABILITY_NOTICE =
-  "제안된 차량은 다른 구매자에게 먼저 판매될 수 있습니다. 선택하셔도 실제 구매 가능 여부와 가격은 파트너와 반드시 확인해 주세요.";
+  "The proposed vehicle may be sold to another buyer first. Even after you select it, confirm actual availability and price with the partner.";
 
 /** @param {unknown} snap */
 export function isProductOfferListResponse(snap) {
@@ -116,16 +474,28 @@ export function isCustomerBidListPollingPhase(phase) {
   return phase === "OPEN" || phase === "EXPIRED";
 }
 
-/** @param {'OPEN'|'EXPIRED'|'CUSTOMER_SELECTED'|'CLOSED'} phase */
-export function customerBidStatusBannerMessage(phase) {
+/** @param {'OPEN'|'EXPIRED'|'CUSTOMER_SELECTED'|'CLOSED'} phase @param {CustomerBidTranslate | null | undefined} [translate] */
+export function customerBidStatusBannerMessage(phase, translate = null) {
   if (phase === "CUSTOMER_SELECTED") {
-    return "파트너 선택이 완료되었습니다. 메시지함에서 다음 단계를 진행해 주세요.";
+    return cbrT(
+      translate,
+      "customer.bid_results.banner.partner_selected",
+      "Partner selection is complete. Continue the next steps in messages.",
+    );
   }
   if (phase === "EXPIRED") {
-    return "Bidding has ended. Partners can no longer update offers. You can still select an existing offer, but availability and price should be confirmed with the partner.";
+    return cbrT(
+      translate,
+      "customer.bid_results.banner.expired",
+      "Bidding has ended. Partners can no longer update offers. You can still select an existing offer, but availability and price should be confirmed with the partner.",
+    );
   }
   if (phase === "CLOSED") {
-    return "이 비딩 라운드는 종료되었습니다. 새 라운드가 시작된 경우 최신 라운드를 확인해 주세요.";
+    return cbrT(
+      translate,
+      "customer.bid_results.banner.round_closed",
+      "This bidding round has ended. If a new round has started, check the latest round.",
+    );
   }
   return "";
 }
@@ -162,70 +532,111 @@ export function resolveCustomerBidActions(snap) {
  * @param {'OPEN'|'EXPIRED'|'CUSTOMER_SELECTED'|'CLOSED'} phase
  * @param {Record<string, unknown>} offer
  * @param {Record<string, unknown> | null | undefined} [snap]
+ * @param {CustomerBidTranslate | null | undefined} [translate]
  */
-function vehicleBidSelectNoticeHtml() {
-  return `<p class="lhai-cbr-confirm-notice" role="note">${escapeHtml(VEHICLE_BID_SELECT_AVAILABILITY_NOTICE)}</p>`;
+function vehicleBidSelectNoticeHtml(translate = null) {
+  return `<p class="lhai-cbr-confirm-notice" role="note">${escapeHtml(
+    cbrT(
+      translate,
+      "customer.bid_results.vehicle.select_notice",
+      VEHICLE_BID_SELECT_AVAILABILITY_NOTICE,
+    ),
+  )}</p>`;
 }
 
-export function buildCustomerBidSelectConfirmContent(phase, offer, snap) {
-  const title = offer?.title ? String(offer.title) : formatOfferTitle(offer);
+export function buildCustomerBidSelectConfirmContent(phase, offer, snap, translate = null) {
+  const title = offerDisplayTitle(offer, translate);
   const total = formatMoney(offer.estimated_total, offer.currency || "USD");
   const vehicleNotice =
     offer && typeof offer === "object" && isVehicleOffer(/** @type {Record<string, unknown>} */ (offer))
-      ? vehicleBidSelectNoticeHtml()
+      ? vehicleBidSelectNoticeHtml(translate)
       : "";
   if (phase === "EXPIRED") {
     return {
-      modalTitle: "Select this offer?",
-      bodyHtml: `<p>This bidding round has ended. This vehicle may still be available, but price and availability should be confirmed with the partner. Do you want to select this offer and start a conversation?</p>${vehicleNotice}`,
+      modalTitle: cbrT(translate, "customer.bid_results.confirm.expired.title", "Select this offer?"),
+      bodyHtml: `<p>${escapeHtml(
+        cbrT(
+          translate,
+          "customer.bid_results.confirm.expired.body",
+          "This bidding round has ended. This vehicle may still be available, but price and availability should be confirmed with the partner. Do you want to select this offer and start a conversation?",
+        ),
+      )}</p>${vehicleNotice}`,
       warnText: "",
-      submitLabel: "Select and contact partner",
+      submitLabel: cbrT(
+        translate,
+        "customer.bid_results.confirm.expired.submit",
+        "Select and contact partner",
+      ),
     };
   }
   const countdown =
-    snap?.expires_at != null ? formatCountdownToExpiry(snap.expires_at) : "";
+    snap?.expires_at != null ? formatCountdownToExpiry(snap.expires_at, Date.now(), translate) : "";
   return {
-    modalTitle: "제안 선택 확인",
-    bodyHtml: `<p><strong>${escapeHtml(title)}</strong> 제안을 선택하시겠습니까?</p>
-    <p>예상 총액 ${escapeHtml(total)}</p>
-    <p class="u-text-muted">선택 후에는 해당 파트너와 메시지로 협의가 진행됩니다.</p>${vehicleNotice}`,
+    modalTitle: cbrT(translate, "customer.bid_results.confirm.open.title", "Confirm offer selection"),
+    bodyHtml: `<p><strong>${escapeHtml(title)}</strong></p>
+    <p>${escapeHtml(
+      cbrT(translate, "customer.bid_results.confirm.open.body", "Do you want to select this offer?"),
+    )}</p>
+    <p>${escapeHtml(
+      cbrT(translate, "customer.bid_results.confirm.open.total", "Estimated total {total}", { total }),
+    )}</p>
+    <p class="u-text-muted">${escapeHtml(
+      cbrT(
+        translate,
+        "customer.bid_results.confirm.open.note",
+        "After selection, you will continue with this partner in messages.",
+      ),
+    )}</p>${vehicleNotice}`,
     warnText: countdown
-      ? `비딩 마감까지 ${escapeHtml(countdown)} 남았습니다. 지금 선택하면 다른 파트너의 추가 제안을 받기 어려울 수 있습니다.`
+      ? cbrT(
+          translate,
+          "customer.bid_results.confirm.open.warn",
+          "{countdown} left until bidding closes. Selecting now may limit additional partner proposals.",
+          { countdown },
+        )
       : "",
-    submitLabel: "선택 확정",
+    submitLabel: cbrT(translate, "customer.bid_results.confirm.open.submit", "Confirm selection"),
   };
 }
 
-/** @param {string | null | undefined} status */
-export function formatBidRequestStatusLabel(status) {
+/** @param {string | null | undefined} status @param {CustomerBidTranslate | null | undefined} [translate] */
+export function formatBidRequestStatusLabel(status, translate = null) {
   const st = String(status || "").trim().toUpperCase();
-  if (st === "OPEN") return "비딩 진행 중";
-  if (st === "EXPIRED") return "비딩 종료";
-  if (st === "CUSTOMER_SELECTED") return "제안 선택 완료";
-  if (st === "CLOSED") return "종료됨";
-  if (st === "CANCELLED") return "취소됨";
+  const row = /** @type {Record<string, { i18nKey: string, fallback: string }>} */ (BID_STATUS_I18N)[st];
+  if (row) return cbrT(translate, row.i18nKey, row.fallback);
   return st || "—";
 }
 
-/** @param {string | null | undefined} iso */
-export function formatRelativeTimeKo(iso, nowMs = Date.now()) {
+/** @param {string | null | undefined} iso @param {number} [nowMs] @param {CustomerBidTranslate | null | undefined} [translate] */
+export function formatRelativeTime(iso, nowMs = Date.now(), translate = null) {
   const ms = parseIsoMs(iso);
   if (ms == null) return "—";
   const diff = nowMs - ms;
-  if (diff < 0) return "방금";
+  if (diff < 0) return cbrT(translate, "customer.bid_results.time.just_now", "Just now");
   const sec = Math.floor(diff / 1000);
-  if (sec < 60) return "방금";
+  if (sec < 60) return cbrT(translate, "customer.bid_results.time.just_now", "Just now");
   const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}분 전`;
+  if (min < 60) {
+    return cbrT(translate, "customer.bid_results.time.minutes_ago", "{minutes} min ago", { minutes: min });
+  }
   const hr = Math.floor(min / 60);
-  if (hr < 48) return `${hr}시간 전`;
+  if (hr < 48) {
+    return cbrT(translate, "customer.bid_results.time.hours_ago", "{hours} hr ago", { hours: hr });
+  }
   const day = Math.floor(hr / 24);
-  if (day < 14) return `${day}일 전`;
+  if (day < 14) {
+    return cbrT(translate, "customer.bid_results.time.days_ago", "{days} days ago", { days: day });
+  }
   try {
-    return new Date(ms).toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
+    return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   } catch {
     return "—";
   }
+}
+
+/** @deprecated use formatRelativeTime */
+export function formatRelativeTimeKo(iso, nowMs = Date.now()) {
+  return formatRelativeTime(iso, nowMs);
 }
 
 /** @param {string | null | undefined} iso */
@@ -236,11 +647,9 @@ export function parseIsoMs(iso) {
   return Number.isNaN(ms) ? null : ms;
 }
 
-/** @param {Record<string, unknown>} offer */
-export function formatOfferTitle(offer) {
-  const title = String(offer.title || "").trim();
-  if (title) return title;
-  return formatOfferVehicleTitle(offer);
+/** @param {Record<string, unknown>} offer @param {CustomerBidTranslate | null | undefined} [translate] */
+export function formatOfferTitle(offer, translate = null) {
+  return offerDisplayTitle(offer, translate);
 }
 
 /**
@@ -274,11 +683,13 @@ export function offerThumbnailUrl(offer) {
 /**
  * @param {Record<string, unknown>} offer
  * @param {(s: string) => string} esc
+ * @param {CustomerBidTranslate | null | undefined} [translate]
  */
-export function buildOfferThumbImgHtml(offer, esc) {
+export function buildOfferThumbImgHtml(offer, esc, translate = null) {
   const { thumb, full } = getOfferPhotoDisplayUrls(offer);
+  const unavailable = cbrT(translate, "customer.bid_results.photo.unavailable", "Photo unavailable");
   if (!thumb && !full) {
-    return `<div class="lhai-cbr-card__thumb-placeholder" aria-hidden="true"><span>사진을 불러올 수 없습니다</span></div>`;
+    return `<div class="lhai-cbr-card__thumb-placeholder" aria-hidden="true"><span>${esc(unavailable)}</span></div>`;
   }
   const src = esc(thumb || full);
   const fallback =
@@ -289,12 +700,15 @@ export function buildOfferThumbImgHtml(offer, esc) {
 /**
  * img error: thumbnail → original → placeholder.
  * @param {ParentNode} [root]
+ * @param {CustomerBidTranslate | null | undefined} [translate]
  */
-export function wireOfferPhotoImgFallbacks(root = document) {
+export function wireOfferPhotoImgFallbacks(root = document, translate = null) {
   const scope = root instanceof Document ? root : root;
   if (!scope || typeof scope.querySelectorAll !== "function") return;
-  const placeholder =
-    '<div class="lhai-cbr-card__thumb-placeholder" aria-hidden="true"><span>사진을 불러올 수 없습니다</span></div>';
+  const unavailable = escHtmlForPlaceholder(
+    cbrT(translate, "customer.bid_results.photo.unavailable", "Photo unavailable"),
+  );
+  const placeholder = `<div class="lhai-cbr-card__thumb-placeholder" aria-hidden="true"><span>${unavailable}</span></div>`;
   scope.querySelectorAll(".lhai-cbr-card__thumb-img").forEach((node) => {
     if (!(node instanceof HTMLImageElement) || node.dataset.cbrPhotoWired === "1") return;
     node.dataset.cbrPhotoWired = "1";
@@ -315,28 +729,37 @@ export function wireOfferPhotoImgFallbacks(root = document) {
   });
 }
 
-/** @param {Record<string, unknown>} offer @param {string} [activeSort] */
-export function formatOfferRankBadge(offer, activeSort) {
-  const rank = Number(offer.rank);
-  if (!Number.isFinite(rank) || rank <= 0) return "";
-  const total = Number(offer.rank_total);
-  const basis = String(offer.rank_basis || activeSort || "recommended").trim();
-  const label =
-    /** @type {Record<string, string>} */ (RANK_BASIS_LABELS)[basis] || "순위";
-  if (Number.isFinite(total) && total > 0) return `${label} 기준 ${rank}위 / ${total}개`;
-  return `${label} 기준 ${rank}위`;
+function escHtmlForPlaceholder(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
-/** English rank label for vehicle cards, e.g. "Recommended #2 of 9". */
-export function formatOfferRankBadgeEn(offer, activeSort) {
+/** @param {Record<string, unknown>} offer @param {string} [activeSort] @param {CustomerBidTranslate | null | undefined} [translate] */
+export function formatOfferRankBadge(offer, activeSort, translate = null) {
   const rank = Number(offer.rank);
   if (!Number.isFinite(rank) || rank <= 0) return "";
   const total = Number(offer.rank_total);
   const basis = String(offer.rank_basis || activeSort || "recommended").trim();
-  const label =
-    /** @type {Record<string, string>} */ (RANK_BASIS_LABELS_EN)[basis] || "Ranked";
-  if (Number.isFinite(total) && total > 0) return `${label} #${rank} of ${total}`;
-  return `${label} #${rank}`;
+  const row =
+    /** @type {Record<string, { i18nKey: string, fallback: string }>} */ (RANK_BASIS_I18N)[basis] ||
+    { i18nKey: "customer.bid_results.rank.default_basis", fallback: "Ranked" };
+  const label = cbrT(translate, row.i18nKey, row.fallback);
+  if (Number.isFinite(total) && total > 0) {
+    return cbrT(translate, "customer.bid_results.rank.of_total", "{basis} #{rank} of {total}", {
+      basis: label,
+      rank,
+      total,
+    });
+  }
+  return cbrT(translate, "customer.bid_results.rank.only", "{basis} #{rank}", { basis: label, rank });
+}
+
+/** English rank label for vehicle cards — delegates to i18n-aware formatter. */
+export function formatOfferRankBadgeEn(offer, activeSort) {
+  return formatOfferRankBadge(offer, activeSort);
 }
 
 /** @param {Record<string, unknown>} offer */
@@ -388,8 +811,8 @@ export function offerAvailabilityLabel(offer) {
   return String(svc.available_timeline || "").trim() || "";
 }
 
-/** @param {Record<string, unknown>} offer */
-export function formatVehiclePriceBreakdownLines(offer) {
+/** @param {Record<string, unknown>} offer @param {CustomerBidTranslate | null | undefined} [translate] */
+export function formatVehiclePriceBreakdownLines(offer, translate = null) {
   const p =
     offer.pricing && typeof offer.pricing === "object"
       ? /** @type {Record<string, unknown>} */ (offer.pricing)
@@ -403,7 +826,10 @@ export function formatVehiclePriceBreakdownLines(offer) {
   const lines = [];
   const vehiclePrice = p.vehicle_price ?? attrs.vehicle_price ?? offer.price_amount;
   if (vehiclePrice != null && vehiclePrice !== "") {
-    lines.push({ label: "Vehicle price", value: formatMoney(vehiclePrice, cur) });
+    lines.push({
+      label: cbrT(translate, PRICE_BREAKDOWN_I18N.vehicle_price.i18nKey, PRICE_BREAKDOWN_I18N.vehicle_price.fallback),
+      value: formatMoney(vehiclePrice, cur),
+    });
   }
   const tax =
     p.estimated_tax_registration ??
@@ -411,26 +837,50 @@ export function formatVehiclePriceBreakdownLines(offer) {
     attrs.estimated_tax_fees ??
     attrs.estimated_tax_registration;
   if (tax != null && tax !== "") {
-    lines.push({ label: "Tax & fees", value: formatMoney(tax, cur) });
+    lines.push({
+      label: cbrT(translate, PRICE_BREAKDOWN_I18N.tax_fees.i18nKey, PRICE_BREAKDOWN_I18N.tax_fees.fallback),
+      value: formatMoney(tax, cur),
+    });
   }
   const dealer = p.dealer_fee ?? attrs.dealer_fee;
   if (dealer != null && dealer !== "") {
-    lines.push({ label: "Dealer fee", value: formatMoney(dealer, cur) });
+    lines.push({
+      label: cbrT(translate, PRICE_BREAKDOWN_I18N.dealer_fee.i18nKey, PRICE_BREAKDOWN_I18N.dealer_fee.fallback),
+      value: formatMoney(dealer, cur),
+    });
   }
   const partnerFee = p.partner_service_fee ?? attrs.partner_service_fee;
   if (partnerFee != null && partnerFee !== "") {
-    lines.push({ label: "Partner service fee", value: formatMoney(partnerFee, cur) });
+    lines.push({
+      label: cbrT(
+        translate,
+        PRICE_BREAKDOWN_I18N.partner_service_fee.i18nKey,
+        PRICE_BREAKDOWN_I18N.partner_service_fee.fallback,
+      ),
+      value: formatMoney(partnerFee, cur),
+    });
   }
   const delivery = p.delivery_fee ?? attrs.delivery_fee;
   if (delivery != null && delivery !== "") {
-    lines.push({ label: "Delivery fee", value: formatMoney(delivery, cur) });
+    lines.push({
+      label: cbrT(translate, PRICE_BREAKDOWN_I18N.delivery_fee.i18nKey, PRICE_BREAKDOWN_I18N.delivery_fee.fallback),
+      value: formatMoney(delivery, cur),
+    });
   }
   const total = p.estimated_total ?? offer.estimated_total;
   if (total != null && total !== "") {
-    lines.push({ label: "Estimated total", value: formatMoney(total, cur), strong: true });
+    lines.push({
+      label: cbrT(
+        translate,
+        PRICE_BREAKDOWN_I18N.estimated_total.i18nKey,
+        PRICE_BREAKDOWN_I18N.estimated_total.fallback,
+      ),
+      value: formatMoney(total, cur),
+      strong: true,
+    });
   }
   if (!lines.length) {
-    return formatOfferPriceBreakdownLines(offer);
+    return formatOfferPriceBreakdownLines(offer, translate);
   }
   return lines;
 }
@@ -470,6 +920,7 @@ export function collectOfferPhotos(offer) {
 export function offerSelectionUiState(phase, offer, ctx) {
   const bidId = String(offer.bid_id || "").trim();
   const offerId = String(offer.offer_id || "").trim();
+  const translate = ctx.translate ?? null;
   const canSelectGlobal = canSelectCustomerBid(phase, ctx.snap);
   const isSelected =
     phase === "CUSTOMER_SELECTED" &&
@@ -486,7 +937,9 @@ export function offerSelectionUiState(phase, offer, ctx) {
     showSelectButton,
     selectDisabled,
     dimmed,
-    selectLabel: isSelected ? "Your selection" : "Select this offer",
+    selectLabel: isSelected
+      ? cbrT(translate, "customer.bid_results.selection.yours", "Your selection")
+      : cbrT(translate, "customer.bid_results.action.select_offer", "Select this offer"),
   };
 }
 
@@ -499,37 +952,46 @@ export function offerSelectionUiState(phase, offer, ctx) {
  *   snap?: Record<string, unknown> | null,
  *   selectedBidId?: string,
  *   selectedOfferId?: string,
+ *   translate?: CustomerBidTranslate | null,
  * }} ctx
  * @param {(s: string) => string} esc
  */
 export function buildVehicleOfferCardHtml(offer, ctx, esc) {
+  const translate = ctx.translate ?? null;
   const bidId = String(offer.bid_id || "").trim();
   const offerId = String(offer.offer_id || "").trim();
   const cur = String(offer.currency || "USD");
   const photos = collectOfferPhotos(offer);
   const veh = resolveVehicleFromOffer(offer);
-  const rankBadge = formatOfferRankBadgeEn(offer, ctx.activeSort);
+  const rankBadge = formatOfferRankBadge(offer, ctx.activeSort, translate);
   const sel = offerSelectionUiState(ctx.phase, offer, {
     selectedBidId: ctx.selectedBidId,
     selectedOfferId: ctx.selectedOfferId,
     snap: ctx.snap,
+    translate,
   });
   const phase = ctx.phase;
   const showExpiredBadge = phase === "EXPIRED";
-  const relation = formatOfferRelationLabel(offer);
+  const relation = formatOfferRelationLabel(offer, translate);
   const updatedBadge = offerShowsUpdatedBadge(offer.updated_at, ctx.recentUpdatedAt)
-    ? `<span class="lhai-cbr-badge lhai-cbr-badge--updated">Updated</span>`
+    ? `<span class="lhai-cbr-badge lhai-cbr-badge--updated">${esc(
+        cbrT(translate, "customer.bid_results.badge.updated", "Updated"),
+      )}</span>`
     : "";
   const altBadge = offer.is_alternative
-    ? `<span class="lhai-cbr-badge lhai-cbr-badge--alt">Alternative</span>`
+    ? `<span class="lhai-cbr-badge lhai-cbr-badge--alt">${esc(
+        cbrT(translate, "customer.bid_results.tab.alternatives", "Alternative offers"),
+      )}</span>`
     : "";
   const expiredBadge = showExpiredBadge
-    ? `<span class="lhai-cbr-badge lhai-cbr-badge--expired">${esc(EXPIRED_AVAILABILITY_BADGE)}</span>`
+    ? `<span class="lhai-cbr-badge lhai-cbr-badge--expired">${esc(
+        cbrT(translate, "customer.bid_results.badge.expired_availability", EXPIRED_AVAILABILITY_BADGE),
+      )}</span>`
     : "";
   const selectedBadge = sel.isSelected
-    ? `<span class="lhai-cbr-badge lhai-cbr-badge--selected">Your selection</span>`
+    ? `<span class="lhai-cbr-badge lhai-cbr-badge--selected">${esc(sel.selectLabel)}</span>`
     : "";
-  const breakdown = formatVehiclePriceBreakdownLines(offer);
+  const breakdown = formatVehiclePriceBreakdownLines(offer, translate);
   const breakdownId = `cbr-price-${esc(offerId || bidId)}`;
   const breakdownRows = breakdown
     .map((line) => {
@@ -541,18 +1003,20 @@ export function buildVehicleOfferCardHtml(offer, ctx, esc) {
     veh.mileage != null && veh.mileage !== ""
       ? `${Number(veh.mileage).toLocaleString()} mi`
       : "—";
-  const titleStatus = titleStatusLabelKo(veh.title_status) || "—";
-  const accident = accidentLabelKo(veh.accident_history) || "—";
+  const titleStatus = offerDisplayTitleStatus(offer, translate) || "—";
+  const accident = offerDisplayAccidentHistory(offer, translate) || "—";
   const location = veh.location || "—";
-  const availability = offerAvailabilityLabel(offer) || "—";
-  const msg = String(offer.message_to_customer || "").trim();
+  const availability = offerDisplayAvailability(offer) || "—";
+  const msg = offerDisplayPartnerMessage(offer, translate, { placeholderOnFailure: true });
   const msgPreview = msg
     ? esc(msg.slice(0, 160)).replace(/\n/g, "<br />") + (msg.length > 160 ? "…" : "")
     : "—";
-  const thumbHtml = buildOfferThumbImgHtml(offer, esc);
+  const thumbHtml = buildOfferThumbImgHtml(offer, esc, translate);
   const photoCount =
     photos.length > 1
-      ? `<span class="lhai-cbr-card__photo-count">${photos.length} photos</span>`
+      ? `<span class="lhai-cbr-card__photo-count">${esc(
+          cbrT(translate, "customer.bid_results.photo.count", "{count} photos", { count: photos.length }),
+        )}</span>`
       : "";
   const selectBtn = sel.showSelectButton
     ? `<button type="button" class="lhai-button lhai-button--primary" data-cbr-select="${esc(bidId)}" data-cbr-offer="${esc(offerId)}"${sel.selectDisabled ? " disabled" : ""}>${esc(sel.selectLabel)}</button>`
@@ -565,6 +1029,14 @@ export function buildVehicleOfferCardHtml(offer, ctx, esc) {
   ]
     .filter(Boolean)
     .join(" ");
+  const mileageLabel = cbrT(translate, "customer.bid_results.card.mileage", "Mileage");
+  const titleLabel = cbrT(translate, "customer.bid_results.card.title_status", "Title");
+  const accidentLabelText = cbrT(translate, "customer.bid_results.card.accident", "Accident");
+  const locationLabel = cbrT(translate, "customer.bid_results.card.location", "Location");
+  const availabilityLabel = cbrT(translate, "customer.bid_results.card.availability", "Availability");
+  const partnerMessageLabel = cbrT(translate, "customer.bid_results.card.partner_message", "Partner message");
+  const viewDetailsLabel = cbrT(translate, "customer.bid_results.action.view_details", "View details");
+  const priceBreakdownLabel = cbrT(translate, "customer.bid_results.card.price_breakdown", "Price breakdown");
 
   return `
     <article class="${cardClasses}" data-offer-id="${esc(offerId)}" data-bid-id="${esc(bidId)}">
@@ -580,30 +1052,30 @@ export function buildVehicleOfferCardHtml(offer, ctx, esc) {
           ${altBadge}
           ${relation ? `<span class="lhai-cbr-badge lhai-cbr-badge--match">${esc(relation)}</span>` : ""}
         </div>
-        <h3 class="lhai-cbr-card__title">${esc(formatOfferTitle(offer))}</h3>
-        <p class="lhai-cbr-card__partner">${esc(formatOfferPartnerName(offer))}</p>
+        <h3 class="lhai-cbr-card__title">${esc(formatOfferTitle(offer, translate))}</h3>
+        <p class="lhai-cbr-card__partner">${esc(formatOfferPartnerName(offer, translate))}</p>
         <p class="lhai-cbr-card__total">${esc(formatMoney(offer.estimated_total, cur))}</p>
         ${
           breakdown.length
             ? `<details class="lhai-cbr-card__price-details">
-          <summary>Price breakdown</summary>
+          <summary>${esc(priceBreakdownLabel)}</summary>
           <ul class="lhai-cbr-card__price-list" id="${breakdownId}">${breakdownRows}</ul>
         </details>`
             : ""
         }
         <dl class="lhai-cbr-card__specs">
-          <div><dt>Mileage</dt><dd>${esc(mileage)}</dd></div>
-          <div><dt>Title</dt><dd>${esc(titleStatus)}</dd></div>
-          <div><dt>Accident</dt><dd>${esc(accident)}</dd></div>
-          <div><dt>Location</dt><dd>${esc(location)}</dd></div>
-          <div class="lhai-cbr-card__specs--wide"><dt>Availability</dt><dd>${esc(availability)}</dd></div>
+          <div><dt>${esc(mileageLabel)}</dt><dd>${esc(mileage)}</dd></div>
+          <div><dt>${esc(titleLabel)}</dt><dd>${esc(titleStatus)}</dd></div>
+          <div><dt>${esc(accidentLabelText)}</dt><dd>${esc(accident)}</dd></div>
+          <div><dt>${esc(locationLabel)}</dt><dd>${esc(location)}</dd></div>
+          <div class="lhai-cbr-card__specs--wide"><dt>${esc(availabilityLabel)}</dt><dd>${esc(availability)}</dd></div>
         </dl>
         <div class="lhai-cbr-card__preview">
-          <span class="lhai-cbr-card__preview-label">Partner message</span>
+          <span class="lhai-cbr-card__preview-label">${esc(partnerMessageLabel)}</span>
           <p>${msgPreview}</p>
         </div>
         <div class="lhai-cbr-card__actions">
-          <button type="button" class="lhai-button lhai-button--secondary" data-cbr-detail="${esc(offerId)}">View details</button>
+          <button type="button" class="lhai-button lhai-button--secondary" data-cbr-detail="${esc(offerId)}">${esc(viewDetailsLabel)}</button>
           ${selectBtn}
         </div>
       </div>
@@ -618,32 +1090,41 @@ export function buildVehicleOfferCardHtml(offer, ctx, esc) {
  *   snap?: Record<string, unknown> | null,
  *   selectedBidId?: string,
  *   selectedOfferId?: string,
+ *   translate?: CustomerBidTranslate | null,
  * }} ctx
  * @param {(s: string) => string} esc
  */
 export function buildVehicleOfferDetailModalHtml(offer, ctx, esc) {
+  const translate = ctx.translate ?? null;
   const cur = String(offer.currency || "USD");
   const photos = collectOfferPhotos(offer);
   const veh = resolveVehicleFromOffer(offer);
-  const rankBadge = formatOfferRankBadgeEn(offer, ctx.activeSort);
+  const rankBadge = formatOfferRankBadge(offer, ctx.activeSort, translate);
   const sel = offerSelectionUiState(ctx.phase, offer, {
     selectedBidId: ctx.selectedBidId,
     selectedOfferId: ctx.selectedOfferId,
     snap: ctx.snap,
+    translate,
   });
-  const breakdown = formatVehiclePriceBreakdownLines(offer);
+  const breakdown = formatVehiclePriceBreakdownLines(offer, translate);
   const attrs = formatAttributesList(offer.attributes);
   const vehAttrs = [
-    ["Year", veh.year],
-    ["Make", veh.make],
-    ["Model", veh.model],
-    ["Trim", veh.trim],
-    ["Mileage", veh.mileage != null ? `${Number(veh.mileage).toLocaleString()} mi` : ""],
-    ["Condition", conditionLabelKo(veh.condition)],
-    ["Title status", titleStatusLabelKo(veh.title_status)],
-    ["Accident history", accidentLabelKo(veh.accident_history)],
-    ["Color", veh.color],
-    ["Location", veh.location],
+    [cbrT(translate, "customer.bid_results.modal.year", "Year"), veh.year],
+    [cbrT(translate, "customer.bid_results.modal.make", "Make"), veh.make],
+    [cbrT(translate, "customer.bid_results.modal.model", "Model"), veh.model],
+    [cbrT(translate, "customer.bid_results.modal.trim", "Trim"), veh.trim],
+    [
+      cbrT(translate, "customer.bid_results.card.mileage", "Mileage"),
+      veh.mileage != null ? `${Number(veh.mileage).toLocaleString()} mi` : "",
+    ],
+    [cbrT(translate, "customer.bid_results.modal.condition", "Condition"), offerDisplayVehicleCondition(offer, translate)],
+    [cbrT(translate, "customer.bid_results.card.title_status", "Title"), offerDisplayTitleStatus(offer, translate)],
+    [
+      cbrT(translate, "customer.bid_results.modal.accident_history", "Accident history"),
+      offerDisplayAccidentHistory(offer, translate),
+    ],
+    [cbrT(translate, "customer.bid_results.modal.color", "Color"), veh.color],
+    [cbrT(translate, "customer.bid_results.card.location", "Location"), veh.location],
   ].filter(([, v]) => v != null && String(v).trim() !== "");
   const seenKeys = new Set(vehAttrs.map(([k]) => k.toLowerCase()));
   for (const a of attrs) {
@@ -677,7 +1158,7 @@ export function buildVehicleOfferDetailModalHtml(offer, ctx, esc) {
         </div>
         ${thumbsHtml}
       </div>`
-    : `<p class="u-text-muted">No photos submitted.</p>`;
+    : `<p class="u-text-muted">${esc(cbrT(translate, "customer.bid_results.modal.no_photos", "No photos submitted."))}</p>`;
   const breakdownHtml = breakdown.length
     ? `<ul class="lhai-cbr-modal__price-list">${breakdown
         .map(
@@ -688,59 +1169,96 @@ export function buildVehicleOfferDetailModalHtml(offer, ctx, esc) {
     : `<p class="u-text-muted">—</p>`;
   const expiredNote =
     ctx.phase === "EXPIRED"
-      ? `<p class="lhai-cbr-modal__expired-note" role="status">${esc(EXPIRED_AVAILABILITY_BADGE)}</p>`
+      ? `<p class="lhai-cbr-modal__expired-note" role="status">${esc(
+          cbrT(translate, "customer.bid_results.badge.expired_availability", EXPIRED_AVAILABILITY_BADGE),
+        )}</p>`
       : "";
+  const includedServices = offerDisplayIncludedServices(offer);
+  const includedHtml = includedServices.length
+    ? `<ul class="lhai-cbr-modal__included">${includedServices.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>`
+    : `<p class="u-text-muted">—</p>`;
+  const vehicleDetailsLabel = cbrT(translate, "customer.bid_results.modal.vehicle_details", "Vehicle details");
+  const includedLabel = cbrT(translate, "customer.bid_results.modal.included_services", "Included services");
+  const priceBreakdownLabel = cbrT(translate, "customer.bid_results.card.price_breakdown", "Price breakdown");
+  const estimatedTotalLabel = cbrT(
+    translate,
+    "customer.bid_results.modal.estimated_total",
+    "Estimated total: {total}",
+    { total: formatMoney(offer.estimated_total, cur) },
+  );
+  const availabilityLabel = cbrT(translate, "customer.bid_results.card.availability", "Availability");
+  const partnerMessageLabel = cbrT(translate, "customer.bid_results.card.partner_message", "Partner message");
+  const modalNotice = cbrT(
+    translate,
+    "customer.bid_results.modal.vehicle_notice",
+    "Confirm price and availability with the partner in messages after you select an offer.",
+  );
 
   return `
     ${expiredNote}
     <div class="lhai-cbr-modal__head">
-      <h3 class="lhai-cbr-modal__title">${esc(formatOfferTitle(offer))}</h3>
-      <p class="lhai-cbr-modal__partner">${esc(formatOfferPartnerName(offer))}</p>
+      <h3 class="lhai-cbr-modal__title">${esc(formatOfferTitle(offer, translate))}</h3>
+      <p class="lhai-cbr-modal__partner">${esc(formatOfferPartnerName(offer, translate))}</p>
       ${rankBadge ? `<p class="lhai-cbr-modal__rank"><span class="lhai-cbr-badge lhai-cbr-badge--rank">${esc(rankBadge)}</span></p>` : ""}
     </div>
     ${galleryHtml}
     <section class="lhai-cbr-modal__section">
-      <h4>Vehicle details</h4>
+      <h4>${esc(vehicleDetailsLabel)}</h4>
       ${attrsHtml}
     </section>
     <section class="lhai-cbr-modal__section">
-      <h4>Price breakdown</h4>
-      <p class="lhai-cbr-modal__total-line">Estimated total: <strong>${esc(formatMoney(offer.estimated_total, cur))}</strong></p>
+      <h4>${esc(priceBreakdownLabel)}</h4>
+      <p class="lhai-cbr-modal__total-line">${esc(estimatedTotalLabel)}</p>
       ${breakdownHtml}
     </section>
     <section class="lhai-cbr-modal__section">
-      <h4>Availability</h4>
-      <p>${esc(offerAvailabilityLabel(offer) || "—")}</p>
+      <h4>${esc(availabilityLabel)}</h4>
+      <p>${esc(offerDisplayAvailability(offer) || "—")}</p>
     </section>
     <section class="lhai-cbr-modal__section">
-      <h4>Partner message</h4>
-      <p class="lhai-cbr-modal__message">${esc(String(offer.message_to_customer || "—")).replace(/\n/g, "<br />")}</p>
+      <h4>${esc(includedLabel)}</h4>
+      ${includedHtml}
     </section>
-    <p class="lhai-cbr-modal__notice u-text-muted">Confirm price and availability with the partner in messages after you select an offer.</p>
+    <section class="lhai-cbr-modal__section">
+      <h4>${esc(partnerMessageLabel)}</h4>
+      <p class="lhai-cbr-modal__message">${esc(offerDisplayPartnerMessage(offer, translate, { placeholderOnFailure: true }) || "—").replace(/\n/g, "<br />")}</p>
+    </section>
+    <p class="lhai-cbr-modal__notice u-text-muted">${esc(modalNotice)}</p>
     <div class="lhai-cbr-modal__select-hint" data-cbr-modal-can-select="${sel.showSelectButton && !sel.selectDisabled ? "1" : "0"}"></div>`;
 }
 
-/** @param {Record<string, unknown>} offer */
-export function formatOfferPartnerName(offer) {
+/** @param {Record<string, unknown>} offer @param {CustomerBidTranslate | null | undefined} [translate] */
+export function formatOfferPartnerName(offer, translate = null) {
   return (
-    String(offer.partner_name || offer.partner_display_name || "").trim() || "파트너"
+    String(offer.partner_name || offer.partner_display_name || "").trim() ||
+    cbrT(translate, "customer.bid_results.partner.default_name", "Partner")
   );
 }
 
-/** @param {Record<string, unknown>} offer */
-export function formatOfferPriceBreakdownLines(offer) {
+/** @param {Record<string, unknown>} offer @param {CustomerBidTranslate | null | undefined} [translate] */
+export function formatOfferPriceBreakdownLines(offer, translate = null) {
   const cur = String(offer.currency || "USD");
   const lines = [];
   if (offer.price_amount != null && offer.price_amount !== "") {
-    lines.push({ label: "상품 가격", value: formatMoney(offer.price_amount, cur) });
+    lines.push({
+      label: cbrT(translate, "customer.bid_results.price.product", "Product price"),
+      value: formatMoney(offer.price_amount, cur),
+    });
   }
   if (offer.fees != null && offer.fees !== "") {
-    lines.push({ label: "수수료", value: formatMoney(offer.fees, cur) });
+    lines.push({
+      label: cbrT(translate, "customer.bid_results.price.fees", "Fees"),
+      value: formatMoney(offer.fees, cur),
+    });
   }
   if (offer.estimated_total != null && offer.estimated_total !== "") {
-    lines.push({ label: "예상 총액", value: formatMoney(offer.estimated_total, cur), strong: true });
+    lines.push({
+      label: cbrT(translate, "customer.bid_results.price.estimated_total", "Estimated total"),
+      value: formatMoney(offer.estimated_total, cur),
+      strong: true,
+    });
   }
-  const legacy = offerPricingSummaryLines(offer);
+  const legacy = offerPricingSummaryLines(offer, translate);
   if (!lines.length && legacy.length) {
     return legacy.map((text) => ({ label: "", value: text }));
   }
@@ -799,10 +1317,17 @@ export function collectDistinctLocations(offers) {
 
 /**
  * @param {Array<Record<string, unknown>> | null | undefined} vehicleRequests
+ * @param {CustomerBidTranslate | null | undefined} [translate]
  * @returns {Array<{ key: string, label: string, requestIndex: number | null }>}
  */
-export function buildCustomerBidRequestTabs(vehicleRequests) {
-  const tabs = [{ key: "all", label: "전체 제안", requestIndex: null }];
+export function buildCustomerBidRequestTabs(vehicleRequests, translate = null) {
+  const tabs = [
+    {
+      key: "all",
+      label: cbrT(translate, "customer.bid_results.tab.all_offers", "All offers"),
+      requestIndex: null,
+    },
+  ];
   const reqs = Array.isArray(vehicleRequests) ? vehicleRequests : [];
   if (!reqs.length) return tabs;
   const indices = new Set();
@@ -812,21 +1337,32 @@ export function buildCustomerBidRequestTabs(vehicleRequests) {
     if (idx != null) indices.add(idx);
   }
   [...indices].sort((a, b) => a - b).forEach((idx) => {
-    const label = requestTabLabel(reqs, idx);
+    const label = requestTabLabel(reqs, idx, translate);
     tabs.push({ key: `req-${idx}`, label, requestIndex: idx });
   });
-  tabs.push({ key: "alternatives", label: "대안 제안", requestIndex: null });
+  tabs.push({
+    key: "alternatives",
+    label: cbrT(translate, "customer.bid_results.tab.alternatives", "Alternative offers"),
+    requestIndex: null,
+  });
   return tabs;
 }
 
-function requestTabLabel(reqs, idx) {
+function requestTabLabel(reqs, idx, translate = null) {
   const row = reqs.find((r) => optionalInt(r?.request_index) === idx);
   if (row && typeof row === "object") {
     const make = String(row.make || "").trim();
     const model = String(row.model || "").trim();
-    if (make || model) return `요청 ${idx} · ${[make, model].filter(Boolean).join(" ")}`;
+    if (make || model) {
+      return cbrT(
+        translate,
+        "customer.bid_results.tab.request_vehicle",
+        "Request {index} · {vehicle}",
+        { index: idx, vehicle: [make, model].filter(Boolean).join(" ") },
+      );
+    }
   }
-  return `요청 ${idx}`;
+  return cbrT(translate, "customer.bid_results.tab.request_n", "Request {index}", { index: idx });
 }
 
 function optionalInt(v) {
@@ -881,54 +1417,69 @@ export function buildCustomerBidsApiQuery(ui) {
   return q;
 }
 
-/** @param {Record<string, unknown>} offer */
-export function formatOfferVehicleTitle(offer) {
+/** @param {Record<string, unknown>} offer @param {CustomerBidTranslate | null | undefined} [translate] */
+export function formatOfferVehicleTitle(offer, translate = null) {
   const v = offer.vehicle && typeof offer.vehicle === "object" ? offer.vehicle : {};
   const parts = [v.year, v.make, v.model, v.trim]
     .map((x) => (x == null ? "" : String(x).trim()))
     .filter(Boolean);
-  return parts.length ? parts.join(" ") : "제안";
+  return parts.length ? parts.join(" ") : cbrT(translate, "customer.bid_results.offer.default_title", "Offer");
 }
 
-/** @param {Record<string, unknown>} offer */
-export function formatOfferVehicleStatusLine(offer) {
+/** @param {Record<string, unknown>} offer @param {CustomerBidTranslate | null | undefined} [translate] */
+export function formatOfferVehicleStatusLine(offer, translate = null) {
   const v = offer.vehicle && typeof offer.vehicle === "object" ? offer.vehicle : {};
-  const cond = conditionLabelKo(v.condition);
+  const cond = offerDisplayVehicleCondition(offer, translate);
   const mileage = v.mileage != null && v.mileage !== "" ? `${Number(v.mileage).toLocaleString()} mi` : "";
-  const title = titleStatusLabelKo(v.title_status);
-  const accident = accidentLabelKo(v.accident_history);
+  const title = offerDisplayTitleStatus(offer, translate);
+  const accident = offerDisplayAccidentHistory(offer, translate);
   return [cond, mileage, title, accident].filter(Boolean).join(" · ") || "—";
 }
 
-function conditionLabelKo(raw) {
+/** @param {string | null | undefined} raw @param {CustomerBidTranslate | null | undefined} [translate] */
+export function conditionLabel(raw, translate = null) {
   const u = String(raw || "").trim().toUpperCase();
-  if (u === "NEW") return "신차";
-  if (u === "USED") return "중고차";
+  if (u === "NEW") return cbrT(translate, "customer.bid_results.vehicle.condition.new", "New");
+  if (u === "USED") return cbrT(translate, "customer.bid_results.vehicle.condition.used", "Used");
   return String(raw || "").trim() || "";
 }
 
-function titleStatusLabelKo(raw) {
+/** @param {string | null | undefined} raw @param {CustomerBidTranslate | null | undefined} [translate] */
+export function titleStatusLabel(raw, translate = null) {
   const u = String(raw || "").trim().toUpperCase();
-  if (u === "CLEAN") return "Clean title";
-  if (u === "SALVAGE" || u === "REBUILT") return String(raw || "").trim();
+  if (u === "CLEAN") return cbrT(translate, "customer.bid_results.vehicle.title.clean", "Clean title");
   return String(raw || "").trim() || "";
 }
 
-function accidentLabelKo(raw) {
+/** @param {string | null | undefined} raw @param {CustomerBidTranslate | null | undefined} [translate] */
+export function accidentLabel(raw, translate = null) {
   const s = String(raw || "").trim();
   const low = s.toLowerCase();
   const u = s.toUpperCase();
-  if (u === "NONE" || u === "NO" || low === "no accident reported") return "사고 이력 없음";
-  if (low.includes("minor accident")) return "경미한 사고 이력";
-  if (low.includes("major accident")) return "중대 사고 이력";
-  if (u === "YES" || u === "REPORTED" || s === "Accident reported") return "사고 이력 있음";
+  if (u === "NONE" || u === "NO" || low === "no accident reported") {
+    return cbrT(translate, "customer.bid_results.vehicle.accident.none", "No accident history");
+  }
+  if (low.includes("minor accident")) {
+    return cbrT(translate, "customer.bid_results.vehicle.accident.minor", "Minor accident reported");
+  }
+  if (low.includes("major accident")) {
+    return cbrT(translate, "customer.bid_results.vehicle.accident.major", "Major accident reported");
+  }
+  if (u === "YES" || u === "REPORTED" || s === "Accident reported") {
+    return cbrT(translate, "customer.bid_results.vehicle.accident.reported", "Accident reported");
+  }
   return s || "";
 }
 
-export function formatOfferRelationLabel(offer) {
-  if (offer.is_alternative) return "대안 제안";
+/** @param {Record<string, unknown>} offer @param {CustomerBidTranslate | null | undefined} [translate] */
+export function formatOfferRelationLabel(offer, translate = null) {
+  if (offer.is_alternative) {
+    return cbrT(translate, "customer.bid_results.relation.alternative", "Alternative offer");
+  }
   const idx = optionalInt(offer.linked_request_index);
-  if (idx != null) return `요청 ${idx}와 연결`;
+  if (idx != null) {
+    return cbrT(translate, "customer.bid_results.relation.linked", "Linked to request {index}", { index: idx });
+  }
   return "";
 }
 
@@ -944,16 +1495,22 @@ export function formatMoney(amount, currency = "USD") {
   }
 }
 
-export function formatBudgetDelta(delta) {
+export function formatBudgetDelta(delta, translate = null) {
   if (delta == null || delta === "") return "";
   const n = Number(delta);
   if (Number.isNaN(n)) return "";
-  if (n <= 0) return `예산 대비 ${formatMoney(Math.abs(n))} 절약`;
-  return `예산 대비 ${formatMoney(n)} 초과`;
+  if (n <= 0) {
+    return cbrT(translate, "customer.bid_results.budget.under", "{amount} under budget", {
+      amount: formatMoney(Math.abs(n)),
+    });
+  }
+  return cbrT(translate, "customer.bid_results.budget.over", "{amount} over budget", {
+    amount: formatMoney(n),
+  });
 }
 
-export function formatCountdownToExpiry(expiresAtIso, nowMs = Date.now()) {
-  return formatBidDeadlineRemaining(expiresAtIso, nowMs);
+export function formatCountdownToExpiry(expiresAtIso, nowMs = Date.now(), translate = null) {
+  return formatBidDeadlineRemaining(expiresAtIso, nowMs, translate);
 }
 
 export function offerShowsUpdatedBadge(offerUpdatedAt, recentUpdatedAt) {
@@ -963,14 +1520,24 @@ export function offerShowsUpdatedBadge(offerUpdatedAt, recentUpdatedAt) {
   return Math.abs(o - r) < 120_000;
 }
 
-export function formatQuoteRequestUsage(usage) {
+export function formatQuoteRequestUsage(usage, translate = null) {
   if (!usage || typeof usage !== "object") return "—";
   const used = usage.used_quote_requests ?? usage.used_count ?? usage.used ?? usage.count;
   const max = usage.max_quote_requests ?? usage.max_count ?? usage.max ?? usage.limit;
   const remaining = quoteRequestRemaining(usage);
   if (used == null && max == null) return "—";
-  if (remaining != null) return `${used ?? "—"} / ${max ?? "—"}회 (남음 ${remaining})`;
-  return `${used ?? "—"} / ${max ?? "—"}회`;
+  if (remaining != null) {
+    return cbrT(
+      translate,
+      "customer.bid_results.quote.usage",
+      "{used} / {max} (remaining {remaining})",
+      { used: used ?? "—", max: max ?? "—", remaining },
+    );
+  }
+  return cbrT(translate, "customer.bid_results.quote.usage_short", "{used} / {max}", {
+    used: used ?? "—",
+    max: max ?? "—",
+  });
 }
 
 /** @param {Record<string, unknown> | null | undefined} usage */
@@ -1051,10 +1618,10 @@ function escapeHtml(s) {
 }
 
 /**
- * 고객 견적 비교 화면 링크.
- * 1) service_request_id 있으면 service_request_id (+ thread_id 있으면 함께)
- * 2) thread_id만 있으면 thread_id
- * 3) 둘 다 없으면 fallbackHref (기본 messages.html)
+ * Customer bid offer comparison page link.
+ * 1) service_request_id when present (+ thread_id when also present)
+ * 2) thread_id only
+ * 3) fallbackHref when both missing (default messages.html)
  *
  * @param {string} [serviceRequestId]
  * @param {string} [threadId]
@@ -1104,34 +1671,84 @@ export function collectDistinctMakes(vehicleRequests, offers) {
   return [...set].sort((a, b) => a.localeCompare(b, "ko"));
 }
 
-export function offerPricingSummaryLines(offer) {
+export function offerPricingSummaryLines(offer, translate = null) {
   const p = offer.pricing && typeof offer.pricing === "object" ? offer.pricing : {};
   const cur = String(p.currency || offer.currency || "USD");
   const lines = [];
-  if (p.vehicle_price != null) lines.push(`차량 ${formatMoney(p.vehicle_price, cur)}`);
-  if (p.estimated_tax_registration != null) lines.push(`세금·등록 ${formatMoney(p.estimated_tax_registration, cur)}`);
-  if (p.dealer_fee != null) lines.push(`딜러 수수료 ${formatMoney(p.dealer_fee, cur)}`);
-  if (p.partner_service_fee != null) lines.push(`파트너 수수료 ${formatMoney(p.partner_service_fee, cur)}`);
-  if (p.delivery_fee != null) lines.push(`배송 ${formatMoney(p.delivery_fee, cur)}`);
+  if (p.vehicle_price != null) {
+    lines.push(
+      cbrT(translate, "customer.bid_results.price.vehicle", "Vehicle {amount}", {
+        amount: formatMoney(p.vehicle_price, cur),
+      }),
+    );
+  }
+  if (p.estimated_tax_registration != null) {
+    lines.push(
+      cbrT(translate, "customer.bid_results.price.tax_registration", "Tax & registration {amount}", {
+        amount: formatMoney(p.estimated_tax_registration, cur),
+      }),
+    );
+  }
+  if (p.dealer_fee != null) {
+    lines.push(
+      cbrT(translate, "customer.bid_results.price.dealer_fee", "Dealer fee {amount}", {
+        amount: formatMoney(p.dealer_fee, cur),
+      }),
+    );
+  }
+  if (p.partner_service_fee != null) {
+    lines.push(
+      cbrT(translate, "customer.bid_results.price.partner_fee", "Partner fee {amount}", {
+        amount: formatMoney(p.partner_service_fee, cur),
+      }),
+    );
+  }
+  if (p.delivery_fee != null) {
+    lines.push(
+      cbrT(translate, "customer.bid_results.price.delivery", "Delivery {amount}", {
+        amount: formatMoney(p.delivery_fee, cur),
+      }),
+    );
+  }
   return lines;
 }
 
-export function offerMatchScoreLabel(offer) {
+export function offerMatchScoreLabel(offer, translate = null) {
   const m = offer.match && typeof offer.match === "object" ? offer.match : {};
   const score = Number(m.match_score);
-  if (Number.isFinite(score) && score > 0) return `조건 일치도 ${Math.round(score)}%`;
-  const matched = Array.isArray(m.matched_conditions) ? m.matched_conditions : [];
-  if (matched.length) return matched.slice(0, 3).join(" · ");
+  const matchedText = formatMatchCodesList(offer, translate, { useWarnings: false, limit: 3 });
+  if (matchedText.length) return matchedText.join(" · ");
+  if (Number.isFinite(score) && score > 0) {
+    return cbrT(translate, "customer.bid_results.match.score", "Match score {percent}%", {
+      percent: Math.round(score),
+    });
+  }
+  const warningsText = formatMatchCodesList(offer, translate, { useWarnings: true, limit: 2 });
+  if (warningsText.length) return warningsText.join(" · ");
   return "";
 }
 
-/** @param {'OPEN'|'EXPIRED'|'CUSTOMER_SELECTED'} phase @param {number} offerCount */
-export function emptyOffersMessage(phase, offerCount) {
-  if (offerCount > 0) return "조건에 맞는 제안이 없습니다. 필터를 조정해 보세요.";
-  if (phase === "EXPIRED") {
-    return "제출된 제안이 없습니다. 새 비딩 라운드를 요청할 수 있습니다.";
+/** @param {'OPEN'|'EXPIRED'|'CUSTOMER_SELECTED'} phase @param {number} offerCount @param {CustomerBidTranslate | null | undefined} [translate] */
+export function emptyOffersMessage(phase, offerCount, translate = null) {
+  if (offerCount > 0) {
+    return cbrT(
+      translate,
+      "customer.bid_results.empty.no_match",
+      "No offers match your filters. Try adjusting your filters.",
+    );
   }
-  return "파트너가 제안을 준비 중입니다. 잠시 후 다시 확인해 주세요.";
+  if (phase === "EXPIRED") {
+    return cbrT(
+      translate,
+      "customer.bid_results.empty.no_submissions",
+      "No offers were submitted. You can request a new bidding round.",
+    );
+  }
+  return cbrT(
+    translate,
+    "customer.bid_results.empty.waiting",
+    "Partners are preparing offers. Please check back soon.",
+  );
 }
 
 /** @param {Record<string, unknown>} attrs */

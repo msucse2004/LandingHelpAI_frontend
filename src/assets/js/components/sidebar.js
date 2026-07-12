@@ -4,14 +4,14 @@ import {
   detectPartnerPageKey,
   partnerNavActiveHrefBasename,
 } from "../config/partner-nav-config.js";
-import { loadPartnerSidebar } from "../layouts/partner-shell.js";
+import { loadPartnerSidebar, refreshPartnerSidebarI18n } from "../layouts/partner-shell.js";
 import { adminDevApi } from "../core/api.js";
 import { alertI18n, confirmI18n } from "../core/app-dialog.js";
 import { localizedStatus } from "../core/i18n-dynamic.js";
 import { canAccessAdminShell } from "../core/role-tiers.js";
 import { registerI18nDomains, t } from "../core/i18n-client.js";
 import { getEffectiveLanguage } from "../core/preferred-language.js";
-import { reapplyI18nAfterLanguageChange } from "../core/i18n-dom.js";
+import { reapplyI18nAfterLanguageChange, applyI18nToDom } from "../core/i18n-dom.js";
 import {
   applyCustomerQuoteNavFromAggregate,
   bindCustomerQuoteNavRefreshListeners,
@@ -245,14 +245,23 @@ async function mountMessagesSidebar() {
 export { loadSidebar, mountMessagesSidebar };
 
 if (typeof document !== "undefined") {
-  const onSidebarLocaleRefresh = (event) => {
+  const onSidebarLocaleRefresh = async (event) => {
     const lang = event?.detail?.language || getEffectiveLanguage();
+    if (document.querySelector("#sidebar .lhai-partner-nav")) {
+      await refreshPartnerSidebarI18n();
+      return;
+    }
     refreshSidebarI18n(lang);
     void refreshCustomerQuoteNavBadge();
   };
 
   document.addEventListener("lhai:language-changed", onSidebarLocaleRefresh);
   window.addEventListener("lhai:i18n-runtime-resolved", () => {
+    if (document.querySelector("#sidebar .lhai-partner-nav")) {
+      const sidebar = document.querySelector("#sidebar");
+      if (sidebar) applyI18nToDom(sidebar);
+      return;
+    }
     refreshSidebarI18n(getEffectiveLanguage());
     void refreshCustomerQuoteNavBadge();
   });
