@@ -60,11 +60,13 @@ import { t } from "../core/i18n-client.js";
 import { formatLocalizedDataReadout, localizedEnumLabel, localizedStatus } from "../core/i18n-dynamic.js";
 import { applyI18nToDom, wireDynamicPageI18nRefresh } from "../core/i18n-dom.js";
 import { bootAppPageContent } from "../core/app-page-i18n-boot.js";
+import { getEffectiveLanguage } from "../core/preferred-language.js";
 import {
   adminThreadDisplayTitle,
   formPromptDisplayLabel,
   intakeUiPayloadNeedsTranslationPlaceholder,
   intakeUiPayloadSameLocale,
+  overlayCanonicalIntakeValues,
   messageIntakeWidgetType,
   logMessageTranslationFailures,
   messageShouldShowViewOriginalToggle,
@@ -79,7 +81,7 @@ import {
   threadListPreviewBody,
   workflowCardViewerBody,
   workflowCardViewerTitle,
-} from "./messages-display-logic.js?v=20260710g";
+} from "./messages-display-logic.js?v=20260713a";
 import { bindMessageAiFeedback, buildAiFeedbackHtml } from "./message-ai-feedback.js";
 import {
   bindMessageTranslationReport,
@@ -562,6 +564,37 @@ function reconcileThreadHeaderMetaAfterDetailLoad() {
   const merged = effectiveThreadHeaderMeta(currentThreadHeaderMeta);
   currentThreadHeaderMeta = /** @type {Record<string, unknown>} */ ({ ...merged });
   syncChatHeader(currentThreadHeaderMeta);
+  syncCachedThreadRowFromHeaderMeta(currentThreadHeaderMeta);
+}
+
+/** Keep thread list preview/title in sync after detail enrichment updates ``display_*``. */
+function syncCachedThreadRowFromHeaderMeta(meta) {
+  if (!selectedThreadId || !meta || typeof meta !== "object" || !cachedThreadsForUi.length) {
+    return;
+  }
+  const idx = cachedThreadsForUi.findIndex((row) => threadIdEquals(row?.thread_id, selectedThreadId));
+  if (idx < 0) return;
+  const prev = cachedThreadsForUi[idx];
+  const merged = mergeServiceThreadDisplayFields(
+    { ...prev },
+    meta
+  );
+  const last = Array.isArray(currentThreadMessages) ? currentThreadMessages[currentThreadMessages.length - 1] : null;
+  if (last && typeof last === "object") {
+    const displayBody = String(last.display_body ?? "").trim();
+    if (displayBody) {
+      merged.last_message_display_body = displayBody;
+      merged.last_message_display_locale = last.display_locale ?? merged.last_message_display_locale;
+      merged.last_message_source_locale = last.source_locale ?? merged.last_message_source_locale;
+      merged.last_message_translation_status = last.translation_status ?? merged.last_message_translation_status;
+    }
+    const displayTitle = String(last.display_title ?? "").trim();
+    if (displayTitle) {
+      merged.last_message_display_title = displayTitle;
+    }
+  }
+  cachedThreadsForUi[idx] = merged;
+  renderThreadList(cachedThreadsForUi);
 }
 
 /** @param {Record<string, unknown> | null | undefined} row */
@@ -894,80 +927,6 @@ function cloneIntakePayloadJson(value) {
     return JSON.parse(JSON.stringify(value));
   } catch {
     return null;
-  }
-}
-
-/** Scalar keys copied from canonical ``ui_payload`` onto display copy (never labels). */
-const INTAKE_CANONICAL_VALUE_KEYS = [
-  "value",
-  "prefill_value",
-  "prefill_resolved_value",
-  "default_value",
-  "is_prefilled",
-  "prefill_blocked",
-  "prefill_editable",
-  "allow_manual_input",
-  "prompt_submitted",
-];
-
-/**
- * @param {Record<string, unknown>} target
- * @param {Record<string, unknown> | null | undefined} source
- */
-function overlayIntakeCanonicalScalars(target, source) {
-  if (!target || typeof target !== "object" || !source || typeof source !== "object") return;
-  for (const key of INTAKE_CANONICAL_VALUE_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(source, key)) {
-      target[key] = source[key];
-    }
-  }
-}
-
-/**
- * Copy answer/prefill scalars from canonical ``ui_payload`` onto a display clone.
- * Labels stay from ``display_ui_payload``; ids/values stay canonical.
- * @param {Record<string, unknown>} display
- * @param {Record<string, unknown> | null | undefined} canonical
- */
-function overlayCanonicalIntakeValues(display, canonical) {
-  if (!display || typeof display !== "object" || !canonical || typeof canonical !== "object") return;
-  overlayIntakeCanonicalScalars(display, canonical);
-
-  const dChildren = Array.isArray(display.children) ? display.children : [];
-  const cChildren = Array.isArray(canonical.children) ? canonical.children : [];
-  for (let i = 0; i < dChildren.length; i += 1) {
-    const dCh = dChildren[i];
-    const cCh = cChildren[i];
-    if (dCh && typeof dCh === "object" && cCh && typeof cCh === "object") {
-      overlayIntakeCanonicalScalars(
-        /** @type {Record<string, unknown>} */ (dCh),
-        /** @type {Record<string, unknown>} */ (cCh)
-      );
-    }
-  }
-
-  const dSteps = Array.isArray(display.steps) ? display.steps : [];
-  const cSteps = Array.isArray(canonical.steps) ? canonical.steps : [];
-  for (let i = 0; i < dSteps.length; i += 1) {
-    const dSt = dSteps[i];
-    const cSt = cSteps[i];
-    if (!dSt || typeof dSt !== "object" || !cSt || typeof cSt !== "object") continue;
-    overlayIntakeCanonicalScalars(
-      /** @type {Record<string, unknown>} */ (dSt),
-      /** @type {Record<string, unknown>} */ (cSt)
-    );
-    const dSc = Array.isArray(dSt.children) ? dSt.children : [];
-    const cSc = Array.isArray(cSt.children) ? cSt.children : [];
-    for (let j = 0; j < dSc.length; j += 1) {
-      const dCh = dSc[j];
-      const cCh = cSc[j];
-      if (dCh && typeof dCh === "object" && cCh && typeof cCh === "object") {
-        overlayIntakeCanonicalScalars(
-          /** @type {Record<string, unknown>} */ (dCh),
-          /** @type {Record<string, unknown>} */ (cCh)
-        );
-      }
-    }
   }
 }
 
@@ -3314,7 +3273,10 @@ async function loadThreadMessages(options = {}) {
     } else {
       let detailOk = false;
       try {
-        const detail = await messagesApi.threadDetail(selectedThreadId, { customerProfileId: cp });
+        const detail = await messagesApi.threadDetail(selectedThreadId, {
+          customerProfileId: cp,
+          acceptLanguage: getEffectiveLanguage(),
+        });
         if (detail && typeof detail === "object" && Array.isArray(detail.messages)) {
           currentThreadMessages = detail.messages;
           const wf = detail.workflow;
@@ -3344,6 +3306,7 @@ async function loadThreadMessages(options = {}) {
         currentThreadDetailThread = null;
         currentThreadMessages = await messagesApi.threadMessages(selectedThreadId, {
           customerProfileId: cp,
+          acceptLanguage: getEffectiveLanguage(),
         });
       }
     }
@@ -3480,6 +3443,7 @@ async function fetchThreadsListForMessagesPage() {
             customerProfileId,
             category,
             unreadOnly,
+            acceptLanguage: getEffectiveLanguage(),
           });
   } catch (err) {
     const msg = err && typeof err.message === "string" ? err.message : "";

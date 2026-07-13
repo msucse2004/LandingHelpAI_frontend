@@ -45,6 +45,21 @@ test("serviceThreadDisplayName prefers display_header_title", () => {
   );
 });
 
+test("serviceThreadDisplayName never shows header_title when viewer locale differs", () => {
+  const tr = (key, fallback) => `${key}:${fallback}`;
+  const title = serviceThreadDisplayName(
+    {
+      header_title: "자동차 조사/구입",
+      service_title_source_locale: "ko",
+      service_title_display_locale: "en",
+    },
+    "",
+    tr
+  );
+  assert.match(title, /messages\.translation\.preparing_title/);
+  assert.doesNotMatch(title, /자동차/);
+});
+
 test("serviceThreadDisplayName falls back to header_title when display_* absent and no translate", () => {
   assert.equal(
     serviceThreadDisplayName({

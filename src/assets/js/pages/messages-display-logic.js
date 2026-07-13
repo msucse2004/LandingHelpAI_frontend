@@ -221,7 +221,17 @@ export function serviceThreadDisplayName(row, fallbackWhenEmpty = "", translate 
   if (status === "translation_required_failed" || messageTranslationStatusUnavailable(status)) {
     return tr ? messageTranslationPreparingTitleLabel(tr) : "";
   }
-  if (original && (sameLocale || status === "not_required" || (!src && !disp))) {
+  // API marked a viewer locale but omitted display_* (stale list row / omitted nulls).
+  if (tr && disp && original && !sameLocale) {
+    return messageTranslationPreparingTitleLabel(tr);
+  }
+  if (original && sameLocale) {
+    return original;
+  }
+  if (original && status === "not_required" && (!src || !disp || sameLocale)) {
+    return original;
+  }
+  if (original && !src && !disp && !status && !tr) {
     return original;
   }
   return String(fallbackWhenEmpty || "");
@@ -773,4 +783,97 @@ export function formPromptDisplayLabel(up, translate) {
     return messageTranslationPreparingFormLabel(translate);
   }
   return display;
+}
+
+/** Scalar keys copied from canonical ``ui_payload`` onto display copy (never labels). */
+const INTAKE_CANONICAL_VALUE_KEYS = [
+  "value",
+  "prefill_value",
+  "prefill_resolved_value",
+  "default_value",
+  "is_prefilled",
+  "prefill_blocked",
+  "prefill_editable",
+  "allow_manual_input",
+  "prompt_submitted",
+];
+
+const INTAKE_OVERLAY_ANSWER_SCALAR_KEYS = new Set([
+  "value",
+  "prefill_value",
+  "prefill_resolved_value",
+  "default_value",
+]);
+
+/** @param {unknown} val */
+function intakeOverlayScalarHasContent(val) {
+  return val != null && String(val).trim() !== "";
+}
+
+/**
+ * @param {Record<string, unknown>} target
+ * @param {Record<string, unknown> | null | undefined} source
+ */
+export function overlayIntakeCanonicalScalars(target, source) {
+  if (!target || typeof target !== "object" || !source || typeof source !== "object") return;
+  for (const key of INTAKE_CANONICAL_VALUE_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
+    const sourceVal = source[key];
+    if (INTAKE_OVERLAY_ANSWER_SCALAR_KEYS.has(key)) {
+      const targetHas = intakeOverlayScalarHasContent(target[key]);
+      const sourceHas = intakeOverlayScalarHasContent(sourceVal);
+      if (!sourceHas && targetHas) {
+        continue;
+      }
+    }
+    target[key] = sourceVal;
+  }
+}
+
+/**
+ * Copy answer/prefill scalars from canonical ``ui_payload`` onto a display clone.
+ * Labels stay from ``display_ui_payload``; ids/values stay canonical when present.
+ * @param {Record<string, unknown>} display
+ * @param {Record<string, unknown> | null | undefined} canonical
+ */
+export function overlayCanonicalIntakeValues(display, canonical) {
+  if (!display || typeof display !== "object" || !canonical || typeof canonical !== "object") return;
+  overlayIntakeCanonicalScalars(display, canonical);
+
+  const dChildren = Array.isArray(display.children) ? display.children : [];
+  const cChildren = Array.isArray(canonical.children) ? canonical.children : [];
+  for (let i = 0; i < dChildren.length; i += 1) {
+    const dCh = dChildren[i];
+    const cCh = cChildren[i];
+    if (dCh && typeof dCh === "object" && cCh && typeof cCh === "object") {
+      overlayIntakeCanonicalScalars(
+        /** @type {Record<string, unknown>} */ (dCh),
+        /** @type {Record<string, unknown>} */ (cCh)
+      );
+    }
+  }
+
+  const dSteps = Array.isArray(display.steps) ? display.steps : [];
+  const cSteps = Array.isArray(canonical.steps) ? canonical.steps : [];
+  for (let i = 0; i < dSteps.length; i += 1) {
+    const dSt = dSteps[i];
+    const cSt = cSteps[i];
+    if (!dSt || typeof dSt !== "object" || !cSt || typeof cSt !== "object") continue;
+    overlayIntakeCanonicalScalars(
+      /** @type {Record<string, unknown>} */ (dSt),
+      /** @type {Record<string, unknown>} */ (cSt)
+    );
+    const dSc = Array.isArray(dSt.children) ? dSt.children : [];
+    const cSc = Array.isArray(cSt.children) ? cSt.children : [];
+    for (let j = 0; j < dSc.length; j += 1) {
+      const dCh = dSc[j];
+      const cCh = cSc[j];
+      if (dCh && typeof dCh === "object" && cCh && typeof cCh === "object") {
+        overlayIntakeCanonicalScalars(
+          /** @type {Record<string, unknown>} */ (dCh),
+          /** @type {Record<string, unknown>} */ (cCh)
+        );
+      }
+    }
+  }
 }

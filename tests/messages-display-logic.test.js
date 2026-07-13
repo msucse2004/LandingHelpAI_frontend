@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   intakeUiPayloadNeedsTranslationPlaceholder,
   intakeUiPayloadSameLocale,
+  overlayCanonicalIntakeValues,
   isSystemTemplateMessage,
   logMessageTranslationFailures,
   messageHasLocalizedDisplay,
@@ -482,4 +483,40 @@ test("logMessageTranslationFailures logs only unavailable rows", () => {
   assert.equal(failures.length, 1);
   assert.equal(failures[0].message_id, "b");
   assert.equal(calls.length, 1);
+});
+
+test("overlayCanonicalIntakeValues keeps display answers when canonical value is null", () => {
+  const display = {
+    widget_type: "form_prompt",
+    input_type: "intake_multi",
+    steps: [
+      {
+        field_id: "g1",
+        input_type: "question_group",
+        children: [
+          { id: "f-budget", label: "Budget", value: "30000" },
+          { id: "f-brand", label: "Brand", value: "GMC" },
+        ],
+      },
+    ],
+    prompt_submitted: true,
+  };
+  const canonical = {
+    widget_type: "form_prompt",
+    input_type: "intake_multi",
+    steps: [
+      {
+        field_id: "g1",
+        input_type: "question_group",
+        children: [
+          { id: "f-budget", label: "예산", value: null },
+          { id: "f-brand", label: "브랜드", value: null },
+        ],
+      },
+    ],
+  };
+  overlayCanonicalIntakeValues(display, canonical);
+  assert.equal(display.steps[0].children[0].value, "30000");
+  assert.equal(display.steps[0].children[1].value, "GMC");
+  assert.equal(display.prompt_submitted, true);
 });
